@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Bases de dados{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<div class="head">
+  <p class="muted">Bases de dados Oracle onde o portal pode trabalhar.</p>
+  <a class="btn primary" href="{{ url_for('portal.cfg_db_form') }}">+ Nova base de dados</a>
+</div>
+{% if not dbs %}
+  <p class="muted">Ainda não há bases de dados configuradas.</p>
+{% else %}
+<table>
+  <thead><tr>
+    <th>Nome</th><th>Host</th><th class="num">Porta</th><th>SID / Service Name</th><th>PDB</th>
+    <th>Utilizador</th><th>Ligação</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for d in dbs %}
+    <tr id="db{{ d.id }}">
+      <td><strong>{{ d.name }}</strong></td>
+      <td>{{ d.host }}</td>
+      <td class="num">{{ d.port }}</td>
+      <td>{% if d.service_name %}<span class="tag">SERVICE</span> {{ d.service_name }}{% else %}<span class="tag">SID</span> {{ d.sid }}{% endif %}</td>
+      <td>{{ d.pdb or '—' }}</td>
+      <td>{{ d.username }}</td>
+      <td>{% if d.role == 'SYSDBA' %}<span class="tag warn">SYSDBA</span>{% else %}<span class="tag">Normal</span>{% endif %}</td>
+      <td class="actions">
+        <form method="post" action="{{ url_for('portal.cfg_db_test', db_id=d.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}"><button>Testar</button>
+        </form>
+        <a class="btn" href="{{ url_for('portal.cfg_db_form', db_id=d.id) }}">Editar</a>
+        <form method="post" action="{{ url_for('portal.cfg_db_delete', db_id=d.id) }}"
+              onsubmit="return confirm('Remover a base de dados {{ d.name }}?')">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="danger">Remover</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+<p class="muted small">As passwords ficam guardadas cifradas (Fernet / AES) e nunca são mostradas.</p>
+{% endblock %}

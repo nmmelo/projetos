@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Shrink{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Shrink de tablespaces</h1>
+  {% if not dbs %}
+    <p class="muted">Não tem bases de dados atribuídas ao seu perfil.</p>
+  {% else %}
+  <form method="post" class="grid" id="shrinkForm">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+
+    <label class="full">Base de dados
+      <select name="db_id" id="db" required>
+        <option value="">— escolher —</option>
+        {% for d in dbs %}
+        <option value="{{ d.id }}" {{ 'selected' if sel_db == d.id }}>{{ d.name }} — {{ d.host }}{{ ' / ' ~ d.pdb if d.pdb }} ({{ d.role }})</option>
+        {% endfor %}
+      </select></label>
+
+    <label class="full">Tablespace
+      <select name="tablespace" id="ts" disabled data-pre="{{ request.args.get('ts', '') }}">
+        <option value="TODOS">TODOS (exceto SYSTEM, SYSAUX, UNDO e TEMP)</option>
+      </select>
+      <span class="hint" id="tsStatus">Escolha a base de dados para carregar a lista.</span></label>
+
+    <fieldset class="full">
+      <legend>Modo</legend>
+      <label class="inline"><input type="radio" name="modo" value="ANALISE" {{ 'checked' if can_analise else 'disabled' }}>
+        <span>ANÁLISE — só mostra os comandos</span></label>
+      <label class="inline"><input type="radio" name="modo" value="EXECUTAR" {{ 'disabled' if not can_exec }} {{ 'checked' if can_exec and not can_analise }}>
+        <span>EXECUTAR — faz o shrink{% if not can_exec %} <em class="muted">(sem permissão)</em>{% endif %}</span></label>
+    </fieldset>
+
+    <label>Ganho mínimo (MB)
+      <input name="min_ganho" type="number" min="0" value="100">
+      <span class="hint">Com TODOS, tablespaces com menos espaço livre são ignorados.</span></label>
+    <label>Margem livre por datafile (%)
+      <input name="margem" type="number" min="0" max="100" value="10"></label>
+
+    <label class="inline"><input type="checkbox" name="online" value="S" checked> <span>Operações ONLINE (requer Enterprise Edition)</span></label>
+    <label class="inline"><input type="checkbox" name="purge" value="S"> <span>PURGE da recyclebin do tablespace</span></label>
+
+    <div class="full confirm" id="confirmBox" hidden>
+      <label class="inline"><input type="checkbox" name="confirm" id="confirm">
+        <span>Confirmo que quero <strong>executar</strong> as alterações (MOVE/REBUILD/RESIZE) nesta base de dados.</span></label>
+    </div>
+
+    <div class="full buttons"><button class="primary" id="go">Iniciar</button></div>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+const API_TS = "{{ url_for('portal.api_tablespaces', db_id=0) }}";
+const db = document.getElementById('db'), ts = document.getElementById('ts'), st = document.getElementById('tsStatus');
+const box = document.getElementById('confirmBox'), go = document.getElementById('go');
+
+async function loadTs() {
+  if (!ts) return;
+  ts.length = 1; ts.disabled = true;
+  if (!db.value) { st.textContent = 'Escolha a base de dados para carregar a lista.'; return; }
+  st.textContent = 'A ligar à base de dados…';
+  try {
+    const r = await fetch(API_TS.replace('/0/', `/${db.value}/`));
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error);
+    for (const t of j.tablespaces) {
+      const o = new Option(t.name + (t.status !== 'ONLINE' ? ` (${t.status})` : ''), t.name);
+      o.disabled = t.status !== 'ONLINE';
+      ts.add(o);
+    }
+    ts.disabled = false;
+    if (ts.dataset.pre) { ts.value = ts.dataset.pre; ts.dataset.pre = ''; }
+    st.textContent = `${j.tablespaces.length} tablespace(s) elegível(eis).`;
+  } catch (e) { st.textContent = 'Erro: ' + e.message; }
+}
+db?.addEventListener('change', loadTs);
+if (db?.value) loadTs();
+
+function modo() { return document.querySelector('input[name=modo]:checked')?.value; }
+function syncModo() {
+  const ex = modo() === 'EXECUTAR';
+  if (box) { box.hidden = !ex; go.textContent = ex ? 'Executar shrink' : 'Iniciar'; go.classList.toggle('danger', ex); }
+}
+document.querySelectorAll('input[name=modo]').forEach(r => r.addEventListener('change', syncModo));
+syncModo();
+document.getElementById('shrinkForm')?.addEventListener('submit', e => {
+  if (modo() === 'EXECUTAR' && !document.getElementById('confirm').checked) { e.preventDefault(); alert('Confirme a execução.'); }
+});
+</script>
+{% endblock %}

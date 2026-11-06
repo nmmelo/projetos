@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Backups{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<div class="split">
+  <section class="card">
+    <h2>Fazer backup</h2>
+    <p class="hint">Guarda definições, bases de dados Oracle (passwords cifradas), perfis e utilizadores em
+      <code>data/backups/</code>. Não inclui o histórico de execuções nem o administrador local.</p>
+    <form method="post" action="{{ url_for('portal.cfg_backup_create') }}" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <label>Nota (opcional) <input name="note" maxlength="255" placeholder="ex.: antes de mudar perfis"></label>
+      <div class="buttons"><button class="primary">Fazer backup agora</button></div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Importar de ficheiro</h2>
+    <form method="post" action="{{ url_for('portal.cfg_backup_upload') }}" enctype="multipart/form-data" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <label>Ficheiro de backup (.json) <input type="file" name="file" accept=".json,application/json" required></label>
+      <label class="inline"><input type="checkbox" name="now" id="now"> <span>Importar já</span></label>
+      <label class="mode-now">Modo
+        <select name="mode">
+          <option value="juntar">Juntar — cria/atualiza pelo nome, mantém o resto</option>
+          <option value="substituir">Substituir — apaga BDs, perfis e utilizadores atuais</option>
+        </select></label>
+      <div class="buttons"><button class="primary">Carregar</button></div>
+      <p class="hint">O ficheiro fica registado na lista. Antes de qualquer importação é feito um backup automático.</p>
+    </form>
+  </section>
+</div>
+
+<h2>Registo de backups</h2>
+{% if not backups %}
+  <p class="muted">Ainda não há backups.</p>
+{% else %}
+<table>
+  <thead><tr><th class="num">#</th><th>Data</th><th>Ficheiro</th><th>Origem</th><th>Por</th><th class="num">Tamanho</th><th>Nota</th><th></th></tr></thead>
+  <tbody>
+  {% for b in backups %}
+    <tr>
+      <td class="num">{{ b.id }}</td>
+      <td class="nowrap">{{ b.created_at }}</td>
+      <td class="small"><code>{{ b.filename }}</code>{% if not b.exists %} <span class="status s-ERRO">ficheiro em falta</span>{% endif %}</td>
+      <td><span class="tag {{ 'warn' if b.origin in ('importado', 'pre-import') }}">{{ b.origin }}</span></td>
+      <td>{{ b.created_by or '' }}</td>
+      <td class="num">{{ ((b.size_bytes or 0) / 1024)|round(1) }} KB</td>
+      <td class="small">{{ b.note or '' }}</td>
+      <td class="actions">
+        {% if b.exists %}
+        <a class="btn small" href="{{ url_for('portal.cfg_backup_download', bid=b.id) }}">Descarregar</a>
+        <form method="post" action="{{ url_for('portal.cfg_backup_import', bid=b.id) }}" class="inline-form"
+              onsubmit="return confirm('Importar o backup #{{ b.id }} em modo ' + this.mode.value + '?')">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <select name="mode" class="small"><option value="juntar">juntar</option><option value="substituir">substituir</option></select>
+          <button class="small">Importar</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{{ url_for('portal.cfg_backup_delete', bid=b.id) }}"
+              onsubmit="return confirm('Remover o backup #{{ b.id }} (ficheiro e registo)?')">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="danger small">Remover</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+const now = document.getElementById('now');
+function sync() { document.querySelectorAll('.mode-now').forEach(e => e.hidden = !now.checked); }
+now.addEventListener('change', sync); sync();
+</script>
+{% endblock %}

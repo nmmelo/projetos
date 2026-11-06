@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Configuração · {{ 'Editar' if editing else 'Novo' }} perfil{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<section class="card wide">
+  <h2>{{ 'Editar' if editing else 'Novo' }} perfil</h2>
+  <form method="post" class="grid">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label>Nome <input name="name" value="{{ p.name or '' }}" required maxlength="100" placeholder="ex.: DBA Produção"></label>
+    <label>Descrição <input name="description" value="{{ p.description or '' }}" maxlength="255"></label>
+
+    <fieldset class="full column">
+      <legend>O que pode fazer</legend>
+      {% set ns = namespace(grp='') %}
+      {% for code, info in ACTIONS.items() %}
+        {% if info[0] != ns.grp %}<div class="grp">{{ info[0] }}</div>{% set ns.grp = info[0] %}{% endif %}
+        <label class="inline"><input type="checkbox" name="permissions" value="{{ code }}" {{ 'checked' if code in p.permissions }}>
+          <span>{{ info[1] }} <code class="small">{{ code }}</code></span></label>
+      {% endfor %}
+    </fieldset>
+
+    <fieldset class="full column">
+      <legend>Que bases de dados pode ver</legend>
+      <label class="inline"><input type="checkbox" name="all_dbs" id="all" {{ 'checked' if p.all_dbs }}>
+        <span><strong>Todas</strong> (incluindo as que forem adicionadas no futuro)</span></label>
+      <div id="dblist" class="checks">
+        {% for d in dbs %}
+        <label class="inline"><input type="checkbox" name="db_ids" value="{{ d.id }}" {{ 'checked' if d.id in p.db_ids }}>
+          <span>{{ d.name }} <span class="muted small">{{ d.host }}{{ ' / ' ~ d.pdb if d.pdb }}</span></span></label>
+        {% else %}<span class="muted">Ainda não há bases de dados configuradas.</span>{% endfor %}
+      </div>
+    </fieldset>
+
+    <div class="full buttons">
+      <button class="primary">Guardar</button>
+      <a class="btn" href="{{ url_for('portal.cfg_profiles') }}">Cancelar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+const all = document.getElementById('all'), list = document.getElementById('dblist');
+function sync() { list.classList.toggle('disabled', all.checked);
+  list.querySelectorAll('input').forEach(i => i.disabled = all.checked); }
+all.addEventListener('change', sync); sync();
+</script>
+{% endblock %}

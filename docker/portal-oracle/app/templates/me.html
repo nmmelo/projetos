@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Minha área{% endblock %}
+{% block content %}
+<h1>Minha área</h1>
+<div class="split">
+  <section class="card">
+    <h2>Os meus dados</h2>
+    <table class="kv">
+      <tr><th>Utilizador</th><td><strong>{{ user.username }}</strong>{% if user.is_admin %} <span class="tag warn">admin local</span>{% endif %}</td></tr>
+      <tr><th>Perfil</th><td>{{ user.profile_name }}</td></tr>
+      {% if user.last_login %}<tr><th>Último login</th><td>{{ user.last_login }}</td></tr>{% endif %}
+      <tr><th>Permissões</th><td>
+        {% for code, info in ACTIONS.items() if user.can(code) %}<div>✓ {{ info[1] }}</div>{% else %}<span class="muted">nenhuma</span>{% endfor %}
+      </td></tr>
+      <tr><th>Bases de dados</th><td>
+        {% if user.is_admin or user.all_dbs %}Todas ({{ dbs|length }}){% else %}
+          {% for d in dbs %}<span class="tag">{{ d.name }}</span> {% else %}<span class="muted">nenhuma</span>{% endfor %}
+        {% endif %}
+      </td></tr>
+    </table>
+
+    <form method="post" class="stack" style="margin-top:18px">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="action" value="dados">
+      <label>Nome <input name="name" value="{{ user.name }}" maxlength="150"></label>
+      <label>Email <input name="email" type="email" value="{{ user.email }}" maxlength="255"></label>
+      <div class="buttons"><button class="primary">Guardar dados</button></div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Alterar password</h2>
+    <form method="post" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="action" value="password">
+      <label>Password atual <input name="current" type="password" autocomplete="current-password" required></label>
+      <label>Nova password <input name="new" type="password" autocomplete="new-password" minlength="8" required></label>
+      <label>Confirmar nova password <input name="repeat" type="password" autocomplete="new-password" minlength="8" required></label>
+      <p class="hint">Mínimo de 8 caracteres.{% if user.is_admin %} A password do administrador fica no ficheiro local <code>data/admin.json</code>.{% endif %}</p>
+      <div class="buttons"><button class="primary">Alterar password</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}

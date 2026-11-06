@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<h1>Olá, {{ user.name or user.username }}</h1>
+
+<div class="cards">
+  <a class="stat" href="{{ url_for('portal.cfg_dbs') if user.can('config.bds') else '#dbs' }}">
+    <span class="label">Bases de dados</span><span class="value">{{ stats.dbs }}</span>
+    <span class="sub">{{ 'todas' if user.is_admin or user.all_dbs else 'visíveis no seu perfil' }}</span>
+  </a>
+  <a class="stat" href="{{ url_for('portal.jobs_list') }}">
+    <span class="label">Execuções em curso</span><span class="value {{ 'accent' if stats.running }}">{{ stats.running }}</span>
+    <span class="sub">agora</span>
+  </a>
+  <a class="stat" href="{{ url_for('portal.jobs_list') }}">
+    <span class="label">Execuções (24 h)</span><span class="value">{{ stats.last24 }}</span>
+    <span class="sub">{% if stats.errors24 %}<span class="bad">{{ stats.errors24 }} com erro</span>{% else %}sem erros{% endif %}</span>
+  </a>
+  {% if user.can('config.portal') %}
+  <a class="stat" href="{{ url_for('portal.cfg_backups') }}">
+    <span class="label">Último backup</span>
+    <span class="value small">{{ last_backup.created_at[:16] if last_backup else '—' }}</span>
+    <span class="sub">{{ last_backup.origin if last_backup else 'nenhum backup' }}</span>
+  </a>
+  {% endif %}
+</div>
+
+<div class="split">
+  <section id="dbs">
+    <h2>Bases de dados</h2>
+    {% if dbs %}
+    <table>
+      <thead><tr><th>Nome</th><th>Host</th><th>PDB</th><th></th></tr></thead>
+      <tbody>
+      {% for d in dbs %}
+        <tr>
+          <td><strong>{{ d.name }}</strong></td>
+          <td>{{ d.host }}</td>
+          <td>{{ d.pdb or '—' }}</td>
+          <td class="actions">
+            {% if user.can('tablespaces.ver') %}<a class="btn small" href="{{ url_for('portal.report', db=d.id) }}">Tablespaces</a>{% endif %}
+            {% if user.can('shrink.analise') or user.can('shrink.executar') %}<a class="btn small" href="{{ url_for('portal.shrink', db=d.id) }}">Shrink</a>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p class="muted">Não tem bases de dados atribuídas{% if user.can('config.bds') %} — <a href="{{ url_for('portal.cfg_db_form') }}">adicionar</a>{% endif %}.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Últimas execuções</h2>
+    {% if recent %}
+    <table>
+      <thead><tr><th class="num">#</th><th>BD</th><th>Tablespace</th><th>Estado</th></tr></thead>
+      <tbody>
+      {% for j in recent %}
+        <tr>
+          <td class="num"><a href="{{ url_for('portal.job_detail', job_id=j.id) }}">{{ j.id }}</a></td>
+          <td>{{ j.db_name }}</td>
+          <td>{{ j.params.ts }} <span class="tag {{ 'warn' if j.params.modo == 'EXECUTAR' }}">{{ j.params.modo }}</span></td>
+          <td><span class="status s-{{ j.status|replace(' ', '-') }}">{{ j.status }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="muted">Ainda não há execuções.</p>{% endif %}
+  </section>
+</div>
+{% endblock %}

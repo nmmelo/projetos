@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Armazenamento{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<section class="card">
+  <h2>Armazenamento dos dados do portal</h2>
+  <p class="muted">Em uso: <strong>{{ active }}</strong></p>
+  <p class="hint">Bases de dados Oracle, utilizadores, perfis, execuções e registo de backups ficam nesta base de dados.
+    O administrador (<code>admin.json</code>), a chave de cifra e esta configuração (<code>portal.json</code>)
+    ficam sempre em ficheiros locais.</p>
+
+  <form method="post" class="grid" id="stForm">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <fieldset class="full">
+      <legend>Tipo</legend>
+      {% for k, label in types.items() %}
+      <label class="inline"><input type="radio" name="type" value="{{ k }}" {{ 'checked' if cfg.type == k }}> <span>{{ label }}</span></label>
+      {% endfor %}
+    </fieldset>
+
+    <label class="full only-sqlite"><span>Ficheiro SQLite (relativo a <code>data/</code>)</span>
+      <input name="path" value="{{ cfg.path or 'portal.sqlite3' }}"></label>
+
+    <label class="only-remote">Host <input name="host" value="{{ cfg.host or '' }}" placeholder="localhost ou servidor remoto"></label>
+    <label class="only-remote">Porta <input name="port" value="{{ cfg.port or '' }}" inputmode="numeric" id="port"></label>
+    <label class="only-remote">Base de dados <input name="database" value="{{ cfg.database or '' }}" placeholder="portal"></label>
+    <label class="only-remote">Utilizador <input name="user" value="{{ cfg.user or '' }}" autocomplete="off"></label>
+    <label class="only-remote full">Password
+      <input name="password" type="password" autocomplete="new-password"
+             placeholder="{{ 'deixe vazio para manter a atual' if cfg.password_enc else '' }}">
+      <span class="hint">Guardada cifrada em <code>portal.json</code>.</span></label>
+
+    <label class="inline full"><input type="checkbox" name="copy" checked>
+      <span>Copiar os dados atuais para a nova base de dados (<strong>substitui</strong> o que lá existir)</span></label>
+
+    <div class="full buttons">
+      <button name="action" value="test">Testar ligação</button>
+      <button name="action" value="save" class="primary"
+              onclick="return confirm('Mudar o armazenamento do portal?')">Guardar e mudar</button>
+    </div>
+  </form>
+</section>
+
+<section class="card" style="margin-top:16px">
+  <h2>Preparar a base de dados remota</h2>
+  <div class="split">
+    <div><h3>MariaDB / MySQL</h3>
+<pre>CREATE DATABASE portal CHARACTER SET utf8mb4;
+CREATE USER 'portal'@'%' IDENTIFIED BY '...';
+GRANT ALL ON portal.* TO 'portal'@'%';</pre></div>
+    <div><h3>PostgreSQL</h3>
+<pre>CREATE USER portal PASSWORD '...';
+CREATE DATABASE portal OWNER portal;</pre></div>
+  </div>
+  <p class="hint">As tabelas são criadas automaticamente pelo portal.</p>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+const ports = {{ ports|tojson }};
+function sync() {
+  const t = document.querySelector('input[name=type]:checked').value;
+  document.querySelectorAll('.only-sqlite').forEach(e => e.hidden = t !== 'sqlite');
+  document.querySelectorAll('.only-remote').forEach(e => e.hidden = t === 'sqlite');
+  const p = document.getElementById('port');
+  if (t !== 'sqlite' && (!p.value || Object.values(ports).includes(+p.value))) p.value = ports[t];
+}
+document.querySelectorAll('input[name=type]').forEach(r => r.addEventListener('change', sync));
+sync();
+</script>
+{% endblock %}

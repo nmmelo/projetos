@@ -1,0 +1,4 @@
+# O build so precisa do requirements.txt; o resto vem do mount.
+# Excluir data/ evita enviar chaves, passwords e backups para o build.
+*
+!requirements.txt

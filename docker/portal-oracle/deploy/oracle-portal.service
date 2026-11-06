@@ -1,0 +1,24 @@
+# /etc/systemd/system/oracle-portal.service
+# Portal Oracle (Gunicorn) - instalacao sem Docker.
+[Unit]
+Description=Portal Oracle (Gunicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=portal
+Group=portal
+WorkingDirectory=/opt/oracle-portal
+EnvironmentFile=-/opt/oracle-portal/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/oracle-portal/.venv/bin/gunicorn -c /opt/oracle-portal/gunicorn.conf.py wsgi:app
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+UMask=0027
+# As execucoes de shrink correm em threads: dar tempo para terminarem ao parar
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
