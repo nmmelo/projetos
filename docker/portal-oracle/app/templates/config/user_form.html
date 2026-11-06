@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Configuração · {{ 'Editar' if editing else 'Novo' }} utilizador{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<section class="card">
+  <h2>{{ 'Editar' if editing else 'Novo' }} utilizador</h2>
+  <form method="post" class="grid">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label>Utilizador
+      <input name="username" value="{{ u.username or '' }}" required maxlength="64" autocomplete="off"
+             pattern="[a-z0-9][a-z0-9._\-]{2,63}" title="minúsculas, números, '.', '_' ou '-'">
+      <span class="hint">3 a 64 caracteres: minúsculas, números, ".", "_" ou "-".</span></label>
+    <label>Perfil
+      <select name="profile_id">
+        <option value="">— sem perfil (sem acessos) —</option>
+        {% for p in profiles %}<option value="{{ p.id }}" {{ 'selected' if u.profile_id|string == p.id|string }}>{{ p.name }}</option>{% endfor %}
+      </select>
+      {% if not profiles %}<span class="hint">Crie primeiro um perfil em <a href="{{ url_for('portal.cfg_profile_form') }}">Perfis</a>.</span>{% endif %}</label>
+    <label>Nome <input name="name" value="{{ u.name or '' }}" maxlength="150"></label>
+    <label>Email <input name="email" type="email" value="{{ u.email or '' }}" maxlength="255"></label>
+    <label>Password
+      <input name="password" type="password" autocomplete="new-password" {{ '' if editing else 'required' }} minlength="8"
+             placeholder="{{ 'deixe vazio para manter a atual' if editing else 'mínimo 8 caracteres' }}"></label>
+    <label>Confirmar password
+      <input name="repeat" type="password" autocomplete="new-password" {{ '' if editing else 'required' }} minlength="8"></label>
+    <label class="inline full"><input type="checkbox" name="active" {{ 'checked' if u.active }}> <span>Utilizador ativo</span></label>
+    <div class="full buttons">
+      <button class="primary">Guardar</button>
+      <a class="btn" href="{{ url_for('portal.cfg_users') }}">Cancelar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

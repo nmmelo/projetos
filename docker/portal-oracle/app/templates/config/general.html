@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Portal{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<section class="card">
+  <h2>Geral</h2>
+  <form method="post" class="grid">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label class="full">Nome do portal
+      <input name="portal_name" value="{{ s.portal_name }}" maxlength="80"></label>
+    <label>Duração da sessão (minutos)
+      <input name="session_minutes" type="number" min="5" max="10080" value="{{ s.session_minutes }}">
+      <span class="hint">Sem atividade durante este tempo, o utilizador tem de voltar a entrar.</span></label>
+    <label>Backups automáticos a manter
+      <input name="backup_keep" type="number" min="1" max="1000" value="{{ s.backup_keep }}">
+      <span class="hint">Usado por <code>manage.py backup --prune</code> (cron). Não afeta os backups manuais.</span></label>
+    <div class="full buttons"><button class="primary">Guardar</button></div>
+  </form>
+</section>
+
+<section class="card" style="margin-top:16px">
+  <h2>Informação</h2>
+  <table class="kv">
+    <tr><th>Dados do portal</th><td>{{ storage }}
+      {% if user.is_admin %} — <a href="{{ url_for('portal.cfg_storage') }}">alterar</a>{% endif %}</td></tr>
+    <tr><th>Administrador</th><td>utilizador local em <code>data/admin.json</code> (não fica na base de dados)</td></tr>
+  </table>
+</section>
+{% endblock %}

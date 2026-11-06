@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Configuração · {{ 'Editar' if editing else 'Nova' }} base de dados{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<section class="card">
+  <h2>{{ 'Editar' if editing else 'Nova' }} base de dados</h2>
+  <form method="post" class="grid">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+
+    <label class="full">Nome (identificação no portal)
+      <input name="name" value="{{ db.name or '' }}" required maxlength="100" placeholder="ex.: PROD-FAPOSSYS"></label>
+
+    <label>Host <input name="host" value="{{ db.host or '' }}" required placeholder="oradb01.dominio.pt"></label>
+    <label>Porta <input name="port" value="{{ db.port or 1521 }}" inputmode="numeric" required></label>
+
+    <label>SID <input name="sid" value="{{ db.sid or '' }}" placeholder="ORCL"></label>
+    <label>Service Name <input name="service_name" value="{{ db.service_name or '' }}" placeholder="orcl.dominio.pt"></label>
+    <p class="hint full">Preencha <strong>um</strong> dos dois. Se ambos estiverem preenchidos, é usado o Service Name.</p>
+
+    <label class="full">PDB (opcional)
+      <input name="pdb" value="{{ db.pdb or '' }}" placeholder="QLADB">
+      <span class="hint">Se preenchido, o portal faz <code>ALTER SESSION SET CONTAINER</code> depois de ligar.
+      Deixe vazio se o Service Name já for o da PDB ou se a BD não for multitenant.</span></label>
+
+    <label>Utilizador <input name="username" value="{{ db.username or '' }}" required autocomplete="off"></label>
+    <label>Password
+      <input name="password" type="password" autocomplete="new-password" {{ '' if editing else 'required' }}
+             placeholder="{{ 'deixe vazio para manter a atual' if editing else '' }}"></label>
+
+    <fieldset class="full">
+      <legend>Tipo de ligação</legend>
+      <label class="inline"><input type="radio" name="role" value="NORMAL" {{ 'checked' if db.role != 'SYSDBA' }}> <span>Utilizador normal</span></label>
+      <label class="inline"><input type="radio" name="role" value="SYSDBA" {{ 'checked' if db.role == 'SYSDBA' }}> <span>SYSDBA</span></label>
+      <span class="hint">Com SYSDBA o shrink usa <code>X$KTFBUE</code> (cálculo do HWM muito mais rápido). SYSDBA remoto
+      exige password file na BD (<code>remote_login_passwordfile = EXCLUSIVE</code>).</span>
+    </fieldset>
+
+    <div class="full buttons">
+      <button class="primary">Guardar</button>
+      <a class="btn" href="{{ url_for('portal.cfg_dbs') }}">Cancelar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

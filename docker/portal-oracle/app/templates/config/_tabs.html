@@ -1,0 +1,14 @@
+<h1>Configuração</h1>
+<nav class="tabs">
+  {% if user.can('config.bds') %}<a href="{{ url_for('portal.cfg_dbs') }}" class="{{ 'on' if tab == 'dbs' }}">Bases de dados</a>{% endif %}
+  {% if user.can('config.portal') %}<a href="{{ url_for('portal.cfg_general') }}" class="{{ 'on' if tab == 'portal' }}">Portal</a>{% endif %}
+</nav>
+{% if tab == 'portal' %}
+<nav class="subtabs">
+  <a href="{{ url_for('portal.cfg_general') }}" class="{{ 'on' if sub == 'general' }}">Geral</a>
+  {% if user.is_admin %}<a href="{{ url_for('portal.cfg_storage') }}" class="{{ 'on' if sub == 'storage' }}">Armazenamento</a>{% endif %}
+  <a href="{{ url_for('portal.cfg_users') }}" class="{{ 'on' if sub == 'users' }}">Utilizadores</a>
+  <a href="{{ url_for('portal.cfg_profiles') }}" class="{{ 'on' if sub == 'profiles' }}">Perfis</a>
+  <a href="{{ url_for('portal.cfg_backups') }}" class="{{ 'on' if sub == 'backups' }}">Backups</a>
+</nav>
+{% endif %}

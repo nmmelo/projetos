@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Tablespaces{% endblock %}
+{% block content %}
+<h1>Tablespaces</h1>
+<form method="get" class="toolbar">
+  <select name="db" required>
+    <option value="">— base de dados —</option>
+    {% for d in dbs %}<option value="{{ d.id }}" {{ 'selected' if db_id == d.id }}>{{ d.name }}</option>{% endfor %}
+  </select>
+  <label class="inline"><input type="checkbox" name="exact" value="1" {{ 'checked' if exact }}>
+    <span>Valores exatos (DBA_FREE_SPACE — pode ser lento)</span></label>
+  <button class="primary">Ver</button>
+</form>
+
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+
+{% if rows is not none %}
+<p class="muted small">Exclui SYSTEM, SYSAUX, UNDO e TEMP. Ordenado do maior para o mais pequeno.
+  {% if not exact %}Fonte: DBA_TABLESPACE_USAGE_METRICS (atualizado periodicamente pelo MMON).{% endif %}</p>
+<table>
+  <thead><tr><th>Tablespace</th><th class="num">Tamanho MB</th><th class="num">Usado MB</th>
+    <th class="num">Livre MB</th><th class="num">% Livre</th><th>Ocupação</th><th class="num">Máx. MB</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td><strong>{{ r.tablespace_name }}</strong></td>
+      <td class="num">{{ '{:,}'.format(r.tamanho_mb|int).replace(',', ' ') }}</td>
+      <td class="num">{{ '{:,}'.format(r.usado_mb|int).replace(',', ' ') }}</td>
+      <td class="num">{{ '{:,}'.format(r.livre_mb|int).replace(',', ' ') }}</td>
+      <td class="num">{{ r.pct_livre }}</td>
+      <td><div class="bar"><span style="width: {{ 100 - r.pct_livre }}%"></span></div></td>
+      <td class="num">{{ '{:,}'.format(r.max_mb|int).replace(',', ' ') }}</td>
+      <td>{% if user.can('shrink.analise') or user.can('shrink.executar') %}
+        <a class="btn small" href="{{ url_for('portal.shrink', db=db_id, ts=r.tablespace_name) }}">Shrink…</a>{% endif %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="8" class="muted">Sem resultados.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}
