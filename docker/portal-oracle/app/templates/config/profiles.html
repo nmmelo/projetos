@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Perfis{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<div class="head">
+  <p class="muted">Um perfil define <strong>que bases de dados</strong> o utilizador vê e <strong>o que pode fazer</strong>.</p>
+  <a class="btn primary" href="{{ url_for('portal.cfg_profile_form') }}">+ Novo perfil</a>
+</div>
+{% if not profiles %}
+  <p class="muted">Ainda não há perfis.</p>
+{% else %}
+<table>
+  <thead><tr><th>Perfil</th><th>Bases de dados</th><th>Permissões</th><th class="num">Utilizadores</th><th></th></tr></thead>
+  <tbody>
+  {% for p in profiles %}
+    <tr>
+      <td><strong>{{ p.name }}</strong>{% if p.description %}<div class="small muted">{{ p.description }}</div>{% endif %}</td>
+      <td>{% if p.all_dbs %}<span class="tag warn">Todas</span>{% else %}
+          {% for i in p.db_ids if i in dbs %}<span class="tag">{{ dbs[i] }}</span> {% else %}<span class="muted">nenhuma</span>{% endfor %}{% endif %}</td>
+      <td class="small">{% for a in p.permissions if a in ACTIONS %}<div>{{ ACTIONS[a][1] }}</div>{% else %}<span class="muted">nenhuma</span>{% endfor %}</td>
+      <td class="num">{{ p.n_users }}</td>
+      <td class="actions">
+        <a class="btn" href="{{ url_for('portal.cfg_profile_form', pid=p.id) }}">Editar</a>
+        <form method="post" action="{{ url_for('portal.cfg_profile_delete', pid=p.id) }}"
+              onsubmit="return confirm('Remover o perfil {{ p.name }}?')">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="danger" {{ 'disabled title="Tem utilizadores"' if p.n_users }}>Remover</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,7 @@
+# Versoes minimas com wheels para Python 3.14 (Ubuntu 26.04)
+flask>=3.1
+gunicorn>=23.0
+oracledb>=3.4
+cryptography>=44.0
+pymysql>=1.1          # MariaDB / MySQL (opcional)
+psycopg[binary]>=3.2.10  # PostgreSQL (opcional)

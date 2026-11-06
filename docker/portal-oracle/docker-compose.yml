@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  portal:
+    build: .
+    image: oracle-portal:latest
+    container_name: oracle-portal
+    hostname: oracle-portal
+    env_file: .env
+    ports:
+      - "8080:80"      # portal web
+      - "2222:22"      # SSH (VS Code Remote-SSH)
+    volumes:
+      - ./:/srv/portal                 # codigo + data/ no anfitriao
+      - ./data/home:/home              # homes dos utilizadores (vscode-server, gitconfig, ...)
+    restart: unless-stopped

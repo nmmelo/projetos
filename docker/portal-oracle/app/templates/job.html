@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Execução #{{ job.id }}{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Execução #{{ job.id }} — {{ job.db_name }}</h1>
+  <div class="buttons">
+    <a class="btn" href="{{ url_for('portal.job_log', job_id=job.id) }}">Descarregar log</a>
+    {% if job.status == 'EM CURSO' and can_cancel %}
+    <form method="post" action="{{ url_for('portal.job_cancel', job_id=job.id) }}"
+          onsubmit="return confirm('Cancelar a execução? A sessão Oracle será terminada (KILL SESSION).')">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="danger">Cancelar</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<table class="kv">
+  <tr><th>Estado</th><td><span id="status" class="status s-{{ job.status|replace(' ', '-') }}">{{ job.status }}</span></td></tr>
+  <tr><th>Passo atual</th><td id="action">{{ job.current_action or '—' }}</td></tr>
+  <tr><th>Tablespace</th><td>{{ job.params.ts }}</td></tr>
+  <tr><th>Parâmetros</th><td>{{ job.params.modo }} · ONLINE {{ job.params.online }} · ganho mín. {{ job.params.min_ganho }} MB · margem {{ job.params.margem }}% · purge {{ job.params.purge }}</td></tr>
+  <tr><th>Início / fim</th><td>{{ job.started_at }} → <span id="fin">{{ job.finished_at or '…' }}</span></td></tr>
+  <tr><th>Lançado por</th><td>{{ job.created_by }}</td></tr>
+</table>
+
+<div id="err" class="flash error" {{ '' if job.error else 'hidden' }}>{{ job.error or '' }}</div>
+
+<h2>Output</h2>
+<p class="muted small" id="wait" {{ 'hidden' if job.status != 'EM CURSO' }}>
+  O output do PL/SQL só fica disponível quando a execução termina. A página atualiza sozinha.</p>
+<pre id="out">{{ job.output or '' }}</pre>
+{% endblock %}
+{% block scripts %}
+{% if job.status == 'EM CURSO' %}
+<script>
+const timer = setInterval(async () => {
+  const r = await fetch("{{ url_for('portal.api_job', job_id=job.id) }}");
+  if (!r.ok) return;
+  const j = await r.json();
+  document.getElementById('action').textContent = j.current_action || '—';
+  const s = document.getElementById('status');
+  s.textContent = j.status; s.className = 'status s-' + j.status.replace(' ', '-');
+  if (j.status !== 'EM CURSO') { clearInterval(timer); setTimeout(() => location.reload(), 500); }
+}, 5000);
+</script>
+{% endif %}
+{% endblock %}
