@@ -1,0 +1,23 @@
+services:
+  mariadb:
+    image: mariadb:11.4
+    container_name: mariadb
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD_HASH: ${MARIADB_ROOT_PASSWORD_HASH}
+      MARIADB_ROOT_HOST: localhost          # root só acessível dentro do container
+      MARIADB_ADMIN_USER: ${MARIADB_ADMIN_USER}
+      MARIADB_ADMIN_PASSWORD_HASH: ${MARIADB_ADMIN_PASSWORD_HASH}
+      MARIADB_ADMIN_HOST: ${MARIADB_ADMIN_HOST}
+      TZ: Europe/Lisbon
+    volumes:
+      - ./data:/var/lib/mysql               # dados
+      - ./conf:/etc/mysql/conf.d:ro         # configurações
+      - ./init:/docker-entrypoint-initdb.d:ro  # criação do user admin (só no 1.º arranque)
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

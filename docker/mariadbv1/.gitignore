@@ -1,0 +1,6 @@
+# Dados da base de dados (gerados em runtime)
+data/*
+!data/.gitkeep
+
+# Backup criado pelo gerar-hash.sh
+.env.bak
