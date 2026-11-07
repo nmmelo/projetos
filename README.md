@@ -1,4 +1,4 @@
-# claude
+# My projects
 
 Projetos feitos para resolver problemas. Cada pasta tem os ficheiros finais, um `README.md` com a explicação e a
 utilização e um `CONVERSA.md` com o resumo do chat que deu origem ao projeto.
