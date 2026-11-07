@@ -1,0 +1,19 @@
+# /etc/netplan/60-lte.yaml
+# Pen LTE USB (Alcatel L850V) passada para a VM por USB passthrough.
+# O nome da interface (enx + MAC) pode mudar, por isso faz-se match por "enx*".
+# optional: true -> o arranque não fica à espera quando a pen não está ligada (em casa).
+#
+# Instalar:
+#   sudo cp 60-lte.yaml /etc/netplan/60-lte.yaml
+#   sudo chmod 600 /etc/netplan/60-lte.yaml
+#   sudo netplan apply
+network:
+  version: 2
+  ethernets:
+    lte:
+      match:
+        name: "enx*"
+      dhcp4: true
+      optional: true
+      nameservers:
+        addresses: [8.8.8.8, 1.1.1.1]
