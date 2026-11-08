@@ -1,0 +1,4 @@
+config/.env
+config/smtp.key
+logs/
+state/
