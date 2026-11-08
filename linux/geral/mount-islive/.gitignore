@@ -2,3 +2,4 @@ config/.env
 config/smtp.key
 logs/
 state/
+__pycache__/
