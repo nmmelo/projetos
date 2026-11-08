@@ -4,7 +4,7 @@
 Uso: send_mail.py "<assunto>" < corpo.txt
 
 Configuração por variáveis de ambiente (carregadas do config/.env pelo check_mount.sh / setup.sh):
-  SMTP_SERVER, SMTP_PORT, SMTP_SECURITY (none|starttls|ssl), SMTP_TLS_VERIFY (sim|nao),
+  SMTP_SERVER (DNS ou IP), SMTP_PORT, SMTP_SECURITY (nao|starttls|ssl), SMTP_TLS_VERIFY (sim|nao),
   SMTP_USER, SMTP_PASSWORD (já decifrada), MAIL_FROM, MAIL_TO (separados por vírgula)
 """
 import os

@@ -14,6 +14,8 @@
 # Uso: check_mount.sh [-v]     (-v mostra também os testes OK no ecrã)
 
 set -uo pipefail
+# o cron arranca com um PATH mínimo
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 APP_HOME="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 ENV_FILE="${ENV_FILE:-${APP_HOME}/config/.env}"
@@ -67,13 +69,16 @@ fi
 
 # Password SMTP: guardada cifrada no .env, decifrada só no momento do envio
 SMTP_PASSWORD=""
-if [[ -n "${SMTP_PASSWORD_ENC:-}" ]]; then
-    if ! SMTP_PASSWORD="$(printf '%s' "$SMTP_PASSWORD_ENC" | openssl enc -d -aes-256-cbc -pbkdf2 -a -A -pass "file:${KEY_FILE}" 2>/dev/null)"; then
-        log "AVISO: não foi possível decifrar a password SMTP (${KEY_FILE}). Corra o setup.sh de novo."
+if [[ "${SMTP_AUTH:-sim}" == "nao" ]]; then
+    SMTP_USER=""
+elif [[ -n "${SMTP_PASSWORD_ENC:-}" ]]; then
+    if ! SMTP_PASSWORD="$(printf '%s' "$SMTP_PASSWORD_ENC" | openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -a -A -pass "file:${KEY_FILE}" 2>/dev/null)" \
+       && ! SMTP_PASSWORD="$(printf '%s' "$SMTP_PASSWORD_ENC" | openssl enc -d -aes-256-cbc -pbkdf2 -a -A -pass "file:${KEY_FILE}" 2>/dev/null)"; then
+        log "AVISO: não foi possível ler a password SMTP (${KEY_FILE}). Corra o setup.sh e indique-a de novo."
         SMTP_PASSWORD=""
     fi
 fi
-export SMTP_PASSWORD
+export SMTP_USER SMTP_PASSWORD
 
 send_mail() {   # $1 = assunto, stdin = corpo
     local out
