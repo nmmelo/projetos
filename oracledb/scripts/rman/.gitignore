@@ -1,0 +1,4 @@
+config/smtp.key
+config/rman_monitor.conf
+logs/
+config/.installed_version
