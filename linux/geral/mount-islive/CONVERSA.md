@@ -26,3 +26,22 @@ Extras: alerta único quando o remount falha (`NOTIFY_ON_FAIL`), `flock` contra 
 vários mounts, `--test-mail` e `--uninstall`.
 
 Testado com um `tmpfs` no fstab e um servidor SMTP local (cenários no [`README.md`](README.md)).
+
+---
+
+## 2. Vários mounts, SMTP, crontab e password
+
+**Pergunta:**
+> Pode ser mais que um mount, no setup indicamos o número de setup. No smtp posso indicar o DNS ou ip, username e password caso seja com autenticação, porta e se tem tls. No count , pode também ter a opção de colocar no crontab para sistemas como o container que não tem systemd, pode dar qual o comando a colocar no contrab. Tb quero que a primeira vez coloca a password e depois guarda a mesma em hash, não sendo possível recuperar a password.
+
+**Resposta:**
+
+| Pedido | Implementação |
+|---|---|
+| Número de mounts | O setup pergunta "Quantos mounts" e depois cada mount (`Mount 1 de N`), validando no fstab e recusando repetidos |
+| SMTP | Servidor por DNS ou IP, TLS (`nao`/`starttls`/`ssl`) com a porta sugerida conforme o TLS, e pergunta se há autenticação; só nesse caso pede username e password (`SMTP_AUTH`) |
+| Crontab | Novo passo "Agendamento": `systemd`, `cron` (crontab do root ou `/etc/cron.d`) ou `manual`; mostra sempre a linha do crontab, também com `./setup.sh --cron`; avisa se o cron não estiver a correr (containers) |
+| Password em hash | **Não é possível**: o SMTP precisa da password original e um hash não se reverte. A password é pedida na 1.ª vez e guardada **cifrada** (AES-256 + PBKDF2 200 000 iterações), nunca é mostrada e não há opção para a ver; nas vezes seguintes Enter mantém-na. Alternativa sem password: relay SMTP sem autenticação pelo IP |
+
+Testado com 2 e depois 3 mounts, servidor por IP, com e sem autenticação, e `check_mount.sh` corrido com `env -i`
+para simular o ambiente do cron.

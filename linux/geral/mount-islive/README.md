@@ -9,7 +9,7 @@ e, quando o mount volta a funcionar, envia um **email por SMTP** com a hora da f
 
 | Ficheiro | Descrição |
 |---|---|
-| [`setup.sh`](setup.sh) | Assistente de configuração: mounts, intervalo, SMTP, password, emails. Grava `config/.env` e instala o agendamento |
+| [`setup.sh`](setup.sh) | Assistente de configuração: número de mounts e cada mount, intervalo, SMTP (DNS/IP, porta, TLS, autenticação), emails e agendamento (systemd, cron ou manual). Grava `config/.env` |
 | [`bin/check_mount.sh`](bin/check_mount.sh) | Teste de escrita, remount e notificações (corre pelo agendamento) |
 | [`bin/send_mail.py`](bin/send_mail.py) | Envio de email por SMTP (Python 3, `smtplib`: sem TLS, STARTTLS ou SSL, com ou sem autenticação) |
 | [`config/.env.example`](config/.env.example) | Exemplo da configuração |
@@ -70,27 +70,34 @@ Corre como **root**, porque precisa de montar e desmontar.
 ```text
 === mount-islive: primeira configuração ===
 
-[1/3] Mounts
-  Mount(s) a validar, separados por espaço (ex.: /mnt/nfs /backup): /mnt/nfs_backup
+[1/4] Mounts
+  Quantos mounts quer validar [0]: 2
+  Mount 1 de 2 (caminho, ex.: /mnt/nfs): /mnt/nfs_backup
     ok  /mnt/nfs_backup -> srv-nas:/export/backup nfs
-  Intervalo entre testes, em minutos [5]: 5
+  Mount 2 de 2 (caminho, ex.: /mnt/nfs): /mnt/cifs_dados
+    ok  /mnt/cifs_dados -> //srv-files/dados cifs
+  Intervalo entre testes, em minutos [5]:
   Nome do ficheiro de teste [teste.txt]:
   Timeout do teste de escrita, em segundos [15]:
   Enviar também alerta se o remount falhar (sim/nao) [sim]:
 
-[2/3] Servidor SMTP
-  Servidor SMTP: smtp.exemplo.pt
-  Segurança (none/starttls/ssl) [none]: starttls
+[2/4] Servidor SMTP
+  Servidor SMTP (DNS ou IP): smtp.exemplo.pt
+  TLS (nao / starttls / ssl) [nao]: starttls
   Porta [587]:
   Validar o certificado TLS (sim/nao) [nao]:
-  Utilizador SMTP (Enter se não houver autenticação): alertas@exemplo.pt
+  O servidor exige autenticação (sim/nao) [nao]: sim
+  Username: alertas@exemplo.pt
   Password: ********
   Repetir password: ********
-    password cifrada (AES-256) com a chave /opt/mount-islive/config/smtp.key
+    password guardada cifrada (não fica em texto no .env)
 
-[3/3] Emails
+[3/4] Emails
   Remetente [mount-islive@srv01]: alertas@exemplo.pt
   Destinatário(s), separados por vírgula: dba@exemplo.pt, sistemas@exemplo.pt
+
+[4/4] Agendamento
+  Tipo (systemd / cron / manual) [systemd]:
 
   Configuração gravada em /opt/mount-islive/config/.env (chmod 600)
   Timer systemd instalado: mount-islive.timer (a cada 5 min)
@@ -99,7 +106,11 @@ Corre como **root**, porque precisa de montar e desmontar.
   Executar já uma verificação dos mounts (sim/nao) [sim]:
 ```
 
-O setup avisa se um mount não está no `/etc/fstab`, porque o remount usa `mount <caminho>` a partir do fstab.
+| Passo | Notas |
+|---|---|
+| Mounts | Indica-se primeiro **quantos** e depois cada um. O setup avisa se um mount não está no `/etc/fstab`, porque o remount usa `mount <caminho>` a partir do fstab |
+| SMTP | Servidor por **DNS ou IP**, TLS (`nao`, `starttls` ou `ssl`; a porta sugerida muda conforme a escolha), e **username/password só se houver autenticação** |
+| Agendamento | `systemd`, `cron` ou `manual` (ver [Agendamento](#agendamento)) |
 
 ### Execuções seguintes: mostra os valores atuais
 
@@ -108,25 +119,32 @@ O setup avisa se um mount não está no `/etc/fstab`, porque o remount usa `moun
 ----------------------------------------------------------------------
  Configuração atual (/opt/mount-islive/config/.env)
 ----------------------------------------------------------------------
- MOUNTS             /mnt/nfs_backup
+ MOUNTS             2 mount(s): /mnt/nfs_backup /mnt/cifs_dados
  INTERVAL_MIN       5
  ...
- SMTP_PASSWORD_ENC  (guardada, cifrada)
+ SMTP_AUTH          sim
+ SMTP_USER          alertas@exemplo.pt
+ SMTP_PASSWORD_ENC  (guardada - não é mostrada)
  MAIL_TO            dba@exemplo.pt,sistemas@exemplo.pt
+ SCHEDULER          systemd
 ----------------------------------------------------------------------
  Agendamento : timer systemd ativo
+  crontab do root (sudo crontab -e):
+    */5 * * * * /opt/mount-islive/bin/check_mount.sh >/dev/null 2>&1
 ----------------------------------------------------------------------
   Enter mantém o valor entre [ ].
 ```
 
-Na password: **Enter** mantém a atual, escrever uma nova substitui-a e `-` apaga-a.
+Para acrescentar um mount, basta aumentar o número: os que já existem aparecem como valor por omissão.
+Na password, **Enter** mantém a atual e escrever uma nova substitui-a. A password nunca é mostrada.
 
 ### Opções do setup
 
 | Comando | Ação |
 |---|---|
 | `sudo ./setup.sh` | Configurar ou reconfigurar |
-| `sudo ./setup.sh --show` | Mostrar a configuração e o agendamento |
+| `sudo ./setup.sh --show` | Mostrar a configuração, o agendamento e a linha do crontab |
+| `sudo ./setup.sh --cron` | Mostrar só a linha a colocar no crontab |
 | `sudo ./setup.sh --test-mail` | Enviar um email de teste |
 | `sudo ./setup.sh --uninstall` | Remover o timer/cron (mantém a configuração e os logs) |
 
@@ -139,30 +157,64 @@ Na password: **Enter** mantém a atual, escrever uma nova substitui-a e `-` apag
 | `TEST_FILE` | `teste.txt` | Ficheiro escrito em cada mount com a data do teste |
 | `TOUCH_TIMEOUT` | `15` | Segundos até considerar que o mount não responde |
 | `NOTIFY_ON_FAIL` | `sim` | Enviar um alerta (uma vez) se o remount falhar |
-| `SMTP_SERVER` / `SMTP_PORT` | — / `25` | Servidor SMTP |
-| `SMTP_SECURITY` | `none` | `none`, `starttls` (587) ou `ssl` (465) |
+| `SMTP_SERVER` | — | Servidor SMTP (nome DNS ou IP) |
+| `SMTP_PORT` | `25` / `587` / `465` | Porta (a omissão depende do TLS) |
+| `SMTP_SECURITY` | `nao` | TLS: `nao`, `starttls` ou `ssl` |
 | `SMTP_TLS_VERIFY` | `nao` | Validar o certificado do servidor (`nao` para CAs internas) |
-| `SMTP_USER` | — | Utilizador; vazio = sem autenticação |
-| `SMTP_PASSWORD_ENC` | — | Password cifrada pelo setup |
+| `SMTP_AUTH` | `nao` | `sim` = usa username e password |
+| `SMTP_USER` | — | Username (só com autenticação) |
+| `SMTP_PASSWORD_ENC` | — | Password cifrada pelo setup (só com autenticação) |
 | `MAIL_FROM` / `MAIL_TO` | — | Remetente e destinatários (separados por vírgula) |
+| `SCHEDULER` | `systemd` / `cron` | `systemd`, `cron` ou `manual` |
 
-### Password SMTP
+### Password SMTP: porque não é um hash
 
-Não é possível guardar a password como *hash*: um hash não se reverte e o servidor SMTP precisa da
-password original para autenticar. Por isso o setup **cifra-a** com AES-256-CBC + PBKDF2 (`openssl`),
-usando uma chave aleatória em `config/smtp.key`. A password nunca fica em texto no `.env` e só é decifrada
-no momento do envio. Os dois ficheiros ficam com `chmod 600`, só acessíveis ao root.
+Um hash não se pode reverter, e o servidor SMTP precisa da **password original** para autenticar
+(AUTH PLAIN/LOGIN). Uma password guardada só em hash deixaria o script sem forma de enviar emails.
+
+Por isso a password é **cifrada** e não é recuperável pelo utilizador:
+
+| Proteção | Como |
+|---|---|
+| Nunca fica em texto | Cifrada com AES-256-CBC + PBKDF2 (200 000 iterações) com uma chave aleatória em `config/smtp.key` |
+| Nunca é mostrada | O setup e o `--show` só indicam "(guardada - não é mostrada)"; não há nenhuma opção para a ver |
+| Só o root lhe acede | `config/`, `.env` e `smtp.key` com `chmod 700`/`600` |
+| Só é decifrada no envio | Fica em memória durante o envio e não é escrita em disco nem nos logs |
+
+Se o servidor permitir envio **sem autenticação** a partir do IP da máquina (relay interno), responda
+`nao` à autenticação: nesse caso não é guardada nenhuma password.
 
 ## Agendamento
 
-| Sistema | O que é instalado |
+| Tipo | Quando usar | O que faz |
+|---|---|---|
+| `systemd` | Servidores normais (omissão quando existe systemd) | Cria `mount-islive.service` + `mount-islive.timer` (`OnUnitActiveSec=<INTERVAL_MIN>min`, arranca 2 min após o boot) |
+| `cron` | Sistemas sem systemd, ex.: **containers** | Acrescenta a linha ao crontab do root (`crontab`); se o comando não existir, cria `/etc/cron.d/mount-islive`. Avisa se o serviço cron não estiver a correr |
+| `manual` | Quando o agendamento é feito noutro sítio | Não instala nada e mostra a linha a colocar no crontab |
+
+A linha do crontab pode ser vista a qualquer momento com `sudo ./setup.sh --cron`:
+
+```text
+  crontab do root (sudo crontab -e):
+    */5 * * * * /opt/mount-islive/bin/check_mount.sh >/dev/null 2>&1
+  ou ficheiro /etc/cron.d/mount-islive (com utilizador):
+    */5 * * * * root /opt/mount-islive/bin/check_mount.sh >/dev/null 2>&1
+```
+
+| Intervalo | Expressão cron |
 |---|---|
-| Com systemd | `/etc/systemd/system/mount-islive.service` + `mount-islive.timer` (`OnUnitActiveSec=<INTERVAL_MIN>min`, arranca 2 min após o boot) |
-| Sem systemd | `/etc/cron.d/mount-islive` (`*/N * * * *`, máximo 59 min) |
+| 1 a 59 min | `*/N * * * *` |
+| Múltiplos de 60 (até 23 h) | `0 */H * * *` |
+| 1440 (1 dia) | `0 0 * * *` |
+| Outros (ex.: 90) | Não representável em cron: usar systemd |
+
+Num container, o serviço cron tem de estar a correr (ex.: `cron` ou `crond` no entrypoint), e o container
+precisa de permissões para montar (`--privileged` ou `--cap-add SYS_ADMIN`). O script define o seu próprio
+`PATH`, por isso funciona com o ambiente mínimo do cron.
 
 ```bash
-systemctl list-timers mount-islive.timer     # próxima execução
-journalctl -u mount-islive.service -n 50     # últimas execuções
+systemctl list-timers mount-islive.timer     # systemd: próxima execução
+journalctl -u mount-islive.service -n 50     # systemd: últimas execuções
 sudo /opt/mount-islive/bin/check_mount.sh -v # executar já, com detalhe
 ```
 
@@ -203,17 +255,18 @@ Assunto: [srv01] ALERTA: mount /mnt/nfs_backup em baixo
 
 ## Testes feitos
 
-Testado com um mount `tmpfs` no `/etc/fstab` e um servidor SMTP local com autenticação:
+Testado com mounts `tmpfs` no `/etc/fstab` e um servidor SMTP local com autenticação:
 
 | Cenário | Resultado |
 |---|---|
-| 1.ª configuração e reconfiguração (Enter mantém os valores) | `.env` e `smtp.key` criados com chmod 600, password cifrada, cron atualizado |
-| Mount desmontado | Remount pelo fstab e email "ON" com 1 tentativa |
-| Escrita pendurada (FIFO no lugar do `teste.txt`) | Timeout ao fim de 3 s, remount e email "ON" |
-| Remount a falhar 2 ciclos e depois a recuperar | 1 email de alerta, sem repetir, e depois email "ON" com 3 tentativas |
-| `--show`, `--test-mail`, `--uninstall` | OK |
+| 1.ª configuração com 2 mounts e autenticação | `.env` e `smtp.key` com chmod 600, password cifrada, linha no cron |
+| Reconfiguração para 3 mounts (2 mantidos com Enter), servidor por IP, password mantida, agendamento `manual` | Valores mantidos, cron removido, linha do crontab mostrada |
+| Email de teste com autenticação | O servidor recebeu o username e a password corretos |
+| 2 de 3 mounts desmontados, corrido com `env -i` (ambiente do cron) | Os 2 voltaram a montar e foram enviados 2 emails "ON" |
+| Mount desmontado / escrita pendurada (FIFO) / remount a falhar 2 ciclos | Email "ON" / timeout + remount / 1 alerta e depois "ON" |
+| Sem autenticação (`SMTP_AUTH=nao`) | Email enviado sem AUTH |
 
-O agendamento por systemd não foi testado neste ambiente, que não tem systemd; foi testado o caminho do cron.
+O agendamento por systemd não foi testado neste ambiente, que não tem systemd.
 
 ## Notas
 

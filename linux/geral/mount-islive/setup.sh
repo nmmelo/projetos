@@ -2,13 +2,14 @@
 #
 # setup.sh - configuração do mount-islive
 #
-# 1.ª execução : pede todas as configurações (mounts, intervalo, SMTP, password, emails),
-#                grava config/.env e instala o agendamento (timer systemd ou cron).
+# 1.ª execução : pede todas as configurações (mounts, intervalo, SMTP, emails, agendamento),
+#                grava config/.env e instala o agendamento (systemd, cron ou manual).
 # Execuções seguintes: mostra os valores atuais; Enter mantém o valor entre [ ].
 #
 # Uso:
 #   sudo ./setup.sh               configurar / reconfigurar
-#   sudo ./setup.sh --show        mostrar a configuração atual
+#   sudo ./setup.sh --show        mostrar a configuração atual e a linha do crontab
+#   sudo ./setup.sh --cron        mostrar só a linha a colocar no crontab
 #   sudo ./setup.sh --test-mail   enviar um email de teste
 #   sudo ./setup.sh --uninstall   remover o agendamento (mantém config e logs)
 
@@ -24,8 +25,8 @@ UNIT_DIR="/etc/systemd/system"
 CRON_FILE="/etc/cron.d/${APP}"
 
 VARS=(MOUNTS INTERVAL_MIN TEST_FILE TOUCH_TIMEOUT NOTIFY_ON_FAIL
-      SMTP_SERVER SMTP_PORT SMTP_SECURITY SMTP_TLS_VERIFY SMTP_USER SMTP_PASSWORD_ENC
-      MAIL_FROM MAIL_TO)
+      SMTP_SERVER SMTP_PORT SMTP_SECURITY SMTP_TLS_VERIFY SMTP_AUTH SMTP_USER SMTP_PASSWORD_ENC
+      MAIL_FROM MAIL_TO SCHEDULER)
 
 die()  { echo "Erro: $*" >&2; exit 1; }
 line() { printf '%*s\n' 70 '' | tr ' ' '-'; }
@@ -35,6 +36,8 @@ for c in python3 openssl findmnt mountpoint timeout flock; do
     command -v "$c" >/dev/null || die "falta o comando '$c'"
 done
 
+have_systemd() { [[ -d /run/systemd/system ]]; }
+
 load_env() {
     FIRST_RUN=1
     if [[ -f "$ENV_FILE" ]]; then
@@ -42,6 +45,35 @@ load_env() {
         source "$ENV_FILE"
         FIRST_RUN=0
     fi
+    # compatibilidade com a versão anterior (SMTP_SECURITY=none)
+    [[ "${SMTP_SECURITY:-}" == "none" ]] && SMTP_SECURITY="nao"
+    if [[ -z "${SMTP_AUTH:-}" && $FIRST_RUN -eq 0 ]]; then
+        [[ -n "${SMTP_USER:-}" ]] && SMTP_AUTH="sim" || SMTP_AUTH="nao"
+    fi
+    return 0
+}
+
+# Expressão cron para o intervalo (minutos)
+cron_expr() {
+    local n="$1"
+    if (( n < 60 )); then
+        echo "*/${n} * * * *"
+    elif (( n % 60 == 0 && n / 60 < 24 )); then
+        echo "0 */$(( n / 60 )) * * *"
+    elif (( n == 1440 )); then
+        echo "0 0 * * *"
+    else
+        return 1
+    fi
+}
+
+cron_lines() {
+    local expr
+    expr="$(cron_expr "${INTERVAL_MIN}")" || { echo "  (intervalo de ${INTERVAL_MIN} min não é representável em cron: use 1-59, múltiplos de 60 até 1380, ou 1440)"; return 0; }
+    echo "  crontab do root (sudo crontab -e):"
+    echo "    ${expr} ${CHECK} >/dev/null 2>&1"
+    echo "  ou ficheiro ${CRON_FILE} (com utilizador):"
+    echo "    ${expr} root ${CHECK} >/dev/null 2>&1"
 }
 
 show_config() {
@@ -51,24 +83,29 @@ show_config() {
     line
     for v in "${VARS[@]}"; do
         val="${!v:-}"
-        [[ "$v" == "SMTP_PASSWORD_ENC" ]] && { [[ -n "$val" ]] && val="(guardada, cifrada)" || val="(sem password)"; }
+        case "$v" in
+            SMTP_PASSWORD_ENC) [[ -n "$val" ]] && val="(guardada - não é mostrada)" || val="(sem password)" ;;
+            MOUNTS) local -a _m; read -ra _m <<< "$val"; val="${#_m[@]} mount(s): ${val}" ;;
+        esac
         printf ' %-18s %s\n' "$v" "${val:--}"
     done
     line
     if systemctl is-enabled "${APP}.timer" >/dev/null 2>&1; then
         echo " Agendamento : timer systemd ativo"
-        systemctl list-timers "${APP}.timer" --no-pager 2>/dev/null | sed -n '2p' | sed 's/^/   próxima: /'
     elif [[ -f "$CRON_FILE" ]]; then
         echo " Agendamento : cron (${CRON_FILE})"
+    elif crontab -l 2>/dev/null | grep -qF "$CHECK"; then
+        echo " Agendamento : crontab do root"
     else
-        echo " Agendamento : não instalado"
+        echo " Agendamento : não instalado (manual)"
     fi
+    cron_lines
     line
 }
 
 # ask VAR "Pergunta" "valor por omissão"
 ask() {
-    local __var="$1" label="$2" def="${3:-}" ans
+    local __var="$1" label="$2" def="${3:-}" ans=""
     if [[ -n "$def" ]]; then
         read -r -p "  ${label} [${def}]: " ans || true
     else
@@ -93,38 +130,43 @@ ask_yn() {   # ask_yn VAR "Pergunta" "sim|nao"
 }
 
 ask_mounts() {
-    local mp ok
-    while true; do
-        ask_req MOUNTS "Mount(s) a validar, separados por espaço (ex.: /mnt/nfs /backup)" "${MOUNTS:-}" '^/.*' "indique caminhos absolutos"
-        ok=1
-        for mp in $MOUNTS; do
+    local -a old new
+    local count i mp cont
+    read -ra old <<< "${MOUNTS:-}"
+    ask_req count "Quantos mounts quer validar" "${#old[@]}" '^[1-9][0-9]?$' "número entre 1 e 99"
+    [[ "$count" == "0" ]] && count=1
+    new=()
+    for (( i = 0; i < count; i++ )); do
+        while true; do
+            ask_req mp "Mount $(( i + 1 )) de ${count} (caminho, ex.: /mnt/nfs)" "${old[$i]:-}" '^/[^ ]*$' "caminho absoluto, sem espaços"
+            if [[ " ${new[*]} " == *" ${mp} "* ]]; then
+                echo "    -> ${mp} já foi indicado"; continue
+            fi
             if findmnt -s -n "$mp" >/dev/null 2>&1; then
                 echo "    ok  ${mp} -> $(findmnt -s -n -o SOURCE,FSTYPE "$mp" | xargs)"
-            else
-                echo "    !!  ${mp} não está no /etc/fstab (o remount automático usa o fstab)"
-                ok=0
+                break
             fi
+            echo "    !!  ${mp} não está no /etc/fstab (o remount automático usa o fstab)"
+            ask_yn cont "Usar mesmo assim?" "nao"
+            [[ "$cont" == "sim" ]] && break
         done
-        (( ok )) && return 0
-        local cont
-        ask_yn cont "Continuar mesmo assim?" "nao"
-        [[ "$cont" == "sim" ]] && return 0
+        new+=("$mp")
     done
+    MOUNTS="${new[*]}"
 }
 
 ask_password() {
     local pw pw2
-    echo
     if [[ -n "${SMTP_PASSWORD_ENC:-}" ]]; then
-        echo "  Password SMTP: já existe uma guardada (cifrada)."
-        echo "  Enter = manter | nova password = substituir | '-' = apagar"
-    else
-        echo "  Password SMTP (Enter se o servidor não pedir autenticação)"
+        echo "  Password: já está guardada (não é possível vê-la)."
+        echo "  Enter = manter | escrever uma nova = substituir"
     fi
     while true; do
         read -r -s -p "  Password: " pw || true; echo
-        [[ -z "$pw" ]] && return 0
-        if [[ "$pw" == "-" ]]; then SMTP_PASSWORD_ENC=""; echo "    password apagada"; return 0; fi
+        if [[ -z "$pw" ]]; then
+            [[ -n "${SMTP_PASSWORD_ENC:-}" ]] && return 0
+            echo "    -> a password é obrigatória com autenticação"; continue
+        fi
         read -r -s -p "  Repetir password: " pw2 || true; echo
         [[ "$pw" == "$pw2" ]] && break
         echo "    -> as passwords não coincidem"
@@ -133,8 +175,9 @@ ask_password() {
         (umask 077; openssl rand -base64 48 > "$KEY_FILE")
     fi
     chmod 600 "$KEY_FILE"
-    SMTP_PASSWORD_ENC="$(printf '%s' "$pw" | openssl enc -aes-256-cbc -pbkdf2 -salt -a -A -pass "file:${KEY_FILE}")"
-    echo "    password cifrada (AES-256) com a chave ${KEY_FILE}"
+    SMTP_PASSWORD_ENC="$(printf '%s' "$pw" | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -a -A -pass "file:${KEY_FILE}")"
+    unset pw pw2
+    echo "    password guardada cifrada (não fica em texto no .env)"
 }
 
 save_env() {
@@ -155,10 +198,25 @@ save_env() {
     echo "  Configuração gravada em ${ENV_FILE} (chmod 600)"
 }
 
+remove_schedule() {
+    if [[ -f "${UNIT_DIR}/${APP}.timer" ]]; then
+        systemctl disable --now "${APP}.timer" >/dev/null 2>&1 || true
+        rm -f "${UNIT_DIR}/${APP}.timer" "${UNIT_DIR}/${APP}.service"
+        systemctl daemon-reload 2>/dev/null || true
+    fi
+    rm -f "$CRON_FILE"
+    if command -v crontab >/dev/null && crontab -l 2>/dev/null | grep -qF "$CHECK"; then
+        crontab -l 2>/dev/null | grep -vF "$CHECK" | crontab -
+    fi
+}
+
 install_schedule() {
+    local expr
     chmod +x "$CHECK" "${APP_HOME}/bin/send_mail.py"
-    if [[ -d /run/systemd/system ]]; then
-        cat > "${UNIT_DIR}/${APP}.service" <<EOF
+    remove_schedule
+    case "$SCHEDULER" in
+        systemd)
+            cat > "${UNIT_DIR}/${APP}.service" <<EOF
 [Unit]
 Description=${APP} - valida se os mounts estão vivos e refaz o mount
 After=network-online.target remote-fs.target
@@ -168,7 +226,7 @@ Wants=network-online.target
 Type=oneshot
 ExecStart=${CHECK}
 EOF
-        cat > "${UNIT_DIR}/${APP}.timer" <<EOF
+            cat > "${UNIT_DIR}/${APP}.timer" <<EOF
 [Unit]
 Description=${APP} - a cada ${INTERVAL_MIN} minuto(s)
 
@@ -182,37 +240,43 @@ Unit=${APP}.service
 [Install]
 WantedBy=timers.target
 EOF
-        rm -f "$CRON_FILE"
-        systemctl daemon-reload
-        systemctl enable --now "${APP}.timer" >/dev/null
-        systemctl restart "${APP}.timer"
-        echo "  Timer systemd instalado: ${APP}.timer (a cada ${INTERVAL_MIN} min)"
-    else
-        (( INTERVAL_MIN <= 59 )) || die "sem systemd, o cron só suporta intervalos até 59 minutos"
-        echo "*/${INTERVAL_MIN} * * * * root ${CHECK} >/dev/null 2>&1" > "$CRON_FILE"
-        chmod 644 "$CRON_FILE"
-        echo "  Cron instalado: ${CRON_FILE} (a cada ${INTERVAL_MIN} min)"
-    fi
-}
-
-uninstall_schedule() {
-    if [[ -f "${UNIT_DIR}/${APP}.timer" ]]; then
-        systemctl disable --now "${APP}.timer" >/dev/null 2>&1 || true
-        rm -f "${UNIT_DIR}/${APP}.timer" "${UNIT_DIR}/${APP}.service"
-        systemctl daemon-reload
-    fi
-    rm -f "$CRON_FILE"
-    echo "Agendamento removido. A configuração (${ENV_FILE}) e os logs foram mantidos."
+            systemctl daemon-reload
+            systemctl enable --now "${APP}.timer" >/dev/null
+            systemctl restart "${APP}.timer"
+            echo "  Timer systemd instalado: ${APP}.timer (a cada ${INTERVAL_MIN} min)"
+            ;;
+        cron)
+            expr="$(cron_expr "$INTERVAL_MIN")" || die "intervalo ${INTERVAL_MIN} não suportado em cron"
+            if command -v crontab >/dev/null; then
+                ( crontab -l 2>/dev/null | grep -vF "$CHECK"; echo "${expr} ${CHECK} >/dev/null 2>&1" ) | crontab -
+                echo "  Linha adicionada ao crontab do root:"
+            else
+                echo "${expr} root ${CHECK} >/dev/null 2>&1" > "$CRON_FILE"
+                chmod 644 "$CRON_FILE"
+                echo "  Comando crontab não encontrado; criado ${CRON_FILE}:"
+            fi
+            echo "    ${expr} ${CHECK} >/dev/null 2>&1"
+            if ! pgrep -x cron >/dev/null && ! pgrep -x crond >/dev/null; then
+                echo "  ATENÇÃO: o serviço cron não está a correr (comum em containers)."
+                echo "           Inicie-o (ex.: 'cron' ou 'crond') ou use o agendamento do anfitrião."
+            fi
+            ;;
+        manual)
+            echo "  Nenhum agendamento instalado. Coloque uma destas linhas:"
+            cron_lines
+            ;;
+    esac
 }
 
 test_mail() {
     local pw=""
-    if [[ -n "${SMTP_PASSWORD_ENC:-}" ]]; then
-        pw="$(printf '%s' "$SMTP_PASSWORD_ENC" | openssl enc -d -aes-256-cbc -pbkdf2 -a -A -pass "file:${KEY_FILE}")" \
-            || die "não foi possível decifrar a password"
+    if [[ "${SMTP_AUTH:-nao}" == "sim" && -n "${SMTP_PASSWORD_ENC:-}" ]]; then
+        pw="$(printf '%s' "$SMTP_PASSWORD_ENC" | openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -a -A -pass "file:${KEY_FILE}")" \
+            || die "não foi possível ler a password guardada; corra o setup e indique-a de novo"
     fi
     (
         set -a; source "$ENV_FILE"; set +a
+        [[ "${SMTP_AUTH:-nao}" == "sim" ]] || SMTP_USER=""
         SMTP_PASSWORD="$pw" python3 "${APP_HOME}/bin/send_mail.py" "[$(hostname)] ${APP}: email de teste" <<EOF
 Email de teste do ${APP} enviado em $(date '+%d/%m/%Y %H:%M:%S').
 
@@ -226,8 +290,9 @@ EOF
 load_env
 case "${1:-}" in
     --show)      [[ $FIRST_RUN -eq 0 ]] || die "ainda não configurado"; show_config; exit 0 ;;
+    --cron)      [[ $FIRST_RUN -eq 0 ]] || die "ainda não configurado"; cron_lines; exit 0 ;;
     --test-mail) [[ $FIRST_RUN -eq 0 ]] || die "ainda não configurado"; test_mail; exit $? ;;
-    --uninstall) uninstall_schedule; exit 0 ;;
+    --uninstall) remove_schedule; echo "Agendamento removido. A configuração e os logs foram mantidos."; exit 0 ;;
     "" ) ;;
     *) sed -n '3,15p' "$0"; exit 1 ;;
 esac
@@ -242,31 +307,37 @@ else
     echo "  Enter mantém o valor entre [ ]."
 fi
 
-echo; echo "[1/3] Mounts"
+echo; echo "[1/4] Mounts"
 ask_mounts
 while true; do
     ask_req INTERVAL_MIN "Intervalo entre testes, em minutos" "${INTERVAL_MIN:-5}" '^[1-9][0-9]{0,3}$' "número entre 1 e 1440"
     (( INTERVAL_MIN <= 1440 )) && break
     echo "    -> número entre 1 e 1440"
 done
-ask_req TEST_FILE "Nome do ficheiro de teste" "${TEST_FILE:-teste.txt}" '^[^/]+$' "só o nome, sem /"
+ask_req TEST_FILE "Nome do ficheiro de teste" "${TEST_FILE:-teste.txt}" '^[^/ ]+$' "só o nome, sem / nem espaços"
 ask_req TOUCH_TIMEOUT "Timeout do teste de escrita, em segundos" "${TOUCH_TIMEOUT:-15}" '^[1-9][0-9]*$' "número inteiro"
 ask_yn NOTIFY_ON_FAIL "Enviar também alerta se o remount falhar" "${NOTIFY_ON_FAIL:-sim}"
 
-echo; echo "[2/3] Servidor SMTP"
-ask_req SMTP_SERVER "Servidor SMTP" "${SMTP_SERVER:-}" '^[A-Za-z0-9._-]+$' "nome ou IP do servidor"
-ask_req SMTP_SECURITY "Segurança (none/starttls/ssl)" "${SMTP_SECURITY:-none}" '^(none|starttls|ssl)$' "none, starttls ou ssl"
+echo; echo "[2/4] Servidor SMTP"
+ask_req SMTP_SERVER "Servidor SMTP (DNS ou IP)" "${SMTP_SERVER:-}" '^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$|^\[?[0-9A-Fa-f:]+\]?$' "nome DNS ou endereço IP"
+ask_req SMTP_SECURITY "TLS (nao / starttls / ssl)" "${SMTP_SECURITY:-nao}" '^(nao|starttls|ssl)$' "nao, starttls ou ssl"
 case "$SMTP_SECURITY" in ssl) dport=465 ;; starttls) dport=587 ;; *) dport=25 ;; esac
+[[ "${SMTP_PORT:-}" =~ ^(25|465|587)$ && "${SMTP_PORT}" != "$dport" ]] && SMTP_PORT=""
 ask_req SMTP_PORT "Porta" "${SMTP_PORT:-$dport}" '^[0-9]{1,5}$' "porta numérica"
-if [[ "$SMTP_SECURITY" != "none" ]]; then
+if [[ "$SMTP_SECURITY" != "nao" ]]; then
     ask_yn SMTP_TLS_VERIFY "Validar o certificado TLS" "${SMTP_TLS_VERIFY:-nao}"
 else
-    SMTP_TLS_VERIFY="${SMTP_TLS_VERIFY:-nao}"
+    SMTP_TLS_VERIFY="nao"
 fi
-ask SMTP_USER "Utilizador SMTP (Enter se não houver autenticação)" "${SMTP_USER:-}"
-if [[ -n "$SMTP_USER" ]]; then ask_password; else SMTP_PASSWORD_ENC=""; fi
+ask_yn SMTP_AUTH "O servidor exige autenticação" "${SMTP_AUTH:-nao}"
+if [[ "$SMTP_AUTH" == "sim" ]]; then
+    ask_req SMTP_USER "Username" "${SMTP_USER:-}" '.+' "indique o username"
+    ask_password
+else
+    SMTP_USER=""; SMTP_PASSWORD_ENC=""
+fi
 
-echo; echo "[3/3] Emails"
+echo; echo "[3/4] Emails"
 EMAIL_RE='^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
 ask_req MAIL_FROM "Remetente" "${MAIL_FROM:-${APP}@$(hostname -f 2>/dev/null || hostname)}" "$EMAIL_RE" "email inválido"
 while true; do
@@ -277,6 +348,17 @@ while true; do
     for e in "${_list[@]}"; do [[ "$e" =~ $EMAIL_RE ]] || bad+=" $e"; done
     [[ -z "$bad" ]] && break
     echo "    -> email(s) inválido(s):${bad}"
+done
+
+echo; echo "[4/4] Agendamento"
+if have_systemd; then def_sched="systemd"; else def_sched="cron"; echo "  (systemd não disponível neste sistema, ex.: container)"; fi
+while true; do
+    ask_req SCHEDULER "Tipo (systemd / cron / manual)" "${SCHEDULER:-$def_sched}" '^(systemd|cron|manual)$' "systemd, cron ou manual"
+    if [[ "$SCHEDULER" == "systemd" ]] && ! have_systemd; then echo "    -> systemd não disponível; escolha cron ou manual"; continue; fi
+    if [[ "$SCHEDULER" != "systemd" ]] && ! cron_expr "$INTERVAL_MIN" >/dev/null; then
+        echo "    -> o intervalo de ${INTERVAL_MIN} min não é representável em cron (use 1-59, múltiplos de 60, ou 1440)"; continue
+    fi
+    break
 done
 
 echo
@@ -292,4 +374,4 @@ ask_yn _c "Executar já uma verificação dos mounts" "sim"
 
 echo
 echo "Concluído. Log: ${APP_HOME}/logs/mount-islive.log"
-echo "Para rever ou alterar: sudo $0   |   ver: sudo $0 --show"
+echo "Rever/alterar: sudo $0  |  ver: sudo $0 --show  |  linha do crontab: sudo $0 --cron"
