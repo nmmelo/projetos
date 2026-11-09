@@ -13,6 +13,7 @@ utilização e um `CONVERSA.md` com o resumo do chat que deu origem ao projeto.
 | Mount is live | [`linux`](linux) › [`geral`](linux/geral) › [`mount-islive`](linux/geral/mount-islive) | Testa de X em X minutos se os mounts do fstab respondem (escrita de `teste.txt` com timeout), refaz o mount e envia email SMTP com a hora da falha e do teste com sucesso. Setup interativo com `.env` e password cifrada |
 | Contagem de linhas de código | [`outros`](outros) › [`count-code`](outros/count-code) | Script Bash/Python que conta as linhas de código, comentários e em branco de um projeto, por linguagem, pasta e ficheiro, com saída em tabela ou JSON |
 | Estatísticas do GitHub | [`geral`](geral) › [`estatisticas_github`](geral/estatisticas_github) | Profile README do GitHub (repositório `nmmelo/nmmelo`) com badges, contactos e estatísticas dinâmicas do github-stats-extended; inclui exemplo pronto a usar |
+| Remover linha com IP | [`geral`](geral) › [`remover-linha`](geral/remover-linha) | Script Python que pede um ficheiro e um IP e remove todas as linhas que o contenham (IP exato, com ou sem aspas), com confirmação, `--dry-run` e backup do último ficheiro |
 
 ## Estrutura
 
@@ -40,5 +41,6 @@ projetos/
 │   └── count-code/                 # Contagem de linhas de código
 └── geral/                          # Guias gerais
     ├── README.md
-    └── estatisticas_github/        # Profile README com estatísticas
+    ├── estatisticas_github/        # Profile README com estatísticas
+    └── remover-linha/              # Remover linhas com um IP de um ficheiro
 ```
