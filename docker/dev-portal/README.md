@@ -42,9 +42,8 @@ SSH     ──► :2222 ──► sshd (:22)
 └── secrets/
     ├── ansible.cfg
     ├── .vault           # password do Ansible Vault
-    ├── nmmelo.pub       # chave pública de login do nmmelo
-    ├── adminssc         # chave privada do adminssc
-    └── adminssc.pub
+    ├── chave.pub       # chave pública de login
+
 ```
 
 | Ficheiro | Função |
