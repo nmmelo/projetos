@@ -1,0 +1,12 @@
+# Chaves, password do Vault e ansible.cfg (nunca no Git)
+secrets/*
+!secrets/.gitkeep
+
+# Conteúdo de trabalho montado no contentor
+workspace/*
+!workspace/.gitkeep
+
+# Variáveis do portal (passwords)
+portal/.env
+__pycache__/
+*.pyc
