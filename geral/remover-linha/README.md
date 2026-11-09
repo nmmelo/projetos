@@ -1,4 +1,4 @@
-# remover-linha
+# Remover-linha
 
 Script Python que **remove de um ficheiro todas as linhas que contenham um endereço IP**. Pergunta o ficheiro
 e o IP, mostra as linhas encontradas, pede confirmação e faz backup antes de alterar.
