@@ -15,7 +15,7 @@ utilização e um `CONVERSA.md` com o resumo do chat que deu origem ao projeto.
 | Contagem de linhas de código | [`outros`](outros) › [`count-code`](outros/count-code) | Script Bash/Python que conta as linhas de código, comentários e em branco de um projeto, por linguagem, pasta e ficheiro, com saída em tabela ou JSON |
 | Estatísticas do GitHub | [`geral`](geral) › [`estatisticas_github`](geral/estatisticas_github) | Profile README do GitHub (repositório `nmmelo/nmmelo`) com badges, contactos e estatísticas dinâmicas do github-stats-extended; inclui exemplo pronto a usar |
 | Remover linha com IP | [`geral`](geral) › [`remover-linha`](geral/remover-linha) | Script Python que pede um ficheiro e um IP e remove todas as linhas que o contenham (IP exato, com ou sem aspas), com confirmação, `--dry-run` e backup do último ficheiro |
-| Remover linha com IP | [`geral`](Password_crypt_manager) › [`Password_crypt_manager`](geral/Password_crypt_manager) | Script Password_crypt_manager para gestão de passwords |
+| Password_crypt_manager | [`geral`](Password_crypt_manager) › [`Password_crypt_manager`](geral/Password_crypt_manager) | Script Password_crypt_manager para gestão de passwords |
 
 ## Estrutura
 
