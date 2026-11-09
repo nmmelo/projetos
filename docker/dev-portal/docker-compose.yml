@@ -1,0 +1,36 @@
+services:
+  ansible:
+    build: .
+    image: ubuntu26-ansible:local
+    container_name: dev-portal
+    hostname: dev-portal
+    restart: unless-stopped
+    environment:
+      ANSIBLE_CONFIG: /etc/ansible/ansible.cfg
+      ANSIBLE_VAULT_PASSWORD_FILE: /run/secrets/.vault
+    ports:
+      - "2222:22"
+      - "8080:80"
+    volumes:
+      - ./workspace:/home/nmmelo/workspace
+      - ./portal:/opt/portal/app
+      - ./secrets/ansible.cfg:/etc/ansible/ansible.cfg:ro
+      - ./secrets/.vault:/run/secrets/.vault:ro
+      - ssh_hostkeys:/var/lib/ssh-hostkeys
+      - nginx_logs:/var/log/nginx
+    secrets:
+      - nmmelo_public_key
+      - adminssc_private_key
+      - adminssc_public_key
+
+secrets:
+  nmmelo_public_key:
+    file: ./secrets/nmmelo.pub
+  adminssc_private_key:
+    file: ./secrets/adminssc
+  adminssc_public_key:
+    file: ./secrets/adminssc.pub
+
+volumes:
+  ssh_hostkeys:
+  nginx_logs:
