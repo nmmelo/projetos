@@ -50,5 +50,5 @@ e já esteve pausada (`503 DEPLOYMENT_PAUSED`). Solução: instância própria n
 **Pergunta:**
 > podes pegar nisto e fazer no meu repositorio projetos/geral/estatisticas_github e colocar lá o exemplo e o que é necessário fazer para usar o github-stats-extended
 
-**Resposta:** criada a pasta `projetos/geral/estatisticas_github` com o guia (`README.md`),
-o exemplo (`exemplo/README.md`) e esta conversa; atualizados os README de `projetos`, `projetos/geral` e da raiz.
+**Resposta:** criada a pasta `geral/estatisticas_github` no repositório `projetos` (antigo `claude`) com o guia
+(`README.md`), o exemplo (`exemplo/README.md`) e esta conversa; atualizados os README de `geral` e da raiz.

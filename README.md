@@ -12,12 +12,12 @@ utilização e um `CONVERSA.md` com o resumo do chat que deu origem ao projeto.
 | Internet na VM por USB | [`linux`](linux) › [`geral`](linux/geral) › [`usb-wifi`](linux/geral/usb-wifi) | VM Ubuntu no VirtualBox com internet por uma pen LTE USB (passthrough), netplan e funções `rede-trabalho` / `rede-casa` para alternar entre a pen e o NAT |
 | Mount is live | [`linux`](linux) › [`geral`](linux/geral) › [`mount-islive`](linux/geral/mount-islive) | Testa de X em X minutos se os mounts do fstab respondem (escrita de `teste.txt` com timeout), refaz o mount e envia email SMTP com a hora da falha e do teste com sucesso. Setup interativo com `.env` e password cifrada |
 | Contagem de linhas de código | [`outros`](outros) › [`count-code`](outros/count-code) | Script Bash/Python que conta as linhas de código, comentários e em branco de um projeto, por linguagem, pasta e ficheiro, com saída em tabela ou JSON |
-| Estatísticas do GitHub | [`projetos`](projetos) › [`geral`](projetos/geral) › [`estatisticas_github`](projetos/geral/estatisticas_github) | Profile README do GitHub (repositório `nmmelo/nmmelo`) com badges, contactos e estatísticas dinâmicas do github-stats-extended; inclui exemplo pronto a usar |
+| Estatísticas do GitHub | [`geral`](geral) › [`estatisticas_github`](geral/estatisticas_github) | Profile README do GitHub (repositório `nmmelo/nmmelo`) com badges, contactos e estatísticas dinâmicas do github-stats-extended; inclui exemplo pronto a usar |
 
 ## Estrutura
 
 ```
-claude/
+projetos/
 ├── docker/
 │   ├── mariadbv1/                  # MariaDB em docker-compose
 │   └── portal-oracle/              # Portal Oracle (Python)
@@ -38,9 +38,7 @@ claude/
 ├── outros/                         # Scripts diversos
 │   ├── README.md
 │   └── count-code/                 # Contagem de linhas de código
-└── projetos/                       # Projetos e guias diversos
+└── geral/                          # Guias gerais
     ├── README.md
-    └── geral/                      # Guias gerais
-        ├── README.md
-        └── estatisticas_github/    # Profile README com estatísticas
+    └── estatisticas_github/        # Profile README com estatísticas
 ```
