@@ -56,3 +56,15 @@ para simular o ambiente do cron.
 | Pasta do ficheiro de teste | Novo parâmetro `TEST_DIRS` (uma pasta por mount, pela mesma ordem). O setup pergunta-a a seguir a cada mount (omissão: o próprio mount), exige que seja o mount ou uma subpasta, oferece-se para a criar e valida a escrita. O `umount`/`mount` continua a ser feito ao mount. Configurações antigas sem `TEST_DIRS` usam o mount |
 | Output do cron | No passo de agendamento mostra o que cada opção faz (com a linha exata), confirma o que vai ser feito com a escolha e, no fim, mostra o bloco "o que fazer / como confirmar" (linha instalada, `crontab -l`, se o serviço cron está a correr e como o iniciar; no `manual`, os passos `crontab -e` ou `/etc/cron.d`) |
 | Configuração cifrada | Só a password SMTP é cifrada; o resto do `.env` está em texto, mas com `chmod 600` (só root) |
+
+**Pergunta:**
+> O email diz que não conseguiu escrever o ficheiro de teste e depois, no mesmo email, que foi com sucesso. E quero, para a opção systemd, os passos no README.md e um `setup.sh --systemd` que mostre a configuração e o que fazer.
+
+**Resposta:**
+
+| Pedido | Implementação |
+|---|---|
+| Email contraditório | Não era contraditório, mas era confuso: a falha (11:05, escrita na raiz do mount sem permissão, antes de mudar a pasta) e a recuperação (11:51, já com a subpasta) estavam misturadas. O email passa a ter as secções "FALHA (já resolvida)" e "ESTADO ATUAL: ON", com o ficheiro testado em cada uma |
+| Falha antiga ao mudar a pasta | Se a pasta de teste de um mount mudar no setup e houver uma falha registada, o estado é limpo (não envia "recuperado" da pasta antiga) |
+| `setup.sh --systemd` | Mostra a configuração, o estado do timer, os passos pelo setup ou à mão (com o `.service` e o `.timer` gerados com os valores atuais) e os comandos para confirmar |
+| README | Nova secção "systemd: passos" |
