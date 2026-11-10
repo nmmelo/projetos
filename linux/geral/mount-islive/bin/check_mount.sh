@@ -3,7 +3,7 @@
 # check_mount.sh - valida se os mounts configurados estão realmente vivos (mount-islive)
 #
 # Para cada mount em MOUNTS (config/.env):
-#   1. Escreve a data/hora atual em <mount>/<TEST_FILE> (com timeout, para não pendurar
+#   1. Escreve a data/hora atual em <pasta de teste>/<TEST_FILE> (TEST_DIRS; por omissão o próprio mount) (com timeout, para não pendurar
 #      quando o servidor de rede deixa de responder) e lê o valor de volta.
 #   2. Se falhar: regista a hora da falha, faz umount -f -l e volta a montar a partir do fstab.
 #   3. Quando o teste volta a ter sucesso: envia email com a hora da falha e a hora do teste com sucesso.
@@ -91,20 +91,22 @@ send_mail() {   # $1 = assunto, stdin = corpo
 }
 
 # Teste: escreve a data no ficheiro de teste e confirma que a leitura devolve o mesmo valor.
-test_mount() {   # $1 = mount point, $2 = data a escrever
+test_mount() {   # $1 = mount point, $2 = data a escrever, $3 = pasta do ficheiro de teste
     timeout -k 5 "$TOUCH_TIMEOUT" bash -c '
-        mp="$1"; ts="$2"; f="$1/$3"
+        mp="$1"; ts="$2"; d="$3"; f="${3%/}/$4"
         mountpoint -q "$mp" || exit 10
+        [[ -d "$d" ]] || exit 13
         printf "%s\n" "$ts" > "$f" || exit 11
         [[ "$(cat "$f")" == "$ts" ]] || exit 12
-    ' _ "$1" "$2" "$TEST_FILE"
+    ' _ "$1" "$2" "$3" "$TEST_FILE"
 }
 
 reason() {
     case "$1" in
         10)  echo "não está montado" ;;
-        11)  echo "não foi possível escrever em ${TEST_FILE}" ;;
-        12)  echo "o conteúdo lido de ${TEST_FILE} não corresponde ao escrito" ;;
+        11)  echo "não foi possível escrever em ${CUR_FILE}" ;;
+        12)  echo "o conteúdo lido de ${CUR_FILE} não corresponde ao escrito" ;;
+        13)  echo "a pasta ${CUR_DIR} não existe no mount" ;;
         124|137) echo "sem resposta em ${TOUCH_TIMEOUT}s (timeout)" ;;
         *)   echo "erro $1" ;;
     esac
@@ -127,6 +129,7 @@ O mount ${1} no servidor ${HOST} esteve em baixo e já está novamente ON.
 
   Servidor                      : ${HOST}
   Mount                         : ${1}
+  Ficheiro de teste             : ${CUR_FILE}
   Último teste OK antes da falha: ${last}
   Falha detetada                : $(fmt_date "$2")
   Motivo                        : ${6}
@@ -134,7 +137,7 @@ O mount ${1} no servidor ${HOST} esteve em baixo e já está novamente ON.
   Tempo em baixo (aprox.)       : $(duration "$2" "$3")
   Tentativas de remount         : ${5}
 
-O ficheiro ${1}/${TEST_FILE} foi escrito com a data do teste com sucesso.
+O ficheiro ${CUR_FILE} foi escrito com a data do teste com sucesso.
 
 --
 mount-islive (verificação a cada ${INTERVAL_MIN:-?} min)
@@ -147,6 +150,7 @@ O mount ${1} no servidor ${HOST} está em baixo e o remount automático falhou.
 
   Servidor        : ${HOST}
   Mount           : ${1}
+  Ficheiro teste  : ${CUR_FILE}
   Falha detetada  : $(fmt_date "$2")
   Motivo          : ${3}
 
@@ -163,8 +167,14 @@ if [[ -z "${MOUNTS:-}" ]]; then
     exit 1
 fi
 
+read -ra _MOUNTS <<< "$MOUNTS"
+read -ra _DIRS <<< "${TEST_DIRS:-}"
+
 rc_global=0
-for mp in $MOUNTS; do
+for i in "${!_MOUNTS[@]}"; do
+    mp="${_MOUNTS[$i]}"
+    CUR_DIR="${_DIRS[$i]:-$mp}"          # compatível com configurações sem TEST_DIRS
+    CUR_FILE="${CUR_DIR%/}/${TEST_FILE}"
     k="$(state_key "$mp")"
     f_down="${STATE_DIR}/${k}.down"         # hora da primeira falha
     f_ok="${STATE_DIR}/${k}.ok"             # hora do último teste OK
@@ -175,7 +185,7 @@ for mp in $MOUNTS; do
     last_ok="$(cat "$f_ok" 2>/dev/null || true)"
     ts="$(now)"
 
-    test_mount "$mp" "$ts"; rc=$?
+    test_mount "$mp" "$ts" "$CUR_DIR"; rc=$?
     if (( rc == 0 )); then
         echo "$ts" > "$f_ok"
         if [[ -f "$f_down" ]]; then
@@ -205,7 +215,7 @@ for mp in $MOUNTS; do
     remount "$mp" || log "  mount ${mp} devolveu erro (ver ${LOG_FILE})"
 
     ts2="$(now)"
-    test_mount "$mp" "$ts2"; rc2=$?
+    test_mount "$mp" "$ts2" "$CUR_DIR"; rc2=$?
     if (( rc2 == 0 )); then
         echo "$ts2" > "$f_ok"
         log "OK ${mp}: recuperado após remount (teste com sucesso às ${ts2})"
