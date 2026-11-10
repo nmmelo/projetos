@@ -121,23 +121,26 @@ remount() {   # $1 = mount point
     timeout -k 5 "$MOUNT_TIMEOUT" mount "$mp" >> "$LOG_FILE" 2>&1
 }
 
-notify_recovered() {   # $1 mp, $2 falha, $3 recuperado, $4 último OK antes da falha, $5 tentativas, $6 motivo
-    local last="-"
+notify_recovered() {   # $1 mp, $2 falha, $3 recuperado, $4 último OK antes da falha, $5 tentativas, $6 motivo, $7 ficheiro na falha
+    local last="-" ffail="${7:-$CUR_FILE}"
     [[ -n "${4:-}" ]] && last="$(fmt_date "$4")"
     send_mail "[${HOST}] Mount ${1} recuperado - ON" <<EOF
 O mount ${1} no servidor ${HOST} esteve em baixo e já está novamente ON.
 
   Servidor                      : ${HOST}
   Mount                         : ${1}
-  Ficheiro de teste             : ${CUR_FILE}
+
+  FALHA (já resolvida)
   Último teste OK antes da falha: ${last}
   Falha detetada                : $(fmt_date "$2")
-  Motivo                        : ${6}
-  Teste com sucesso (ON)        : $(fmt_date "$3")
-  Tempo em baixo (aprox.)       : $(duration "$2" "$3")
+  Motivo da falha               : ${6}
+  Ficheiro testado na falha     : ${ffail}
   Tentativas de remount         : ${5}
 
-O ficheiro ${CUR_FILE} foi escrito com a data do teste com sucesso.
+  ESTADO ATUAL: ON
+  Teste com sucesso             : $(fmt_date "$3")
+  Ficheiro testado              : ${CUR_FILE} (escrito e lido com sucesso)
+  Tempo em baixo (aprox.)       : $(duration "$2" "$3")
 
 --
 mount-islive (verificação a cada ${INTERVAL_MIN:-?} min)
@@ -150,7 +153,7 @@ O mount ${1} no servidor ${HOST} está em baixo e o remount automático falhou.
 
   Servidor        : ${HOST}
   Mount           : ${1}
-  Ficheiro teste  : ${CUR_FILE}
+  Ficheiro testado: ${CUR_FILE}
   Falha detetada  : $(fmt_date "$2")
   Motivo          : ${3}
 
@@ -192,8 +195,9 @@ for i in "${!_MOUNTS[@]}"; do
             # Voltou sozinho (ex.: a rede regressou) depois de uma falha anterior
             log "OK ${mp}: recuperado (teste com sucesso às ${ts})"
             notify_recovered "$mp" "$(cat "$f_down")" "$ts" "$(cat "${STATE_DIR}/${k}.lastok" 2>/dev/null)" \
-                "$(cat "$f_try" 2>/dev/null || echo 0)" "$(cat "$f_reason" 2>/dev/null || echo '-')"
-            rm -f "$f_down" "$f_try" "$f_reason" "$f_alert" "${STATE_DIR}/${k}.lastok"
+                "$(cat "$f_try" 2>/dev/null || echo 0)" "$(cat "$f_reason" 2>/dev/null || echo '-')" \
+                "$(cat "${STATE_DIR}/${k}.file" 2>/dev/null)"
+            rm -f "$f_down" "$f_try" "$f_reason" "$f_alert" "${STATE_DIR}/${k}.lastok" "${STATE_DIR}/${k}.file"
         else
             log_q "OK ${mp}"
         fi
@@ -207,6 +211,7 @@ for i in "${!_MOUNTS[@]}"; do
         echo "$ts" > "$f_down"
         echo "$why" > "$f_reason"
         echo "$last_ok" > "${STATE_DIR}/${k}.lastok"
+        echo "$CUR_FILE" > "${STATE_DIR}/${k}.file"
     fi
     tries=$(( $(cat "$f_try" 2>/dev/null || echo 0) + 1 ))
     echo "$tries" > "$f_try"
@@ -220,8 +225,8 @@ for i in "${!_MOUNTS[@]}"; do
         echo "$ts2" > "$f_ok"
         log "OK ${mp}: recuperado após remount (teste com sucesso às ${ts2})"
         notify_recovered "$mp" "$(cat "$f_down")" "$ts2" "$(cat "${STATE_DIR}/${k}.lastok" 2>/dev/null)" \
-            "$tries" "$(cat "$f_reason")"
-        rm -f "$f_down" "$f_try" "$f_reason" "$f_alert" "${STATE_DIR}/${k}.lastok"
+            "$tries" "$(cat "$f_reason")" "$(cat "${STATE_DIR}/${k}.file" 2>/dev/null)"
+        rm -f "$f_down" "$f_try" "$f_reason" "$f_alert" "${STATE_DIR}/${k}.lastok" "${STATE_DIR}/${k}.file"
     else
         log "FALHA ${mp}: continua em baixo após o remount ($(reason "$rc2"))."
         rc_global=1

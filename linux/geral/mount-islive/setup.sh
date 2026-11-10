@@ -10,6 +10,7 @@
 #   sudo ./setup.sh               configurar / reconfigurar
 #   sudo ./setup.sh --show        mostrar a configuração atual e a linha do crontab
 #   sudo ./setup.sh --cron        mostrar só a linha a colocar no crontab
+#   sudo ./setup.sh --systemd     mostrar a configuração e os passos do timer systemd
 #   sudo ./setup.sh --test-mail   enviar um email de teste
 #   sudo ./setup.sh --uninstall   remover o agendamento (mantém config e logs)
 
@@ -171,6 +172,12 @@ ask_test_dir() {   # ask_test_dir VAR mount omissão
     printf -v "$__var" '%s' "$d"
 }
 
+# Limpa o estado de falha de um mount (usado quando a pasta de teste muda)
+clear_state() {   # $1 = mount
+    local k="${1//\//_}"; k="${k:-_root}"
+    rm -f "${APP_HOME}/state/${k}".{down,tries,reason,alerted,lastok,file}
+}
+
 ask_mounts() {
     local -a old new olddirs newdirs
     local count i mp cont td
@@ -198,6 +205,15 @@ ask_mounts() {
         [[ "${old[$i]:-}" == "$mp" && -n "$td" ]] || td="$mp"
         ask_test_dir td "$mp" "$td"
         new+=("$mp"); newdirs+=("$td")
+        # falha anterior registada com outra pasta de teste: deixa de ser válida
+        if [[ -f "${APP_HOME}/state/$(k="${mp//\//_}"; echo "${k:-_root}").down" ]]; then
+            local j prev=""
+            for j in "${!old[@]}"; do [[ "${old[$j]}" == "$mp" ]] && prev="${olddirs[$j]:-$mp}"; done
+            if [[ "$prev" != "$td" ]]; then
+                clear_state "$mp"
+                echo "    estado de falha anterior de ${mp} limpo (a pasta de teste mudou)"
+            fi
+        fi
     done
     MOUNTS="${new[*]}"
     TEST_DIRS="${newdirs[*]}"
@@ -258,13 +274,8 @@ remove_schedule() {
     fi
 }
 
-install_schedule() {
-    local expr
-    chmod +x "$CHECK" "${APP_HOME}/bin/send_mail.py"
-    remove_schedule
-    case "$SCHEDULER" in
-        systemd)
-            cat > "${UNIT_DIR}/${APP}.service" <<EOF
+unit_service() {
+    cat <<EOF
 [Unit]
 Description=${APP} - valida se os mounts estão vivos e refaz o mount
 After=network-online.target remote-fs.target
@@ -274,7 +285,10 @@ Wants=network-online.target
 Type=oneshot
 ExecStart=${CHECK}
 EOF
-            cat > "${UNIT_DIR}/${APP}.timer" <<EOF
+}
+
+unit_timer() {
+    cat <<EOF
 [Unit]
 Description=${APP} - a cada ${INTERVAL_MIN} minuto(s)
 
@@ -288,6 +302,57 @@ Unit=${APP}.service
 [Install]
 WantedBy=timers.target
 EOF
+}
+
+# --systemd: estado atual e passos para usar o timer systemd
+systemd_steps() {
+    line
+    echo " Agendamento por systemd"
+    line
+    if ! have_systemd; then
+        echo "  Este sistema NÃO tem systemd (ex.: container). Use cron: sudo ${APP_HOME}/setup.sh --cron"
+        line; return 0
+    fi
+    if systemctl is-enabled "${APP}.timer" >/dev/null 2>&1; then
+        echo "  Estado: timer ${APP}.timer INSTALADO e $(systemctl is-active "${APP}.timer" 2>/dev/null)"
+        echo "  Nada a fazer. Para alterar o intervalo, corra o setup e indique o novo valor."
+    else
+        echo "  Estado: timer ${APP}.timer NÃO instalado (agendamento atual: ${SCHEDULER:-?})"
+    fi
+    echo
+    echo "  Opção A - pelo setup (recomendado):"
+    echo "    1. sudo ${APP_HOME}/setup.sh"
+    echo "    2. Enter nos valores a manter; em [4/4] Agendamento escrever: systemd"
+    echo "       (o setup remove a linha do cron, se existir, e instala e ativa o timer)"
+    echo
+    echo "  Opção B - à mão:"
+    echo "    1. sudo ${APP_HOME}/setup.sh --uninstall        # remove a linha do cron, se existir"
+    echo "    2. criar ${UNIT_DIR}/${APP}.service:"
+    unit_service | sed 's/^/         /'
+    echo "    3. criar ${UNIT_DIR}/${APP}.timer:"
+    unit_timer   | sed 's/^/         /'
+    echo "    4. sudo systemctl daemon-reload"
+    echo "       sudo systemctl enable --now ${APP}.timer"
+    echo "    (com a opção B o .env continua com SCHEDULER=${SCHEDULER:-?}; o setup é que o atualiza)"
+    echo
+    echo "  Confirmar:"
+    echo "    systemctl list-timers ${APP}.timer          # próxima execução"
+    echo "    systemctl status ${APP}.timer"
+    echo "    journalctl -u ${APP}.service -n 50          # últimas execuções"
+    echo "    sudo systemctl start ${APP}.service         # correr já uma vez"
+    echo "    tail -f ${APP_HOME}/logs/mount-islive.log"
+    echo "  Verificar que não ficou também no cron: sudo crontab -l ; ls ${CRON_FILE}"
+    line
+}
+
+install_schedule() {
+    local expr
+    chmod +x "$CHECK" "${APP_HOME}/bin/send_mail.py"
+    remove_schedule
+    case "$SCHEDULER" in
+        systemd)
+            unit_service > "${UNIT_DIR}/${APP}.service"
+            unit_timer   > "${UNIT_DIR}/${APP}.timer"
             systemctl daemon-reload
             systemctl enable --now "${APP}.timer" >/dev/null
             systemctl restart "${APP}.timer"
@@ -316,7 +381,8 @@ explain_schedulers() {
     expr="$(cron_expr "$INTERVAL_MIN" 2>/dev/null)" || expr="(intervalo não representável em cron)"
     echo "  Opções:"
     if have_systemd; then
-        echo "    systemd : cria e ativa ${APP}.service + ${APP}.timer (a cada ${INTERVAL_MIN} min)"
+        echo "    systemd : o setup cria e ativa ${APP}.service + ${APP}.timer (a cada ${INTERVAL_MIN} min);"
+        echo "              não há nada a fazer à mão (passos: sudo ${APP_HOME}/setup.sh --systemd)"
     else
         echo "    systemd : (não disponível)"
     fi
@@ -335,7 +401,10 @@ explain_choice() {
     local expr
     expr="$(cron_expr "$INTERVAL_MIN" 2>/dev/null || true)"
     case "$SCHEDULER" in
-        systemd) echo "  -> vai ser criado e ativado o timer systemd ${APP}.timer" ;;
+        systemd)
+            echo "  -> vão ser criados ${UNIT_DIR}/${APP}.service e ${APP}.timer e ativado o timer"
+            echo "     (systemctl daemon-reload + systemctl enable --now ${APP}.timer)"
+            ;;
         cron)
             if command -v crontab >/dev/null; then
                 echo "  -> vai ser acrescentada ao crontab do root a linha:"
@@ -359,9 +428,12 @@ next_steps() {
     line
     case "$SCHEDULER" in
         systemd)
-            echo "  Nada a fazer: o timer já está ativo."
+            echo "  Nada a fazer: criados ${UNIT_DIR}/${APP}.service e ${APP}.timer,"
+            echo "  timer ativo (a cada ${INTERVAL_MIN} min, também após reboot)."
             echo "  Confirmar : systemctl list-timers ${APP}.timer"
             echo "  Execuções : journalctl -u ${APP}.service -n 50"
+            echo "  Correr já : sudo systemctl start ${APP}.service"
+            echo "  Detalhe e passos à mão: sudo ${APP_HOME}/setup.sh --systemd"
             ;;
         cron)
             if [[ -f "$CRON_FILE" ]]; then
@@ -417,10 +489,11 @@ load_env
 case "${1:-}" in
     --show)      [[ $FIRST_RUN -eq 0 ]] || die "ainda não configurado"; show_config; exit 0 ;;
     --cron)      [[ $FIRST_RUN -eq 0 ]] || die "ainda não configurado"; cron_lines; exit 0 ;;
+    --systemd)   [[ $FIRST_RUN -eq 0 ]] || die "ainda não configurado"; show_config; systemd_steps; exit 0 ;;
     --test-mail) [[ $FIRST_RUN -eq 0 ]] || die "ainda não configurado"; test_mail; exit $? ;;
     --uninstall) remove_schedule; echo "Agendamento removido. A configuração e os logs foram mantidos."; exit 0 ;;
     "" ) ;;
-    *) sed -n '3,15p' "$0"; exit 1 ;;
+    *) sed -n '3,16p' "$0"; exit 1 ;;
 esac
 
 # --- assistente --------------------------------------------------------------

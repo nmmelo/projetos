@@ -175,6 +175,7 @@ Na password, **Enter** mantém a atual e escrever uma nova substitui-a. A passwo
 | `sudo ./setup.sh` | Configurar ou reconfigurar |
 | `sudo ./setup.sh --show` | Mostrar a configuração, o agendamento e a linha do crontab |
 | `sudo ./setup.sh --cron` | Mostrar só a linha a colocar no crontab |
+| `sudo ./setup.sh --systemd` | Mostrar a configuração, o estado do timer systemd e os passos para o instalar (pelo setup ou à mão) |
 | `sudo ./setup.sh --test-mail` | Enviar um email de teste |
 | `sudo ./setup.sh --uninstall` | Remover o timer/cron (mantém a configuração e os logs) |
 
@@ -226,6 +227,76 @@ Se o servidor permitir envio **sem autenticação** a partir do IP da máquina (
 No fim do setup aparece sempre o bloco **"Agendamento: o que fazer / como confirmar"** com a opção escolhida
 (linha instalada, como confirmar, e se o serviço cron está a correr ou o que falta para o iniciar).
 
+### systemd: passos
+
+Com `systemd` **não há nada a fazer à mão**: escolhendo `systemd` no passo `[4/4] Agendamento`, o setup cria
+os dois ficheiros, remove a linha do cron (se existir) e ativa o timer. `sudo ./setup.sh --systemd` mostra o estado
+atual e estes passos com os valores da configuração.
+
+**Opção A: pelo setup (recomendado)**
+
+```bash
+sudo /opt/mount-islive/setup.sh
+#   Enter nos valores a manter
+#   [4/4] Agendamento
+#   Tipo (systemd / cron / manual) [cron]: systemd
+```
+
+**Opção B: à mão** (é o que o setup faz)
+
+1. Remover a linha do cron, se existir: `sudo ./setup.sh --uninstall`
+2. `/etc/systemd/system/mount-islive.service`
+
+   ```ini
+   [Unit]
+   Description=mount-islive - valida se os mounts estão vivos e refaz o mount
+   After=network-online.target remote-fs.target
+   Wants=network-online.target
+
+   [Service]
+   Type=oneshot
+   ExecStart=/opt/mount-islive/bin/check_mount.sh
+   ```
+
+3. `/etc/systemd/system/mount-islive.timer`
+
+   ```ini
+   [Unit]
+   Description=mount-islive - a cada 5 minuto(s)
+
+   [Timer]
+   OnActiveSec=1min
+   OnBootSec=2min
+   OnUnitActiveSec=5min
+   AccuracySec=15s
+   Unit=mount-islive.service
+
+   [Install]
+   WantedBy=timers.target
+   ```
+
+4. Ativar:
+
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now mount-islive.timer
+   ```
+
+Com a opção B, o `.env` mantém o `SCHEDULER` anterior. Corra o setup e escolha `systemd` para o atualizar.
+
+| Confirmar | Comando |
+|---|---|
+| Próxima execução | `systemctl list-timers mount-islive.timer` |
+| Estado do timer | `systemctl status mount-islive.timer` |
+| Últimas execuções | `journalctl -u mount-islive.service -n 50` |
+| Correr já uma vez | `sudo systemctl start mount-islive.service` |
+| Log do script | `tail -f /opt/mount-islive/logs/mount-islive.log` |
+| Não ficou também no cron | `sudo crontab -l` e `ls /etc/cron.d/mount-islive` |
+| Mudar o intervalo | Correr o setup com o novo intervalo, ou alterar `OnUnitActiveSec=` e `sudo systemctl daemon-reload && sudo systemctl restart mount-islive.timer` |
+| Remover | `sudo ./setup.sh --uninstall` |
+
+### cron: linha
+
 A linha do crontab pode ser vista a qualquer momento com `sudo ./setup.sh --cron`:
 
 ```text
@@ -247,8 +318,6 @@ precisa de permissões para montar (`--privileged` ou `--cap-add SYS_ADMIN`). O 
 `PATH`, por isso funciona com o ambiente mínimo do cron.
 
 ```bash
-systemctl list-timers mount-islive.timer     # systemd: próxima execução
-journalctl -u mount-islive.service -n 50     # systemd: últimas execuções
 sudo /opt/mount-islive/bin/check_mount.sh -v # executar já, com detalhe
 ```
 
@@ -263,13 +332,23 @@ O mount /mnt/nfs_backup no servidor srv01 esteve em baixo e já está novamente 
 
   Servidor                      : srv01
   Mount                         : /mnt/nfs_backup
+
+  FALHA (já resolvida)
   Último teste OK antes da falha: 08/11/2026 09:55:00
   Falha detetada                : 08/11/2026 10:00:00
-  Motivo                        : sem resposta em 15s (timeout)
-  Teste com sucesso (ON)        : 08/11/2026 10:00:18
-  Tempo em baixo (aprox.)       : 0h 00m 18s
+  Motivo da falha               : sem resposta em 15s (timeout)
+  Ficheiro testado na falha     : /mnt/nfs_backup/monitor/teste.txt
   Tentativas de remount         : 1
+
+  ESTADO ATUAL: ON
+  Teste com sucesso             : 08/11/2026 10:00:18
+  Ficheiro testado              : /mnt/nfs_backup/monitor/teste.txt (escrito e lido com sucesso)
+  Tempo em baixo (aprox.)       : 0h 00m 18s
 ```
+
+O email separa a **falha** (o que aconteceu, já resolvido) do **estado atual** (ON). Se a pasta de teste for
+alterada no setup enquanto há uma falha registada, o setup limpa esse estado, para não ser enviado um "recuperado"
+referente à pasta antiga.
 
 **Alerta** (só com `NOTIFY_ON_FAIL=sim`, enviado uma vez quando o remount falha; o script continua a
 tentar em cada ciclo e envia o email de "ON" quando o mount recuperar):
@@ -303,6 +382,8 @@ Testado com mounts `tmpfs` no `/etc/fstab` e um servidor SMTP local com autentic
 | Pasta de teste fora do mount (ex.: `/tmp/x`) | Recusada pelo setup |
 | Pasta de teste apagada no mount | Remount + alerta com o motivo "a pasta ... não existe no mount" |
 | `.env` antigo sem `TEST_DIRS` | Usa o próprio mount, como antes |
+| Falha registada na raiz e pasta de teste alterada no setup | Estado de falha limpo pelo setup (sem email "recuperado" falso) |
+| `--systemd` com e sem systemd | Mostra o estado, os ficheiros `.service`/`.timer` com os valores atuais e os passos |
 | Agendamento `cron` (sem `crontab`) e `manual` | Mostrada a linha antes da escolha e os passos/confirmação no fim |
 
 O agendamento por systemd não foi testado neste ambiente, que não tem systemd.
