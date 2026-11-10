@@ -45,3 +45,14 @@ Testado com um `tmpfs` no fstab e um servidor SMTP local (cenários no [`README.
 
 Testado com 2 e depois 3 mounts, servidor por IP, com e sem autenticação, e `check_mount.sh` corrido com `env -i`
 para simular o ambiente do cron.
+
+**Pergunta:**
+> Na raiz do mount não consigo escrever: quero manter o mount e ter outro parâmetro a indicar onde é guardado o ficheiro de teste. Quando seleciono a opção de cron devia dar o output do que fazer (só aparece depois de correr de novo o setup).
+
+**Resposta:**
+
+| Pedido | Implementação |
+|---|---|
+| Pasta do ficheiro de teste | Novo parâmetro `TEST_DIRS` (uma pasta por mount, pela mesma ordem). O setup pergunta-a a seguir a cada mount (omissão: o próprio mount), exige que seja o mount ou uma subpasta, oferece-se para a criar e valida a escrita. O `umount`/`mount` continua a ser feito ao mount. Configurações antigas sem `TEST_DIRS` usam o mount |
+| Output do cron | No passo de agendamento mostra o que cada opção faz (com a linha exata), confirma o que vai ser feito com a escolha e, no fim, mostra o bloco "o que fazer / como confirmar" (linha instalada, `crontab -l`, se o serviço cron está a correr e como o iniciar; no `manual`, os passos `crontab -e` ou `/etc/cron.d`) |
+| Configuração cifrada | Só a password SMTP é cifrada; o resto do `.env` está em texto, mas com `chmod 600` (só root) |

@@ -2,14 +2,15 @@
 
 Valida, de X em X minutos, se os mounts do `/etc/fstab` (NFS, CIFS, etc.) estão **realmente vivos**.
 Por vezes, numa falha de rede, o mount continua a aparecer como montado mas deixa de responder.
-O script escreve a data atual num ficheiro de teste dentro do mount. Se não conseguir, **refaz o mount**
+O script escreve a data atual num ficheiro de teste dentro do mount (na raiz ou numa **subpasta à escolha**,
+para os casos em que não há permissão de escrita na raiz do mount). Se não conseguir, **refaz o mount**
 e, quando o mount volta a funcionar, envia um **email por SMTP** com a hora da falha e a hora do teste com sucesso.
 
 ## Ficheiros
 
 | Ficheiro | Descrição |
 |---|---|
-| [`setup.sh`](setup.sh) | Assistente de configuração: número de mounts e cada mount, intervalo, SMTP (DNS/IP, porta, TLS, autenticação), emails e agendamento (systemd, cron ou manual). Grava `config/.env` |
+| [`setup.sh`](setup.sh) | Assistente de configuração: número de mounts, cada mount e a pasta do ficheiro de teste, intervalo, SMTP (DNS/IP, porta, TLS, autenticação), emails e agendamento (systemd, cron ou manual). Grava `config/.env` |
 | [`bin/check_mount.sh`](bin/check_mount.sh) | Teste de escrita, remount e notificações (corre pelo agendamento) |
 | [`bin/send_mail.py`](bin/send_mail.py) | Envio de email por SMTP (Python 3, `smtplib`: sem TLS, STARTTLS ou SSL, com ou sem autenticação) |
 | [`config/.env.example`](config/.env.example) | Exemplo da configuração |
@@ -30,7 +31,8 @@ Criados na instalação, não versionados (ver `.gitignore`):
  timer systemd / cron (a cada INTERVAL_MIN)
         │
         ▼
- escreve "data hora" em <mount>/teste.txt e lê de volta  (timeout TOUCH_TIMEOUT)
+ escreve "data hora" em <pasta de teste>/teste.txt e lê de volta  (timeout TOUCH_TIMEOUT)
+ (a pasta de teste é o mount ou uma subpasta dele; o remount é feito sempre ao mount)
         │
    ┌────┴─────┐
   OK        FALHA ── guarda hora da falha ── umount -f -l ── mount <mount> (fstab)
@@ -48,7 +50,8 @@ Criados na instalação, não versionados (ver `.gitignore`):
 |---|---|
 | O caminho deixou de estar montado | `não está montado` |
 | A escrita ou a leitura fica pendurada (servidor de rede sem resposta) | `sem resposta em Ns (timeout)` |
-| Erro ao escrever | `não foi possível escrever em teste.txt` |
+| A pasta de teste não existe no mount | `a pasta ... não existe no mount` |
+| Erro ao escrever | `não foi possível escrever em <pasta>/teste.txt` |
 | O valor lido não é o que foi escrito | `o conteúdo lido ... não corresponde` |
 
 Um mount pendurado não bloqueia o servidor: cada teste tem `timeout` e há um `flock` que impede
@@ -71,13 +74,19 @@ Corre como **root**, porque precisa de montar e desmontar.
 === mount-islive: primeira configuração ===
 
 [1/4] Mounts
+  Nome do ficheiro de teste [teste.txt]:
   Quantos mounts quer validar [0]: 2
   Mount 1 de 2 (caminho, ex.: /mnt/nfs): /mnt/nfs_backup
     ok  /mnt/nfs_backup -> srv-nas:/export/backup nfs
+    Pasta onde gravar o teste.txt (dentro de /mnt/nfs_backup) [/mnt/nfs_backup]: /mnt/nfs_backup/monitor
+    !!  /mnt/nfs_backup/monitor não existe
+    Criar a pasta agora? (sim/nao) [sim]:
+    ok  escrita em /mnt/nfs_backup/monitor validada
   Mount 2 de 2 (caminho, ex.: /mnt/nfs): /mnt/cifs_dados
     ok  /mnt/cifs_dados -> //srv-files/dados cifs
+    Pasta onde gravar o teste.txt (dentro de /mnt/cifs_dados) [/mnt/cifs_dados]:
+    ok  escrita em /mnt/cifs_dados validada
   Intervalo entre testes, em minutos [5]:
-  Nome do ficheiro de teste [teste.txt]:
   Timeout do teste de escrita, em segundos [15]:
   Enviar também alerta se o remount falhar (sim/nao) [sim]:
 
@@ -97,20 +106,39 @@ Corre como **root**, porque precisa de montar e desmontar.
   Destinatário(s), separados por vírgula: dba@exemplo.pt, sistemas@exemplo.pt
 
 [4/4] Agendamento
-  Tipo (systemd / cron / manual) [systemd]:
+  Opções:
+    systemd : cria e ativa mount-islive.service + mount-islive.timer (a cada 5 min)
+    cron    : o setup acrescenta ao crontab do root a linha:
+                */5 * * * * /opt/mount-islive/bin/check_mount.sh >/dev/null 2>&1
+    manual  : não instala nada; mostra a linha para colocar no crontab
+  Tipo (systemd / cron / manual) [systemd]: cron
+  -> vai ser acrescentada ao crontab do root a linha:
+       */5 * * * * /opt/mount-islive/bin/check_mount.sh >/dev/null 2>&1
 
   Configuração gravada em /opt/mount-islive/config/.env (chmod 600)
-  Timer systemd instalado: mount-islive.timer (a cada 5 min)
+  Linha adicionada ao crontab do root
 
   Enviar um email de teste agora (sim/nao) [sim]:
   Executar já uma verificação dos mounts (sim/nao) [sim]:
+
+----------------------------------------------------------------------
+ Agendamento (cron): o que fazer / como confirmar
+----------------------------------------------------------------------
+  Linha instalada no crontab do root. Confirmar: sudo crontab -l
+    */5 * * * * /opt/mount-islive/bin/check_mount.sh >/dev/null 2>&1
+  Serviço cron: NÃO está a correr. Falta iniciá-lo:
+    Debian/Ubuntu : service cron start      (container: 'cron' no entrypoint)
+    RHEL/Oracle L.: service crond start     (container: 'crond' no entrypoint)
+  Ver de novo a qualquer momento: sudo /opt/mount-islive/setup.sh --cron
+----------------------------------------------------------------------
 ```
 
 | Passo | Notas |
 |---|---|
 | Mounts | Indica-se primeiro **quantos** e depois cada um. O setup avisa se um mount não está no `/etc/fstab`, porque o remount usa `mount <caminho>` a partir do fstab |
+| Pasta de teste | Por cada mount: onde gravar o `teste.txt` (omissão: o próprio mount). Tem de ser o mount ou uma subpasta. Se o mount estiver montado, o setup valida se a pasta existe (oferece-se para a criar) e se tem permissão de escrita |
 | SMTP | Servidor por **DNS ou IP**, TLS (`nao`, `starttls` ou `ssl`; a porta sugerida muda conforme a escolha), e **username/password só se houver autenticação** |
-| Agendamento | `systemd`, `cron` ou `manual` (ver [Agendamento](#agendamento)) |
+| Agendamento | `systemd`, `cron` ou `manual`. Antes da escolha mostra o que cada opção faz (com a linha exata do crontab); no fim mostra o que falta fazer e como confirmar (ver [Agendamento](#agendamento)) |
 
 ### Execuções seguintes: mostra os valores atuais
 
@@ -119,7 +147,9 @@ Corre como **root**, porque precisa de montar e desmontar.
 ----------------------------------------------------------------------
  Configuração atual (/opt/mount-islive/config/.env)
 ----------------------------------------------------------------------
- MOUNTS             2 mount(s): /mnt/nfs_backup /mnt/cifs_dados
+ MOUNTS             2 mount(s)
+   /mnt/nfs_backup                teste em /mnt/nfs_backup/monitor/teste.txt
+   /mnt/cifs_dados                teste em /mnt/cifs_dados/teste.txt
  INTERVAL_MIN       5
  ...
  SMTP_AUTH          sim
@@ -152,9 +182,10 @@ Na password, **Enter** mantém a atual e escrever uma nova substitui-a. A passwo
 
 | Variável | Omissão | Descrição |
 |---|---|---|
-| `MOUNTS` | — | Mount(s) a validar, separados por espaço |
+| `MOUNTS` | — | Mount(s) a validar, separados por espaço (é neles que é feito o `umount`/`mount`) |
+| `TEST_DIRS` | = `MOUNTS` | Pasta do ficheiro de teste de cada mount, pela mesma ordem (o mount ou uma subpasta) |
 | `INTERVAL_MIN` | `5` | Minutos entre testes (1–1440) |
-| `TEST_FILE` | `teste.txt` | Ficheiro escrito em cada mount com a data do teste |
+| `TEST_FILE` | `teste.txt` | Nome do ficheiro escrito em cada pasta de teste com a data do teste |
 | `TOUCH_TIMEOUT` | `15` | Segundos até considerar que o mount não responde |
 | `NOTIFY_ON_FAIL` | `sim` | Enviar um alerta (uma vez) se o remount falhar |
 | `SMTP_SERVER` | — | Servidor SMTP (nome DNS ou IP) |
@@ -190,7 +221,10 @@ Se o servidor permitir envio **sem autenticação** a partir do IP da máquina (
 |---|---|---|
 | `systemd` | Servidores normais (omissão quando existe systemd) | Cria `mount-islive.service` + `mount-islive.timer` (`OnUnitActiveSec=<INTERVAL_MIN>min`, arranca 2 min após o boot) |
 | `cron` | Sistemas sem systemd, ex.: **containers** | Acrescenta a linha ao crontab do root (`crontab`); se o comando não existir, cria `/etc/cron.d/mount-islive`. Avisa se o serviço cron não estiver a correr |
-| `manual` | Quando o agendamento é feito noutro sítio | Não instala nada e mostra a linha a colocar no crontab |
+| `manual` | Quando o agendamento é feito noutro sítio | Não instala nada e mostra os passos: `crontab -e` + linha, ou o comando para criar `/etc/cron.d/mount-islive` |
+
+No fim do setup aparece sempre o bloco **"Agendamento: o que fazer / como confirmar"** com a opção escolhida
+(linha instalada, como confirmar, e se o serviço cron está a correr ou o que falta para o iniciar).
 
 A linha do crontab pode ser vista a qualquer momento com `sudo ./setup.sh --cron`:
 
@@ -265,6 +299,11 @@ Testado com mounts `tmpfs` no `/etc/fstab` e um servidor SMTP local com autentic
 | 2 de 3 mounts desmontados, corrido com `env -i` (ambiente do cron) | Os 2 voltaram a montar e foram enviados 2 emails "ON" |
 | Mount desmontado / escrita pendurada (FIFO) / remount a falhar 2 ciclos | Email "ON" / timeout + remount / 1 alerta e depois "ON" |
 | Sem autenticação (`SMTP_AUTH=nao`) | Email enviado sem AUTH |
+| Pasta de teste numa subpasta inexistente | O setup oferece-se para a criar e valida a escrita |
+| Pasta de teste fora do mount (ex.: `/tmp/x`) | Recusada pelo setup |
+| Pasta de teste apagada no mount | Remount + alerta com o motivo "a pasta ... não existe no mount" |
+| `.env` antigo sem `TEST_DIRS` | Usa o próprio mount, como antes |
+| Agendamento `cron` (sem `crontab`) e `manual` | Mostrada a linha antes da escolha e os passos/confirmação no fim |
 
 O agendamento por systemd não foi testado neste ambiente, que não tem systemd.
 
@@ -272,4 +311,6 @@ O agendamento por systemd não foi testado neste ambiente, que não tem systemd.
 
 - Se o mount usar `hard` no NFS, um processo pendurado pode ficar no estado `D` mesmo depois do `timeout`.
   O `umount -f -l` liberta o caminho para o novo mount.
-- O `teste.txt` fica no mount com a data do último teste com sucesso, o que é útil para confirmar do lado do servidor.
+- Se não houver permissão de escrita na raiz do mount, indique uma subpasta onde haja (ex.: `/mnt/nfs_backup/monitor`).
+  A subpasta tem de estar no mesmo mount: se ela própria for outro mount, o teste valida esse outro.
+- O `teste.txt` fica na pasta de teste com a data do último teste com sucesso, o que é útil para confirmar do lado do servidor.

@@ -2,7 +2,7 @@
 #
 # setup.sh - configuração do mount-islive
 #
-# 1.ª execução : pede todas as configurações (mounts, intervalo, SMTP, emails, agendamento),
+# 1.ª execução : pede todas as configurações (mounts e pasta do ficheiro de teste, intervalo, SMTP, emails, agendamento),
 #                grava config/.env e instala o agendamento (systemd, cron ou manual).
 # Execuções seguintes: mostra os valores atuais; Enter mantém o valor entre [ ].
 #
@@ -24,7 +24,7 @@ CHECK="${APP_HOME}/bin/check_mount.sh"
 UNIT_DIR="/etc/systemd/system"
 CRON_FILE="/etc/cron.d/${APP}"
 
-VARS=(MOUNTS INTERVAL_MIN TEST_FILE TOUCH_TIMEOUT NOTIFY_ON_FAIL
+VARS=(MOUNTS TEST_DIRS INTERVAL_MIN TEST_FILE TOUCH_TIMEOUT NOTIFY_ON_FAIL
       SMTP_SERVER SMTP_PORT SMTP_SECURITY SMTP_TLS_VERIFY SMTP_AUTH SMTP_USER SMTP_PASSWORD_ENC
       MAIL_FROM MAIL_TO SCHEDULER)
 
@@ -85,9 +85,17 @@ show_config() {
         val="${!v:-}"
         case "$v" in
             SMTP_PASSWORD_ENC) [[ -n "$val" ]] && val="(guardada - não é mostrada)" || val="(sem password)" ;;
-            MOUNTS) local -a _m; read -ra _m <<< "$val"; val="${#_m[@]} mount(s): ${val}" ;;
+            MOUNTS) local -a _m; read -ra _m <<< "$val"; val="${#_m[@]} mount(s)" ;;
+            TEST_DIRS) continue ;;
         esac
         printf ' %-18s %s\n' "$v" "${val:--}"
+        if [[ "$v" == "MOUNTS" ]]; then
+            local -a _d; local i
+            read -ra _d <<< "${TEST_DIRS:-}"
+            for i in "${!_m[@]}"; do
+                printf '   %-30s teste em %s/%s\n' "${_m[$i]}" "${_d[$i]:-${_m[$i]}}" "${TEST_FILE:-teste.txt}"
+            done
+        fi
     done
     line
     if systemctl is-enabled "${APP}.timer" >/dev/null 2>&1; then
@@ -129,13 +137,48 @@ ask_yn() {   # ask_yn VAR "Pergunta" "sim|nao"
     ask_req "$1" "$2 (sim/nao)" "$3" '^(sim|nao)$' "responda sim ou nao"
 }
 
+# Pasta onde é escrito o ficheiro de teste: tem de estar dentro do mount
+ask_test_dir() {   # ask_test_dir VAR mount omissão
+    local __var="$1" mp="$2" def="$3" d cont rc
+    while true; do
+        ask_req d "  Pasta onde gravar o ${TEST_FILE:-teste.txt} (dentro de ${mp})" "$def" '^/[^ ]*$' "caminho absoluto, sem espaços"
+        d="${d%/}"; [[ -z "$d" ]] && d="/"
+        if [[ "$d" != "$mp" && "$d" != "${mp%/}/"* ]]; then
+            echo "    -> a pasta tem de ser ${mp} ou uma subpasta (ex.: ${mp%/}/monitor)"; continue
+        fi
+        if ! mountpoint -q "$mp" 2>/dev/null; then
+            echo "    !!  ${mp} não está montado agora: não foi possível validar a pasta"
+            break
+        fi
+        if ! timeout -k 2 10 test -d "$d"; then
+            echo "    !!  ${d} não existe"
+            ask_yn cont "  Criar a pasta agora?" "sim"
+            if [[ "$cont" == "sim" ]]; then
+                timeout -k 2 10 mkdir -p "$d" || { echo "    -> não foi possível criar ${d}"; continue; }
+            else
+                continue
+            fi
+        fi
+        timeout -k 2 10 bash -c 'f="$1/.mount-islive.$$"; echo ok > "$f" && rm -f "$f"' _ "$d" 2>/dev/null; rc=$?
+        if (( rc == 0 )); then
+            echo "    ok  escrita em ${d} validada"
+            break
+        fi
+        echo "    !!  sem permissão de escrita em ${d} (ou sem resposta)"
+        ask_yn cont "  Usar mesmo assim?" "nao"
+        [[ "$cont" == "sim" ]] && break
+    done
+    printf -v "$__var" '%s' "$d"
+}
+
 ask_mounts() {
-    local -a old new
-    local count i mp cont
+    local -a old new olddirs newdirs
+    local count i mp cont td
     read -ra old <<< "${MOUNTS:-}"
+    read -ra olddirs <<< "${TEST_DIRS:-}"
     ask_req count "Quantos mounts quer validar" "${#old[@]}" '^[1-9][0-9]?$' "número entre 1 e 99"
     [[ "$count" == "0" ]] && count=1
-    new=()
+    new=(); newdirs=()
     for (( i = 0; i < count; i++ )); do
         while true; do
             ask_req mp "Mount $(( i + 1 )) de ${count} (caminho, ex.: /mnt/nfs)" "${old[$i]:-}" '^/[^ ]*$' "caminho absoluto, sem espaços"
@@ -150,9 +193,14 @@ ask_mounts() {
             ask_yn cont "Usar mesmo assim?" "nao"
             [[ "$cont" == "sim" ]] && break
         done
-        new+=("$mp")
+        # se o mount mudou, a pasta anterior deixa de servir como omissão
+        td="${olddirs[$i]:-}"
+        [[ "${old[$i]:-}" == "$mp" && -n "$td" ]] || td="$mp"
+        ask_test_dir td "$mp" "$td"
+        new+=("$mp"); newdirs+=("$td")
     done
     MOUNTS="${new[*]}"
+    TEST_DIRS="${newdirs[*]}"
 }
 
 ask_password() {
@@ -249,23 +297,100 @@ EOF
             expr="$(cron_expr "$INTERVAL_MIN")" || die "intervalo ${INTERVAL_MIN} não suportado em cron"
             if command -v crontab >/dev/null; then
                 ( crontab -l 2>/dev/null | grep -vF "$CHECK"; echo "${expr} ${CHECK} >/dev/null 2>&1" ) | crontab -
-                echo "  Linha adicionada ao crontab do root:"
+                echo "  Linha adicionada ao crontab do root"
             else
                 echo "${expr} root ${CHECK} >/dev/null 2>&1" > "$CRON_FILE"
                 chmod 644 "$CRON_FILE"
-                echo "  Comando crontab não encontrado; criado ${CRON_FILE}:"
-            fi
-            echo "    ${expr} ${CHECK} >/dev/null 2>&1"
-            if ! pgrep -x cron >/dev/null && ! pgrep -x crond >/dev/null; then
-                echo "  ATENÇÃO: o serviço cron não está a correr (comum em containers)."
-                echo "           Inicie-o (ex.: 'cron' ou 'crond') ou use o agendamento do anfitrião."
+                echo "  Criado ${CRON_FILE}"
             fi
             ;;
         manual)
-            echo "  Nenhum agendamento instalado. Coloque uma destas linhas:"
-            cron_lines
+            echo "  Nenhum agendamento instalado (ver os passos no fim)"
             ;;
     esac
+}
+
+# Mostra o que cada opção de agendamento faz (antes da escolha)
+explain_schedulers() {
+    local expr
+    expr="$(cron_expr "$INTERVAL_MIN" 2>/dev/null)" || expr="(intervalo não representável em cron)"
+    echo "  Opções:"
+    if have_systemd; then
+        echo "    systemd : cria e ativa ${APP}.service + ${APP}.timer (a cada ${INTERVAL_MIN} min)"
+    else
+        echo "    systemd : (não disponível)"
+    fi
+    if command -v crontab >/dev/null; then
+        echo "    cron    : o setup acrescenta ao crontab do root a linha:"
+        echo "                ${expr} ${CHECK} >/dev/null 2>&1"
+    else
+        echo "    cron    : o setup cria ${CRON_FILE} com a linha:"
+        echo "                ${expr} root ${CHECK} >/dev/null 2>&1"
+    fi
+    echo "    manual  : não instala nada; mostra a linha para colocar no crontab"
+}
+
+# Confirma o que vai ser feito com a opção escolhida
+explain_choice() {
+    local expr
+    expr="$(cron_expr "$INTERVAL_MIN" 2>/dev/null || true)"
+    case "$SCHEDULER" in
+        systemd) echo "  -> vai ser criado e ativado o timer systemd ${APP}.timer" ;;
+        cron)
+            if command -v crontab >/dev/null; then
+                echo "  -> vai ser acrescentada ao crontab do root a linha:"
+            else
+                echo "  -> comando crontab não existe; vai ser criado ${CRON_FILE} com:"
+                expr="${expr} root"
+            fi
+            echo "       ${expr} ${CHECK} >/dev/null 2>&1"
+            ;;
+        manual)  echo "  -> nada vai ser instalado; no fim são mostrados os passos a fazer" ;;
+    esac
+}
+
+# Passos finais / como confirmar, conforme o agendamento
+next_steps() {
+    local expr
+    expr="$(cron_expr "$INTERVAL_MIN" 2>/dev/null || true)"
+    echo
+    line
+    echo " Agendamento (${SCHEDULER}): o que fazer / como confirmar"
+    line
+    case "$SCHEDULER" in
+        systemd)
+            echo "  Nada a fazer: o timer já está ativo."
+            echo "  Confirmar : systemctl list-timers ${APP}.timer"
+            echo "  Execuções : journalctl -u ${APP}.service -n 50"
+            ;;
+        cron)
+            if [[ -f "$CRON_FILE" ]]; then
+                echo "  Linha instalada em ${CRON_FILE}. Confirmar: cat ${CRON_FILE}"
+                echo "    ${expr} root ${CHECK} >/dev/null 2>&1"
+            else
+                echo "  Linha instalada no crontab do root. Confirmar: sudo crontab -l"
+                echo "    ${expr} ${CHECK} >/dev/null 2>&1"
+            fi
+            if pgrep -x cron >/dev/null || pgrep -x crond >/dev/null; then
+                echo "  Serviço cron: a correr. Nada mais a fazer."
+            else
+                echo "  Serviço cron: NÃO está a correr. Falta iniciá-lo:"
+                echo "    Debian/Ubuntu : service cron start      (container: 'cron' no entrypoint)"
+                echo "    RHEL/Oracle L.: service crond start     (container: 'crond' no entrypoint)"
+            fi
+            ;;
+        manual)
+            echo "  Falta agendar. Opção A - crontab do root:"
+            echo "    1. sudo crontab -e"
+            echo "    2. acrescentar a linha:"
+            echo "       ${expr} ${CHECK} >/dev/null 2>&1"
+            echo "  Opção B - ficheiro em /etc/cron.d:"
+            echo "    echo '${expr} root ${CHECK} >/dev/null 2>&1' | sudo tee ${CRON_FILE}"
+            echo "  Confirmar: sudo crontab -l   (ou cat ${CRON_FILE})"
+            ;;
+    esac
+    echo "  Ver de novo a qualquer momento: sudo ${APP_HOME}/setup.sh --cron"
+    line
 }
 
 test_mail() {
@@ -281,6 +406,7 @@ test_mail() {
 Email de teste do ${APP} enviado em $(date '+%d/%m/%Y %H:%M:%S').
 
 Mounts monitorizados : ${MOUNTS}
+Pastas de teste      : ${TEST_DIRS:-${MOUNTS}}
 Intervalo            : ${INTERVAL_MIN} minuto(s)
 EOF
     )
@@ -308,13 +434,13 @@ else
 fi
 
 echo; echo "[1/4] Mounts"
+ask_req TEST_FILE "Nome do ficheiro de teste" "${TEST_FILE:-teste.txt}" '^[^/ ]+$' "só o nome, sem / nem espaços"
 ask_mounts
 while true; do
     ask_req INTERVAL_MIN "Intervalo entre testes, em minutos" "${INTERVAL_MIN:-5}" '^[1-9][0-9]{0,3}$' "número entre 1 e 1440"
     (( INTERVAL_MIN <= 1440 )) && break
     echo "    -> número entre 1 e 1440"
 done
-ask_req TEST_FILE "Nome do ficheiro de teste" "${TEST_FILE:-teste.txt}" '^[^/ ]+$' "só o nome, sem / nem espaços"
 ask_req TOUCH_TIMEOUT "Timeout do teste de escrita, em segundos" "${TOUCH_TIMEOUT:-15}" '^[1-9][0-9]*$' "número inteiro"
 ask_yn NOTIFY_ON_FAIL "Enviar também alerta se o remount falhar" "${NOTIFY_ON_FAIL:-sim}"
 
@@ -352,6 +478,7 @@ done
 
 echo; echo "[4/4] Agendamento"
 if have_systemd; then def_sched="systemd"; else def_sched="cron"; echo "  (systemd não disponível neste sistema, ex.: container)"; fi
+explain_schedulers
 while true; do
     ask_req SCHEDULER "Tipo (systemd / cron / manual)" "${SCHEDULER:-$def_sched}" '^(systemd|cron|manual)$' "systemd, cron ou manual"
     if [[ "$SCHEDULER" == "systemd" ]] && ! have_systemd; then echo "    -> systemd não disponível; escolha cron ou manual"; continue; fi
@@ -360,6 +487,7 @@ while true; do
     fi
     break
 done
+explain_choice
 
 echo
 save_env
@@ -372,6 +500,7 @@ ask_yn _t "Enviar um email de teste agora" "sim"
 ask_yn _c "Executar já uma verificação dos mounts" "sim"
 [[ "$_c" == "sim" ]] && { "$CHECK" -v || true; }
 
+next_steps
 echo
 echo "Concluído. Log: ${APP_HOME}/logs/mount-islive.log"
 echo "Rever/alterar: sudo $0  |  ver: sudo $0 --show  |  linha do crontab: sudo $0 --cron"
