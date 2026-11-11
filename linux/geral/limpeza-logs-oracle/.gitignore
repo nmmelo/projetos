@@ -1,0 +1,9 @@
+# Criados na utilização (específicos de cada servidor)
+gestao_logs.conf
+gestao_logs.conf.tmp.*
+.gestao_logs.estado*
+.gestao_logs.lock
+gestao_logs.cron
+gestao_logs.logrotate
+ultima_execucao.log
+historico/
