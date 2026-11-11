@@ -1,0 +1,21 @@
+# ====================================================================
+# Exemplo de gestao_logs.conf (o setup cria o ficheiro real)
+# ENTRADA=caminho|padrao|subpastas(S/N)|acao|max_tamanho|max_dias|dias_copias|ativo(S/N)
+#   acao        : rodar | esvaziar | apagar
+#   max_tamanho : 1G, 500M, 100K ... (0 = sem limite)
+#   max_dias    : apagar         -> apaga ficheiros não modificados há mais de N dias
+#                 esvaziar/rodar -> limpa se a última limpeza foi há N dias ou mais
+#   dias_copias : só para 'rodar' - dias a manter as cópias .gz
+# ====================================================================
+
+HIST_DIAS=365
+
+# alert.log: ao chegar a 1G guarda cópia .gz e esvazia; cópias mantidas 30 dias
+ENTRADA=/oracle/app/oracle/diag/rdbms/orcl/ORCL/trace|alert_*.log|N|rodar|1G|0|30|S
+# listener.log: esvazia ao chegar a 1G ou a cada 7 dias
+ENTRADA=/oracle/app/oracle/diag/tnslsnr/srv01/listener/trace|listener.log|N|esvaziar|1G|7|0|S
+# traces com mais de 30 dias (inclui subpastas)
+ENTRADA=/oracle/app/oracle/diag/rdbms|*.trc|S|apagar|0|30|0|S
+ENTRADA=/oracle/app/oracle/diag/rdbms|*.trm|S|apagar|0|30|0|S
+# audit files com mais de 90 dias
+ENTRADA=/oracle/app/oracle/admin/ORCL/adump|*.aud|N|apagar|0|90|0|S
