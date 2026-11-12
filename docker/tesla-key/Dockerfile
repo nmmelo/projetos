@@ -28,8 +28,8 @@ RUN sed -ri 's/^#?PasswordAuthentication .*/PasswordAuthentication no/' /etc/ssh
 COPY nginx.conf /etc/nginx/sites-available/default
 COPY entrypoint.sh /entrypoint.sh
 COPY tesla-setup.sh /usr/local/bin/tesla-setup
-COPY gateway/gateway.py /opt/gateway/gateway.py
+COPY gateway/ /opt/gateway/
 RUN chmod +x /entrypoint.sh /usr/local/bin/tesla-setup
 
-EXPOSE 22 80 8000
+EXPOSE 22 80 8000 8001
 ENTRYPOINT ["/entrypoint.sh"]

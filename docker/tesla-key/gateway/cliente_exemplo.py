@@ -3,7 +3,7 @@ Exemplo de cliente para usar no outro projeto (portal), na mesma rede Docker.
 
 Variáveis no portal:
   TESLA_GATEWAY_URL=http://tesla-key:8000
-  TESLA_GATEWAY_API_KEY=<a mesma chave do .env do tesla-key>
+  TESLA_GATEWAY_API_KEY=tk_...   (chave do cliente, criada com `tesla-setup cliente add portal`)
 """
 import os
 

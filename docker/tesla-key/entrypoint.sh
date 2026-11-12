@@ -30,13 +30,12 @@ chown -R "${SSH_USER}:${SSH_USER}" /opt/tesla 2>/dev/null || true
 
 /usr/sbin/sshd
 
-# Gateway API interna (porta 8000, só rede Docker), corre como o utilizador SSH
-if [ -n "${TESLA_GATEWAY_API_KEY:-}" ]; then
-    runuser -u "${SSH_USER}" -- env TESLA_GATEWAY_API_KEY="${TESLA_GATEWAY_API_KEY}" \
-        TESLA_GATEWAY_CACHE="${TESLA_GATEWAY_CACHE:-60}" \
-        gunicorn --chdir /opt/gateway --bind 0.0.0.0:8000 --workers 1 --threads 4 \
-        --access-logfile - --error-logfile - gateway:app &
-else
-    echo "AVISO: TESLA_GATEWAY_API_KEY vazia, gateway não arrancou"
-fi
+# Gateway: API interna (8000, só rede Docker) e portal admin (8001, LAN), como o utilizador SSH
+runuser -u "${SSH_USER}" -- python3 -c "import sys; sys.path.insert(0,'/opt/gateway'); import common; common.init_db(); common.limpar_logs()" \
+    || echo "AVISO: não foi possível inicializar /opt/tesla/gateway.db"
+runuser -u "${SSH_USER}" -- gunicorn --chdir /opt/gateway --bind 0.0.0.0:8000 --workers 1 --threads 4 \
+    --access-logfile - --error-logfile - gateway:app &
+runuser -u "${SSH_USER}" -- gunicorn --chdir /opt/gateway --bind 0.0.0.0:8001 --workers 1 --threads 2 \
+    --error-logfile - admin:app &
+
 exec nginx -g 'daemon off;'

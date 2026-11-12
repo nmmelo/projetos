@@ -10,12 +10,10 @@ services:
     container_name: ${CONTAINER_NAME:-tesla-key}
     hostname: tesla-key
     restart: unless-stopped
-    environment:
-      TESLA_GATEWAY_API_KEY: ${TESLA_GATEWAY_API_KEY:-}
-      TESLA_GATEWAY_CACHE: ${TESLA_GATEWAY_CACHE:-60}
     ports:
       - "${HTTP_PORT:-8088}:80"   # HTTP -> Proxy Reverso do DSM (só /.well-known)
       - "${SSH_PORT:-2223}:22"    # SSH (só rede local, não abrir no router)
+      - "${ADMIN_PORT:-8089}:8001" # portal admin (só rede local, não abrir no router)
     expose:
       - "8000"                    # gateway API: só na rede Docker, sem publish
     volumes:

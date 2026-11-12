@@ -18,7 +18,10 @@ tesla-key/
 ├── nginx.conf
 ├── tesla-setup.sh          # instalado como /usr/local/bin/tesla-setup
 ├── gateway/
-│   ├── gateway.py          # API interna (Flask + Gunicorn, porta 8000)
+│   ├── common.py           # base de dados, clientes, tokens Tesla, logs
+│   ├── gateway.py          # API de clientes + Status API (porta 8000, rede Docker)
+│   ├── admin.py            # portal admin web (porta 8001, LAN)
+│   ├── cli.py              # gestão por linha de comandos (via tesla-setup)
 │   └── cliente_exemplo.py  # exemplo de cliente para o portal
 ├── ssh/authorized_keys     # chave pública SSH de quem entra no contentor
 ├── html/.well-known/appspecific/com.tesla.3p.public-key.pem
@@ -26,7 +29,8 @@ tesla-key/
 │   ├── tesla.env.example   # template da Tesla (domínio, client id/secret, região)
 │   ├── tesla.env           # cópia preenchida (não vai para o Git)
 │   ├── keys/               # private-key.pem / public-key.pem (não vai para o Git)
-│   └── tokens.json         # access/refresh token (não vai para o Git)
+│   ├── tokens.json         # access/refresh token (não vai para o Git)
+│   └── gateway.db          # SQLite: clientes, definições, login, logs (não vai para o Git)
 └── hostkeys/               # criado no 1.º arranque (host key SSH persistente)
 ```
 
@@ -34,7 +38,7 @@ tesla-key/
 
 | Ficheiro | Copiar para | Variáveis |
 |---|---|---|
-| `.env.example` | `.env` | `SSH_USER`, `SSH_UID`, `HTTP_PORT`, `SSH_PORT`, `CONTAINER_NAME`, `DOCKER_NETWORK`, `TESLA_GATEWAY_API_KEY`, `TESLA_GATEWAY_CACHE` |
+| `.env.example` | `.env` | `SSH_USER`, `SSH_UID`, `HTTP_PORT`, `SSH_PORT`, `CONTAINER_NAME`, `ADMIN_PORT`, `DOCKER_NETWORK` |
 | `tesla/tesla.env.example` | `tesla/tesla.env` | `TESLA_DOMAIN`, `TESLA_CLIENT_ID`, `TESLA_CLIENT_SECRET`, `TESLA_REGION`, `TESLA_REDIRECT_URI`, `TESLA_SCOPES` |
 
 ## Portas
@@ -43,7 +47,8 @@ tesla-key/
 |---|---|---|
 | `HTTP_PORT` (8088) | 80 | nginx → destino do Proxy Reverso do DSM |
 | `SSH_PORT` (2223) | 22 | SSH (só LAN, não abrir no router) |
-| — (sem publish) | 8000 | Gateway API, só na rede Docker (`http://tesla-key:8000`) |
+| `ADMIN_PORT` (8089) | 8001 | Portal admin (só LAN, não abrir no router) |
+| — (sem publish) | 8000 | Gateway API + Status API, só na rede Docker (`http://tesla-key:8000`) |
 
 ## Comando `tesla-setup`
 
@@ -58,38 +63,85 @@ tesla-key/
 | `tesla-setup veiculos` | `GET /api/1/vehicles` |
 | `tesla-setup refresh` | Renova o access token |
 | `tesla-setup estado` | Resumo da configuração |
+| `tesla-setup admin` | Define o utilizador/password do portal admin |
+| `tesla-setup cliente add NOME [DESCRIÇÃO]` | Cria um cliente e mostra a chave (só uma vez) |
+| `tesla-setup cliente list` | Lista os clientes (prefixo, estado, último uso, pedidos) |
+| `tesla-setup cliente on\|off\|rm\|chave NOME` | Ativa, desativa, apaga ou gera nova chave |
+| `tesla-setup status-api on\|off\|token\|info` | Gere a Status API e o token Bearer |
+| `tesla-setup definicao [CHAVE [VALOR]]` | `cache_segundos`, `retencao_logs_dias` |
+| `tesla-setup logs [N] [NIVEL]` | Últimos N registos (INFO, WARNING, ERROR) |
+| `tesla-setup logs-limpar` | Apaga logs mais antigos que a retenção |
+| `tesla-setup resumo` | Estado do gateway em JSON |
 
-## Gateway API (para o portal)
+## Gateway
 
 ```
-Portal ──HTTP + X-API-Key──► tesla-key:8000 ──► Tesla Fleet API
-                             (renova tokens, cache)
+                      ┌──────────── tesla-key ────────────┐
+Portal / outros  ──►  │ :8000 /api/...     (X-API-Key)     │ ──► Tesla Fleet API
+(rede Docker)         │ :8000 /status/v1/  (Bearer token)  │
+Browser (LAN)    ──►  │ :8001 portal admin (login)         │
+                      └── gateway.db · tokens.json ────────┘
 ```
+
+### Clientes (`/api`)
+
+Cada projeto tem o seu cliente e a sua chave (`X-API-Key`). As chaves são guardadas em hash e só são
+mostradas na criação. Um cliente desativado deixa de ter acesso de imediato.
 
 | Método | Endpoint | Descrição |
 |---|---|---|
 | GET | `/api/health` | Sem autenticação |
 | GET | `/api/token/status` | Validade do access token |
-| POST | `/api/token/refresh` | Força a renovação |
 | GET | `/api/vehicles` | Lista de veículos |
 | GET | `/api/vehicles/<vin>` | Estado (`online`/`asleep`), não acorda o carro |
 | GET | `/api/vehicles/<vin>/data` | `vehicle_data` com cache (`?endpoints=charge_state;drive_state`, `?fresh=1`) |
 | POST | `/api/vehicles/<vin>/wake` | Acorda o carro (mais caro, gasta bateria) |
 | GET | `/api/fleet/<caminho>` | Passthrough só de leitura para `/api/1/<caminho>` |
 
-Todas (menos `health`) exigem o header `X-API-Key: <TESLA_GATEWAY_API_KEY>`. Com o carro a dormir,
-`/data` devolve **408**.
+Com o carro a dormir, `/data` devolve **408**.
 
-No portal (mesma rede Docker):
 ```bash
+# no portal (mesma rede Docker)
 TESLA_GATEWAY_URL=http://tesla-key:8000
-TESLA_GATEWAY_API_KEY=<a mesma chave>
-```
-```bash
-# teste a partir do contentor do portal
+TESLA_GATEWAY_API_KEY=tk_...        # chave do cliente "portal"
 curl -H "X-API-Key: $TESLA_GATEWAY_API_KEY" http://tesla-key:8000/api/vehicles
 ```
 Exemplo em Python: `gateway/cliente_exemplo.py`.
+
+### Status API (`/status/v1`)
+
+Para outro portal ver o estado do gateway (sem acesso aos dados do carro). Desativada por omissão; quando
+desativada responde 404. Autenticação com `Authorization: Bearer <token>` (token gerado no portal admin ou com
+`tesla-setup status-api token`; gerar um novo invalida o anterior).
+
+| Endpoint | Conteúdo |
+|---|---|
+| `/status/v1/health` | `{"ok": true}` |
+| `/status/v1/resumo` | Configuração, token Tesla, clientes, contagens das últimas 24 h |
+| `/status/v1/clientes` | Nome, estado, último uso e pedidos de cada cliente |
+| `/status/v1/logs?nivel=ERROR&limite=50` | Últimos registos (máx. 500) |
+
+### Portal admin (`http://<ip-nas>:8089`)
+
+| Página | O que permite |
+|---|---|
+| Estado | Gateway, token Tesla, clientes, pedidos/warnings/erros 24 h, testar ligação, renovar token |
+| Clientes | Criar (mostra a chave uma vez), ativar/desativar, nova chave, apagar |
+| Logs | Atividade, warnings e erros, com filtro por nível e cliente |
+| Definições | Cache, retenção de logs, Status API (ativar/desativar/novo token), password |
+
+Login definido com `tesla-setup admin`. Sessão de 8 h, formulários com proteção CSRF, tentativas de login
+registadas nos logs.
+
+### Logs
+
+| Nível | Exemplos |
+|---|---|
+| INFO | Pedidos com sucesso, renovação de token, login, alterações de definições |
+| WARNING | Chave inválida, cliente inativo, respostas 4xx, 429 da Tesla, `wake_up`, login falhado, chaves geradas |
+| ERROR | Respostas 5xx, falha na renovação do token, falha de ligação à Tesla |
+
+Retenção por omissão de 30 dias (limpeza no arranque e em Definições).
 
 ## Custo da Fleet API
 
@@ -116,10 +168,12 @@ Exemplo em Python: `gateway/cliente_exemplo.py`.
    ```bash
    sudo docker compose up -d --build
    ```
-3. Gerar as chaves Tesla e publicar a pública:
+3. Gerar as chaves Tesla, publicar a pública e configurar o gateway:
    ```bash
    ssh -p 2223 <utilizador>@<ip-nas>
    tesla-setup chaves
+   tesla-setup admin                          # login do portal admin
+   tesla-setup cliente add portal "Portal web"  # chave para o portal
    ```
 4. Guardar uma cópia offline da `tesla/keys/private-key.pem` (é a que vai para o `tesla-http-proxy`).
 
@@ -172,6 +226,7 @@ Exemplo em Python: `gateway/cliente_exemplo.py`.
 - O domínio tem de ser exatamente o mesmo na app, no registo de partner e no link de emparelhamento.
 - `tesla.env`, `tokens.json`, `keys/` e `.env` estão no `.gitignore`.
 - A porta 8000 nunca deve ser publicada nem passar pelo Proxy Reverso do DSM (só o `/.well-known` é público).
+- O portal admin (8089) é só para a LAN; se o quiser fora de casa, use VPN em vez de abrir a porta.
 - O gateway renova o token e guarda o novo `refresh_token` em `tokens.json`; não usar o mesmo refresh token noutro sítio, porque a Tesla roda-o a cada renovação.
 - `DOCKER_NETWORK` tem de ser uma rede já existente (`docker network ls`) e partilhada com o portal.
 - O token de partner e de utilizador usam `TESLA_TOKEN_URL` (`fleet-auth.prd.vn.cloud.tesla.com`); pode ser alterado em `tesla.env`.
