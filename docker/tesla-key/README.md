@@ -160,7 +160,7 @@ Retenção por omissão de 30 dias (limpeza no arranque e em Definições).
 1. Templates e chave SSH:
    ```bash
    cd /volume1/docker/tesla-key
-   cp .env.example .env                       # ajustar SSH_USER, portas
+   cp .env.example .env                       # ajustar SSH_USER, SSH_UID (id -u <utilizador>), portas, rede
    cp tesla/tesla.env.example tesla/tesla.env # preencher depois do passo 11
    # colar a chave pública SSH em ssh/authorized_keys
    ```
@@ -214,6 +214,39 @@ Retenção por omissão de 30 dias (limpeza no arranque e em Definições).
 16. Para comandos (abrir, clima, carga) é preciso o `tesla-http-proxy`
     ([teslamotors/vehicle-command](https://github.com/teslamotors/vehicle-command)) noutro contentor, com a
     `private-key.pem`.
+
+## Atualizar para uma nova versão
+
+Copiar só os ficheiros do projeto (`Dockerfile`, `docker-compose.yml`, `entrypoint.sh`, `nginx.conf`,
+`tesla-setup.sh`, `gateway/`, `*.example`) e **não** substituir:
+
+| Manter | Porquê |
+|---|---|
+| `.env` | Utilizador, UID, portas e rede |
+| `ssh/authorized_keys` | Chave SSH (o do projeto é só um comentário) |
+| `tesla/` | `tesla.env`, chaves, tokens e `gateway.db` |
+| `hostkeys/` | Host key SSH |
+
+```bash
+sudo docker compose up -d --build --force-recreate
+sudo docker exec tesla-key grep -c gunicorn /entrypoint.sh   # > 0 confirma o entrypoint novo
+```
+
+## Resolução de problemas
+
+| Sintoma | Causa | Solução |
+|---|---|---|
+| PuTTY: `No supported authentication methods available (server sent: publickey)` | `ssh/authorized_keys` vazio ou só com o comentário, ou o PuTTY sem o `.ppk` | Colar a chave pública (uma linha `ssh-ed25519 AAAA...`) e `docker restart tesla-key`; no PuTTY indicar o `.ppk` em Connection → SSH → Auth |
+| `tesla-setup: command not found` | Comando corrido no NAS ou imagem antiga | Só existe dentro do contentor (SSH ou `docker exec -u <utilizador> tesla-key tesla-setup ...`); se faltar, rebuild |
+| Portal admin não abre, `docker port` mostra `8001 -> 8089` | O `gunicorn` não arrancou | `docker exec tesla-key ps aux \| grep gunicorn`; se não houver, ver as linhas abaixo |
+| `grep gunicorn /entrypoint.sh` sem resultado | `entrypoint.sh` antigo na imagem | Copiar o `entrypoint.sh` novo e `docker compose up -d --build --force-recreate` (ou `build --no-cache`) |
+| `sqlite3.OperationalError: attempt to write a readonly database` | Ficheiros em `tesla/` criados como `root` (`docker exec` sem `-u`) ou UID diferente entre NAS e contentor | `SSH_UID` = `id -u <utilizador>` no `.env`, `sudo chown -R <utilizador>:users tesla`, rebuild |
+| `tesla.env` ilegível no contentor | Dono no NAS com UID diferente do contentor | Igual à linha anterior |
+| Gunicorn: `Control server error: [Errno 13] Permission denied` | Aviso do Gunicorn 25 (socket de controlo) | Não impede o arranque; pode ser ignorado |
+| Teste manual do portal admin | — | `docker exec -u <utilizador> tesla-key gunicorn --chdir /opt/gateway --bind 127.0.0.1:8001 admin:app` (mostra o erro) |
+
+Correr o `tesla-setup` sempre como o utilizador do contentor (SSH ou `docker exec -u <utilizador>`), nunca como
+root. O arranque do contentor volta a acertar o dono de `/opt/tesla`.
 
 ## Notas
 
