@@ -24,5 +24,9 @@ chown -R "${SSH_USER}:${SSH_USER}" "${HOME_DIR}/.ssh"
 mkdir -p /var/www/html/.well-known/appspecific
 chown -R "${SSH_USER}:${SSH_USER}" /var/www/html 2>/dev/null || true
 
+# Pasta da configuração/chaves/tokens Tesla (volume ./tesla)
+mkdir -p /opt/tesla
+chown -R "${SSH_USER}:${SSH_USER}" /opt/tesla 2>/dev/null || true
+
 /usr/sbin/sshd
 exec nginx -g 'daemon off;'

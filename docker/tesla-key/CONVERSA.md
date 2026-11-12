@@ -114,3 +114,16 @@ sudo docker compose up -d --build
 **Resposta:**
 O `Dockerfile` passou a instalar o `sudo` e a criar `/etc/sudoers.d/<utilizador>` com `NOPASSWD:ALL`. É preciso
 rebuild (`docker compose up -d --build`). O utilizador define-se em `SSH_USER` no `docker-compose.yml`.
+
+---
+
+## 9. Templates
+
+**Pergunta:**
+> podes gerar isto para colocar no container como template
+
+**Resposta:**
+- `.env.example` → `.env`: utilizador SSH, UID e portas, usados pelo `docker-compose.yml`.
+- `tesla/tesla.env.example` → `tesla/tesla.env`: domínio, client id/secret e região, montado em `/opt/tesla`.
+- `tesla-setup.sh`, instalado como `/usr/local/bin/tesla-setup`, com os passos `chaves`, `verificar`,
+  `partner`, `url`, `token`, `emparelhar`, `veiculos`, `refresh` e `estado`. A imagem passou a ter `curl` e `jq`.

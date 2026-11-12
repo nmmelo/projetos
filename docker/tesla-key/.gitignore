@@ -1,3 +1,6 @@
+.env
 hostkeys/
 *.pem
-!html/.well-known/appspecific/.gitkeep
+tesla/tesla.env
+tesla/tokens.json
+tesla/keys/

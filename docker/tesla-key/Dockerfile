@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     SSH_USER=${SSH_USER}
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends nginx openssh-server sudo ca-certificates && \
+    apt-get install -y --no-install-recommends nginx openssh-server sudo ca-certificates curl jq openssl && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /run/sshd && \
     userdel -r ubuntu 2>/dev/null || true
@@ -26,7 +26,8 @@ RUN sed -ri 's/^#?PasswordAuthentication .*/PasswordAuthentication no/' /etc/ssh
 
 COPY nginx.conf /etc/nginx/sites-available/default
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY tesla-setup.sh /usr/local/bin/tesla-setup
+RUN chmod +x /entrypoint.sh /usr/local/bin/tesla-setup
 
 EXPOSE 22 80
 ENTRYPOINT ["/entrypoint.sh"]
