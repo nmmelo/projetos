@@ -44,15 +44,15 @@ chmod +x remover_ip.py
 ```
 $ ./remover_ip.py
 Ficheiro: roles/firewall-configuration/defaults/main.yml
-IP a remover: "10.31.240.4"
+IP a remover: "10.1.2.4"
 
-Linhas com 10.31.240.4 em /home/nmmelo/ansible/roles/firewall-configuration/defaults/main.yml:
-     2: servidor_antigo: "10.31.240.4"
-     4: lista_ips: ["1.1.1.1", "10.31.240.4"]
+Linhas com 10.1.2.4 em /home/nmmelo/ansible/roles/firewall-configuration/defaults/main.yml:
+     2: servidor_antigo: "10.1.2.4"
+     4: lista_ips: ["1.1.1.1", "10.1.2.4"]
 
 Remover 2 linha(s)? [s/N] s
 Backup: /home/nmmelo/ansible/roles/firewall-configuration/defaults/main.yml.20261109_134252.bak
-Removidas 2 linha(s) com 10.31.240.4.
+Removidas 2 linha(s) com 10.1.2.4.
 ```
 
 Se o ficheiro não existir ou o IP for inválido, volta a perguntar.
@@ -60,37 +60,37 @@ Se o ficheiro não existir ou o IP for inválido, volta a perguntar.
 ### Sem perguntas (scripts, cron, Ansible)
 
 ```bash
-./remover_ip.py -f roles/firewall-configuration/defaults/main.yml -i 10.31.240.4 -y
+./remover_ip.py -f roles/firewall-configuration/defaults/main.yml -i 10.1.2.4 -y
 ```
 
 ### Só ver o que seria removido
 
 ```bash
-./remover_ip.py -f exemplo/main.yml -i 10.31.240.4 --dry-run
+./remover_ip.py -f exemplo/main.yml -i 10.1.2.4 --dry-run
 ```
 
 ```
-Linhas com 10.31.240.4 em .../exemplo/main.yml:
-     5: servidor_antigo: "10.31.240.4"
-     7: lista_ips: ["1.1.1.1", "10.31.240.4"]
-     9: url_api: "http://10.31.240.4:8080/api"
+Linhas com 10.1.2.4 em .../exemplo/main.yml:
+     5: servidor_antigo: "10.1.2.4"
+     7: lista_ips: ["1.1.1.1", "10.1.2.4"]
+     9: url_api: "http://10.1.2.4:8080/api"
 
 (dry-run) Seriam removidas 3 linha(s). Nada foi alterado.
 ```
 
 ## Regras de procura do IP
 
-| Linha no ficheiro | Com o IP `10.31.240.4` |
+| Linha no ficheiro | Com o IP `10.1.2.4` |
 |---|---|
-| `servidor: "10.31.240.4"` | ✅ apagada |
-| `servidor: '10.31.240.4'` | ✅ apagada |
-| `lista: ["1.1.1.1", "10.31.240.4"]` | ✅ apagada (a linha inteira) |
-| `url: "http://10.31.240.4:8080/api"` | ✅ apagada |
-| `servidor: "10.31.240.40"` | ❌ fica |
-| `servidor: 110.31.240.4` | ❌ fica |
+| `servidor: "10.1.2.4"` | ✅ apagada |
+| `servidor: '10.1.2.4'` | ✅ apagada |
+| `lista: ["1.1.1.1", "10.1.2.4"]` | ✅ apagada (a linha inteira) |
+| `url: "http://10.1.2.4:8080/api"` | ✅ apagada |
+| `servidor: "10.1.2.40"` | ❌ fica |
+| `servidor: 110.1.2.4` | ❌ fica |
 
-- O IP pode ser escrito com ou sem aspas (`10.31.240.4`, `"10.31.240.4"`, `'10.31.240.4'`).
-- Só o IP **exato** é apagado; IPs que o contêm como parte (`10.31.240.40`, `110.31.240.4`) ficam.
+- O IP pode ser escrito com ou sem aspas (`10.1.2.4`, `"10.1.2.4"`, `'10.1.2.4'`).
+- Só o IP **exato** é apagado; IPs que o contêm como parte (`10.1.2.40`, `110.1.2.4`) ficam.
 - É apagada a **linha inteira**, mesmo que tenha outros valores.
 - Pensado para IPv4. IPv6 também é aceite, procurado na forma abreviada (ex.: `2001:db8::1`).
 

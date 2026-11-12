@@ -49,26 +49,26 @@ Par de chaves EC (prime256v1) → publicar a pública em `/.well-known/appspecif
 
 **Perguntas:**
 > e se tiver um synology.
-> eu tenho o dominio do ddns cubiculo.giize.com
-> neste caso vou criar o tesla.cubiculo.giize.com
+> eu tenho o dominio do ddns <dominio>
+> neste caso vou criar o tesla.<dominio>
 
 **Resposta:**
-- Alias `tesla` no Dynu, certificado Let's Encrypt no DSM (porta 80 aberta), porta 443 para o NAS.
-- O domínio `tesla.cubiculo.giize.com` tem de ser igual na app, no registo de partner e no link
-  `https://tesla.com/_ak/tesla.cubiculo.giize.com`.
+- Alias `tesla` no DDNS, certificado Let's Encrypt no DSM (porta 80 aberta), porta 443 para o NAS.
+- O domínio `tesla.<dominio>` tem de ser igual na app, no registo de partner e no link
+  `https://tesla.com/_ak/tesla.<dominio>`.
 
 ---
 
 ## 5. Contentor para a chave
 
 **Perguntas:**
-> posso criar um container para guardar essa chave associado depois no DSM o tesle.cubiculo.giize.com a uma porta especifica
+> posso criar um container para guardar essa chave associado depois no DSM o tesla.<dominio> a uma porta especifica
 > quero o docker-compose com sessão ssh com import de uma chave publica no autorikey, como já fiz com outros exemplos, pode ser a imagem ubuntu 26.04
 > eu queria outro utilizador para entrar como ssh, por exemplo nmmelo
 
 **Resposta:**
 Contentor Ubuntu 26.04 com nginx (porta 8088) e SSH (porta 2223, utilizador `nmmelo`, só chave). O Proxy
-Reverso do DSM liga `HTTPS tesla.cubiculo.giize.com:443` → `HTTP localhost:8088`. A Tesla lê sempre na 443;
+Reverso do DSM liga `HTTPS tesla.<dominio>:443` → `HTTP localhost:8088`. A Tesla lê sempre na 443;
 a porta específica é só interna.
 
 ---

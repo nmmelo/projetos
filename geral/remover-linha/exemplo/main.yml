@@ -2,9 +2,9 @@
 # Ficheiro de exemplo para testar o remover_ip.py
 # Teste: python3 remover_ip.py -f exemplo/main.yml --dry-run  (e indicar o IP)
 firewall_porta: 8080
-servidor_antigo: "10.31.240.4"
-servidor_novo: "10.31.240.40"
-lista_ips: ["1.1.1.1", "10.31.240.4"]
-outro_ip: 110.31.240.4
-url_api: "http://10.31.240.4:8080/api"
+servidor_antigo: "10.1.2.4"
+servidor_novo: "10.1.2.40"
+lista_ips: ["1.1.1.1", "10.1.2.4"]
+outro_ip: 110.1.2.4
+url_api: "http://10.1.2.4:8080/api"
 utilizador_app: nuno

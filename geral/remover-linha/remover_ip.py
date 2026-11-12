@@ -4,12 +4,12 @@ remover_ip.py - Remove de um ficheiro todas as linhas que contenham um IP.
 
 Uso:
   python3 remover_ip.py                                  # pergunta o ficheiro e o IP
-  python3 remover_ip.py -f defaults/main.yml -i 10.31.240.4
-  python3 remover_ip.py -f defaults/main.yml -i 10.31.240.4 -y        # sem confirmação
-  python3 remover_ip.py -f defaults/main.yml -i 10.31.240.4 --dry-run # só mostra
+  python3 remover_ip.py -f defaults/main.yml -i 10.1.2.4
+  python3 remover_ip.py -f defaults/main.yml -i 10.1.2.4 -y        # sem confirmação
+  python3 remover_ip.py -f defaults/main.yml -i 10.1.2.4 --dry-run # só mostra
 
-- Aceita o IP com ou sem aspas ("10.31.240.4").
-- Só apaga o IP exato: 10.31.240.4 NÃO apaga linhas com 10.31.240.40 ou 110.31.240.4.
+- Aceita o IP com ou sem aspas ("10.1.2.4").
+- Só apaga o IP exato: 10.1.2.4 NÃO apaga linhas com 10.1.2.40 ou 110.1.2.4.
 - Faz backup antes de alterar (ficheiro.AAAAMMDD_HHMMSS.bak) e mantém só o último.
 """
 import argparse
@@ -76,7 +76,7 @@ def main():
     # 2) IP
     ip = validar_ip(pedir("IP a remover: ", args.ip))
     while not ip:
-        print("  IP inválido. Exemplo: 10.31.240.4")
+        print("  IP inválido. Exemplo: 10.1.2.4")
         if args.ip:
             return 1
         ip = validar_ip(pedir("IP a remover: "))

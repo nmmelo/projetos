@@ -54,7 +54,7 @@ Resultado relevante:
 | Dispositivo | `1bbb:0195` Alcatel OneTouch L850V / Telekom Speedstick LTE |
 | Pen | `enx2adbfddbe719` em `DOWN`, sem IP |
 | NAT | `enp0s3` 10.0.2.15, `default via 10.0.2.2` |
-| Host-only | `enp0s8` 192.168.93.3 |
+| Host-only | `enp0s8` 192.168.56.3 |
 | `ping 8.8.8.8` | OK |
 | `ping google.com` | Falha |
 

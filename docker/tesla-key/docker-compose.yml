@@ -10,7 +10,7 @@ services:
     hostname: tesla-key
     restart: unless-stopped
     ports:
-      - "8088:80"     # HTTP -> Proxy Reverso do DSM (tesla.cubiculo.giize.com:443)
+      - "8088:80"     # HTTP -> Proxy Reverso do DSM (tesla.<dominio>:443)
       - "2223:22"     # SSH (só rede local, não abrir no router)
     volumes:
       - ./ssh/authorized_keys:/import/authorized_keys:ro

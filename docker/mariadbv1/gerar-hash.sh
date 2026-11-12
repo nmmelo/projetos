@@ -39,7 +39,7 @@ touch "$ENV_FILE"
 [[ -s "$ENV_FILE" ]] && cp "$ENV_FILE" "$ENV_FILE.bak"
 
 read -rp "Utilizador admin [admin]: " ADMIN_USER;  ADMIN_USER="${ADMIN_USER:-admin}"
-read -rp "IP de acesso do admin [10.10.101.25]: " ADMIN_HOST; ADMIN_HOST="${ADMIN_HOST:-10.10.101.25}"
+read -rp "IP de acesso do admin [192.0.2.25]: " ADMIN_HOST; ADMIN_HOST="${ADMIN_HOST:-192.0.2.25}"
 
 ROOT_HASH=$(hash_pw "$(ask_pw root)")
 ADMIN_HASH=$(hash_pw "$(ask_pw "$ADMIN_USER")")

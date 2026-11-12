@@ -63,20 +63,20 @@ tesla-key/
 
 | # | Onde | O quê |
 |---|---|---|
-| 5 | Dynu | Alias `tesla` em `cubiculo.giize.com` |
+| 5 | DDNS | Alias `tesla` no domínio DDNS |
 | 6 | Router | Port forward **80** e **443** → NAS |
-| 7 | DSM → Segurança → Certificado | Let's Encrypt para `tesla.cubiculo.giize.com` |
-| 8 | DSM → Portal de Início de Sessão → Avançado → Proxy Reverso | `HTTPS tesla.cubiculo.giize.com:443` → `HTTP localhost:8088` |
+| 7 | DSM → Segurança → Certificado | Let's Encrypt para `tesla.<dominio>` |
+| 8 | DSM → Portal de Início de Sessão → Avançado → Proxy Reverso | `HTTPS tesla.<dominio>:443` → `HTTP localhost:8088` |
 | 9 | DSM → Certificado → Configurações | Associar o certificado à regra do Proxy Reverso |
 
-10. Testar em 4G: `https://tesla.cubiculo.giize.com/.well-known/appspecific/com.tesla.3p.public-key.pem`
+10. Testar em 4G: `https://tesla.<dominio>/.well-known/appspecific/com.tesla.3p.public-key.pem`
     deve mostrar `-----BEGIN PUBLIC KEY-----`.
 
 ### C. Tesla
 
 11. Criar a aplicação em [developer.tesla.com](https://developer.tesla.com):
     - Grant types: *Authorization Code* + *Client Credentials*
-    - Origin: `https://tesla.cubiculo.giize.com`
+    - Origin: `https://tesla.<dominio>`
     - Redirect URI: `http://localhost:8080/callback`
     - Scopes: `vehicle_device_data`, `vehicle_cmds`, `vehicle_charging_cmds`, `offline_access`
 12. Registo de partner (EU):
@@ -91,7 +91,7 @@ tesla-key/
 
     curl -X POST $AUD/api/1/partner_accounts \
       -H "Authorization: Bearer $PARTNER_TOKEN" -H "Content-Type: application/json" \
-      -d '{"domain":"tesla.cubiculo.giize.com"}'
+      -d '{"domain":"tesla.<dominio>"}'
     ```
 13. Token do utilizador (OAuth):
     ```
@@ -104,7 +104,7 @@ tesla-key/
       -d code=<CODE> -d audience=$AUD \
       -d redirect_uri=http://localhost:8080/callback | jq
     ```
-14. Emparelhar com o carro (telemóvel com a app Tesla): `https://tesla.com/_ak/tesla.cubiculo.giize.com`
+14. Emparelhar com o carro (telemóvel com a app Tesla): `https://tesla.com/_ak/tesla.<dominio>`
 15. Testar:
     ```bash
     curl -H "Authorization: Bearer <ACCESS_TOKEN>" $AUD/api/1/vehicles
