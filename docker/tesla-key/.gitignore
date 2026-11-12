@@ -4,3 +4,6 @@ hostkeys/
 tesla/tesla.env
 tesla/tokens.json
 tesla/keys/
+tesla/gateway.db
+tesla/.tokens.lock
+__pycache__/

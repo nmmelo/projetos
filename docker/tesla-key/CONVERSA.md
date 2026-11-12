@@ -142,3 +142,22 @@ O `tesla-key` passou a ter um gateway (Flask + Gunicorn) na porta 8000, só na r
 Guarda os segredos e os tokens, renova o access token (e o refresh token rodado), faz cache do
 `vehicle_data` e exige `X-API-Key`. O portal chama `http://tesla-key:8000/api/...`. As portas 8088/8020 são
 as do anfitrião; dentro da rede Docker usam-se o nome do contentor e a porta interna.
+
+---
+
+## 11. Vários clientes, portal admin e Status API
+
+**Pergunta:**
+> para facilitar, pode ser adicionado mais clientes para aceder ao tesla-key, sempre interno, queria também que o setup permita configurar isso e fazer a gestão, mas também podia ter um pequeno portal web simples onde possa ver o estado do gateway, pode ter um login simples, que é definido no script setup, permite gerir o gateway, ter logs de atividade e erros ou warnings e também permitir no futuro ativar uma API, ou seja eu apartir de outro portal conseguir ter informação do gateway apensa, podendo para esse caso gerar um token para criar mais segurança entre o gateway e o outro
+
+**Resposta:**
+- Clientes com chave própria (`X-API-Key`), guardada em hash em `/opt/tesla/gateway.db` (SQLite), mostrada só
+  na criação; ativar/desativar, nova chave e apagar.
+- `tesla-setup admin | cliente ... | status-api ... | definicao | logs | logs-limpar | resumo`.
+- Portal admin (Flask, porta 8001 → `ADMIN_PORT` 8089, só LAN): Estado, Clientes, Logs, Definições, com login,
+  sessão de 8 h e CSRF.
+- Logs INFO/WARNING/ERROR de pedidos, autenticação, renovação de token, erros da Tesla e ações de admin, com
+  retenção configurável.
+- Status API `/status/v1/` (health, resumo, clientes, logs) desativada por omissão, com token Bearer próprio
+  que se pode regenerar; não dá acesso aos dados do carro.
+- `TESLA_GATEWAY_API_KEY` do `.env` deixou de existir (substituída pelos clientes).

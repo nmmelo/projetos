@@ -177,6 +177,17 @@ Outros:
   refresh     renova o access token com o refresh token
   estado      resumo da configuração
 
+Gateway (portal admin, clientes, Status API, logs):
+  admin                         define utilizador/password do portal admin
+  cliente add NOME [DESCRIÇÃO]  cria cliente e mostra a chave X-API-Key
+  cliente list                  lista clientes
+  cliente on|off|rm|chave NOME  ativa, desativa, apaga ou gera nova chave
+  status-api on|off|token|info  Status API para outro portal (token Bearer)
+  definicao [CHAVE [VALOR]]     cache_segundos, retencao_logs_dias
+  logs [N] [NIVEL]              últimos N registos (INFO|WARNING|ERROR)
+  logs-limpar                   apaga logs mais antigos que a retenção
+  resumo                        estado do gateway (JSON)
+
 Configuração: $CONF
 EOF
 }
@@ -184,8 +195,14 @@ EOF
 # ---------------------------------------------------------------------------
 
 cmd="${1:-ajuda}"; shift || true
+GATEWAY_CLI="${GATEWAY_CLI:-/opt/gateway/cli.py}"
 case "$cmd" in
     ajuda|-h|--help) ajuda; exit 0 ;;
+    admin|status-api|definicao|logs|logs-limpar|resumo)
+        exec python3 "$GATEWAY_CLI" "$cmd" "$@" ;;
+    cliente)
+        sub="${1:-list}"; shift || true
+        exec python3 "$GATEWAY_CLI" "cliente-$sub" "$@" ;;
 esac
 carregar_conf
 case "$cmd" in
