@@ -31,6 +31,7 @@ chown -R "${SSH_USER}:${SSH_USER}" /opt/tesla 2>/dev/null || true
 /usr/sbin/sshd
 
 # Gateway: API interna (8000, só rede Docker) e portal admin (8001, LAN), como o utilizador SSH
+cd /opt/gateway
 runuser -u "${SSH_USER}" -- python3 -c "import sys; sys.path.insert(0,'/opt/gateway'); import common; common.init_db(); common.limpar_logs()" \
     || echo "AVISO: não foi possível inicializar /opt/tesla/gateway.db"
 runuser -u "${SSH_USER}" -- gunicorn --chdir /opt/gateway --bind 0.0.0.0:8000 --workers 1 --threads 4 \

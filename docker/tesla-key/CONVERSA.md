@@ -161,3 +161,25 @@ as do anfitrião; dentro da rede Docker usam-se o nome do contentor e a porta in
 - Status API `/status/v1/` (health, resumo, clientes, logs) desativada por omissão, com token Bearer próprio
   que se pode regenerar; não dá acesso aos dados do carro.
 - `TESLA_GATEWAY_API_KEY` do `.env` deixou de existir (substituída pelos clientes).
+
+---
+
+## 12. Instalação da nova versão: problemas e correções
+
+**Perguntas (resumo):**
+> ao fazer login com o meu user dá erro, por ssh No supported authentication methods available (server sent: publickey)
+> não tinha colocado a minha chave publica no auto
+> mas onde está o setup
+> não consigo aceder via web
+> ... sqlite3.OperationalError: attempt to write a readonly database
+
+**Respostas:**
+| Problema | Causa | Correção |
+|---|---|---|
+| SSH recusado | `ssh/authorized_keys` só com o comentário do projeto | Colar a chave pública e `docker restart tesla-key` |
+| `tesla-setup` não encontrado | Procurado no NAS | Só existe dentro do contentor (SSH ou `docker exec -u <utilizador>`) |
+| Portal admin sem resposta | `gateway.db`, `keys/` e `tokens.json` criados como `root`; `tesla.env` com o UID do NAS (1026) diferente do contentor (1001) | `SSH_UID=1026` no `.env`, `chown -R <utilizador>:users tesla`, rebuild |
+| Continuava sem resposta | `entrypoint.sh` antigo no NAS (sem o arranque do `gunicorn`) | `entrypoint.sh` novo e `docker compose up -d --build --force-recreate` |
+
+O `entrypoint.sh` passou a fazer `cd /opt/gateway` antes de arrancar o `gunicorn`. O README ganhou as secções
+"Atualizar para uma nova versão" e "Resolução de problemas".
