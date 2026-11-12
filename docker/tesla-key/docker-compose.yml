@@ -1,18 +1,20 @@
+# Variáveis em .env (copiar de .env.example)
 services:
   tesla-key:
     build:
       context: .
       args:
-        SSH_USER: admin        # utilizador SSH (com sudo)
-        SSH_UID: 1001
+        SSH_USER: ${SSH_USER:-admin}
+        SSH_UID: ${SSH_UID:-1001}
     image: tesla-key:latest
-    container_name: tesla-key
+    container_name: ${CONTAINER_NAME:-tesla-key}
     hostname: tesla-key
     restart: unless-stopped
     ports:
-      - "8088:80"     # HTTP -> Proxy Reverso do DSM (tesla.<dominio>:443)
-      - "2223:22"     # SSH (só rede local, não abrir no router)
+      - "${HTTP_PORT:-8088}:80"   # HTTP -> Proxy Reverso do DSM (tesla.<dominio>:443)
+      - "${SSH_PORT:-2223}:22"    # SSH (só rede local, não abrir no router)
     volumes:
       - ./ssh/authorized_keys:/import/authorized_keys:ro
       - ./html:/var/www/html
       - ./hostkeys:/etc/ssh/keys
+      - ./tesla:/opt/tesla        # tesla.env, keys/, tokens.json
