@@ -127,3 +127,18 @@ rebuild (`docker compose up -d --build`). O utilizador define-se em `SSH_USER` n
 - `tesla/tesla.env.example` → `tesla/tesla.env`: domínio, client id/secret e região, montado em `/opt/tesla`.
 - `tesla-setup.sh`, instalado como `/usr/local/bin/tesla-setup`, com os passos `chaves`, `verificar`,
   `partner`, `url`, `token`, `emparelhar`, `veiculos`, `refresh` e `estado`. A imagem passou a ter `curl` e `jq`.
+
+---
+
+## 10. Gateway para outro projeto
+
+**Perguntas:**
+> eu não quero usar agora este container, apenas para validar, o que quero agora é ir buscar dados do meu tesla para outro projeto
+> ou posso usar este container e o outro projeto pede a este os pedidos tipo proxy?
+> o outro projeto está na porta interna 8020 e o tesla-key está na 8088 ... já coloquei ambos container na mesma network do docker
+
+**Resposta:**
+O `tesla-key` passou a ter um gateway (Flask + Gunicorn) na porta 8000, só na rede Docker, sem publish.
+Guarda os segredos e os tokens, renova o access token (e o refresh token rodado), faz cache do
+`vehicle_data` e exige `X-API-Key`. O portal chama `http://tesla-key:8000/api/...`. As portas 8088/8020 são
+as do anfitrião; dentro da rede Docker usam-se o nome do contentor e a porta interna.

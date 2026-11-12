@@ -4,7 +4,8 @@ Contentor Ubuntu 26.04 com **nginx + SSH** para alojar, num Synology, a chave p�
 `https://url/.well-known/appspecific/com.tesla.3p.public-key.pem`.
 
 O nginx só responde a esse caminho; tudo o resto devolve 404. O acesso SSH (utilizador `SSH_USER`, com sudo) serve para
-gerar e publicar a chave. O comando `tesla-setup` (template incluído) faz os passos da Tesla dentro do contentor.
+gerar e publicar a chave. O comando `tesla-setup` (template incluído) faz os passos da Tesla dentro do contentor e o **gateway** (porta 8000,
+só na rede Docker) serve os dados do carro a outros contentores, como o portal.
 
 ## Estrutura
 
@@ -16,6 +17,9 @@ tesla-key/
 ├── entrypoint.sh
 ├── nginx.conf
 ├── tesla-setup.sh          # instalado como /usr/local/bin/tesla-setup
+├── gateway/
+│   ├── gateway.py          # API interna (Flask + Gunicorn, porta 8000)
+│   └── cliente_exemplo.py  # exemplo de cliente para o portal
 ├── ssh/authorized_keys     # chave pública SSH de quem entra no contentor
 ├── html/.well-known/appspecific/com.tesla.3p.public-key.pem
 ├── tesla/                  # montado em /opt/tesla
@@ -30,7 +34,7 @@ tesla-key/
 
 | Ficheiro | Copiar para | Variáveis |
 |---|---|---|
-| `.env.example` | `.env` | `SSH_USER`, `SSH_UID`, `HTTP_PORT`, `SSH_PORT`, `CONTAINER_NAME` |
+| `.env.example` | `.env` | `SSH_USER`, `SSH_UID`, `HTTP_PORT`, `SSH_PORT`, `CONTAINER_NAME`, `DOCKER_NETWORK`, `TESLA_GATEWAY_API_KEY`, `TESLA_GATEWAY_CACHE` |
 | `tesla/tesla.env.example` | `tesla/tesla.env` | `TESLA_DOMAIN`, `TESLA_CLIENT_ID`, `TESLA_CLIENT_SECRET`, `TESLA_REGION`, `TESLA_REDIRECT_URI`, `TESLA_SCOPES` |
 
 ## Portas
@@ -39,6 +43,7 @@ tesla-key/
 |---|---|---|
 | `HTTP_PORT` (8088) | 80 | nginx → destino do Proxy Reverso do DSM |
 | `SSH_PORT` (2223) | 22 | SSH (só LAN, não abrir no router) |
+| — (sem publish) | 8000 | Gateway API, só na rede Docker (`http://tesla-key:8000`) |
 
 ## Comando `tesla-setup`
 
@@ -53,6 +58,38 @@ tesla-key/
 | `tesla-setup veiculos` | `GET /api/1/vehicles` |
 | `tesla-setup refresh` | Renova o access token |
 | `tesla-setup estado` | Resumo da configuração |
+
+## Gateway API (para o portal)
+
+```
+Portal ──HTTP + X-API-Key──► tesla-key:8000 ──► Tesla Fleet API
+                             (renova tokens, cache)
+```
+
+| Método | Endpoint | Descrição |
+|---|---|---|
+| GET | `/api/health` | Sem autenticação |
+| GET | `/api/token/status` | Validade do access token |
+| POST | `/api/token/refresh` | Força a renovação |
+| GET | `/api/vehicles` | Lista de veículos |
+| GET | `/api/vehicles/<vin>` | Estado (`online`/`asleep`), não acorda o carro |
+| GET | `/api/vehicles/<vin>/data` | `vehicle_data` com cache (`?endpoints=charge_state;drive_state`, `?fresh=1`) |
+| POST | `/api/vehicles/<vin>/wake` | Acorda o carro (mais caro, gasta bateria) |
+| GET | `/api/fleet/<caminho>` | Passthrough só de leitura para `/api/1/<caminho>` |
+
+Todas (menos `health`) exigem o header `X-API-Key: <TESLA_GATEWAY_API_KEY>`. Com o carro a dormir,
+`/data` devolve **408**.
+
+No portal (mesma rede Docker):
+```bash
+TESLA_GATEWAY_URL=http://tesla-key:8000
+TESLA_GATEWAY_API_KEY=<a mesma chave>
+```
+```bash
+# teste a partir do contentor do portal
+curl -H "X-API-Key: $TESLA_GATEWAY_API_KEY" http://tesla-key:8000/api/vehicles
+```
+Exemplo em Python: `gateway/cliente_exemplo.py`.
 
 ## Custo da Fleet API
 
@@ -134,4 +171,7 @@ tesla-key/
 - A `private-key.pem` da Tesla fica em `tesla/keys/` (volume, fora do `html/`); nunca em `html/`. Não regenerar depois de emparelhar.
 - O domínio tem de ser exatamente o mesmo na app, no registo de partner e no link de emparelhamento.
 - `tesla.env`, `tokens.json`, `keys/` e `.env` estão no `.gitignore`.
+- A porta 8000 nunca deve ser publicada nem passar pelo Proxy Reverso do DSM (só o `/.well-known` é público).
+- O gateway renova o token e guarda o novo `refresh_token` em `tokens.json`; não usar o mesmo refresh token noutro sítio, porque a Tesla roda-o a cada renovação.
+- `DOCKER_NETWORK` tem de ser uma rede já existente (`docker network ls`) e partilhada com o portal.
 - O token de partner e de utilizador usam `TESLA_TOKEN_URL` (`fleet-auth.prd.vn.cloud.tesla.com`); pode ser alterado em `tesla.env`.
