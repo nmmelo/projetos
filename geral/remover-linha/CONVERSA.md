@@ -15,8 +15,8 @@ Ao longo da conversa foram definidas as regras dessa remoção:
 
 | Pedido | Decisão |
 |---|---|
-| Os IPs estão no ficheiro entre aspas, ex.: `"10.31.240.1"` | A procura ignora as aspas; o IP também pode ser escrito com aspas |
-| Apagar só o IP certo | Só o IP exato: `10.31.240.1` não apaga `10.31.240.10` nem `110.31.240.1` |
+| Os IPs estão no ficheiro entre aspas, ex.: `"10.1.2.1"` | A procura ignora as aspas; o IP também pode ser escrito com aspas |
+| Apagar só o IP certo | Só o IP exato: `10.1.2.1` não apaga `10.1.2.10` nem `110.1.2.1` |
 | Fazer backup antes de alterar | `<ficheiro>.AAAAMMDD_HHMMSS.bak` |
 | Não acumular backups | Mantém só o último; os anteriores são apagados **depois** de criar o novo |
 

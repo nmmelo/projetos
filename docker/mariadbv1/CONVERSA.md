@@ -8,7 +8,7 @@ estão resumidas, mas mantêm os comandos e as conclusões. Os ficheiros finais 
 ## 1. Criar a MariaDB em docker-compose
 
 **Pergunta:**
-> quero um docker-compose para criar uma mariadb na porta default, com um user admin com permissões de dba e que consiga aceder do ip 10.10.101.25, o volume dos dados ficam guardados no mount com o nome de data e outro mount com o nome de conf onde temos as configurações da mariadb
+> quero um docker-compose para criar uma mariadb na porta default, com um user admin com permissões de dba e que consiga aceder do ip 192.0.2.25, o volume dos dados ficam guardados no mount com o nome de data e outro mount com o nome de conf onde temos as configurações da mariadb
 
 **Resposta:**
 Foram criados `docker-compose.yml`, `.env`, `conf/custom.cnf` e `init/01-admin.sh`.
@@ -17,7 +17,7 @@ Foram criados `docker-compose.yml`, `.env`, `conf/custom.cnf` e `init/01-admin.s
 |---|---|
 | Imagem | `mariadb:11.4` |
 | Porta | `3306:3306` |
-| Utilizador | `admin@10.10.101.25` com `ALL PRIVILEGES ON *.* WITH GRANT OPTION` |
+| Utilizador | `admin@192.0.2.25` com `ALL PRIVILEGES ON *.* WITH GRANT OPTION` |
 | Root | Só `localhost` (dentro do contentor) |
 | `./data` | `/var/lib/mysql` |
 | `./conf` | `/etc/mysql/conf.d` (só leitura) |
@@ -25,7 +25,7 @@ Foram criados `docker-compose.yml`, `.env`, `conf/custom.cnf` e `init/01-admin.s
 Notas:
 - Foi acrescentada uma terceira pasta, `init`, com o script que cria o user admin restrito ao IP.
   Só corre no 1.º arranque, com `data/` vazia.
-- Teste a partir de 10.10.101.25: `mariadb -h <ip_servidor> -u admin -p`
+- Teste a partir de 192.0.2.25: `mariadb -h <ip_servidor> -u admin -p`
 
 ---
 
@@ -145,7 +145,7 @@ Notas:
   `docker_process_sql` não fica disponível.
 - O hash não leva salt: usar passwords longas e `chmod 600 .env`.
 - O hash só tem efeito no 1.º arranque. Depois:
-  `ALTER USER 'admin'@'10.10.101.25' IDENTIFIED BY PASSWORD '*...';`
+  `ALTER USER 'admin'@'192.0.2.25' IDENTIFIED BY PASSWORD '*...';`
 
 ---
 
@@ -189,7 +189,7 @@ chmod +x gerar-hash.sh
 
 | Passo | Detalhe |
 |---|---|
-| Pergunta o user e o IP | Por omissão `admin` e `10.10.101.25` |
+| Pergunta o user e o IP | Por omissão `admin` e `192.0.2.25` |
 | Pede as passwords de root e admin | Sem eco, com confirmação, mínimo 12 caracteres |
 | Calcula os hashes | `openssl`, ou `python3` se não houver openssl |
 | Atualiza o `.env` | Substitui/acrescenta as `MARIADB_*` e mantém o resto |
@@ -229,7 +229,7 @@ Usar o comando v2: `docker compose up -d`.
 Para usar stack, o ficheiro muda em 4 pontos:
 
 1. **Porta em `mode: host`**. Com o routing mesh, a MariaDB vê o IP do ingress e o
-   `admin@10.10.101.25` deixa de funcionar.
+   `admin@192.0.2.25` deixa de funcionar.
 2. **Fixar a um nó**, porque `./data` e `./conf` são locais.
 3. **`deploy.restart_policy`** em vez de `restart`; o `container_name` é ignorado.
 4. **Carregar o `.env` à mão**.

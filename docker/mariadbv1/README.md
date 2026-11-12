@@ -2,7 +2,7 @@
 
 Instância MariaDB 11.4 em Docker Compose, na porta por omissão (3306), com:
 
-- um utilizador **admin** com permissões de DBA, acessível **apenas a partir de `10.10.101.25`**;
+- um utilizador **admin** com permissões de DBA, acessível **apenas a partir de `192.0.2.25`**;
 - o utilizador **root** restrito ao interior do contentor;
 - passwords guardadas no `.env` **apenas como hash** (nunca em claro);
 - dados e configurações em pastas montadas (`data` e `conf`).
@@ -53,7 +53,7 @@ O script pede:
 | Pergunta | Valor por omissão |
 |---|---|
 | Utilizador admin | `admin` |
-| IP de acesso do admin | `10.10.101.25` |
+| IP de acesso do admin | `192.0.2.25` |
 | Password do root (2×) | — |
 | Password do admin (2×) | — |
 
@@ -66,7 +66,7 @@ Resultado no `.env`:
 MARIADB_ROOT_PASSWORD_HASH=*225345A0C8CAAFD63C8D80085ACAC8ADA9C5F54B
 MARIADB_ADMIN_USER=admin
 MARIADB_ADMIN_PASSWORD_HASH=*BEF2D191C917590A623399610FFD094C35A8EF24
-MARIADB_ADMIN_HOST=10.10.101.25
+MARIADB_ADMIN_HOST=192.0.2.25
 ```
 
 > Apague o `.env.bak` se não precisar dele: `rm .env.bak`
@@ -98,7 +98,7 @@ docker compose ps
 
 ## Testar o acesso
 
-A partir da máquina `10.10.101.25`:
+A partir da máquina `192.0.2.25`:
 
 ```bash
 mariadb -h <IP_DO_SERVIDOR> -P 3306 -u admin -p
@@ -108,7 +108,7 @@ Confirmar permissões:
 
 ```sql
 SHOW GRANTS FOR CURRENT_USER;
--- GRANT ALL PRIVILEGES ON *.* TO `admin`@`10.10.101.25` ... WITH GRANT OPTION
+-- GRANT ALL PRIVILEGES ON *.* TO `admin`@`192.0.2.25` ... WITH GRANT OPTION
 ```
 
 Acesso como root (só de dentro do contentor):
@@ -192,13 +192,13 @@ docker exec -it mariadb mariadb -uroot -p
 ```
 
 ```sql
-ALTER USER 'admin'@'10.10.101.25' IDENTIFIED BY PASSWORD '*NOVO_HASH';
+ALTER USER 'admin'@'192.0.2.25' IDENTIFIED BY PASSWORD '*NOVO_HASH';
 ```
 
 ### Alterar o IP de acesso do admin
 
 ```sql
-RENAME USER 'admin'@'10.10.101.25' TO 'admin'@'NOVO_IP';
+RENAME USER 'admin'@'192.0.2.25' TO 'admin'@'NOVO_IP';
 ```
 
 Atualizar também o `MARIADB_ADMIN_HOST` no `.env`, para manter coerência.
@@ -236,7 +236,7 @@ docker compose up -d
 
 | Sintoma | Causa provável | Solução |
 |---|---|---|
-| `Access denied for user 'admin'@'X.X.X.X'` | Ligação de um IP diferente de `10.10.101.25` | Ligar a partir do IP autorizado ou alterar o host do user |
+| `Access denied for user 'admin'@'X.X.X.X'` | Ligação de um IP diferente de `192.0.2.25` | Ligar a partir do IP autorizado ou alterar o host do user |
 | User admin não existe | `data/` já tinha dados quando o init devia correr | Criar o user à mão ou reinicializar do zero |
 | `docker_process_sql: command not found` nos logs | `init/01-admin.sh` está executável | `chmod -x init/01-admin.sh` e reinicializar |
 | `Can't connect to MariaDB server` | Firewall ou porta 3306 ocupada | `ss -tlnp \| grep 3306`; verificar a firewall |
@@ -252,5 +252,5 @@ docker compose up -d
 - Mantenha o `.env` com `chmod 600` e **fora de repositórios Git** (adicionar ao `.gitignore`).
 - O root só aceita ligações a partir de `localhost` (interior do contentor).
 - O Docker publica portas contornando o `ufw`/`firewalld`. O controlo de acesso por IP é feito
-  pelo próprio MariaDB (`admin@10.10.101.25`). Para filtrar também ao nível da rede, use a chain
+  pelo próprio MariaDB (`admin@192.0.2.25`). Para filtrar também ao nível da rede, use a chain
   `DOCKER-USER` do iptables.

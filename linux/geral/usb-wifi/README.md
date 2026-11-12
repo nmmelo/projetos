@@ -20,7 +20,7 @@ como uma placa ethernet (`enx...`) e não como wifi.
 | Placa | Interface | Uso |
 |---|---|---|
 | NAT | `enp0s3` | Internet em casa (pela rede do Windows) |
-| Host-only | `enp0s8` (192.168.93.x) | Ligação VM ↔ Windows (SSH, etc.) |
+| Host-only | `enp0s8` (192.168.56.x) | Ligação VM ↔ Windows (SSH, etc.) |
 | USB passthrough | `enx*` | Internet no trabalho pela pen LTE |
 
 ## 1. VirtualBox (anfitrião)
