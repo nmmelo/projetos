@@ -1,7 +1,7 @@
 # tesla-key
 
 Contentor Ubuntu 26.04 com **nginx + SSH** para alojar, num Synology, a chave pública da Tesla Fleet API em
-`https://tesla.cubiculo.giize.com/.well-known/appspecific/com.tesla.3p.public-key.pem`.
+`https://url/.well-known/appspecific/com.tesla.3p.public-key.pem`.
 
 O nginx só responde a esse caminho; tudo o resto devolve 404. O acesso SSH (utilizador `nmmelo`) serve para
 gerar e publicar a chave.
