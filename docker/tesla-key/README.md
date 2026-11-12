@@ -3,7 +3,7 @@
 Contentor Ubuntu 26.04 com **nginx + SSH** para alojar, num Synology, a chave pública da Tesla Fleet API em
 `https://url/.well-known/appspecific/com.tesla.3p.public-key.pem`.
 
-O nginx só responde a esse caminho; tudo o resto devolve 404. O acesso SSH (utilizador `nmmelo`) serve para
+O nginx só responde a esse caminho; tudo o resto devolve 404. O acesso SSH (utilizador `SSH_USER`, com sudo) serve para
 gerar e publicar a chave.
 
 ## Estrutura
@@ -48,7 +48,7 @@ tesla-key/
    ```
 3. Gerar as chaves Tesla e publicar a pública:
    ```bash
-   ssh -p 2223 nmmelo@<ip-nas>
+   ssh -p 2223 <utilizador>@<ip-nas>
    mkdir -p ~/tesla && cd ~/tesla
    openssl ecparam -name prime256v1 -genkey -noout -out private-key.pem
    openssl ec -in private-key.pem -pubout -out public-key.pem
@@ -56,7 +56,7 @@ tesla-key/
    ```
 4. Tirar a privada do contentor (a home não tem volume) e apagá-la lá dentro:
    ```bash
-   scp -P 2223 nmmelo@<ip-nas>:tesla/private-key.pem .
+   scp -P 2223 <utilizador>@<ip-nas>:tesla/private-key.pem .
    ```
 
 ### B. Rede e DSM
@@ -118,7 +118,7 @@ tesla-key/
 
 ## Notas
 
-- SSH só com chave, utilizador `nmmelo` (sem password, sem root). Para mudar de utilizador: alterar `SSH_USER`
+- SSH só com chave, utilizador definido em `SSH_USER` (por omissão `admin`), com `sudo` sem password; sem password de login e sem root. Para mudar de utilizador: alterar `SSH_USER`
   no `docker-compose.yml` e `docker compose up -d --build`.
 - Alterações ao `authorized_keys` aplicam-se com `docker restart tesla-key`.
 - Os volumes do Synology forçam permissões 0755; por isso a host key fica em `hostkeys/` mas o `sshd` usa uma
