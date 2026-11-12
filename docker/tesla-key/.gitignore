@@ -1,0 +1,3 @@
+hostkeys/
+*.pem
+!html/.well-known/appspecific/.gitkeep
