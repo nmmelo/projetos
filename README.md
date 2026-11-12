@@ -8,6 +8,7 @@ utilização e um `CONVERSA.md` com o resumo do chat que deu origem ao projeto.
 | MariaDB em Docker | [`docker`](docker) › [`mariadbv1`](docker/mariadbv1) | MariaDB 11.4 em docker-compose com utilizador admin restrito a um IP, passwords em hash e pastas `data` e `conf` montadas |
 | dev-portal | [`docker`](docker) › [`dev-portal`](docker/dev-portal) | Contentor Ubuntu 26.04 com Ansible, SSH e base para um portal Python: Nginx (reverse proxy) + Gunicorn com reload automático, código na pasta `portal/` do anfitrião, ferramentas de rede e drivers MariaDB |
 | Portal Oracle | [`docker`](docker) › [`portal-oracle`](docker/portal-oracle) | Portal web em Python (Flask + Gunicorn + Nginx, Ubuntu 26.04) para gerir bases de dados Oracle: utilizadores e perfis, shrink de tablespaces, backups da configuração, armazenamento em SQLite, MariaDB ou PostgreSQL, SSH para o VS Code |
+| tesla-key | [`docker`](docker) › [`tesla-key`](docker/tesla-key) | Contentor Ubuntu 26.04 (nginx + SSH) num Synology para alojar a chave pública da Tesla Fleet API em `tesla.cubiculo.giize.com`, atrás do Proxy Reverso do DSM; inclui os passos de registo na Tesla, OAuth e emparelhamento |
 | Shrink de tablespaces | [`oracledb`](oracledb) › [`query`](oracledb/query) › [`shrink_tablespace`](oracledb/query/shrink_tablespace) | Script SQL*Plus que verifica se um tablespace (ou todos) pode ser reduzido, reorganiza os segmentos no fim dos datafiles (MOVE/REBUILD ONLINE) e faz o resize. Inclui notas sobre o SYSAUX |
 | Monitor RMAN | [`oracledb`](oracledb) › [`scripts`](oracledb/scripts) › [`rman`](oracledb/scripts/rman) | Monitor pós-backup RMAN (Bash + Python): valida o log, apaga backups antigos quando a partição passa os 90% e envia email por SMTP com password cifrada |
 | Internet na VM por USB | [`linux`](linux) › [`geral`](linux/geral) › [`usb-wifi`](linux/geral/usb-wifi) | VM Ubuntu no VirtualBox com internet por uma pen LTE USB (passthrough), netplan e funções `rede-trabalho` / `rede-casa` para alternar entre a pen e o NAT |
@@ -25,7 +26,8 @@ projetos/
 ├── docker/
 │   ├── dev-portal/                 # Ansible + Nginx + Gunicorn (base de portal Python)
 │   ├── mariadbv1/                  # MariaDB em docker-compose
-│   └── portal-oracle/              # Portal Oracle (Python)
+│   ├── portal-oracle/              # Portal Oracle (Python)
+│   └── tesla-key/                  # Chave pública da Tesla Fleet API (nginx + SSH)
 ├── linux/                          # Linux
 │   ├── README.md
 │   └── geral/                      # Configurações gerais

@@ -1,0 +1,18 @@
+services:
+  tesla-key:
+    build:
+      context: .
+      args:
+        SSH_USER: nmmelo
+        SSH_UID: 1001
+    image: tesla-key:latest
+    container_name: tesla-key
+    hostname: tesla-key
+    restart: unless-stopped
+    ports:
+      - "8088:80"     # HTTP -> Proxy Reverso do DSM (tesla.cubiculo.giize.com:443)
+      - "2223:22"     # SSH (só rede local, não abrir no router)
+    volumes:
+      - ./ssh/authorized_keys:/import/authorized_keys:ro
+      - ./html:/var/www/html
+      - ./hostkeys:/etc/ssh/keys
