@@ -3,7 +3,7 @@ services:
     build:
       context: .
       args:
-        SSH_USER: nmmelo
+        SSH_USER: admin        # utilizador SSH (com sudo)
         SSH_UID: 1001
     image: tesla-key:latest
     container_name: tesla-key

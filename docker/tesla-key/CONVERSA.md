@@ -64,10 +64,10 @@ Par de chaves EC (prime256v1) → publicar a pública em `/.well-known/appspecif
 **Perguntas:**
 > posso criar um container para guardar essa chave associado depois no DSM o tesla.<dominio> a uma porta especifica
 > quero o docker-compose com sessão ssh com import de uma chave publica no autorikey, como já fiz com outros exemplos, pode ser a imagem ubuntu 26.04
-> eu queria outro utilizador para entrar como ssh, por exemplo nmmelo
+> eu queria outro utilizador para entrar como ssh, por exemplo <utilizador>
 
 **Resposta:**
-Contentor Ubuntu 26.04 com nginx (porta 8088) e SSH (porta 2223, utilizador `nmmelo`, só chave). O Proxy
+Contentor Ubuntu 26.04 com nginx (porta 8088) e SSH (porta 2223, utilizador `<utilizador>`, só chave). O Proxy
 Reverso do DSM liga `HTTPS tesla.<dominio>:443` → `HTTP localhost:8088`. A Tesla lê sempre na 443;
 a porta específica é só interna.
 
@@ -103,3 +103,14 @@ As ACLs dos volumes do Synology forçam 0755. O `entrypoint.sh` passou a copiar 
 sudo docker compose down
 sudo docker compose up -d --build
 ```
+
+---
+
+## 8. Sudo no utilizador SSH
+
+**Pergunta:**
+> no container não tenho sudo no <utilizador>
+
+**Resposta:**
+O `Dockerfile` passou a instalar o `sudo` e a criar `/etc/sudoers.d/<utilizador>` com `NOPASSWD:ALL`. É preciso
+rebuild (`docker compose up -d --build`). O utilizador define-se em `SSH_USER` no `docker-compose.yml`.
