@@ -44,7 +44,7 @@ tesla-key/
 
 | Ficheiro | Copiar para | Variáveis |
 |---|---|---|
-| `.env.example` | `.env` | `SSH_USER`, `SSH_UID`, `HTTP_PORT`, `SSH_PORT`, `CONTAINER_NAME`, `DATA_DIR`, `ADMIN_PORT`, `DOCKER_NETWORK`, `UPDATE_URL` |
+| `.env.example` | `.env` | `SSH_USER`, `SSH_UID`, `SSH_PUBKEY`, `SSH_EXTRA_USER`, `SSH_EXTRA_PUBKEY`, `SSH_EXTRA_SUDO`, `SSH_EXTRA_UID`, `HTTP_PORT`, `SSH_PORT`, `CONTAINER_NAME`, `DATA_DIR`, `ADMIN_PORT`, `DOCKER_NETWORK`, `UPDATE_URL` |
 | `tesla/tesla.env.example` | `tesla/tesla.env` | `TESLA_DOMAIN`, `TESLA_CLIENT_ID`, `TESLA_CLIENT_SECRET`, `TESLA_REGION`, `TESLA_REDIRECT_URI`, `TESLA_SCOPES` |
 
 ## Portas
@@ -364,6 +364,32 @@ Primeira vez (se ainda não tiver o `atualizar.sh`):
 curl -fsSL "$UPDATE_URL/atualizar.sh" -o atualizar.sh && chmod +x atualizar.sh
 ```
 
+## Utilizador SSH extra (ex.: outro portal de gestão)
+
+Além do utilizador principal, o contentor pode ter um segundo utilizador SSH, criado em cada arranque a
+partir de variáveis (no `.env` ou nas *Environment variables* da stack do Portainer). Sobrevive a restarts,
+rebuilds e "Pull and redeploy" sem passos manuais.
+
+| Variável | Exemplo | Descrição |
+|---|---|---|
+| `SSH_EXTRA_USER` | `gestao` | Nome (minúsculas, números, `-`, `_`). Vazio = não existe |
+| `SSH_EXTRA_PUBKEY` | `ssh-ed25519 AAAA... portal` | Chave(s) pública(s); várias separadas por `;` |
+| `SSH_EXTRA_SUDO` | `1` | `1` = sudo sem password (omissão); `0` = sem sudo |
+| `SSH_EXTRA_UID` | | UID (opcional) |
+| `SSH_PUBKEY` | | Chaves extra para o utilizador **principal**, além de `ssh/authorized_keys` |
+
+Em cada arranque o `ssh-utilizadores.sh`:
+- cria o utilizador se não existir, sem password (marcada `*`, não bloqueada, para o sshd aceitar a chave);
+- escreve o `~/.ssh/authorized_keys` só com as chaves das variáveis (as linhas inválidas são ignoradas);
+- aplica o sudo conforme `SSH_EXTRA_SUDO`;
+- reescreve o `AllowUsers` com o utilizador principal e o extra (retirar a variável retira o acesso);
+- valida a configuração com `sshd -t` antes de arrancar o SSH.
+
+Teste: `ssh -p <SSH_PORT> <SSH_EXTRA_USER>@<ip-nas> sudo -n true && echo ok`.
+
+Não é preciso correr no contentor scripts de preparação de anfitriões (criar utilizador, `AllowUsers`,
+`systemctl reload ssh`): o contentor não usa systemd e essa configuração já é feita no arranque.
+
 ## Instalar como stack do Portainer (a partir do Git)
 
 Alternativa ao `docker compose` + `atualizar.sh` no NAS: o Portainer clona o repositório, faz o build e
@@ -395,6 +421,9 @@ Os dados continuam numa pasta do NAS (`DATA_DIR`), por isso não se perdem nos r
    CONTAINER_NAME=tesla-key
    DOCKER_NETWORK=<rede partilhada>
    DATA_DIR=/volume1/docker/tesla-key
+   # opcional: utilizador SSH extra
+   SSH_EXTRA_USER=
+   SSH_EXTRA_PUBKEY=
    ```
    `DATA_DIR` tem de ser um **caminho absoluto**: com `.` os dados iriam para a cópia do repositório que o
    Portainer guarda internamente.

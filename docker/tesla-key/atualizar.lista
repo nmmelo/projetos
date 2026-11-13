@@ -4,6 +4,7 @@
 Dockerfile
 docker-compose.yml
 entrypoint.sh
+ssh-utilizadores.sh
 nginx.conf
 tesla-setup.sh
 gateway/common.py

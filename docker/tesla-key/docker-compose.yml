@@ -11,6 +11,12 @@ services:
     container_name: ${CONTAINER_NAME:-tesla-key}
     hostname: tesla-key
     restart: unless-stopped
+    environment:
+      SSH_PUBKEY: ${SSH_PUBKEY:-}             # chaves extra do utilizador principal (separadas por ";")
+      SSH_EXTRA_USER: ${SSH_EXTRA_USER:-}     # utilizador SSH extra (opcional), ex. para outro portal
+      SSH_EXTRA_PUBKEY: ${SSH_EXTRA_PUBKEY:-} # chave(s) pública(s) do utilizador extra
+      SSH_EXTRA_SUDO: ${SSH_EXTRA_SUDO:-1}    # 1 = sudo sem password; 0 = sem sudo
+      SSH_EXTRA_UID: ${SSH_EXTRA_UID:-}       # UID do utilizador extra (opcional)
     ports:
       - "${HTTP_PORT:-8088}:80"   # HTTP -> Proxy Reverso do DSM (só /.well-known)
       - "${SSH_PORT:-2223}:22"    # SSH (só rede local, não abrir no router)

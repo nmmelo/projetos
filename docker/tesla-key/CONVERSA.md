@@ -278,3 +278,17 @@ Status API (`ts_`, estado do gateway) são credenciais diferentes.
 - Página **Consumo**: estimativa do mês por tipo, cliente, endpoint e dia, com limites diários; KPI no Estado.
   Os pedidos à Tesla são registados na tabela `consumo` do `gateway.db`.
 - CLI: `tesla-setup consumo`, `funcionalidades`, `config` e mais chaves em `definicao`.
+
+---
+
+## 19. Utilizador SSH extra a partir de variáveis
+
+**Pergunta:**
+> com o tesla-key a fazer refresh eu preciso de criar um utilizador ... com uma chave publica que pode ser colocada no env do portainer, tem que ter no authorized_keys uma public key que posso tb colocar no env
+
+**Resposta:**
+Novo `ssh-utilizadores.sh`, chamado pelo `entrypoint.sh` em cada arranque: cria o utilizador `SSH_EXTRA_USER`
+(sem password, marcada `*`), escreve o `authorized_keys` a partir de `SSH_EXTRA_PUBKEY` (várias chaves
+separadas por `;`), aplica sudo sem password (`SSH_EXTRA_SUDO=1`), reescreve o `AllowUsers` antes de qualquer
+bloco `Match` e valida com `sshd -t`. `SSH_PUBKEY` acrescenta chaves ao utilizador principal. As variáveis
+passam pelo `docker-compose.yml`, por isso funcionam no `.env` e na stack do Portainer.

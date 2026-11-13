@@ -11,14 +11,8 @@ install -m 644 -o root -g root /etc/ssh/keys/ssh_host_ed25519_key.pub /etc/ssh/s
 grep -q "^HostKey /etc/ssh/ssh_host_ed25519_key" /etc/ssh/sshd_config || \
     echo "HostKey /etc/ssh/ssh_host_ed25519_key" >> /etc/ssh/sshd_config
 
-# Importa a chave pública SSH para o authorized_keys
-mkdir -p "${HOME_DIR}/.ssh"
-if [ -f /import/authorized_keys ]; then
-    grep -v '^\s*#' /import/authorized_keys | grep -v '^\s*$' > "${HOME_DIR}/.ssh/authorized_keys" || true
-fi
-chmod 700 "${HOME_DIR}/.ssh"
-chmod 600 "${HOME_DIR}/.ssh/authorized_keys" 2>/dev/null || true
-chown -R "${SSH_USER}:${SSH_USER}" "${HOME_DIR}/.ssh"
+# Utilizadores SSH (principal + extra opcional) e chaves públicas (ficheiro e/ou variáveis)
+/usr/local/sbin/ssh-utilizadores.sh
 
 # Pasta da chave Tesla editável pelo utilizador SSH
 mkdir -p /var/www/html/.well-known/appspecific
@@ -28,7 +22,7 @@ chown -R "${SSH_USER}:${SSH_USER}" /var/www/html 2>/dev/null || true
 mkdir -p /opt/tesla
 chown -R "${SSH_USER}:${SSH_USER}" /opt/tesla 2>/dev/null || true
 
-/usr/sbin/sshd
+/usr/sbin/sshd -t && /usr/sbin/sshd || echo "ERRO: configuração do sshd inválida; SSH indisponível"
 
 # Gateway: API interna (8000, só rede Docker) e portal admin (8001, LAN), como o utilizador SSH
 cd /opt/gateway
