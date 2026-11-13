@@ -18,6 +18,8 @@ tesla-key/
 ├── nginx.conf
 ├── API.md                  # referência da API para clientes
 ├── openapi.yaml            # especificação OpenAPI
+├── atualizar.sh            # atualização a partir do repositório (sem tocar nos dados)
+├── atualizar.lista         # ficheiros atualizados pelo atualizar.sh
 ├── tesla-setup.sh          # instalado como /usr/local/bin/tesla-setup
 ├── gateway/
 │   ├── common.py           # base de dados, clientes, tokens Tesla, logs
@@ -42,7 +44,7 @@ tesla-key/
 
 | Ficheiro | Copiar para | Variáveis |
 |---|---|---|
-| `.env.example` | `.env` | `SSH_USER`, `SSH_UID`, `HTTP_PORT`, `SSH_PORT`, `CONTAINER_NAME`, `ADMIN_PORT`, `DOCKER_NETWORK` |
+| `.env.example` | `.env` | `SSH_USER`, `SSH_UID`, `HTTP_PORT`, `SSH_PORT`, `CONTAINER_NAME`, `ADMIN_PORT`, `DOCKER_NETWORK`, `UPDATE_URL` |
 | `tesla/tesla.env.example` | `tesla/tesla.env` | `TESLA_DOMAIN`, `TESLA_CLIENT_ID`, `TESLA_CLIENT_SECRET`, `TESLA_REGION`, `TESLA_REDIRECT_URI`, `TESLA_SCOPES` |
 
 ## Portas
@@ -170,18 +172,33 @@ A localização exige o scope `vehicle_location`, que tem de existir na aplicaç
 
 ### Imagem do carro
 
-Render do configurador Tesla (não são as câmaras). Para a cor e as jantes exatas:
+Render do configurador Tesla (compositor em `static-assets.tesla.com`), não as câmaras. O compositor desenha o
+carro a partir de uma lista de **códigos de opção** (modelo, pintura, jantes, interior). É essa lista que se
+põe em `TESLA_IMAGE_OPTIONS`.
 
-1. tesla.com → conta → o carro → botão direito na imagem → copiar endereço.
-2. Copiar o valor do parâmetro `options=` para `tesla/tesla.env`, **sem os `$`** (ou entre plicas):
+| Código (exemplos) | Significado |
+|---|---|
+| `MT3..` / `MDL3` | Modelo e versão (Model 3) |
+| `PPSW`, `PBSB`, `PN01`, `PN00`, `PR01`, `PMNG`, `PPSB` | Pintura (Pearl White, Solid Black, Stealth Grey, Quicksilver, Ultra Red, Midnight Silver, Deep Blue) |
+| `W38B`, `W39B`, `W38A`, `W39A` | Jantes |
+| `IPB..`, `IBB..` | Interior (vista `STUD_SEAT`) |
+
+Obter os códigos exatos do carro:
+
+1. tesla.com → conta → o carro → botão direito na imagem → **copiar endereço da imagem**.
+2. O endereço tem a forma `.../compositor/?model=m3&view=STUD_3QTR&size=...&options=$MT353,$PPSW,$W38A,$IPB3,...`
+3. Copiar o valor de `options=` para `tesla/tesla.env`, **sem os `$`** (o `tesla-setup` lê o ficheiro em bash
+   e o `$` seria interpretado), ou entre plicas:
    ```bash
    TESLA_IMAGE_MODEL=m3
    TESLA_IMAGE_OPTIONS=MT353,PPSW,W38A,IPB3
+   # ou: TESLA_IMAGE_OPTIONS='$MT353,$PPSW,$W38A,$IPB3'
    ```
-3. Gerar de novo: `.../image?fresh=1` (ou apagar `tesla/imagens/`).
+4. Gerar de novo: `.../image?fresh=1` (ou apagar `tesla/imagens/`). Para ver o URL usado: `.../image?formato=url`.
 
-Sem `TESLA_IMAGE_OPTIONS`, o gateway monta os códigos a partir de `exterior_color` e `wheel_type` do carro
-(aproximado; cores ou jantes desconhecidas ficam com o aspeto por omissão e geram um WARNING nos logs).
+Sem `TESLA_IMAGE_OPTIONS`, o gateway monta os códigos a partir de `exterior_color` e `wheel_type` do
+`vehicle_config` (aproximado; cores ou jantes desconhecidas ficam com o aspeto por omissão e geram um WARNING).
+As imagens ficam em `tesla/imagens/` durante `TESLA_IMAGE_CACHE_DIAS` (30).
 
 ### Status API (`/status/v1`)
 
@@ -292,19 +309,34 @@ Retenção por omissão de 30 dias (limpeza no arranque e em Definições).
 
 ## Atualizar para uma nova versão
 
-Copiar só os ficheiros do projeto (`Dockerfile`, `docker-compose.yml`, `entrypoint.sh`, `nginx.conf`,
-`tesla-setup.sh`, `gateway/`, `*.example`) e **não** substituir:
+O `atualizar.sh` descarrega do repositório os ficheiros do projeto listados em `atualizar.lista`, mostra o
+que mudou, guarda os ficheiros antigos em `.backup/<data>/` e faz o rebuild. **Nunca** toca em:
 
-| Manter | Porquê |
+| Mantido | Porquê |
 |---|---|
-| `.env` | Utilizador, UID, portas e rede |
-| `ssh/authorized_keys` | Chave SSH (o do projeto é só um comentário) |
-| `tesla/` | `tesla.env`, chaves, tokens e `gateway.db` |
-| `hostkeys/` | Host key SSH |
+| `.env` | Utilizador, UID, portas, rede, `UPDATE_URL` |
+| `ssh/authorized_keys` | Chaves SSH |
+| `tesla/tesla.env`, `tesla/keys/`, `tesla/tokens.json`, `tesla/gateway.db`, `tesla/imagens/` | Configuração, chaves, tokens, clientes, logs |
+| `hostkeys/`, `html/` | Host key SSH e chave pública publicada |
 
+1. Uma vez: definir no `.env` a origem (URL "raw" da pasta `tesla-key` no repositório):
+   ```bash
+   UPDATE_URL=https://raw.githubusercontent.com/<utilizador>/<repositorio>/main/docker/tesla-key
+   ```
+2. Atualizar:
+   ```bash
+   cd /volume1/docker/tesla-key
+   ./atualizar.sh --simular     # só mostra o que mudaria
+   ./atualizar.sh               # atualiza, faz backup e rebuild
+   ./atualizar.sh --sem-build   # atualiza sem rebuild
+   ```
+
+No fim avisa se o `.env.example` ou o `tesla.env.example` têm variáveis que ainda não estão na configuração
+real (ficam com o valor por omissão até as acrescentar). O próprio `atualizar.sh` também se atualiza.
+
+Primeira vez (se ainda não tiver o `atualizar.sh`):
 ```bash
-sudo docker compose up -d --build --force-recreate
-sudo docker exec tesla-key grep -c gunicorn /entrypoint.sh   # > 0 confirma o entrypoint novo
+curl -fsSL "$UPDATE_URL/atualizar.sh" -o atualizar.sh && chmod +x atualizar.sh
 ```
 
 ## Resolução de problemas

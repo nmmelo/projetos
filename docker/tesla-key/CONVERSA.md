@@ -231,3 +231,19 @@ Status API (`ts_`, estado do gateway) são credenciais diferentes.
 - CLI: `cliente add ... --perm LISTA`, `cliente perm NOME [set|add|rm LISTA]`, `permissoes`.
 - Portal admin: preset ao criar e página de permissões por cliente com caixas de seleção.
 - Migração automática: clientes existentes ficam com `tudo`.
+
+---
+
+## 16. Atualizar sem copiar ficheiros e códigos da imagem
+
+**Perguntas:**
+> O que foi alterado para fazer echo no tesla-key sem ter de colocar lá os ficheiros
+> Como funciona TESLA_IMAGE_OPTIONS e podes criar atualizar
+
+**Resposta:**
+- `atualizar.sh` + `atualizar.lista`: descarrega do repositório (`UPDATE_URL` no `.env`) os ficheiros do projeto,
+  mostra novos/alterados, faz backup em `.backup/<data>/`, rebuild e verifica `/api/health`. Nunca toca em
+  `.env`, `ssh/`, `tesla/tesla.env`, chaves, tokens, `gateway.db`, imagens, `hostkeys/` e `html/`. Opções
+  `--simular` e `--sem-build`; avisa de variáveis novas nos modelos `.example`.
+- `TESLA_IMAGE_OPTIONS`: códigos de opção do compositor Tesla (modelo, pintura, jantes, interior), copiados do
+  parâmetro `options=` da imagem do carro na conta tesla.com, sem `$`.
