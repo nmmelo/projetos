@@ -247,3 +247,17 @@ Status API (`ts_`, estado do gateway) são credenciais diferentes.
   `--simular` e `--sem-build`; avisa de variáveis novas nos modelos `.example`.
 - `TESLA_IMAGE_OPTIONS`: códigos de opção do compositor Tesla (modelo, pintura, jantes, interior), copiados do
   parâmetro `options=` da imagem do carro na conta tesla.com, sem `$`.
+
+---
+
+## 17. Gestão pelo Portainer
+
+**Perguntas:**
+> e se eu não tiver acesso ao nas neste momento, consigo fazer alterações no container?
+> mas eu tenho acesso ao container pelo portainer ... como faço isso
+
+**Resposta:**
+- Sem acesso ao NAS: clientes, permissões, Status API, logs, token e `tesla.env` geríveis pelo portal admin, por
+  SSH no contentor ou pela consola do Portainer (sempre como o utilizador do contentor, nunca root).
+- Stack do Portainer a partir do Git: `docker-compose.yml` passou a ter `DATA_DIR` (pasta absoluta dos dados no
+  NAS) e `pull_policy: build`; atualização com "Pull and redeploy" e variáveis na interface do Portainer.

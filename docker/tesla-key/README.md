@@ -44,7 +44,7 @@ tesla-key/
 
 | Ficheiro | Copiar para | Variáveis |
 |---|---|---|
-| `.env.example` | `.env` | `SSH_USER`, `SSH_UID`, `HTTP_PORT`, `SSH_PORT`, `CONTAINER_NAME`, `ADMIN_PORT`, `DOCKER_NETWORK`, `UPDATE_URL` |
+| `.env.example` | `.env` | `SSH_USER`, `SSH_UID`, `HTTP_PORT`, `SSH_PORT`, `CONTAINER_NAME`, `DATA_DIR`, `ADMIN_PORT`, `DOCKER_NETWORK`, `UPDATE_URL` |
 | `tesla/tesla.env.example` | `tesla/tesla.env` | `TESLA_DOMAIN`, `TESLA_CLIENT_ID`, `TESLA_CLIENT_SECRET`, `TESLA_REGION`, `TESLA_REDIRECT_URI`, `TESLA_SCOPES` |
 
 ## Portas
@@ -338,6 +338,52 @@ Primeira vez (se ainda não tiver o `atualizar.sh`):
 ```bash
 curl -fsSL "$UPDATE_URL/atualizar.sh" -o atualizar.sh && chmod +x atualizar.sh
 ```
+
+## Instalar como stack do Portainer (a partir do Git)
+
+Alternativa ao `docker compose` + `atualizar.sh` no NAS: o Portainer clona o repositório, faz o build e
+atualiza com **Pull and redeploy**, e as variáveis do `.env` passam a ser editadas na interface.
+
+Os dados continuam numa pasta do NAS (`DATA_DIR`), por isso não se perdem nos redeploys.
+
+1. **Pasta de dados no NAS** (a que já existe serve), com `ssh/authorized_keys`, `tesla/tesla.env`, etc.
+2. **Remover o contentor criado pelo `docker compose`** (os dados ficam na pasta):
+   Portainer → Containers → `tesla-key` → Stop → Remove (ou `sudo docker compose down` no NAS).
+3. **Stacks → Add stack**:
+
+   | Campo | Valor |
+   |---|---|
+   | Name | `tesla-key` |
+   | Build method | **Repository** |
+   | Repository URL | `https://github.com/<utilizador>/<repositorio>` |
+   | Repository reference | `refs/heads/main` |
+   | Compose path | `docker/tesla-key/docker-compose.yml` |
+   | Automatic updates (opcional) | Polling (ex.: 24h) ou Webhook |
+
+4. **Environment variables** → *Advanced mode*, colar e ajustar:
+   ```
+   SSH_USER=<utilizador>
+   SSH_UID=<id -u do utilizador no NAS>
+   SSH_PORT=2223
+   HTTP_PORT=8088
+   ADMIN_PORT=8089
+   CONTAINER_NAME=tesla-key
+   DOCKER_NETWORK=<rede partilhada>
+   DATA_DIR=/volume1/docker/tesla-key
+   ```
+   `DATA_DIR` tem de ser um **caminho absoluto**: com `.` os dados iriam para a cópia do repositório que o
+   Portainer guarda internamente.
+5. **Deploy the stack** e ver Containers → `tesla-key` → Logs (devem aparecer os dois `gunicorn`).
+
+| Tarefa | Onde |
+|---|---|
+| Atualizar para a versão do repositório | Stacks → `tesla-key` → **Pull and redeploy** (o `pull_policy: build` força o rebuild) |
+| Mudar portas, utilizador, rede | Stacks → `tesla-key` → Environment variables → Update the stack |
+| `tesla-setup` | Containers → `tesla-key` → Console → *User* `<utilizador>` → `/bin/bash` |
+| Logs, restart | Containers → `tesla-key` |
+
+Neste modo o `.env` e o `atualizar.sh` do NAS não são usados. Não misturar os dois modos no mesmo contentor.
+Se o Portainer não aceitar `pull_policy: build` (versões antigas), atualizar o Portainer.
 
 ## Resolução de problemas
 

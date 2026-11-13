@@ -1,4 +1,4 @@
-# Variáveis em .env (copiar de .env.example)
+# Variáveis em .env (copiar de .env.example) ou, numa stack do Portainer, em "Environment variables"
 services:
   tesla-key:
     build:
@@ -7,6 +7,7 @@ services:
         SSH_USER: ${SSH_USER:-admin}
         SSH_UID: ${SSH_UID:-1001}
     image: tesla-key:latest
+    pull_policy: build            # reconstrói sempre a imagem no deploy (ex.: "Pull and redeploy" no Portainer)
     container_name: ${CONTAINER_NAME:-tesla-key}
     hostname: tesla-key
     restart: unless-stopped
@@ -17,10 +18,12 @@ services:
     expose:
       - "8000"                    # gateway API: só na rede Docker, sem publish
     volumes:
-      - ./ssh/authorized_keys:/import/authorized_keys:ro
-      - ./html:/var/www/html
-      - ./hostkeys:/etc/ssh/keys
-      - ./tesla:/opt/tesla        # tesla.env, keys/, tokens.json
+      # DATA_DIR: pasta dos dados no NAS. "." = pasta do projeto (docker compose no NAS);
+      # numa stack do Portainer a partir do Git tem de ser um caminho absoluto (ex.: /volume1/docker/tesla-key)
+      - ${DATA_DIR:-.}/ssh/authorized_keys:/import/authorized_keys:ro
+      - ${DATA_DIR:-.}/html:/var/www/html
+      - ${DATA_DIR:-.}/hostkeys:/etc/ssh/keys
+      - ${DATA_DIR:-.}/tesla:/opt/tesla   # tesla.env, keys/, tokens.json, gateway.db, imagens/
 
 networks:
   default:
