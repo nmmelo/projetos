@@ -188,7 +188,10 @@ Gateway (portal admin, clientes, Status API, logs):
                                 mostra ou altera as permissões do cliente
   permissoes                    lista as permissões e presets disponíveis
   status-api on|off|token|info  Status API para outro portal (token Bearer)
-  definicao [CHAVE [VALOR]]     cache_segundos, retencao_logs_dias
+  definicao [CHAVE [VALOR]]     tempos de cache, secções por omissão, preços, retenção
+  funcionalidades [set LISTA]   funcionalidades ativas no gateway (todos os clientes)
+  consumo [AAAA-MM]             estimativa de consumo (créditos) no mês
+  config                        tesla.env com segredos mascarados e scopes do token
   logs [N] [NIVEL]              últimos N registos (INFO|WARNING|ERROR)
   logs-limpar                   apaga logs mais antigos que a retenção
   resumo                        estado do gateway (JSON)
@@ -203,7 +206,7 @@ cmd="${1:-ajuda}"; shift || true
 GATEWAY_CLI="${GATEWAY_CLI:-/opt/gateway/cli.py}"
 case "$cmd" in
     ajuda|-h|--help) ajuda; exit 0 ;;
-    admin|status-api|definicao|logs|logs-limpar|resumo|permissoes)
+    admin|status-api|definicao|logs|logs-limpar|resumo|permissoes|funcionalidades|consumo|config)
         exec python3 "$GATEWAY_CLI" "$cmd" "$@" ;;
     cliente)
         sub="${1:-list}"; shift || true

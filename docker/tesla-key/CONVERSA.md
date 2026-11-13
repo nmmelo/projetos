@@ -261,3 +261,20 @@ Status API (`ts_`, estado do gateway) são credenciais diferentes.
   SSH no contentor ou pela consola do Portainer (sempre como o utilizador do contentor, nunca root).
 - Stack do Portainer a partir do Git: `docker-compose.yml` passou a ter `DATA_DIR` (pasta absoluta dos dados no
   NAS) e `pull_policy: build`; atualização com "Pull and redeploy" e variáveis na interface do Portainer.
+
+---
+
+## 18. Portal para telemóvel, tesla.env, tempos de atualização e consumo
+
+**Pergunta:**
+> permitir que a interface web do tesla-key esteja adaptavel para mobile ... ver a informação do que está no tesla.env ... alterar o tempo em que é feito o refrescamento da imagem e de outros dados ... definir o que podemos ir buscar ou o que estamos a ir buscar ... ter uma noção de quantos creditos já foram usados no mês corrente
+
+**Resposta:**
+- Portal admin responsivo (menu deslizante, cartões em 2 colunas, tabelas com deslocamento, formulários em coluna).
+- Página **Tesla**: ver/editar o `tesla.env` (Client Secret mascarado, só substituído se for escrito um novo),
+  scopes com caixas e comparação "pedido" vs "no token atual".
+- **Definições**: tempos de cache por tipo (dados, localização, veículos, imagem), secções do `/data` por
+  omissão, funcionalidades ativas no gateway (403 para todos quando desligadas), preços e crédito.
+- Página **Consumo**: estimativa do mês por tipo, cliente, endpoint e dia, com limites diários; KPI no Estado.
+  Os pedidos à Tesla são registados na tabela `consumo` do `gateway.db`.
+- CLI: `tesla-setup consumo`, `funcionalidades`, `config` e mais chaves em `definicao`.

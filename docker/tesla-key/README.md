@@ -74,9 +74,12 @@ tesla-key/
 | `tesla-setup cliente list` | Lista os clientes (prefixo, estado, último uso, pedidos, permissões) |
 | `tesla-setup cliente perm NOME [set\|add\|rm LISTA]` | Mostra ou altera as permissões do cliente |
 | `tesla-setup permissoes` | Lista as permissões e os presets |
+| `tesla-setup funcionalidades [set LISTA]` | Funcionalidades ativas no gateway (para todos os clientes) |
+| `tesla-setup consumo [AAAA-MM]` | Estimativa de consumo (créditos) no mês |
+| `tesla-setup config` | `tesla.env` com segredos mascarados e scopes do token |
 | `tesla-setup cliente on\|off\|rm\|chave NOME` | Ativa, desativa, apaga ou gera nova chave |
 | `tesla-setup status-api on\|off\|token\|info` | Gere a Status API e o token Bearer |
-| `tesla-setup definicao [CHAVE [VALOR]]` | `cache_segundos`, `retencao_logs_dias` |
+| `tesla-setup definicao [CHAVE [VALOR]]` | Tempos (`cache_segundos`, `cache_localizacao_segundos`, `cache_veiculos_segundos`, `imagem_cache_dias`), `data_endpoints_omissao`, preços (`preco_dados`, `preco_wake`, `preco_comando`, `credito_mensal`), `retencao_logs_dias` |
 | `tesla-setup logs [N] [NIVEL]` | Últimos N registos (INFO, WARNING, ERROR) |
 | `tesla-setup logs-limpar` | Apaga logs mais antigos que a retenção |
 | `tesla-setup resumo` | Estado do gateway em JSON |
@@ -157,6 +160,23 @@ tesla-setup cliente perm portal rm localizacao,fleet  # retirar
 ```
 No portal admin: Clientes → **Permissões** (caixas de seleção e presets); o preset também se escolhe ao criar.
 
+### Tempos de atualização, dados e consumo
+
+| Definição | Omissão | Efeito |
+|---|---|---|
+| `cache_segundos` | 60 | Tempo em que `/data` responde da cache |
+| `cache_localizacao_segundos` | 60 | Idem para `/location` |
+| `cache_veiculos_segundos` | 60 | Idem para `/api/vehicles` e `/api/vehicles/<vin>` |
+| `imagem_cache_dias` | 30 | Dias até gerar de novo a imagem (sobrepõe `TESLA_IMAGE_CACHE_DIAS`) |
+| `data_endpoints_omissao` | 5 secções | Secções pedidas em `/data` quando o cliente não indica `?endpoints=` |
+| Funcionalidades ativas | todas | Funcionalidade desligada → 403 para todos os clientes |
+
+**Consumo:** o gateway regista cada pedido feito à Tesla (dados, wakes, comandos) e calcula uma estimativa
+com os preços definidos (omissão: 0,002 $ por pedido de dados, 0,02 $ por wake, 0,001 $ por comando, crédito
+de 10 $/mês). É uma estimativa: só conta o que passa pelo gateway; o valor oficial está no dashboard de
+developer.tesla.com. Também mostra o número de pedidos do dia face aos limites diários por veículo
+(200 dados, 50 comandos, 15 wakes).
+
 ### Ativar a localização
 
 A localização exige o scope `vehicle_location`, que tem de existir na aplicação e no token.
@@ -217,10 +237,15 @@ desativada responde 404. Autenticação com `Authorization: Bearer <token>` (tok
 
 | Página | O que permite |
 |---|---|
-| Estado | Gateway, token Tesla, clientes, pedidos/warnings/erros 24 h, testar ligação, renovar token |
+| Estado | Gateway, token Tesla, clientes, consumo do mês, pedidos/warnings/erros 24 h, testar ligação, renovar token |
+| Consumo | Estimativa de créditos do mês: por tipo (dados, wakes, comandos), por cliente, por endpoint e por dia, com limites diários |
 | Clientes | Criar com preset de permissões (mostra a chave uma vez), editar permissões, ativar/desativar, nova chave, apagar |
+| Tesla | Ver e editar o `tesla.env` (segredos mascarados) e comparar os scopes pedidos com os do token atual |
 | Logs | Atividade, warnings e erros, com filtro por nível e cliente |
-| Definições | Cache, retenção de logs, Status API (ativar/desativar/novo token), password |
+| Definições | Tempos de atualização, secções do `/data` por omissão, funcionalidades ativas, preços/crédito, logs, Status API, password |
+
+O portal adapta-se a ecrãs pequenos (telemóvel): menu deslizante, cartões em duas colunas, tabelas com
+deslocamento horizontal e formulários em coluna.
 
 Login definido com `tesla-setup admin`. Sessão de 8 h, formulários com proteção CSRF, tentativas de login
 registadas nos logs.

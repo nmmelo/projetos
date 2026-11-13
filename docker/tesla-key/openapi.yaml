@@ -109,7 +109,7 @@ components:
               erro: { type: string }
               estado: { type: string, example: asleep }
     SemPermissao:
-      description: O cliente não tem a permissão necessária (ver GET /api/me)
+      description: O cliente não tem a permissão necessária, ou a funcionalidade está desativada no gateway (ver GET /api/me)
       content: { application/json: { schema: { $ref: "#/components/schemas/Erro" } } }
     FalhaTesla:
       description: Falha na Tesla ou na renovação do token
@@ -147,6 +147,7 @@ paths:
                     items:
                       type: string
                       enum: [veiculos, carga, clima, conducao, estado, config, localizacao, imagem, token, acordar, fleet]
+                  desativadas_no_gateway: { type: array, items: { type: string } }
                   descricao: { type: object, additionalProperties: { type: string } }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
 
