@@ -229,7 +229,7 @@ def vehicle_image(vin):
     if request.args.get("formato") != "url" and not fresh:
         f = imagens.do_disco(vin, view, size)
         if f:
-            return send_file(f, mimetype=imagens.mimetype(f), max_age=86400)
+            return send_file(f, mimetype=imagens.mimetype(f), max_age=300)
 
     conf = c.ler_conf()
     vcfg = None
@@ -245,7 +245,7 @@ def vehicle_image(vin):
         return jsonify({"url": url, "origem": origem, "view": view, "size": size})
     f = imagens.descarregar(url, vin, view, size)
     c.log("INFO", "api", f"imagem gerada ({origem}, {view}, {size})", cliente=g.cliente)
-    return send_file(f, mimetype=imagens.mimetype(f), max_age=86400)
+    return send_file(f, mimetype=imagens.mimetype(f), max_age=300)
 
 
 @app.post("/api/vehicles/<vin>/wake")
