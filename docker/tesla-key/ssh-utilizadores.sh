@@ -4,7 +4,7 @@
 # Utilizador principal (SSH_USER, criado na imagem):
 #   chaves de /import/authorized_keys (ficheiro montado) + SSH_PUBKEY (variável)
 # Utilizador extra opcional, ex. para outro portal de gestão:
-#   SSH_EXTRA_USER    nome (ex.: adminssc)
+#   SSH_EXTRA_USER    nome (ex.: gestao)
 #   SSH_EXTRA_PUBKEY  chave(s) pública(s); várias separadas por ";"
 #   SSH_EXTRA_SUDO    1 (omissão) = sudo sem password; 0 = sem sudo
 #   SSH_EXTRA_UID     UID (opcional)

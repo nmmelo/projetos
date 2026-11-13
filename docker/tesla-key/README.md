@@ -15,6 +15,7 @@ tesla-key/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── entrypoint.sh
+├── ssh-utilizadores.sh     # utilizadores SSH e chaves em cada arranque
 ├── nginx.conf
 ├── API.md                  # referência da API para clientes
 ├── openapi.yaml            # especificação OpenAPI
