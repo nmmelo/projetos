@@ -2,9 +2,11 @@
 Gestão do gateway pela linha de comandos (chamado pelo `tesla-setup`).
 
   admin                          define utilizador/password do portal (interativo)
-  cliente-add NOME [DESCRIÇÃO]   cria cliente e mostra a chave
-  cliente-list                   lista clientes
+  cliente-add NOME [DESCRIÇÃO] [--perm LISTA]   cria cliente e mostra a chave
+  cliente-list                   lista clientes e permissões
   cliente-on|off|rm|chave NOME   ativa, desativa, apaga, gera nova chave
+  cliente-perm NOME [set|add|rm LISTA]   mostra ou altera as permissões
+  permissoes                     lista as permissões e os presets disponíveis
   status-api on|off|token|info   gere a Status API
   definicao [CHAVE [VALOR]]      lê/altera cache_segundos, retencao_logs_dias
   logs [N] [NIVEL]               últimos N registos (INFO|WARNING|ERROR)
@@ -53,12 +55,47 @@ def main(argv):
         print(f"Login do portal definido para '{user}'")
 
     elif cmd == "cliente-add":
+        perm = None
+        if "--perm" in args:
+            i = args.index("--perm")
+            if i + 1 >= len(args):
+                print("uso: cliente-add NOME [DESCRIÇÃO] [--perm LISTA]")
+                return 1
+            perm = args[i + 1]
+            args = args[:i] + args[i + 2:]
         if not args:
-            print("uso: cliente-add NOME [DESCRIÇÃO]")
+            print("uso: cliente-add NOME [DESCRIÇÃO] [--perm LISTA]")
             return 1
-        mostrar_chave(f"Chave do cliente '{args[0]}'", c.criar_cliente(args[0], " ".join(args[1:])))
+        mostrar_chave(f"Chave do cliente '{args[0]}'", c.criar_cliente(args[0], " ".join(args[1:]), perm))
+        print("Permissões:", ", ".join(c.permissoes_cliente(args[0])) or "(nenhuma)")
     elif cmd == "cliente-list":
-        tabela(c.listar_clientes(), ["nome", "prefixo", "ativo", "ultimo_uso", "pedidos", "descricao"])
+        tabela(c.listar_clientes(), ["nome", "prefixo", "ativo", "ultimo_uso", "pedidos", "permissoes", "descricao"])
+    elif cmd == "cliente-perm":
+        if not args:
+            print("uso: cliente-perm NOME [set|add|rm LISTA]")
+            return 1
+        nome = args[0]
+        if len(args) >= 3 and args[1] in ("set", "add", "rm"):
+            if args[1] == "set":
+                c.definir_permissoes(nome, args[2])
+            elif args[1] == "add":
+                c.alterar_permissoes(nome, adicionar=[args[2]])
+            else:
+                c.alterar_permissoes(nome, remover=[args[2]])
+        elif len(args) != 1:
+            print("uso: cliente-perm NOME [set|add|rm LISTA]")
+            return 1
+        atuais = c.permissoes_cliente(nome)
+        for p, (desc, eps) in c.PERMISSOES.items():
+            print(f"  [{'x' if p in atuais else ' '}] {p:<12} {desc}")
+    elif cmd == "permissoes":
+        print("Permissões:")
+        for p, (desc, eps) in c.PERMISSOES.items():
+            print(f"  {p:<12} {desc}  ({eps})")
+        print("\nPresets:")
+        for n, lst in c.PRESETS.items():
+            print(f"  {n:<12} {', '.join(lst) or '(nenhuma)'}")
+        print(f"\nNovos clientes sem --perm: {c.PERMISSAO_OMISSAO}")
     elif cmd in ("cliente-on", "cliente-off", "cliente-rm", "cliente-chave"):
         if not args:
             print(f"uso: {cmd} NOME")

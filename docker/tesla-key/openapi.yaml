@@ -93,6 +93,7 @@ components:
               additionalProperties: true
           additionalProperties: true
         cache: { type: boolean, description: "true se veio da cache do gateway" }
+        seccoes_negadas: { type: array, items: { type: string }, description: "secções pedidas sem permissão" }
         idade_s: { type: integer, description: "idade da cache (s), só quando cache=true" }
   responses:
     NaoAutorizado:
@@ -107,6 +108,9 @@ components:
             properties:
               erro: { type: string }
               estado: { type: string, example: asleep }
+    SemPermissao:
+      description: O cliente não tem a permissão necessária (ver GET /api/me)
+      content: { application/json: { schema: { $ref: "#/components/schemas/Erro" } } }
     FalhaTesla:
       description: Falha na Tesla ou na renovação do token
       content: { application/json: { schema: { $ref: "#/components/schemas/Erro" } } }
@@ -126,6 +130,26 @@ paths:
             application/json:
               schema: { type: object, properties: { ok: { type: boolean } } }
 
+  /api/me:
+    get:
+      summary: Nome e permissões do cliente (sempre permitido)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cliente: { type: string }
+                  permissoes:
+                    type: array
+                    items:
+                      type: string
+                      enum: [veiculos, carga, clima, conducao, estado, config, localizacao, imagem, token, acordar, fleet]
+                  descricao: { type: object, additionalProperties: { type: string } }
+        "401": { $ref: "#/components/responses/NaoAutorizado" }
+
   /api/token/status:
     get:
       summary: Estado do token Tesla (valida também a chave do cliente)
@@ -134,6 +158,7 @@ paths:
           description: OK
           content: { application/json: { schema: { $ref: "#/components/schemas/TokenStatus" } } }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
 
   /api/vehicles:
     get:
@@ -149,6 +174,7 @@ paths:
                   response: { type: array, items: { $ref: "#/components/schemas/Veiculo" } }
                   count: { type: integer }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
         "502": { $ref: "#/components/responses/FalhaTesla" }
         "503": { $ref: "#/components/responses/SemTokens" }
 
@@ -163,6 +189,7 @@ paths:
             application/json:
               schema: { type: object, properties: { response: { $ref: "#/components/schemas/Veiculo" } } }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
 
   /api/vehicles/{vin}/data:
     get:
@@ -184,6 +211,7 @@ paths:
           description: OK
           content: { application/json: { schema: { $ref: "#/components/schemas/VehicleData" } } }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
         "408": { $ref: "#/components/responses/Adormecido" }
         "429": { description: Limite de pedidos da Tesla }
         "502": { $ref: "#/components/responses/FalhaTesla" }
@@ -217,7 +245,7 @@ paths:
                   idade_s: { type: integer }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
         "403":
-          description: Sem coordenadas (falta o scope vehicle_location)
+          description: Sem a permissão localizacao, ou sem coordenadas (falta o scope vehicle_location)
           content: { application/json: { schema: { $ref: "#/components/schemas/Erro" } } }
         "408": { $ref: "#/components/responses/Adormecido" }
 
@@ -257,6 +285,7 @@ paths:
           description: view inválida
           content: { application/json: { schema: { $ref: "#/components/schemas/Erro" } } }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
         "408": { $ref: "#/components/responses/Adormecido" }
         "502": { $ref: "#/components/responses/FalhaTesla" }
 
@@ -267,6 +296,7 @@ paths:
       responses:
         "200": { description: "Pedido aceite; consultar /api/vehicles/{vin} até state=online" }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
 
   /api/fleet/{caminho}:
     get:
@@ -279,3 +309,4 @@ paths:
       responses:
         "200": { description: Resposta da Tesla sem alterações }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }

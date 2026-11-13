@@ -44,7 +44,8 @@ def autenticar():
         g.cliente = "status-api"
         return
     if p.startswith("/api/"):
-        nome = c.validar_cliente(request.headers.get("X-API-Key", ""))
+        nome, perms = c.validar_cliente(request.headers.get("X-API-Key", ""))
+        g.perms = set(perms)
         if not nome:
             c.log("WARNING", "api", f"chave inválida ou cliente inativo ({request.remote_addr})",
                   metodo=request.method, caminho=p, status=401)
@@ -56,7 +57,7 @@ def autenticar():
 
 @app.after_request
 def registar(resp):
-    if request.path == "/api/health" or resp.status_code in (401, 304):
+    if request.path == "/api/health" or resp.status_code in (401, 403, 304):
         return resp
     ms = int((time.time() - getattr(g, "inicio", time.time())) * 1000)
     nivel = "ERROR" if resp.status_code >= 500 else "WARNING" if resp.status_code >= 400 else "INFO"
@@ -81,6 +82,13 @@ def erro(e):
     return jsonify({"erro": getattr(e, "description", str(e))}), getattr(e, "code", 500)
 
 
+def requer(perm):
+    if perm not in getattr(g, "perms", set()):
+        c.log("WARNING", "api", f"sem permissão '{perm}'", cliente=g.cliente,
+              metodo=request.method, caminho=request.path, status=403)
+        abort(403, f"o cliente não tem a permissão '{perm}'")
+
+
 def resposta(r):
     try:
         corpo = r.json()
@@ -98,19 +106,32 @@ def health():
     return jsonify({"ok": True})
 
 
+@app.get("/api/me")
+def me():
+    """Nome e permissões do cliente (sempre permitido)."""
+    return jsonify({
+        "cliente": g.cliente,
+        "permissoes": [p for p in c.PERMISSOES if p in g.perms],
+        "descricao": {p: c.PERMISSOES[p][0] for p in c.PERMISSOES if p in g.perms},
+    })
+
+
 @app.get("/api/token/status")
 def token_status():
+    requer("token")
     return jsonify(c.estado_token())
 
 
 @app.get("/api/vehicles")
 def vehicles():
+    requer("veiculos")
     return resposta(c.tesla("GET", "vehicles"))
 
 
 @app.get("/api/vehicles/<vin>")
 def vehicle(vin):
     """Estado básico (online/asleep) — não acorda o carro."""
+    requer("veiculos")
     return resposta(c.tesla("GET", f"vehicles/{vin}"))
 
 
@@ -142,19 +163,28 @@ def adormecido():
 @app.get("/api/vehicles/<vin>/data")
 def vehicle_data(vin):
     """vehicle_data com cache. ?endpoints=charge_state;drive_state  ?fresh=1 ignora a cache."""
-    endpoints = request.args.get("endpoints", DEFAULT_ENDPOINTS)
-    st, payload, cache, idade = obter_vehicle_data(vin, endpoints, request.args.get("fresh") == "1")
+    pedidas = [x for x in request.args.get("endpoints", DEFAULT_ENDPOINTS).split(";") if x]
+    permitidas = [x for x in pedidas if c.SECCOES.get(x, "fleet") in g.perms]
+    negadas = [x for x in pedidas if x not in permitidas]
+    if not permitidas:
+        c.log("WARNING", "api", f"sem permissão para {', '.join(pedidas)}", cliente=g.cliente,
+              metodo=request.method, caminho=request.path, status=403)
+        abort(403, "o cliente não tem permissão para nenhuma das secções pedidas")
+    st, payload, cache, idade = obter_vehicle_data(vin, ";".join(permitidas), request.args.get("fresh") == "1")
     if st == 408:
         return adormecido()
     if st != 200:
         return jsonify(payload), st
     extra = {"cache": cache, "idade_s": idade} if cache else {"cache": False}
+    if negadas:
+        extra["seccoes_negadas"] = negadas
     return jsonify({**payload, **extra})
 
 
 @app.get("/api/vehicles/<vin>/location")
 def vehicle_location(vin):
     """Localização simplificada (requer o scope vehicle_location). ?fresh=1 ignora a cache."""
+    requer("localizacao")
     st, payload, cache, idade = obter_vehicle_data(vin, "location_data;drive_state",
                                                    request.args.get("fresh") == "1")
     if st == 408:
@@ -189,6 +219,7 @@ def vehicle_location(vin):
 def vehicle_image(vin):
     """Imagem do modelo (render do configurador Tesla), guardada em disco.
     ?view=STUD_3QTR|STUD_SIDE|STUD_REAR|STUD_FRONT|STUD_SEAT  ?size=800  ?fresh=1  ?formato=url"""
+    requer("imagem")
     view = request.args.get("view", "STUD_3QTR").upper()
     if view not in imagens.VIEWS:
         abort(400, "view: " + " | ".join(imagens.VIEWS))
@@ -220,6 +251,7 @@ def vehicle_image(vin):
 @app.post("/api/vehicles/<vin>/wake")
 def wake(vin):
     """Acorda o carro (custa mais e gasta bateria)."""
+    requer("acordar")
     c.log("WARNING", "api", f"wake_up pedido para {vin}", cliente=g.cliente)
     return resposta(c.tesla("POST", f"vehicles/{vin}/wake_up"))
 
@@ -227,6 +259,7 @@ def wake(vin):
 @app.get("/api/fleet/<path:caminho>")
 def fleet_get(caminho):
     """Passthrough só de leitura para /api/1/<caminho>."""
+    requer("fleet")
     return resposta(c.tesla("GET", caminho, params=request.args))
 
 
@@ -246,7 +279,9 @@ def status_resumo():
 
 @app.get("/status/v1/clientes")
 def status_clientes():
-    return jsonify([{k: x[k] for k in ("nome", "ativo", "ultimo_uso", "pedidos")} for x in c.listar_clientes()])
+    return jsonify([{**{k: x[k] for k in ("nome", "ativo", "ultimo_uso", "pedidos")},
+                     "permissoes": [p for p in (x["permissoes"] or "").split(",") if p]}
+                    for x in c.listar_clientes()])
 
 
 @app.get("/status/v1/logs")

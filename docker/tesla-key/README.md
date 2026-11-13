@@ -68,8 +68,10 @@ tesla-key/
 | `tesla-setup refresh` | Renova o access token |
 | `tesla-setup estado` | Resumo da configuração |
 | `tesla-setup admin` | Define o utilizador/password do portal admin |
-| `tesla-setup cliente add NOME [DESCRIÇÃO]` | Cria um cliente e mostra a chave (só uma vez) |
-| `tesla-setup cliente list` | Lista os clientes (prefixo, estado, último uso, pedidos) |
+| `tesla-setup cliente add NOME [DESCRIÇÃO] [--perm LISTA]` | Cria um cliente e mostra a chave (só uma vez); sem `--perm` usa o preset `leitura` |
+| `tesla-setup cliente list` | Lista os clientes (prefixo, estado, último uso, pedidos, permissões) |
+| `tesla-setup cliente perm NOME [set\|add\|rm LISTA]` | Mostra ou altera as permissões do cliente |
+| `tesla-setup permissoes` | Lista as permissões e os presets |
 | `tesla-setup cliente on\|off\|rm\|chave NOME` | Ativa, desativa, apaga ou gera nova chave |
 | `tesla-setup status-api on\|off\|token\|info` | Gere a Status API e o token Bearer |
 | `tesla-setup definicao [CHAVE [VALOR]]` | `cache_segundos`, `retencao_logs_dias` |
@@ -97,6 +99,7 @@ mostradas na criação. Um cliente desativado deixa de ter acesso de imediato.
 | Método | Endpoint | Descrição |
 |---|---|---|
 | GET | `/api/health` | Sem autenticação |
+| GET | `/api/me` | Nome e permissões do cliente |
 | GET | `/api/token/status` | Validade do access token |
 | GET | `/api/vehicles` | Lista de veículos |
 | GET | `/api/vehicles/<vin>` | Estado (`online`/`asleep`), não acorda o carro |
@@ -115,6 +118,42 @@ TESLA_GATEWAY_API_KEY=tk_...        # chave do cliente "portal"
 curl -H "X-API-Key: $TESLA_GATEWAY_API_KEY" http://tesla-key:8000/api/vehicles
 ```
 Exemplo em Python: `gateway/cliente_exemplo.py`.
+
+### Permissões por cliente
+
+Cada cliente só acede ao que lhe for atribuído; o resto devolve 403 (registado nos logs como WARNING).
+Clientes que já existiam antes desta funcionalidade ficam com `tudo`; novos clientes ficam com `leitura`.
+
+| Permissão | Dá acesso a | Endpoints |
+|---|---|---|
+| `veiculos` | Lista e estado dos veículos (online/asleep) | `/api/vehicles`, `/api/vehicles/{vin}` |
+| `carga` | Bateria, autonomia, carregamento (`charge_state`) | `/data` |
+| `clima` | Temperaturas e climatização (`climate_state`) | `/data` |
+| `conducao` | Mudança, velocidade, potência, sem coordenadas (`drive_state`) | `/data` |
+| `estado` | Odómetro, trancas, sentinela, versão (`vehicle_state`) | `/data` |
+| `config` | Modelo, cor e jantes (`vehicle_config`) | `/data` |
+| `localizacao` | Coordenadas GPS (`location_data`) | `/location`, `/data` |
+| `imagem` | Imagem do modelo | `/image` |
+| `token` | Estado do token Tesla | `/api/token/status` |
+| `acordar` | Acordar o carro (sensível) | `/wake` |
+| `fleet` | Passthrough para qualquer GET da Fleet API (sensível, acesso amplo) | `/api/fleet/...` |
+
+| Preset | Permissões |
+|---|---|
+| `tudo` | Todas |
+| `leitura` | Todas menos `acordar` e `fleet` (omissão para novos clientes) |
+| `basico` | `veiculos`, `carga`, `imagem` |
+| `nenhuma` | Nenhuma (só `/api/health` e `/api/me`) |
+
+```bash
+tesla-setup cliente add ecra "Ecrã da garagem" --perm basico
+tesla-setup cliente add mapa --perm veiculos,localizacao,imagem
+tesla-setup cliente perm portal                       # ver
+tesla-setup cliente perm portal set leitura           # substituir
+tesla-setup cliente perm portal add acordar           # acrescentar
+tesla-setup cliente perm portal rm localizacao,fleet  # retirar
+```
+No portal admin: Clientes → **Permissões** (caixas de seleção e presets); o preset também se escolhe ao criar.
 
 ### Ativar a localização
 
@@ -162,7 +201,7 @@ desativada responde 404. Autenticação com `Authorization: Bearer <token>` (tok
 | Página | O que permite |
 |---|---|
 | Estado | Gateway, token Tesla, clientes, pedidos/warnings/erros 24 h, testar ligação, renovar token |
-| Clientes | Criar (mostra a chave uma vez), ativar/desativar, nova chave, apagar |
+| Clientes | Criar com preset de permissões (mostra a chave uma vez), editar permissões, ativar/desativar, nova chave, apagar |
 | Logs | Atividade, warnings e erros, com filtro por nível e cliente |
 | Definições | Cache, retenção de logs, Status API (ativar/desativar/novo token), password |
 
