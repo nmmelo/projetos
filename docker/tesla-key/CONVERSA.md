@@ -183,3 +183,16 @@ as do anfitrião; dentro da rede Docker usam-se o nome do contentor e a porta in
 
 O `entrypoint.sh` passou a fazer `cd /opt/gateway` antes de arrancar o `gunicorn`. O README ganhou as secções
 "Atualizar para uma nova versão" e "Resolução de problemas".
+
+---
+
+## 13. Referência da API para outros projetos
+
+**Pergunta:**
+> estou a comunicar com o tesla-key e dá este erro, Teste ao gateway: o gateway não tem este recurso (404) ... deve ser os endpoints, ele não sabe o que esperar
+
+**Resposta:**
+O 404 vinha de um caminho que o gateway não tem (a Status API estava desativada). Foram criados `API.md` e
+`openapi.yaml` com os endpoints, headers, parâmetros, exemplos de resposta, unidades, códigos de erro e boas
+práticas, para entregar a quem desenvolve o cliente. A chave do cliente (`tk_`, dados do carro) e o token da
+Status API (`ts_`, estado do gateway) são credenciais diferentes.
