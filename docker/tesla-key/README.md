@@ -16,6 +16,8 @@ tesla-key/
 ├── docker-compose.yml
 ├── entrypoint.sh
 ├── nginx.conf
+├── API.md                  # referência da API para clientes
+├── openapi.yaml            # especificação OpenAPI
 ├── tesla-setup.sh          # instalado como /usr/local/bin/tesla-setup
 ├── gateway/
 │   ├── common.py           # base de dados, clientes, tokens Tesla, logs
@@ -84,6 +86,8 @@ Browser (LAN)    ──►  │ :8001 portal admin (login)         │
 ```
 
 ### Clientes (`/api`)
+
+Referência completa para quem desenvolve o cliente: [`API.md`](API.md) e [`openapi.yaml`](openapi.yaml).
 
 Cada projeto tem o seu cliente e a sua chave (`X-API-Key`). As chaves são guardadas em hash e só são
 mostradas na criação. Um cliente desativado deixa de ter acesso de imediato.

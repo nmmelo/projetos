@@ -194,7 +194,7 @@ paths:
       summary: Acorda o carro (custo extra, gasta bateria)
       parameters: [{ $ref: "#/components/parameters/vin" }]
       responses:
-        "200": { description: Pedido aceite; consultar /api/vehicles/{vin} até state=online }
+        "200": { description: "Pedido aceite; consultar /api/vehicles/{vin} até state=online" }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
 
   /api/fleet/{caminho}:
