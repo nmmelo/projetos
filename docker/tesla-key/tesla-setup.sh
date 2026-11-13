@@ -25,7 +25,7 @@ carregar_conf() {
         *)  die "TESLA_REGION inválida: $TESLA_REGION (eu|na)" ;;
     esac
     TESLA_REDIRECT_URI="${TESLA_REDIRECT_URI:-http://localhost:8080/callback}"
-    TESLA_SCOPES="${TESLA_SCOPES:-openid offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds}"
+    TESLA_SCOPES="${TESLA_SCOPES:-openid offline_access vehicle_device_data vehicle_location vehicle_cmds vehicle_charging_cmds}"
     TESLA_AUTH_URL="${TESLA_AUTH_URL:-https://auth.tesla.com/oauth2/v3/authorize}"
     TESLA_TOKEN_URL="${TESLA_TOKEN_URL:-https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token}"
 }
@@ -88,7 +88,7 @@ cmd_partner() {
     resp=$(curl -sS -X POST "$TESLA_TOKEN_URL" \
         -d grant_type=client_credentials \
         -d client_id="$TESLA_CLIENT_ID" -d client_secret="$TESLA_CLIENT_SECRET" \
-        --data-urlencode "scope=openid vehicle_device_data vehicle_cmds vehicle_charging_cmds" \
+        --data-urlencode "scope=openid vehicle_device_data vehicle_location vehicle_cmds vehicle_charging_cmds" \
         -d audience="$AUDIENCE")
     ptoken=$(echo "$resp" | jq -r '.access_token // empty')
     [ -n "$ptoken" ] || { echo "$resp"; die "falhou o token de partner"; }
