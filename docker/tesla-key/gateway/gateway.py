@@ -83,6 +83,10 @@ def erro(e):
 
 
 def requer(perm):
+    if perm not in c.funcionalidades_ativas():
+        c.log("WARNING", "api", f"funcionalidade '{perm}' desativada no gateway", cliente=g.cliente,
+              metodo=request.method, caminho=request.path, status=403)
+        abort(403, f"a funcionalidade '{perm}' está desativada no gateway")
     if perm not in getattr(g, "perms", set()):
         c.log("WARNING", "api", f"sem permissão '{perm}'", cliente=g.cliente,
               metodo=request.method, caminho=request.path, status=403)
@@ -109,10 +113,13 @@ def health():
 @app.get("/api/me")
 def me():
     """Nome e permissões do cliente (sempre permitido)."""
+    ativas = set(c.funcionalidades_ativas())
+    efetivas = [p for p in c.PERMISSOES if p in g.perms and p in ativas]
     return jsonify({
         "cliente": g.cliente,
-        "permissoes": [p for p in c.PERMISSOES if p in g.perms],
-        "descricao": {p: c.PERMISSOES[p][0] for p in c.PERMISSOES if p in g.perms},
+        "permissoes": efetivas,
+        "desativadas_no_gateway": [p for p in c.PERMISSOES if p in g.perms and p not in ativas],
+        "descricao": {p: c.PERMISSOES[p][0] for p in efetivas},
     })
 
 
@@ -122,24 +129,38 @@ def token_status():
     return jsonify(c.estado_token())
 
 
+def com_cache(chave, caminho):
+    """GET à Tesla com cache (cache_veiculos_segundos) só para respostas 200."""
+    ttl = int(c.get_def("cache_veiculos_segundos") or 60)
+    agora = time.time()
+    if request.args.get("fresh") != "1" and chave in _cache:
+        ts, payload = _cache[chave]
+        if agora - ts < ttl:
+            return jsonify(payload)
+    r = c.tesla("GET", caminho)
+    if r.status_code == 200:
+        _cache[chave] = (agora, r.json())
+    return resposta(r)
+
+
 @app.get("/api/vehicles")
 def vehicles():
     requer("veiculos")
-    return resposta(c.tesla("GET", "vehicles"))
+    return com_cache(("vehicles",), "vehicles")
 
 
 @app.get("/api/vehicles/<vin>")
 def vehicle(vin):
     """Estado básico (online/asleep) — não acorda o carro."""
     requer("veiculos")
-    return resposta(c.tesla("GET", f"vehicles/{vin}"))
+    return com_cache(("vehicle", vin), f"vehicles/{vin}")
 
 
-def obter_vehicle_data(vin, endpoints, fresh=False):
+def obter_vehicle_data(vin, endpoints, fresh=False, ttl=None):
     """vehicle_data com cache em memória. Devolve (status, payload, da_cache, idade_s)."""
     chave = (vin, endpoints)
     agora = time.time()
-    ttl = int(c.get_def("cache_segundos") or 60)
+    ttl = int(c.get_def("cache_segundos") or 60) if ttl is None else ttl
     if not fresh and chave in _cache:
         ts, payload = _cache[chave]
         if agora - ts < ttl:
@@ -149,6 +170,8 @@ def obter_vehicle_data(vin, endpoints, fresh=False):
         payload = r.json()
         _cache[chave] = (agora, payload)
         return 200, payload, False, 0
+    if r.status_code == 408:
+        return 408, {}, False, 0
     try:
         corpo = r.json()
     except ValueError:
@@ -163,8 +186,11 @@ def adormecido():
 @app.get("/api/vehicles/<vin>/data")
 def vehicle_data(vin):
     """vehicle_data com cache. ?endpoints=charge_state;drive_state  ?fresh=1 ignora a cache."""
-    pedidas = [x for x in request.args.get("endpoints", DEFAULT_ENDPOINTS).split(";") if x]
-    permitidas = [x for x in pedidas if c.SECCOES.get(x, "fleet") in g.perms]
+    omissao = c.get_def("data_endpoints_omissao") or DEFAULT_ENDPOINTS
+    pedidas = [x for x in request.args.get("endpoints", omissao).split(";") if x]
+    ativas = set(c.funcionalidades_ativas())
+    permitidas = [x for x in pedidas if c.SECCOES.get(x, "fleet") in g.perms
+                  and c.SECCOES.get(x, "fleet") in ativas]
     negadas = [x for x in pedidas if x not in permitidas]
     if not permitidas:
         c.log("WARNING", "api", f"sem permissão para {', '.join(pedidas)}", cliente=g.cliente,
@@ -186,7 +212,8 @@ def vehicle_location(vin):
     """Localização simplificada (requer o scope vehicle_location). ?fresh=1 ignora a cache."""
     requer("localizacao")
     st, payload, cache, idade = obter_vehicle_data(vin, "location_data;drive_state",
-                                                   request.args.get("fresh") == "1")
+                                                   request.args.get("fresh") == "1",
+                                                   ttl=int(c.get_def("cache_localizacao_segundos") or 60))
     if st == 408:
         return adormecido()
     if st != 200:

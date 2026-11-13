@@ -8,7 +8,10 @@ Gestão do gateway pela linha de comandos (chamado pelo `tesla-setup`).
   cliente-perm NOME [set|add|rm LISTA]   mostra ou altera as permissões
   permissoes                     lista as permissões e os presets disponíveis
   status-api on|off|token|info   gere a Status API
-  definicao [CHAVE [VALOR]]      lê/altera cache_segundos, retencao_logs_dias
+  definicao [CHAVE [VALOR]]      lê/altera tempos de cache, secções por omissão, preços, retenção
+  funcionalidades [set LISTA]    funcionalidades ativas no gateway (para todos os clientes)
+  consumo [AAAA-MM]              estimativa de consumo da Fleet API no mês
+  config                         tesla.env (segredos mascarados) e scopes do token
   logs [N] [NIVEL]               últimos N registos (INFO|WARNING|ERROR)
   logs-limpar                    apaga logs mais antigos que a retenção
   resumo                         estado do gateway (JSON)
@@ -19,7 +22,9 @@ import sys
 
 import common as c
 
-EDITAVEIS = ("cache_segundos", "retencao_logs_dias")
+EDITAVEIS = ("cache_segundos", "cache_localizacao_segundos", "cache_veiculos_segundos", "imagem_cache_dias",
+             "data_endpoints_omissao", "retencao_logs_dias",
+             "preco_dados", "preco_wake", "preco_comando", "credito_mensal")
 
 
 def tabela(linhas, colunas):
@@ -141,10 +146,44 @@ def main(argv):
             if args[0] not in EDITAVEIS:
                 print(f"só é possível alterar: {', '.join(EDITAVEIS)}")
                 return 1
-            c.set_def(args[0], int(args[1]))
+            valor = args[1]
+            if args[0] == "data_endpoints_omissao":
+                secs = [x for x in valor.replace(",", ";").split(";") if x]
+                desconhecidas = [x for x in secs if x not in c.SECCOES]
+                if not secs or desconhecidas:
+                    print(f"secções válidas: {', '.join(c.SECCOES)}")
+                    return 1
+                valor = ";".join(secs)
+            elif args[0].startswith("preco_") or args[0] == "credito_mensal":
+                valor = float(valor.replace(",", "."))
+            else:
+                valor = int(valor)
+            c.set_def(args[0], valor)
             c.log("INFO", "admin", f"definição {args[0]}={args[1]} (cli)")
             print("ok")
 
+    elif cmd == "funcionalidades":
+        if len(args) >= 2 and args[0] == "set":
+            c.definir_funcionalidades(args[1])
+        ativas = c.funcionalidades_ativas()
+        for p, (desc, eps) in c.PERMISSOES.items():
+            print(f"  [{'x' if p in ativas else ' '}] {p:<12} {desc}")
+    elif cmd == "consumo":
+        m = c.consumo_mes(args[0] if args else None)
+        nomes = {"dados": "Dados", "wake": "Wakes", "comando": "Comandos"}
+        print(f"Mês {m['mes']}: {m['total_usd']:.2f} $ de {m['credito_usd']:.2f} $ "
+              f"({m['credito_usado_pct'] or 0} % do crédito)\n")
+        tabela([{"tipo": nomes[k], "pedidos": v["pedidos"], "preco": v["preco"], "custo": f"{v['custo']:.3f}",
+                 "hoje": v["hoje"], "limite_dia": v["limite_dia"]} for k, v in m["categorias"].items()],
+               ["tipo", "pedidos", "preco", "custo", "hoje", "limite_dia"])
+        if m["por_cliente"]:
+            print()
+            tabela(m["por_cliente"], ["cliente", "categoria", "n", "custo"])
+        print(f"\n{m['nota']}")
+    elif cmd == "config":
+        for k, v in c.ler_env_bruto():
+            print(f"  {k:<24} {c.mascarar(k, v)}")
+        print(f"\n  scopes no token: {' '.join(c.scopes_token()) or '(sem token)'}")
     elif cmd == "logs":
         n = int(args[0]) if args else 50
         nivel = args[1].upper() if len(args) > 1 else None

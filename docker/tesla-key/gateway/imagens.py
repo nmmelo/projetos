@@ -80,7 +80,7 @@ def mimetype(f):
 
 
 def do_disco(vin, view, size):
-    dias = int(c.ler_conf().get("TESLA_IMAGE_CACHE_DIAS") or 30)
+    dias = int(c.get_def("imagem_cache_dias") or c.ler_conf().get("TESLA_IMAGE_CACHE_DIAS") or 30)
     for f in glob.glob(_base(vin, view, size) + ".*"):
         if time.time() - os.path.getmtime(f) < dias * 86400:
             return f

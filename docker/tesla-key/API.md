@@ -49,6 +49,16 @@ consultar as suas permissões em `GET /api/me`.
 Em `/data`, as secções sem permissão são retiradas do pedido e listadas em `seccoes_negadas`; se nenhuma
 for permitida, a resposta é 403.
 
+O administrador também pode desligar funcionalidades para todos os clientes. Nesse caso a resposta é 403
+com `a funcionalidade '<nome>' está desativada no gateway`, e `GET /api/me` lista-as em
+`desativadas_no_gateway`.
+
+## Cache
+
+Para poupar créditos, o gateway responde da cache durante um tempo configurado pelo administrador
+(por omissão 60 s) em `/api/vehicles`, `/api/vehicles/{vin}`, `/data` e `/location`. Acrescentar `?fresh=1`
+para forçar um pedido novo à Tesla (conta como pedido pago).
+
 ## Endpoints
 
 | Método | Caminho | Autenticação | Descrição |
@@ -82,6 +92,7 @@ for permitida, a resposta é 403.
 {
   "cliente": "portal",
   "permissoes": ["veiculos", "carga", "imagem"],
+  "desativadas_no_gateway": [],
   "descricao": { "veiculos": "Lista e estado dos veículos (online/asleep)", "carga": "...", "imagem": "..." }
 }
 ```
@@ -129,6 +140,8 @@ Igual a um elemento de `/api/vehicles`, dentro de `response`. Usar para saber se
 |---|---|---|
 | `endpoints` | `charge_state;climate_state;drive_state;vehicle_state;vehicle_config` | Secções pedidas, separadas por `;` (também: `location_data`, `gui_settings`) |
 | `fresh` | — | `1` ignora a cache do gateway |
+
+Sem `endpoints`, o gateway usa as secções por omissão definidas pelo administrador.
 
 Resposta (resumida; a Tesla devolve mais campos):
 ```json
