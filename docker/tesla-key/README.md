@@ -22,6 +22,7 @@ tesla-key/
 ├── gateway/
 │   ├── common.py           # base de dados, clientes, tokens Tesla, logs
 │   ├── gateway.py          # API de clientes + Status API (porta 8000, rede Docker)
+│   ├── imagens.py          # imagem do carro (compositor do configurador Tesla)
 │   ├── admin.py            # portal admin web (porta 8001, LAN)
 │   ├── cli.py              # gestão por linha de comandos (via tesla-setup)
 │   └── cliente_exemplo.py  # exemplo de cliente para o portal
@@ -32,6 +33,7 @@ tesla-key/
 │   ├── tesla.env           # cópia preenchida (não vai para o Git)
 │   ├── keys/               # private-key.pem / public-key.pem (não vai para o Git)
 │   ├── tokens.json         # access/refresh token (não vai para o Git)
+│   ├── imagens/            # imagens do carro em cache
 │   └── gateway.db          # SQLite: clientes, definições, login, logs (não vai para o Git)
 └── hostkeys/               # criado no 1.º arranque (host key SSH persistente)
 ```
@@ -99,6 +101,8 @@ mostradas na criação. Um cliente desativado deixa de ter acesso de imediato.
 | GET | `/api/vehicles` | Lista de veículos |
 | GET | `/api/vehicles/<vin>` | Estado (`online`/`asleep`), não acorda o carro |
 | GET | `/api/vehicles/<vin>/data` | `vehicle_data` com cache (`?endpoints=charge_state;drive_state`, `?fresh=1`) |
+| GET | `/api/vehicles/<vin>/location` | Latitude, longitude, direção, velocidade (scope `vehicle_location`) |
+| GET | `/api/vehicles/<vin>/image` | Imagem do modelo com a cor/jantes do carro (`?view=STUD_3QTR&size=800`, `?formato=url`) |
 | POST | `/api/vehicles/<vin>/wake` | Acorda o carro (mais caro, gasta bateria) |
 | GET | `/api/fleet/<caminho>` | Passthrough só de leitura para `/api/1/<caminho>` |
 
@@ -111,6 +115,34 @@ TESLA_GATEWAY_API_KEY=tk_...        # chave do cliente "portal"
 curl -H "X-API-Key: $TESLA_GATEWAY_API_KEY" http://tesla-key:8000/api/vehicles
 ```
 Exemplo em Python: `gateway/cliente_exemplo.py`.
+
+### Ativar a localização
+
+A localização exige o scope `vehicle_location`, que tem de existir na aplicação e no token.
+
+1. developer.tesla.com → a aplicação → scopes → ativar **Vehicle Location**.
+2. Em `tesla/tesla.env`, `TESLA_SCOPES` tem de incluir `vehicle_location` (já está no `tesla.env.example`).
+3. Refazer o OAuth dentro do contentor (os tokens antigos não têm o novo scope):
+   ```bash
+   tesla-setup url
+   tesla-setup token '<url de redirect>'
+   ```
+4. Testar: `curl -H "X-API-Key: tk_..." http://tesla-key:8000/api/vehicles/<VIN>/location`
+
+### Imagem do carro
+
+Render do configurador Tesla (não são as câmaras). Para a cor e as jantes exatas:
+
+1. tesla.com → conta → o carro → botão direito na imagem → copiar endereço.
+2. Copiar o valor do parâmetro `options=` para `tesla/tesla.env`, **sem os `$`** (ou entre plicas):
+   ```bash
+   TESLA_IMAGE_MODEL=m3
+   TESLA_IMAGE_OPTIONS=MT353,PPSW,W38A,IPB3
+   ```
+3. Gerar de novo: `.../image?fresh=1` (ou apagar `tesla/imagens/`).
+
+Sem `TESLA_IMAGE_OPTIONS`, o gateway monta os códigos a partir de `exterior_color` e `wheel_type` do carro
+(aproximado; cores ou jantes desconhecidas ficam com o aspeto por omissão e geram um WARNING nos logs).
 
 ### Status API (`/status/v1`)
 

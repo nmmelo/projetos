@@ -196,3 +196,21 @@ O 404 vinha de um caminho que o gateway não tem (a Status API estava desativada
 `openapi.yaml` com os endpoints, headers, parâmetros, exemplos de resposta, unidades, códigos de erro e boas
 práticas, para entregar a quem desenvolve o cliente. A chave do cliente (`tk_`, dados do carro) e o token da
 Status API (`ts_`, estado do gateway) são credenciais diferentes.
+
+---
+
+## 14. Localização e imagem do carro
+
+**Pergunta:**
+> preciso de acrescentar no tesla-key a opção de localização do tesla neste caso, tb é possivel fornecer a imagem do carro, ou seja a imagem do tesla m3, não das camaras
+
+**Resposta:**
+- `GET /api/vehicles/<vin>/location`: latitude, longitude, direção, velocidade em km/h, mudança, hora do GPS
+  e link OpenStreetMap. Requer o scope `vehicle_location` na aplicação Tesla e um novo OAuth
+  (`tesla-setup url` + `tesla-setup token`). Sem coordenadas devolve 403.
+- `GET /api/vehicles/<vin>/image`: render do configurador Tesla (compositor `static-assets.tesla.com`) com a
+  cor e as jantes do carro, guardado em `tesla/imagens/`. Vistas `STUD_3QTR`, `STUD_SIDE`, `STUD_REAR`,
+  `STUD_FRONT`, `STUD_SEAT`; `?formato=url` devolve só o URL. Códigos exatos em `TESLA_IMAGE_OPTIONS`
+  (copiados da imagem do carro na conta tesla.com, sem `$`); sem eles, aproximação pela cor e jantes do
+  `vehicle_config`.
+- `TESLA_SCOPES` passou a incluir `vehicle_location`; `API.md` e `openapi.yaml` atualizados.

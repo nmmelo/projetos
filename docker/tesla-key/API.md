@@ -28,6 +28,8 @@ TESLA_GATEWAY_API_KEY=tk_...
 | GET | `/api/vehicles` | sim | Lista de veículos da conta |
 | GET | `/api/vehicles/{vin}` | sim | Estado do veículo (`online`/`asleep`/`offline`), **não acorda** o carro |
 | GET | `/api/vehicles/{vin}/data` | sim | Dados completos (`vehicle_data`), com cache |
+| GET | `/api/vehicles/{vin}/location` | sim | Localização simplificada (latitude, longitude, direção, velocidade) |
+| GET | `/api/vehicles/{vin}/image` | sim | Imagem do modelo (render do configurador, não das câmaras) |
 | POST | `/api/vehicles/{vin}/wake` | sim | Acorda o carro (usar com moderação) |
 | GET | `/api/fleet/{caminho}` | sim | Passthrough só de leitura para `/api/1/{caminho}` da Fleet API |
 
@@ -130,11 +132,63 @@ Resposta (resumida; a Tesla devolve mais campos):
 
 Unidades da Tesla: distâncias e `odometer` em **milhas** (× 1,609 para km), `speed` em **mph**,
 temperaturas em **°C**, `charging_state` em `Disconnected`, `Stopped`, `Charging`, `Complete`, `NoPower`.
-Latitude/longitude só aparecem com `endpoints=location_data` e o scope de localização na aplicação Tesla.
+Latitude/longitude só aparecem com `endpoints=location_data` e o scope `vehicle_location`; é mais simples usar `/location`.
 
 **Carro a dormir:** responde `408` (não é erro do cliente):
 ```json
 { "erro": "veículo a dormir ou offline", "estado": "asleep" }
+```
+
+### `GET /api/vehicles/{vin}/location`
+
+Requer o scope **`vehicle_location`** (ver "Ativar a localização" no README). Usa a mesma cache do `/data`.
+
+| Parâmetro | Descrição |
+|---|---|
+| `fresh` | `1` ignora a cache |
+
+```json
+{
+  "vin": "5YJ3E1EA0XXXXXXXX",
+  "latitude": 38.7223,
+  "longitude": -9.1393,
+  "direcao": 90,
+  "velocidade_kmh": 50,
+  "mudanca": "D",
+  "gps_em": "2026-11-13T15:02:11+00:00",
+  "mapa": "https://www.openstreetmap.org/?mlat=38.7223&mlon=-9.1393#map=17/38.7223/-9.1393",
+  "cache": false
+}
+```
+`velocidade_kmh` e `mudanca` são `null` com o carro parado. `403` se a Tesla não devolver coordenadas
+(falta o scope) e `408` com o carro a dormir.
+
+### `GET /api/vehicles/{vin}/image`
+
+Imagem do modelo gerada pelo compositor do configurador Tesla, com a cor e as jantes do carro. O gateway
+guarda-a em disco (30 dias por omissão), por isso só o primeiro pedido vai à Tesla.
+
+| Parâmetro | Omissão | Valores |
+|---|---|---|
+| `view` | `STUD_3QTR` | `STUD_3QTR` (3/4 frente), `STUD_SIDE`, `STUD_REAR`, `STUD_FRONT`, `STUD_SEAT` (interior) |
+| `size` | `800` | 200–2048 px de largura |
+| `fresh` | — | `1` gera de novo |
+| `formato` | — | `url` devolve só o URL do compositor em JSON, sem descarregar |
+
+Resposta: a imagem (`image/png` ou `image/jpeg`), pronta para `<img src>` ou para guardar. Com `formato=url`:
+```json
+{ "url": "https://static-assets.tesla.com/v1/compositor/?model=m3&view=STUD_3QTR&size=800&options=...&bkba_opt=1",
+  "origem": "config", "view": "STUD_3QTR", "size": 800 }
+```
+`origem`: `config` (códigos definidos em `TESLA_IMAGE_OPTIONS`) ou `auto` (aproximado, a partir da cor e
+jantes do carro). No modo `auto`, o primeiro pedido precisa do carro acordado (`408` se estiver a dormir).
+
+Num portal, a imagem pode ser servida pelo próprio portal (o browser não tem a chave):
+```python
+@app.get("/carro.png")
+def carro():
+    r = requests.get(f"{URL}/api/vehicles/{VIN}/image?size=800", headers=H, timeout=30)
+    return Response(r.content, mimetype=r.headers.get("Content-Type", "image/png"))
 ```
 
 ### `POST /api/vehicles/{vin}/wake`
@@ -151,6 +205,7 @@ A resposta é a da Tesla, sem alterações.
 |---|---|---|
 | 200 | OK | — |
 | 401 | `X-API-Key` em falta, errada ou cliente desativado | Verificar a chave; não repetir em ciclo |
+| 403 | `/location` sem coordenadas (falta o scope `vehicle_location`) | Avisar o administrador |
 | 404 | Caminho inexistente | Rever o URL (prefixo `/api`, sem duplicar) |
 | 405 | Método errado (ex.: `GET .../wake`) | Usar o método da tabela |
 | 408 | Carro a dormir ou offline | Mostrar o último valor conhecido; tentar mais tarde |

@@ -189,6 +189,77 @@ paths:
         "502": { $ref: "#/components/responses/FalhaTesla" }
         "503": { $ref: "#/components/responses/SemTokens" }
 
+  /api/vehicles/{vin}/location:
+    get:
+      summary: Localização simplificada (requer o scope vehicle_location)
+      parameters:
+        - { $ref: "#/components/parameters/vin" }
+        - name: fresh
+          in: query
+          schema: { type: string, enum: ["1"] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vin: { type: string }
+                  latitude: { type: number }
+                  longitude: { type: number }
+                  direcao: { type: integer, nullable: true, description: graus }
+                  velocidade_kmh: { type: integer, nullable: true }
+                  mudanca: { type: string, nullable: true, description: "P, R, N, D" }
+                  gps_em: { type: string, format: date-time, nullable: true }
+                  mapa: { type: string, description: URL OpenStreetMap }
+                  cache: { type: boolean }
+                  idade_s: { type: integer }
+        "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403":
+          description: Sem coordenadas (falta o scope vehicle_location)
+          content: { application/json: { schema: { $ref: "#/components/schemas/Erro" } } }
+        "408": { $ref: "#/components/responses/Adormecido" }
+
+  /api/vehicles/{vin}/image:
+    get:
+      summary: Imagem do modelo (render do configurador Tesla, não das câmaras)
+      parameters:
+        - { $ref: "#/components/parameters/vin" }
+        - name: view
+          in: query
+          schema: { type: string, default: STUD_3QTR, enum: [STUD_3QTR, STUD_SIDE, STUD_REAR, STUD_FRONT, STUD_SEAT] }
+        - name: size
+          in: query
+          schema: { type: integer, default: 800, minimum: 200, maximum: 2048 }
+        - name: fresh
+          in: query
+          schema: { type: string, enum: ["1"] }
+        - name: formato
+          in: query
+          schema: { type: string, enum: [url] }
+          description: "url devolve só o URL do compositor em JSON"
+      responses:
+        "200":
+          description: Imagem (ou JSON com formato=url)
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string }
+                  origem: { type: string, enum: [config, auto] }
+                  view: { type: string }
+                  size: { type: integer }
+        "400":
+          description: view inválida
+          content: { application/json: { schema: { $ref: "#/components/schemas/Erro" } } }
+        "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "408": { $ref: "#/components/responses/Adormecido" }
+        "502": { $ref: "#/components/responses/FalhaTesla" }
+
   /api/vehicles/{vin}/wake:
     post:
       summary: Acorda o carro (custo extra, gasta bateria)
