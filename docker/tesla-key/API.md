@@ -19,11 +19,42 @@ TESLA_GATEWAY_URL=http://tesla-key:8000
 TESLA_GATEWAY_API_KEY=tk_...
 ```
 
+## Permissões
+
+Cada cliente tem um conjunto de permissões definido pelo administrador (portal admin → Clientes →
+Permissões, ou `tesla-setup cliente perm`). Um endpoint sem permissão devolve **403**. O cliente pode
+consultar as suas permissões em `GET /api/me`.
+
+| Permissão | Dá acesso a | Endpoints |
+|---|---|---|
+| `veiculos` | Lista e estado dos veículos (online/asleep) | `/api/vehicles`, `/api/vehicles/{vin}` |
+| `carga` | Bateria, autonomia, carregamento (`charge_state`) | `/data` |
+| `clima` | Temperaturas e climatização (`climate_state`) | `/data` |
+| `conducao` | Mudança, velocidade, potência, sem coordenadas (`drive_state`) | `/data` |
+| `estado` | Odómetro, trancas, sentinela, versão (`vehicle_state`) | `/data` |
+| `config` | Modelo, cor e jantes (`vehicle_config`) | `/data` |
+| `localizacao` | Coordenadas GPS (`location_data`) | `/location`, `/data` |
+| `imagem` | Imagem do modelo | `/image` |
+| `token` | Estado do token Tesla | `/api/token/status` |
+| `acordar` | Acordar o carro (sensível) | `/wake` |
+| `fleet` | Passthrough para qualquer GET da Fleet API (sensível, acesso amplo) | `/api/fleet/...` |
+
+| Preset | Permissões |
+|---|---|
+| `tudo` | Todas |
+| `leitura` | Todas menos `acordar` e `fleet` (omissão para novos clientes) |
+| `basico` | `veiculos`, `carga`, `imagem` |
+| `nenhuma` | Nenhuma (só `/api/health` e `/api/me`) |
+
+Em `/data`, as secções sem permissão são retiradas do pedido e listadas em `seccoes_negadas`; se nenhuma
+for permitida, a resposta é 403.
+
 ## Endpoints
 
 | Método | Caminho | Autenticação | Descrição |
 |---|---|---|---|
 | GET | `/api/health` | não | Gateway a responder |
+| GET | `/api/me` | sim | Nome do cliente e permissões (sempre permitido) |
 | GET | `/api/token/status` | sim | Estado do token Tesla (valida também a chave) |
 | GET | `/api/vehicles` | sim | Lista de veículos da conta |
 | GET | `/api/vehicles/{vin}` | sim | Estado do veículo (`online`/`asleep`/`offline`), **não acorda** o carro |
@@ -36,7 +67,7 @@ TESLA_GATEWAY_API_KEY=tk_...
 ### Teste de ligação recomendado
 
 1. `GET /api/health` → `200 {"ok": true}` — gateway acessível.
-2. `GET /api/token/status` com a chave → `200` — chave válida e token Tesla presente.
+2. `GET /api/me` com a chave → `200` — chave válida; mostra as permissões do cliente.
 3. `GET /api/vehicles` → `200` — ligação à Tesla OK.
 
 ---
@@ -45,6 +76,16 @@ TESLA_GATEWAY_API_KEY=tk_...
 ```json
 { "ok": true }
 ```
+
+### `GET /api/me`
+```json
+{
+  "cliente": "portal",
+  "permissoes": ["veiculos", "carga", "imagem"],
+  "descricao": { "veiculos": "Lista e estado dos veículos (online/asleep)", "carga": "...", "imagem": "..." }
+}
+```
+Útil para o cliente mostrar ou esconder funcionalidades conforme o acesso que tem.
 
 ### `GET /api/token/status`
 ```json
@@ -129,6 +170,7 @@ Resposta (resumida; a Tesla devolve mais campos):
 |---|---|
 | `cache` | `true` se veio da cache (por omissão 60 s, configurável) |
 | `idade_s` | Idade da cache em segundos (só quando `cache` é `true`) |
+| `seccoes_negadas` | Secções pedidas sem permissão (só aparece quando há alguma) |
 
 Unidades da Tesla: distâncias e `odometer` em **milhas** (× 1,609 para km), `speed` em **mph**,
 temperaturas em **°C**, `charging_state` em `Disconnected`, `Stopped`, `Charging`, `Complete`, `NoPower`.
@@ -205,7 +247,7 @@ A resposta é a da Tesla, sem alterações.
 |---|---|---|
 | 200 | OK | — |
 | 401 | `X-API-Key` em falta, errada ou cliente desativado | Verificar a chave; não repetir em ciclo |
-| 403 | `/location` sem coordenadas (falta o scope `vehicle_location`) | Avisar o administrador |
+| 403 | Cliente sem a permissão do endpoint, ou `/location` sem coordenadas (falta o scope `vehicle_location`) | Ver `GET /api/me`; pedir a permissão ao administrador |
 | 404 | Caminho inexistente | Rever o URL (prefixo `/api`, sem duplicar) |
 | 405 | Método errado (ex.: `GET .../wake`) | Usar o método da tabela |
 | 408 | Carro a dormir ou offline | Mostrar o último valor conhecido; tentar mais tarde |

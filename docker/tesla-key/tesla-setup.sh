@@ -179,9 +179,14 @@ Outros:
 
 Gateway (portal admin, clientes, Status API, logs):
   admin                         define utilizador/password do portal admin
-  cliente add NOME [DESCRIÇÃO]  cria cliente e mostra a chave X-API-Key
-  cliente list                  lista clientes
+  cliente add NOME [DESCRIÇÃO] [--perm LISTA]
+                                cria cliente e mostra a chave X-API-Key
+                                (LISTA: preset tudo|leitura|basico|nenhuma ou ex.: carga,imagem)
+  cliente list                  lista clientes e permissões
   cliente on|off|rm|chave NOME  ativa, desativa, apaga ou gera nova chave
+  cliente perm NOME [set|add|rm LISTA]
+                                mostra ou altera as permissões do cliente
+  permissoes                    lista as permissões e presets disponíveis
   status-api on|off|token|info  Status API para outro portal (token Bearer)
   definicao [CHAVE [VALOR]]     cache_segundos, retencao_logs_dias
   logs [N] [NIVEL]              últimos N registos (INFO|WARNING|ERROR)
@@ -198,7 +203,7 @@ cmd="${1:-ajuda}"; shift || true
 GATEWAY_CLI="${GATEWAY_CLI:-/opt/gateway/cli.py}"
 case "$cmd" in
     ajuda|-h|--help) ajuda; exit 0 ;;
-    admin|status-api|definicao|logs|logs-limpar|resumo)
+    admin|status-api|definicao|logs|logs-limpar|resumo|permissoes)
         exec python3 "$GATEWAY_CLI" "$cmd" "$@" ;;
     cliente)
         sub="${1:-list}"; shift || true

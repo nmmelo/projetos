@@ -214,3 +214,20 @@ Status API (`ts_`, estado do gateway) são credenciais diferentes.
   (copiados da imagem do carro na conta tesla.com, sem `$`); sem eles, aproximação pela cor e jantes do
   `vehicle_config`.
 - `TESLA_SCOPES` passou a incluir `vehicle_location`; `API.md` e `openapi.yaml` atualizados.
+
+---
+
+## 15. Permissões por cliente
+
+**Pergunta:**
+> podemos selecionar o que quero colocar na api para dar ao cliente, até podemos associar por cliente ou seja por token, assim alguns clientes podem ter acesso a tudo e outros a menos coisas, isto pode ser feito via web ou então via cli
+
+**Resposta:**
+- Permissões por cliente: `veiculos`, `carga`, `clima`, `conducao`, `estado`, `config`, `localizacao`, `imagem`,
+  `token`, `acordar`, `fleet`; presets `tudo`, `leitura` (omissão), `basico`, `nenhuma`.
+- Endpoint sem permissão → 403 (WARNING nos logs). Em `/data` as secções sem permissão são retiradas do
+  pedido à Tesla e indicadas em `seccoes_negadas`.
+- `GET /api/me` devolve o nome e as permissões do cliente.
+- CLI: `cliente add ... --perm LISTA`, `cliente perm NOME [set|add|rm LISTA]`, `permissoes`.
+- Portal admin: preset ao criar e página de permissões por cliente com caixas de seleção.
+- Migração automática: clientes existentes ficam com `tudo`.

@@ -190,7 +190,8 @@ def clientes():
     if request.method == "POST":
         acao, nome = request.form.get("acao"), request.form.get("nome", "")
         if acao == "criar":
-            mostrar_chave(f"Chave do cliente '{nome}'", c.criar_cliente(nome, request.form.get("descricao", "")))
+            mostrar_chave(f"Chave do cliente '{nome}'",
+                          c.criar_cliente(nome, request.form.get("descricao", ""), request.form.get("preset")))
         elif acao == "regenerar":
             mostrar_chave(f"Nova chave do cliente '{nome}'", c.regenerar_cliente(nome))
         elif acao in ("ativar", "desativar"):
@@ -204,20 +205,51 @@ def clientes():
 <div class="card"><h2>Novo cliente</h2><form method="post">
 <input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="criar">
 <input name="nome" placeholder="nome (ex.: portal)" required pattern="[A-Za-z0-9._-]+">
-<input name="descricao" placeholder="descrição" style="width:340px"> <button>Criar e gerar chave</button></form>
+<input name="descricao" placeholder="descrição" style="width:280px">
+<select name="preset">{% for n, lst in presets.items() %}<option value="{{ n }}" {{ 'selected' if n==omissao }}>{{ n }} ({{ lst|length }})</option>{% endfor %}</select>
+<button>Criar e gerar chave</button></form>
 <p class="mutt">O cliente usa a chave no header <code>X-API-Key</code> em <code>http://tesla-key:8000/api/...</code></p></div>
 <div class="card"><h2>Clientes</h2><table>
-<tr><th>Nome</th><th>Descrição</th><th>Chave</th><th>Estado</th><th>Último uso</th><th>Pedidos</th><th></th></tr>
+<tr><th>Nome</th><th>Descrição</th><th>Chave</th><th>Estado</th><th>Permissões</th><th>Último uso</th><th>Pedidos</th><th></th></tr>
 {% for x in lista %}<tr>
 <td><b>{{ x.nome }}</b></td><td>{{ x.descricao }}</td><td><code>{{ x.prefixo }}…</code></td>
 <td>{% if x.ativo %}<span class="b ok">ativo</span>{% else %}<span class="b mut">inativo</span>{% endif %}</td>
+<td style="max-width:260px">{% for p in (x.permissoes or '').split(',') if p %}<span class="b mut" style="margin:1px">{{ p }}</span>{% else %}<span class="mutt">nenhuma</span>{% endfor %}</td>
 <td>{{ x.ultimo_uso or '—' }}</td><td>{{ x.pedidos }}</td>
-<td style="white-space:nowrap">{% for a,l,cl in [('desativar' if x.ativo else 'ativar', 'Desativar' if x.ativo else 'Ativar','sec'),('regenerar','Nova chave','sec'),('apagar','Apagar','del')] %}
+<td style="white-space:nowrap"><a href="{{ url_for('cliente_perm', nome=x.nome) }}"><button type="button">Permissões</button></a>{% for a,l,cl in [('desativar' if x.ativo else 'ativar', 'Desativar' if x.ativo else 'Ativar','sec'),('regenerar','Nova chave','sec'),('apagar','Apagar','del')] %}
 <form class="in" method="post" {% if a=='apagar' or a=='regenerar' %}onsubmit="return confirm('{{ l }} {{ x.nome }}?')"{% endif %}>
 <input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="{{ a }}"><input type="hidden" name="nome" value="{{ x.nome }}">
 <button class="{{ cl }}">{{ l }}</button></form>{% endfor %}</td></tr>
-{% else %}<tr><td colspan="7" class="mutt">Sem clientes.</td></tr>{% endfor %}
-</table></div>""", lista=c.listar_clientes())
+{% else %}<tr><td colspan="8" class="mutt">Sem clientes.</td></tr>{% endfor %}
+</table></div>""", lista=c.listar_clientes(), presets=c.PRESETS, omissao=c.PERMISSAO_OMISSAO)
+
+
+@app.route("/clientes/<nome>", methods=["GET", "POST"])
+@login_obrigatorio
+def cliente_perm(nome):
+    if request.method == "POST":
+        if request.form.get("preset"):
+            c.definir_permissoes(nome, request.form["preset"])
+        else:
+            c.definir_permissoes(nome, request.form.getlist("perm"))
+        flash(f"Permissões de '{nome}' guardadas", "ok")
+        return redirect(url_for("cliente_perm", nome=nome))
+    atuais = c.permissoes_cliente(nome)
+    return render(f"Permissões · {nome}", "clientes", """
+<div class="card"><h2>Permissões do cliente <code>{{ nome }}</code></h2>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}">
+<table><tr><th></th><th>Permissão</th><th>O que dá acesso</th><th>Endpoints</th></tr>
+{% for p, (desc, eps) in perms.items() %}<tr>
+<td><input type="checkbox" name="perm" value="{{ p }}" id="p_{{ p }}" {{ 'checked' if p in atuais }}></td>
+<td><label for="p_{{ p }}"><b>{{ p }}</b></label>{% if p in ('acordar','fleet') %} <span class="b warn">sensível</span>{% endif %}</td>
+<td>{{ desc }}</td><td><code>{{ eps }}</code></td></tr>{% endfor %}
+</table><p><button>Guardar</button> <a href="{{ url_for('clientes') }}"><button type="button" class="sec">Voltar</button></a></p></form>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}">
+<span class="mutt">Aplicar preset:</span>
+{% for n, lst in presets.items() %}<button class="sec" name="preset" value="{{ n }}" title="{{ lst|join(', ') }}">{{ n }}</button> {% endfor %}
+</form>
+<p class="mutt">A alteração aplica-se de imediato. O cliente pode consultar as suas permissões em <code>GET /api/me</code>.</p></div>""",
+                  nome=nome, atuais=atuais, perms=c.PERMISSOES, presets=c.PRESETS)
 
 
 def tabela_logs(linhas):

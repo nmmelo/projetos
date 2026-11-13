@@ -41,6 +41,35 @@ DEFAULTS = {
     "secret_key": "",
 }
 
+# Permissões por cliente: chave -> (descrição, endpoints)
+PERMISSOES = {
+    "veiculos":    ("Lista e estado dos veículos (online/asleep)", "/api/vehicles, /api/vehicles/<vin>"),
+    "carga":       ("Bateria, autonomia e carregamento (charge_state)", "/data"),
+    "clima":       ("Temperaturas e climatização (climate_state)", "/data"),
+    "conducao":    ("Mudança, velocidade e potência, sem coordenadas (drive_state)", "/data"),
+    "estado":      ("Odómetro, trancas, sentinela, versão de software (vehicle_state)", "/data"),
+    "config":      ("Modelo, cor e jantes (vehicle_config)", "/data"),
+    "localizacao": ("Coordenadas GPS (location_data)", "/location, /data"),
+    "imagem":      ("Imagem do modelo do carro", "/image"),
+    "token":       ("Estado do token Tesla", "/api/token/status"),
+    "acordar":     ("Acordar o carro (custo extra, gasta bateria)", "/wake"),
+    "fleet":       ("Passthrough de leitura para qualquer endpoint da Fleet API (acesso amplo)", "/api/fleet/..."),
+}
+PRESETS = {
+    "tudo": list(PERMISSOES),
+    "leitura": [p for p in PERMISSOES if p not in ("acordar", "fleet")],
+    "basico": ["veiculos", "carga", "imagem"],
+    "nenhuma": [],
+}
+PERMISSAO_OMISSAO = "leitura"   # novos clientes
+# secção de vehicle_data -> permissão necessária
+SECCOES = {
+    "charge_state": "carga", "climate_state": "clima", "drive_state": "conducao",
+    "vehicle_state": "estado", "vehicle_config": "config", "location_data": "localizacao",
+    "gui_settings": "estado", "closures_state": "estado", "charge_schedule_data": "carga",
+    "preconditioning_schedule_data": "clima", "vehicle_data_combo": "estado",
+}
+
 _token_lock = threading.Lock()
 
 
@@ -101,6 +130,11 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_logs_ts ON logs(ts);
         CREATE INDEX IF NOT EXISTS idx_logs_nivel ON logs(nivel);
         """)
+        cols = [r[1] for r in c.execute("PRAGMA table_info(clientes)")]
+        if "permissoes" not in cols:
+            # clientes que já existiam mantêm o acesso total
+            c.execute("ALTER TABLE clientes ADD COLUMN permissoes TEXT")
+            c.execute("UPDATE clientes SET permissoes=?", (",".join(PRESETS["tudo"]),))
         for k, v in DEFAULTS.items():
             c.execute("INSERT OR IGNORE INTO definicoes(chave, valor) VALUES (?, ?)", (k, v))
         if not c.execute("SELECT valor FROM definicoes WHERE chave='secret_key'").fetchone()[0]:
@@ -179,20 +213,64 @@ def nova_chave(prefixo):
     return chave, chave[: len(prefixo) + 7]
 
 
-def criar_cliente(nome, descricao=""):
+def resolver_permissoes(valor):
+    """'leitura' | 'tudo' | 'carga,imagem' | lista -> lista ordenada e validada."""
+    if isinstance(valor, (list, tuple, set)):
+        valor = ",".join(str(v) for v in valor)
+    itens = [x.strip() for x in str(valor or "").split(",") if x.strip()]
+    perms = set()
+    for x in itens:
+        if x in PRESETS:
+            perms.update(PRESETS[x])
+        elif x in PERMISSOES:
+            perms.add(x)
+        else:
+            raise ErroGateway(400, f"permissão desconhecida: {x} (válidas: {', '.join(PERMISSOES)}; "
+                                   f"presets: {', '.join(PRESETS)})")
+    return [p for p in PERMISSOES if p in perms]
+
+
+def definir_permissoes(nome, valor):
+    perms = resolver_permissoes(valor)
+    with db() as c:
+        n = c.execute("UPDATE clientes SET permissoes=? WHERE nome=?", (",".join(perms), nome)).rowcount
+    if not n:
+        raise ErroGateway(404, f"cliente '{nome}' não existe")
+    log("WARNING", "admin", f"permissões de {nome}: {', '.join(perms) or '(nenhuma)'}")
+    return perms
+
+
+def alterar_permissoes(nome, adicionar=(), remover=()):
+    atual = set(permissoes_cliente(nome))
+    atual |= set(resolver_permissoes(list(adicionar)))
+    atual -= set(resolver_permissoes(list(remover)))
+    return definir_permissoes(nome, list(atual))
+
+
+def permissoes_cliente(nome):
+    with db() as c:
+        r = c.execute("SELECT permissoes FROM clientes WHERE nome=?", (nome,)).fetchone()
+    if not r:
+        raise ErroGateway(404, f"cliente '{nome}' não existe")
+    return [p for p in (r["permissoes"] or "").split(",") if p]
+
+
+def criar_cliente(nome, descricao="", permissoes=None):
     nome = nome.strip()
     if not nome or not all(ch.isalnum() or ch in "-_." for ch in nome):
         raise ErroGateway(400, "nome inválido (letras, números, - _ .)")
+    perms = resolver_permissoes(permissoes if permissoes is not None else PERMISSAO_OMISSAO)
     chave, pref = nova_chave("tk")
     try:
         with db() as c:
             c.execute(
-                "INSERT INTO clientes(nome, descricao, chave_hash, prefixo, criado_em) VALUES (?,?,?,?,?)",
-                (nome, descricao, hash_chave(chave), pref, agora_iso()),
+                "INSERT INTO clientes(nome, descricao, chave_hash, prefixo, criado_em, permissoes)"
+                " VALUES (?,?,?,?,?,?)",
+                (nome, descricao, hash_chave(chave), pref, agora_iso(), ",".join(perms)),
             )
     except sqlite3.IntegrityError:
         raise ErroGateway(409, f"já existe o cliente '{nome}'")
-    log("INFO", "admin", f"cliente criado: {nome}")
+    log("INFO", "admin", f"cliente criado: {nome} ({', '.join(perms) or 'sem permissões'})")
     return chave
 
 
@@ -226,19 +304,21 @@ def apagar_cliente(nome):
 def listar_clientes():
     with db() as c:
         return [dict(r) for r in c.execute(
-            "SELECT id, nome, descricao, prefixo, ativo, criado_em, ultimo_uso, pedidos FROM clientes ORDER BY nome")]
+            "SELECT id, nome, descricao, prefixo, ativo, criado_em, ultimo_uso, pedidos, permissoes"
+            " FROM clientes ORDER BY nome")]
 
 
 def validar_cliente(chave):
-    """Devolve o nome do cliente ativo para a chave, ou None."""
+    """Devolve (nome, permissões) do cliente ativo para a chave, ou (None, [])."""
     if not chave:
-        return None
+        return None, []
     with db() as c:
-        r = c.execute("SELECT nome, ativo FROM clientes WHERE chave_hash=?", (hash_chave(chave),)).fetchone()
+        r = c.execute("SELECT nome, ativo, permissoes FROM clientes WHERE chave_hash=?",
+                      (hash_chave(chave),)).fetchone()
         if not r or not r["ativo"]:
-            return None
+            return None, []
         c.execute("UPDATE clientes SET ultimo_uso=?, pedidos=pedidos+1 WHERE nome=?", (agora_iso(), r["nome"]))
-        return r["nome"]
+        return r["nome"], [p for p in (r["permissoes"] or "").split(",") if p]
 
 
 def gerar_token_status():
