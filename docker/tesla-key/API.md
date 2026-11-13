@@ -217,7 +217,8 @@ guarda-a em disco (30 dias por omissão), por isso só o primeiro pedido vai à 
 | `fresh` | — | `1` gera de novo |
 | `formato` | — | `url` devolve só o URL do compositor em JSON, sem descarregar |
 
-Resposta: a imagem (`image/png` ou `image/jpeg`), pronta para `<img src>` ou para guardar. Com `formato=url`:
+Resposta: a imagem (`image/png` ou `image/jpeg`), pronta para `<img src>` ou para guardar. O browser pode guardá-la
+5 minutos (`Cache-Control: max-age=300`, com `ETag`); depois de mudar `TESLA_IMAGE_OPTIONS`, pedir uma vez com `?fresh=1`. Com `formato=url`:
 ```json
 { "url": "https://static-assets.tesla.com/v1/compositor/?model=m3&view=STUD_3QTR&size=800&options=...&bkba_opt=1",
   "origem": "config", "view": "STUD_3QTR", "size": 800 }
