@@ -54,7 +54,8 @@ DEFAULTS = {
     "backup_automatico": "1",              # backup diário do gateway.db
     "backup_retencao": "14",               # nº de backups guardados
     # portal admin
-    "tema": "claro",                       # claro | escuro | tesla
+    "tema": "padrao",                      # paleta: padrao | tesla | natal
+    "tema_modo": "sistema",                # sistema | hora | claro | escuro
     "login_max_tentativas": "5",           # tentativas falhadas por IP...
     "login_janela_minutos": "15",          # ...nesta janela antes de bloquear
     "login_bloqueio_minutos": "15",        # duração do bloqueio
@@ -81,7 +82,8 @@ PERMISSOES = {
     "token":       ("Estado do token Tesla", "/api/token/status"),
     "acordar":     ("Acordar o carro (custo extra, gasta bateria)", "/wake"),
     "fleet":       ("Passthrough de leitura para qualquer endpoint da Fleet API (acesso amplo)", "/api/fleet/..."),
-    "viagens":     ("Viagens e posições registadas pelo gateway", "/trips, /positions"),
+    "viagens":     ("Viagens e posições registadas pelo gateway; estado da recolha", "/trips, /positions, /api/recolha"),
+    "consumo":     ("Consumo estimado de créditos da Fleet API (todos os clientes)", "/api/consumo"),
 }
 PRESETS = {
     "tudo": list(PERMISSOES),
@@ -213,6 +215,10 @@ def init_db():
             if u and h and u[0] and h[0]:
                 c.execute("INSERT INTO utilizadores(nome, pass_hash, perfil, criado_em) VALUES (?,?,?,?)",
                           (u[0], h[0], "admin", agora_iso()))
+        t = c.execute("SELECT valor FROM definicoes WHERE chave='tema'").fetchone()
+        if t and t[0] in ("claro", "escuro"):
+            c.execute("UPDATE definicoes SET valor='padrao' WHERE chave='tema'")
+            c.execute("INSERT OR REPLACE INTO definicoes(chave, valor) VALUES ('tema_modo', ?)", (t[0],))
         cols = [r[1] for r in c.execute("PRAGMA table_info(clientes)")]
         if "permissoes" not in cols:
             # clientes que já existiam mantêm o acesso total
@@ -776,6 +782,38 @@ def consumo_mes(mes=None):
     }
 
 
+def consumo_cliente(cliente, mes=None):
+    m = consumo_mes(mes)
+    cat = {}
+    for x in m["por_cliente"]:
+        if x["cliente"] == cliente:
+            cat[x["categoria"]] = {"pedidos": x["n"], "custo": x["custo"]}
+    return {"cliente": cliente, "mes": m["mes"], "total_usd": round(sum(v["custo"] for v in cat.values()), 4),
+            "categorias": cat, "nota": m["nota"]}
+
+
+def estado_recolha():
+    hoje = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with db() as c:
+        veic = [dict(r) for r in c.execute("SELECT vin, estado, ts, bateria, proxima_leitura FROM estado_veiculo")]
+        for v in veic:
+            v["leituras_hoje"] = c.execute(
+                "SELECT COUNT(*) FROM consumo WHERE dia=? AND cliente='recolha' AND caminho LIKE ?",
+                (hoje, f"vehicles/{v['vin']}/%")).fetchone()[0]
+            v["proxima_leitura"] = (datetime.fromtimestamp(v["proxima_leitura"], timezone.utc).isoformat(timespec="seconds")
+                                    if v.get("proxima_leitura") else None)
+            v["ultima_leitura"] = v.pop("ts")
+            v["limite_diario"] = int(get_def("recolha_limite_diario") or 150)
+    return {
+        "ativa": get_def("recolha_ativa") == "1",
+        "intervalos": {"conduzir": int(get_def("recolha_intervalo_conduzir") or 120),
+                       "parado": int(get_def("recolha_intervalo_parado") or 600),
+                       "minutos_parado": int(get_def("recolha_minutos_parado") or 30),
+                       "dormir": int(get_def("recolha_intervalo_dormir") or 1800)},
+        "veiculos": veic,
+    }
+
+
 def funcionalidades_ativas():
     v = get_def("funcionalidades")
     return list(PERMISSOES) if not v else [p for p in v.split(",") if p in PERMISSOES]
@@ -1139,6 +1177,12 @@ ENDPOINTS = [
      '{"pontos": [{"lat": 38.722, "lon": -9.139, "n": 14}], "agregado": true}'),
     ("POST", "/api/vehicles/{vin}/wake", "acordar", "Acorda o carro (custo extra, gasta bateria).", "",
      '{"response": {"state": "online"}}'),
+    ("GET", "/api/recolha", "viagens", "Estado da recolha de viagens: ativa, intervalos e, por veículo, estado, última/próxima leitura e leituras de hoje.", "",
+     '{"ativa": true, "intervalos": {"conduzir": 120}, "veiculos": [{"vin": "...", "estado": "parado", "leituras_hoje": 34, "limite_diario": 150}]}'),
+    ("GET", "/api/consumo", "consumo", "Consumo estimado de créditos no mês (todos os clientes): total, crédito usado, por tipo, cliente, endpoint e dia.", "mes=AAAA-MM",
+     '{"mes": "2026-11", "total_usd": 1.23, "credito_usd": 10, "credito_usado_pct": 12.3, "categorias": {"dados": {"pedidos": 600, "custo": 1.2}}, "por_cliente": [...]}'),
+    ("GET", "/api/me/consumo", None, "Consumo estimado só deste cliente no mês (sempre permitido).", "mes=AAAA-MM",
+     '{"cliente": "portal", "mes": "2026-11", "total_usd": 0.42, "categorias": {"dados": {"pedidos": 210, "custo": 0.42}}}'),
     ("GET", "/api/fleet/{caminho}", "fleet", "Passthrough de leitura para /api/1/{caminho} da Fleet API (ex.: dx/charging/history).", "os da Tesla",
      "(resposta da Tesla)"),
 ]

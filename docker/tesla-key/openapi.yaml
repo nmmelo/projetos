@@ -171,7 +171,7 @@ paths:
                     type: array
                     items:
                       type: string
-                      enum: [veiculos, carga, clima, conducao, estado, config, localizacao, imagem, token, acordar, fleet, viagens]
+                      enum: [veiculos, carga, clima, conducao, estado, config, localizacao, imagem, token, acordar, fleet, viagens, consumo]
                   desativadas_no_gateway: { type: array, items: { type: string } }
                   descricao: { type: object, additionalProperties: { type: string } }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
@@ -395,6 +395,71 @@ paths:
                   agregado: { type: boolean }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
         "403": { $ref: "#/components/responses/SemPermissao" }
+
+  /api/recolha:
+    get:
+      summary: Estado da recolha de viagens (permissão viagens)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ativa: { type: boolean }
+                  intervalos: { type: object, additionalProperties: { type: integer } }
+                  veiculos:
+                    type: array
+                    items:
+                      type: object
+                      properties: { vin: { type: string }, estado: { type: string }, ultima_leitura: { type: string, nullable: true }, proxima_leitura: { type: string, nullable: true }, bateria: { type: integer, nullable: true }, leituras_hoje: { type: integer }, limite_diario: { type: integer } }
+        "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
+
+  /api/consumo:
+    get:
+      summary: Consumo estimado de créditos no mês, todos os clientes (permissão consumo)
+      parameters:
+        - { name: mes, in: query, schema: { type: string }, description: "AAAA-MM (omissão: mês atual)" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mes: { type: string }
+                  total_usd: { type: number }
+                  credito_usd: { type: number }
+                  credito_usado_pct: { type: number, nullable: true }
+                  categorias: { type: object, additionalProperties: { type: object, properties: { pedidos: { type: integer }, preco: { type: number }, custo: { type: number }, hoje: { type: integer }, limite_dia: { type: integer } } } }
+                  por_cliente: { type: array, items: { type: object, properties: { cliente: { type: string }, categoria: { type: string }, n: { type: integer }, custo: { type: number } } } }
+                  por_caminho: { type: array, items: { type: object } }
+                  por_dia: { type: array, items: { type: object, properties: { dia: { type: string }, n: { type: integer } } } }
+        "400": { description: mes inválido }
+        "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
+
+  /api/me/consumo:
+    get:
+      summary: Consumo estimado só deste cliente (sempre permitido)
+      parameters:
+        - { name: mes, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cliente: { type: string }
+                  mes: { type: string }
+                  total_usd: { type: number }
+                  categorias: { type: object, additionalProperties: { type: object, properties: { pedidos: { type: integer }, custo: { type: number } } } }
+        "401": { $ref: "#/components/responses/NaoAutorizado" }
 
   /api/endpoints:
     get:

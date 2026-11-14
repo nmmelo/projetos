@@ -35,7 +35,8 @@ consultar as suas permissões em `GET /api/me`.
 | `config` | Modelo, cor e jantes (`vehicle_config`) | `/data` |
 | `localizacao` | Coordenadas GPS (`location_data`) | `/location`, `/data` |
 | `imagem` | Imagem do modelo | `/image` |
-| `viagens` | Viagens e posições registadas pelo gateway | `/trips`, `/positions` |
+| `viagens` | Viagens e posições registadas pelo gateway; estado da recolha | `/trips`, `/positions`, `/api/recolha` |
+| `consumo` | Consumo estimado de créditos (todos os clientes) | `/api/consumo` |
 | `token` | Estado do token Tesla | `/api/token/status` |
 | `acordar` | Acordar o carro (sensível) | `/wake` |
 | `fleet` | Passthrough para qualquer GET da Fleet API (sensível, acesso amplo) | `/api/fleet/...` |
@@ -75,6 +76,9 @@ para forçar um pedido novo à Tesla (conta como pedido pago).
 | GET | `/api/vehicles/{vin}/trips` | sim | Viagens registadas pelo gateway, com totais |
 | GET | `/api/vehicles/{vin}/trips/{id}` | sim | Uma viagem com o percurso |
 | GET | `/api/vehicles/{vin}/positions` | sim | Posições registadas (mapa de calor ou percurso) |
+| GET | `/api/recolha` | sim | Estado da recolha de viagens |
+| GET | `/api/consumo` | sim | Consumo estimado de créditos no mês (todos os clientes) |
+| GET | `/api/me/consumo` | sim | Consumo estimado só deste cliente |
 | GET | `/api/endpoints` | não | Esta referência em JSON |
 | POST | `/api/vehicles/{vin}/wake` | sim | Acorda o carro (usar com moderação) |
 | GET | `/api/fleet/{caminho}` | sim | Passthrough só de leitura para `/api/1/{caminho}` da Fleet API |
@@ -310,6 +314,41 @@ Com `agregado=0`: `{ "ts", "lat", "lon", "velocidade_kmh", "viagem_id" }` por po
 
 Exemplo de mapa de calor no portal (Leaflet + leaflet.heat): pedir `/positions?mes=2026-11` no servidor do
 portal e passar `[lat, lon, n]` ao `L.heatLayer`.
+
+### `GET /api/recolha` (permissão `viagens`)
+```json
+{
+  "ativa": true,
+  "intervalos": { "conduzir": 120, "parado": 600, "minutos_parado": 30, "dormir": 1800 },
+  "veiculos": [ { "vin": "...", "estado": "parado", "ultima_leitura": "2026-11-14T19:40:02+00:00",
+                  "proxima_leitura": "2026-11-14T19:50:02+00:00", "bateria": 76,
+                  "leituras_hoje": 34, "limite_diario": 150 } ]
+}
+```
+`estado`: `conduzir`, `parado`, `asleep` ou `erro`.
+
+### `GET /api/consumo` (permissão `consumo`)
+
+Estimativa do mês (`?mes=AAAA-MM`, omissão: mês atual) feita pelo gateway com os preços definidos pelo
+administrador. O valor oficial está no dashboard de developer.tesla.com.
+```json
+{
+  "mes": "2026-11", "total_usd": 1.05, "credito_usd": 10.0, "credito_usado_pct": 10.6,
+  "categorias": { "dados": { "pedidos": 483, "preco": 0.002, "custo": 0.966, "hoje": 41, "limite_dia": 200 },
+                  "wake": { "pedidos": 4, "preco": 0.02, "custo": 0.08, "hoje": 0, "limite_dia": 15 },
+                  "comando": { "pedidos": 9, "preco": 0.001, "custo": 0.009, "hoje": 0, "limite_dia": 50 } },
+  "por_cliente": [ { "cliente": "recolha", "categoria": "dados", "n": 300, "custo": 0.6 } ],
+  "por_caminho": [ { "categoria": "dados", "caminho": "vehicles/.../vehicle_data", "n": 420 } ],
+  "por_dia": [ { "dia": "2026-11-14", "n": 61 } ],
+  "nota": "estimativa contada pelo gateway; ..."
+}
+```
+
+### `GET /api/me/consumo` (sempre permitido)
+```json
+{ "cliente": "portal", "mes": "2026-11", "total_usd": 0.32,
+  "categorias": { "dados": { "pedidos": 120, "custo": 0.24 }, "wake": { "pedidos": 4, "custo": 0.08 } } }
+```
 
 ### `GET /api/endpoints`
 Lista de endpoints com método, caminho, permissão, descrição, parâmetros e exemplo (sem chave). O portal admin

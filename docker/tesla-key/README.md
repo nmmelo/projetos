@@ -119,6 +119,9 @@ mostradas na criação. Um cliente desativado deixa de ter acesso de imediato.
 | GET | `/api/vehicles/<vin>` | Estado (`online`/`asleep`), não acorda o carro |
 | GET | `/api/vehicles/<vin>/data` | `vehicle_data` com cache (`?endpoints=charge_state;drive_state`, `?fresh=1`) |
 | GET | `/api/vehicles/<vin>/location` | Latitude, longitude, direção, velocidade (scope `vehicle_location`) |
+| GET | `/api/consumo` | Consumo estimado do mês, todos os clientes (permissão `consumo`; `?mes=AAAA-MM`) |
+| GET | `/api/me/consumo` | Consumo estimado só deste cliente (sempre permitido) |
+| GET | `/api/recolha` | Estado da recolha de viagens (permissão `viagens`) |
 | GET | `/api/vehicles/<vin>/image` | Imagem do modelo com a cor/jantes do carro (`?view=STUD_3QTR&size=800`, `?formato=url`) |
 | POST | `/api/vehicles/<vin>/wake` | Acorda o carro (mais caro, gasta bateria) |
 | GET | `/api/fleet/<caminho>` | Passthrough só de leitura para `/api/1/<caminho>` |
@@ -277,7 +280,7 @@ desativada responde 404. Autenticação com `Authorization: Bearer <token>` (tok
 | Menu | O que tem |
 |---|---|
 | Estado | Gateway, token Tesla, clientes, consumo do mês, pedidos/warnings/erros 24 h, testar ligação, renovar token |
-| Consumo | Estimativa de créditos do mês: por tipo, cliente, endpoint e dia, com limites diários |
+| Consumo | Gráficos circulares de onde foram gastos os créditos (por tipo e por cliente) e estimativa do mês por tipo, cliente, endpoint e dia, com limites diários |
 | Viagens | Estado da recolha, viagens com filtros (semana, mês, ano, 30 dias) e totais; detalhe com mapa e GPX/JSON |
 | Mapa | Mapa de calor das posições registadas, com filtros por semana, mês ou ano |
 | Clientes | Criar com preset de permissões (chave mostrada uma vez), permissões, ativar/desativar, nova chave, apagar |
@@ -291,7 +294,7 @@ desativada responde 404. Autenticação com `Authorization: Bearer <token>` (tok
 | Logs | Sub-abas **Registos** (filtros, apagar selecionados/todos/antigos, retenção) e **Auditoria** (logins, falhas, bloqueios, ações e acessos negados, com data, IP, utilizador e navegador; filtros e apagar) e proteção do login |
 | Dados | Contagens, exportação (CSV, JSON, GPX, GeoJSON) e backups |
 | API | Sub-abas: "Como usar", uma por endpoint (permissão, parâmetros, `curl`, Python, exemplo de resposta), Status API e códigos de resposta |
-| Temas | Claro, Escuro e Tesla (minimalista); aplica-se a todos e ao ecrã de entrada |
+| Temas | Tema **Padrão**, **Tesla (minimalista)** ou **Natal**, cada um com versão clara e escura; modo **Como o sistema** (segue o claro/escuro do dispositivo), **Pela hora** (claro das 8h às 20h), **Sempre claro** ou **Sempre escuro** |
 
 **Ecrã de entrada:** caixa "Gateway Tesla API" com o botão **Entrar**, que mostra os campos. Proteção contra
 tentativas automáticas: verificação humana (soma simples), campo-armadilha invisível, recusa de submissões

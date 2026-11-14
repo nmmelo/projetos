@@ -328,3 +328,19 @@ passam pelo `docker-compose.yml`, por isso funcionam no `.env` e na stack do Por
   e bloqueio por IP após falhas repetidas. Ícone genérico (não usa o logótipo da marca).
 - Temas Claro, Escuro e Tesla (minimalista). Tabelas em cartões no telemóvel.
 - CLI: `utilizador ...` e `auditoria`.
+
+---
+
+## 22. Filtro por ano, tabelas, temas automáticos, gráfico do consumo e mais API
+
+**Pergunta:**
+> nas viagens e mapa quando escolho ano dá este erro, período inválido ... os dados saem da tabela ... manter como o sistema, de dia um tema claro e de noite ... mais escuros ... no cimo do crédito um gráfico com fatias ... na api do gateway ter mais opções, como mostrar o consumo de crédito ... mais um tema alusivo ao Natal
+
+**Resposta:**
+- Erro do filtro: ao mudar de "Mês" para "Ano" o valor antigo (`2026-11`) era enviado como ano; o valor passa a
+  ser validado por período e, se não servir, usa o atual.
+- Tabelas: texto longo quebra dentro das células e dos cartões; tabelas chave/valor empilham no telemóvel.
+- Temas Padrão, Tesla (minimalista) e Natal, cada um com versão clara e escura, e modo Como o sistema /
+  Pela hora (8h–20h) / Sempre claro / Sempre escuro.
+- Consumo: gráficos circulares por tipo de pedido e por cliente, com legenda e valores.
+- API: `GET /api/consumo` (permissão `consumo`), `GET /api/me/consumo` (sempre permitido) e `GET /api/recolha`.

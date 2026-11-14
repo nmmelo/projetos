@@ -5,6 +5,7 @@ Login definido com `tesla-setup admin`. Permite ver o estado, gerir clientes, ve
 e configurar a Status API e as definições.
 """
 import json
+import re
 import os
 import secrets
 import time
@@ -23,16 +24,83 @@ app.secret_key = c.get_def("secret_key")
 app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Strict",
                   PERMANENT_SESSION_LIFETIME=timedelta(hours=8))
 
-TEMAS = {
-    "claro": {"nome": "Claro", "css": ":root{--bg:#f5f6f8;--card:#fff;--txt:#1d2433;--mut:#6b7385;--pri:#3157d5;--pri-txt:#fff;--ok:#1f8a4c;--warn:#b7791f;--err:#c53030;--bd:#e3e6ec;--sec:#eceef2;--code:#eceef2;--hdr:#1d2433;--hdr-txt:#fff;--hdr-mut:#c8cfe0;--okbg:#e3f4ea;--warnbg:#fbf0dc;--errbg:#fde8e8;--rad:8px;--font:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}"},
-    "escuro": {"nome": "Escuro", "css": ":root{--bg:#0f1218;--card:#171b23;--txt:#e6e9f0;--mut:#98a1b3;--pri:#5b7cfa;--pri-txt:#fff;--ok:#4cc38a;--warn:#e0a84b;--err:#f07171;--bd:#2a303c;--sec:#262c38;--code:#232937;--hdr:#0b0e13;--hdr-txt:#fff;--hdr-mut:#98a1b3;--okbg:rgba(76,195,138,.15);--warnbg:rgba(224,168,75,.15);--errbg:rgba(240,113,113,.15);--rad:8px;--font:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}"},
-    "tesla": {"nome": "Tesla (minimalista)", "css": ":root{--bg:#f4f4f4;--card:#fff;--txt:#171a20;--mut:#5c5e62;--pri:#3e6ae1;--pri-txt:#fff;--ok:#2d7d46;--warn:#9a6b00;--err:#c4161c;--bd:#e2e3e3;--sec:#f4f4f4;--code:#f4f4f4;--hdr:#fff;--hdr-txt:#171a20;--hdr-mut:#5c5e62;--okbg:#e8f3eb;--warnbg:#f8f0dc;--errbg:#fbe7e8;--rad:4px;--font:'Gotham SSm','Gotham','Montserrat','Helvetica Neue',Helvetica,Arial,sans-serif}"
-              "header{border-bottom:1px solid var(--bd);box-shadow:none}header b{letter-spacing:.25em;text-transform:uppercase;font-weight:600;font-size:14px}"
-              "nav a{font-weight:500;font-size:13px;padding:4px 10px;border-radius:4px}nav a.on,nav a:hover{background:rgba(23,26,32,.06)}"
-              ".card,.kpi{border:0;box-shadow:0 1px 2px rgba(0,0,0,.04)}h2{font-weight:500;letter-spacing:.02em}"
-              "button{font-weight:500;letter-spacing:.02em;min-height:36px}button.sec{background:#fff;border:1px solid var(--bd)}"
-              ".entrada{background:linear-gradient(180deg,#fff 0%,#f4f4f4 100%)}.entrada h1{font-weight:500;letter-spacing:.08em;text-transform:uppercase}"},
+GRAF_CLARO = "--c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--c4:#eda100;--c5:#e87ba4;--c6:#008300;"
+GRAF_ESCURO = "--c1:#3987e5;--c2:#d95926;--c3:#199e70;--c4:#c98500;--c5:#d55181;--c6:#0ca30c;"
+FONTE_SIS = "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"
+FONTE_TESLA = "'Gotham SSm','Gotham','Montserrat','Helvetica Neue',Helvetica,Arial,sans-serif"
+
+
+def _v(bg, card, txt, mut, pri, ok, warn, err, bd, sec, hdr, hdr_txt, hdr_mut, okbg, warnbg, errbg, rad, font, extra=""):
+    return (f"--bg:{bg};--card:{card};--txt:{txt};--mut:{mut};--pri:{pri};--pri-txt:#fff;--ok:{ok};--warn:{warn};"
+            f"--err:{err};--bd:{bd};--sec:{sec};--code:{sec};--hdr:{hdr};--hdr-txt:{hdr_txt};--hdr-mut:{hdr_mut};"
+            f"--okbg:{okbg};--warnbg:{warnbg};--errbg:{errbg};--rad:{rad};--font:{font};{extra}")
+
+
+PALETAS = {
+    "padrao": {
+        "nome": "Padrão",
+        "claro": _v("#f5f6f8", "#fff", "#1d2433", "#6b7385", "#3157d5", "#1f8a4c", "#b7791f", "#c53030", "#e3e6ec",
+                    "#eceef2", "#1d2433", "#fff", "#c8cfe0", "#e3f4ea", "#fbf0dc", "#fde8e8", "8px", FONTE_SIS),
+        "escuro": _v("#0f1218", "#171b23", "#e6e9f0", "#98a1b3", "#5b7cfa", "#4cc38a", "#e0a84b", "#f07171", "#2a303c",
+                     "#262c38", "#0b0e13", "#fff", "#98a1b3", "rgba(76,195,138,.15)", "rgba(224,168,75,.15)",
+                     "rgba(240,113,113,.15)", "8px", FONTE_SIS),
+        "extra": "",
+        "amostra": ["#1d2433", "#f5f6f8", "#3157d5", "#171b23"],
+    },
+    "tesla": {
+        "nome": "Tesla (minimalista)",
+        "claro": _v("#f4f4f4", "#fff", "#171a20", "#5c5e62", "#3e6ae1", "#2d7d46", "#9a6b00", "#c4161c", "#e2e3e3",
+                    "#f4f4f4", "#fff", "#171a20", "#5c5e62", "#e8f3eb", "#f8f0dc", "#fbe7e8", "4px", FONTE_TESLA),
+        "escuro": _v("#0d0d0d", "#171717", "#eeeeee", "#a2a3a5", "#3e6ae1", "#4caf6e", "#d9a441", "#e5484d", "#2b2b2b",
+                     "#242424", "#0d0d0d", "#fff", "#a2a3a5", "rgba(76,175,110,.15)", "rgba(217,164,65,.15)",
+                     "rgba(229,72,77,.15)", "4px", FONTE_TESLA),
+        "extra": ("header{border-bottom:1px solid var(--bd)}header b{letter-spacing:.25em;text-transform:uppercase;font-weight:600;font-size:14px}"
+                  "nav a{font-weight:500;font-size:13px;padding:4px 10px;border-radius:4px}nav a.on,nav a:hover{background:rgba(127,127,127,.12)}"
+                  ".card,.kpi{border:0;box-shadow:0 1px 2px rgba(0,0,0,.06)}h2{font-weight:500;letter-spacing:.02em}"
+                  "button{font-weight:500;letter-spacing:.02em;min-height:36px}button.sec{border:1px solid var(--bd)}"
+                  ".entrada{background:linear-gradient(180deg,var(--card) 0%,var(--bg) 100%)}"
+                  ".entrada h1{font-weight:500;letter-spacing:.08em;text-transform:uppercase}"),
+        "amostra": ["#ffffff", "#171a20", "#3e6ae1", "#0d0d0d"],
+    },
+    "natal": {
+        "nome": "Natal",
+        "claro": _v("#f7f3ec", "#fffdf9", "#2a1a12", "#7a6656", "#b0141c", "#1f6b3a", "#a86b00", "#c0392b", "#eadfce",
+                    "#f1e8da", "#8f1018", "#fff6e5", "#f3cfa0", "#e3f1e7", "#f8ecd2", "#f9e1df", "10px", FONTE_SIS,
+                    "--ouro:#d4a72c;--neve:rgba(143,16,24,.09);"),
+        "escuro": _v("#0e1a13", "#15261c", "#f4eee4", "#b9ad9c", "#e0474f", "#5cc489", "#e6b450", "#ff6b6b", "#24392c",
+                     "#1d3125", "#0a130e", "#f4eee4", "#d8b36a", "rgba(92,196,137,.15)", "rgba(230,180,80,.15)",
+                     "rgba(255,107,107,.15)", "10px", FONTE_SIS, "--ouro:#e3bc4f;--neve:rgba(255,255,255,.35);"),
+        "extra": ("header{border-bottom:3px solid var(--ouro)}header b::after{content:'\\2726';color:var(--ouro);margin-left:2px}"
+                  "nav a.on{color:var(--ouro)!important}.abas a.on{border-bottom-color:var(--ouro)}"
+                  ".entrada{background-color:var(--bg);background-image:radial-gradient(circle,var(--neve) 1.5px,transparent 2px),"
+                  "radial-gradient(circle,var(--neve) 1px,transparent 1.5px);background-size:46px 46px,23px 23px;background-position:0 0,11px 17px}"
+                  ".entrada .caixa{border-top:4px solid var(--ouro)}.entrada .ic{color:var(--pri)}"
+                  ".kpi{border-top:3px solid var(--ouro)}"),
+        "amostra": ["#8f1018", "#fffdf9", "#1f6b3a", "#d4a72c"],
+    },
 }
+MODOS = {"sistema": "Como o sistema (claro/escuro do dispositivo)", "hora": "Pela hora (claro das 8h às 20h, escuro à noite)",
+         "claro": "Sempre claro", "escuro": "Sempre escuro"}
+
+
+def tema_css():
+    p = PALETAS.get(c.get_def("tema") or "padrao", PALETAS["padrao"])
+    modo = c.get_def("tema_modo") or "sistema"
+    claro, escuro = p["claro"] + GRAF_CLARO, p["escuro"] + GRAF_ESCURO
+    if modo == "claro":
+        css = f":root{{{claro}color-scheme:light}}"
+    elif modo == "escuro":
+        css = f":root{{{escuro}color-scheme:dark}}"
+    elif modo == "hora":
+        css = f":root{{{claro}color-scheme:light}}:root.noite{{{escuro}color-scheme:dark}}"
+    else:
+        css = (f":root{{{claro}color-scheme:light dark}}"
+               f"@media (prefers-color-scheme: dark){{:root{{{escuro}}}}}")
+    return css + p["extra"]
+
+
+TEMA_JS = """<script>(function(){var h=new Date().getHours();if(h<8||h>=20)document.documentElement.classList.add('noite');})();</script>"""
+
 
 ICONE = """<svg viewBox="0 0 64 64" width="{s}" height="{s}" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="3"/>
 <path d="M35 10 19 36h11l-3 18 18-28H34l1-16z" fill="currentColor"/></svg>"""
@@ -40,6 +108,7 @@ ICONE = """<svg viewBox="0 0 64 64" width="{s}" height="{s}" aria-hidden="true">
 BASE = """<!doctype html>
 <html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#171a20"><title>Gateway Tesla API · {{ titulo }}</title>
+{% if modo == 'hora' %}{{ tema_js|safe }}{% endif %}
 <style>
 {{ tema_css|safe }}
 *{box-sizing:border-box}body{margin:0;font:14px/1.5 var(--font);background:var(--bg);color:var(--txt)}
@@ -50,7 +119,8 @@ header .sp{flex:1}.quem{color:var(--hdr-mut);font-size:13px;white-space:nowrap}m
 .card{background:var(--card);border:1px solid var(--bd);border-radius:var(--rad);padding:16px 20px;margin-bottom:16px}
 h2{font-size:15px;margin:0 0 12px}h3{font-size:14px;margin:14px 0 8px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
 .kpi{background:var(--card);border:1px solid var(--bd);border-radius:var(--rad);padding:14px}.kpi small{color:var(--mut)}.kpi div{font-size:22px;font-weight:600}
-table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--bd);vertical-align:top}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--bd);vertical-align:top;overflow-wrap:anywhere}
+.card,.kpi{min-width:0;overflow-wrap:anywhere}select,input{max-width:100%}pre,code{overflow-wrap:anywhere}
 th{color:var(--mut);font-weight:500;font-size:12px;text-transform:uppercase}
 .b{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}
 .ok{background:var(--okbg);color:var(--ok)}.warn{background:var(--warnbg);color:var(--warn)}.err{background:var(--errbg);color:var(--err)}.mut{background:var(--sec);color:var(--mut)}
@@ -76,6 +146,12 @@ pre{background:#1d2433;color:#e6e9f0;padding:10px;border-radius:6px;overflow-x:a
 .sub{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;margin:0 0 14px;padding-bottom:4px;scrollbar-width:thin}
 .sub a{padding:5px 11px;border-radius:16px;background:var(--sec);color:var(--txt);text-decoration:none;white-space:nowrap;font-size:13px}
 .sub a.on{background:var(--pri);color:var(--pri-txt)}
+.donuts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}
+.donut{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.donut svg{flex:0 0 150px}
+.donut ul{list-style:none;margin:0;padding:0;flex:1;min-width:150px}.donut li{display:flex;gap:8px;align-items:center;padding:3px 0;font-size:13px}
+.donut li span.s{width:12px;height:12px;border-radius:3px;flex:0 0 12px}.donut li .n{flex:1;min-width:0}
+.donut li b{font-weight:600;white-space:nowrap}.donut li .p{width:42px;text-align:right;white-space:nowrap}
+.donut circle.f{transition:stroke-width .15s}.donut circle.f:hover{stroke-width:7}
 .leitura{background:var(--warnbg);color:var(--warn);text-align:center;padding:6px;font-size:13px}
 .entrada{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
 .entrada .caixa{background:var(--card);border:1px solid var(--bd);border-radius:calc(var(--rad)*2);padding:36px 28px;width:100%;max-width:380px;text-align:center}
@@ -91,8 +167,10 @@ pre{background:#1d2433;color:#e6e9f0;padding:10px;border-radius:6px;overflow-x:a
  table:not(.rt):not(.ft) th,table:not(.rt):not(.ft) td{white-space:nowrap;padding:6px}
  table.rt,table.rt tbody{display:block}table.rt tr.rh{display:none}
  table.rt tr{display:block;border:1px solid var(--bd);border-radius:var(--rad);margin:0 0 8px;padding:6px 12px;background:var(--card)}
- table.rt td{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border:0;padding:5px 0;text-align:right;word-break:break-word}
- table.rt td::before{content:attr(data-l);color:var(--mut);font-size:11px;text-transform:uppercase;text-align:left;flex:0 0 38%;padding-top:2px}
+ table.rt td{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border:0;padding:5px 0;text-align:right;min-width:0;overflow-wrap:anywhere;word-break:break-word}
+ table.rt td>*{min-width:0;max-width:100%}table.rt td code{white-space:normal}table.rt td select{width:auto;max-width:60%}
+ table.rt td form.in{display:inline-flex}
+ table.rt td::before{content:attr(data-l);color:var(--mut);font-size:11px;text-transform:uppercase;text-align:left;flex:0 0 34%;max-width:34%;padding-top:2px;overflow-wrap:anywhere}
  table.rt td[data-l=""]{justify-content:flex-start;flex-wrap:wrap;text-align:left}table.rt td[data-l=""]::before{display:none}
  table.rt td.sel{justify-content:flex-start}
  input:not([type=checkbox]):not([type=radio]),select{width:100%}.row label{width:100%}
@@ -100,6 +178,7 @@ pre{background:#1d2433;color:#e6e9f0;padding:10px;border-radius:6px;overflow-x:a
  table.ft,table.ft tbody,table.ft tr,table.ft td,table.ft th{display:block;width:100%;white-space:normal}
  table.ft td,table.ft th{border-bottom:0;padding:4px 0}table.ft tr{border-bottom:1px solid var(--bd);padding:8px 0}
  .mapa{height:360px}
+ .donut{flex-direction:column;align-items:stretch}.donut svg{flex:0 0 auto;width:160px;align-self:center}
 }
 </style></head><body>
 {% if session.get('user') %}
@@ -130,7 +209,7 @@ pre{background:#1d2433;color:#e6e9f0;padding:10px;border-radius:6px;overflow-x:a
 // Tabelas com cabeçalho passam a cartões no telemóvel (cada célula mostra o nome da coluna)
 document.querySelectorAll('table:not(.ft)').forEach(function (t) {
   var cab = Array.prototype.find.call(t.rows, function (r) { return r.cells.length && Array.prototype.every.call(r.cells, function (c) { return c.tagName === 'TH'; }); });
-  if (!cab) return;
+  if (!cab) { t.classList.add('ft'); return; }   // tabela chave/valor: empilha no telemóvel
   var nomes = Array.prototype.map.call(cab.cells, function (c) { return c.textContent.trim(); });
   t.classList.add('rt'); cab.classList.add('rh');
   Array.prototype.forEach.call(t.rows, function (r) {
@@ -163,15 +242,12 @@ def csrf():
     return session["csrf"]
 
 
-def tema_atual():
-    return TEMAS.get(c.get_def("tema") or "claro", TEMAS["claro"])
-
-
 def render(titulo, pag, corpo, aba=None, **ctx):
     nova = session.pop("nova_chave", None)
     corpo_html = render_template_string(corpo, csrf=csrf, icone=icone, **ctx)
     return render_template_string(BASE, titulo=titulo, pag=pag, corpo=corpo_html, csrf=csrf, nova_chave=nova,
-                                  icone=icone, tema_css=tema_atual()["css"],
+                                  icone=icone, tema_css=tema_css(), tema_js=TEMA_JS,
+                                  modo=c.get_def("tema_modo") or "sistema",
                                   abas=abas_definicoes(aba) if aba else "")
 
 
@@ -635,23 +711,29 @@ def minha_password():
 @login_obrigatorio
 def temas():
     if request.method == "POST":
-        t = request.form.get("tema")
-        if t in TEMAS:
+        t, m = request.form.get("tema"), request.form.get("modo")
+        if t in PALETAS:
             c.set_def("tema", t)
-            flash(f"Tema '{TEMAS[t]['nome']}' aplicado", "ok")
+        if m in MODOS:
+            c.set_def("tema_modo", m)
+        flash("Aparência guardada", "ok")
         return redirect(url_for("temas"))
-    atual = c.get_def("tema") or "claro"
     return render("Temas", "definicoes", """
-<div class="card"><h2>Tema do portal</h2><p class="mutt">Aplica-se a todos os utilizadores e ao ecrã de entrada.</p>
-<div class="grid">{% for k, t in temas.items() %}
-<form method="post" class="kpi" style="display:flex;flex-direction:column;gap:10px">
-<input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="tema" value="{{ k }}">
-<b>{{ t.nome }}</b>{% if k == atual %} <span class="b ok" style="align-self:flex-start">em uso</span>{% endif %}
-<div style="display:flex;gap:6px">{% for cor in amostras[k] %}<span style="width:28px;height:28px;border-radius:50%;background:{{ cor }};border:1px solid #ccc"></span>{% endfor %}</div>
-<button {{ 'disabled' if k == atual }}>{{ 'Aplicado' if k == atual else 'Aplicar' }}</button></form>{% endfor %}</div></div>""",
-                  aba="temas", temas=TEMAS, atual=atual,
-                  amostras={"claro": ["#1d2433", "#f5f6f8", "#3157d5"], "escuro": ["#0b0e13", "#171b23", "#5b7cfa"],
-                            "tesla": ["#ffffff", "#171a20", "#3e6ae1"]})
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}">
+<div class="card"><h2>Tema</h2><p class="mutt">Aplica-se a todos os utilizadores e ao ecrã de entrada. Cada tema tem uma versão clara e uma escura.</p>
+<div class="grid">{% for k, p in paletas.items() %}
+<label class="kpi" style="display:flex;flex-direction:column;gap:10px;cursor:pointer">
+<span style="display:flex;gap:8px;align-items:center"><input type="radio" name="tema" value="{{ k }}" {{ 'checked' if k == tema }}> <b>{{ p.nome }}</b></span>
+<span style="display:flex;gap:6px">{% for cor in p.amostra %}<span style="width:26px;height:26px;border-radius:50%;background:{{ cor }};border:1px solid #9995"></span>{% endfor %}</span>
+</label>{% endfor %}</div></div>
+<div class="card"><h2>Claro / escuro</h2>
+{% for k, d in modos.items() %}<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 0">
+<input type="radio" name="modo" value="{{ k }}" {{ 'checked' if k == modo }}><span>{{ d }}</span></label>{% endfor %}
+<p class="mutt">"Como o sistema" segue a definição do telemóvel ou computador (muitos mudam sozinhos ao anoitecer).
+"Pela hora" usa a hora do dispositivo de quem está a ver.</p>
+<button>Guardar</button></div></form>""",
+                  aba="temas", paletas=PALETAS, modos=MODOS, tema=c.get_def("tema") or "padrao",
+                  modo=c.get_def("tema_modo") or "sistema")
 
 
 @app.route("/definicoes", methods=["GET", "POST"])
@@ -794,12 +876,46 @@ para todos, mesmo que o cliente tenha a permissão.</p>
                   ativa=c.get_def("status_api_ativa") == "1", pref=c.get_def("status_api_token_prefixo"))
 
 
+def donut(titulo, itens, unidade="$", casas=3):
+    """Gráfico circular (anel) em SVG com legenda; itens = [(nome, valor)], mais de 6 agrupa em "Outros"."""
+    itens = sorted([(n, v) for n, v in itens if v > 0], key=lambda x: -x[1])
+    if len(itens) > 6:
+        itens = itens[:5] + [("Outros", sum(v for _, v in itens[5:]))]
+    total = sum(v for _, v in itens)
+    if not total:
+        return Markup(f"<div><h3>{escape(titulo)}</h3><p class='mutt'>Sem consumo neste mês.</p></div>")
+    gap = 0.8 if len(itens) > 1 else 0
+    arcos, legenda, acum = [], [], 0.0
+    for i, (n, v) in enumerate(itens):
+        pct = 100 * v / total
+        comp = max(pct - gap, 0.4)
+        arcos.append(f"<circle class='f' r='15.915' cx='21' cy='21' fill='none' stroke='var(--c{i + 1})' stroke-width='6' "
+                     f"stroke-dasharray='{comp:.3f} {100 - comp:.3f}' stroke-dashoffset='{25 - acum:.3f}'>"
+                     f"<title>{escape(n)}: {v:.{casas}f} {unidade} ({pct:.1f} %)</title></circle>")
+        legenda.append(f"<li><span class='s' style='background:var(--c{i + 1})'></span><span class='n'>{escape(n)}</span>"
+                       f"<b>{v:.{casas}f} {unidade}</b><span class='p mutt'>{pct:.0f} %</span></li>")
+        acum += pct
+    svg = (f"<svg viewBox='0 0 42 42' role='img' aria-label='{escape(titulo)}'>"
+           f"<circle r='15.915' cx='21' cy='21' fill='none' stroke='var(--sec)' stroke-width='6'/>{''.join(arcos)}"
+           f"<text x='21' y='20.5' text-anchor='middle' font-size='5' font-weight='600' fill='var(--txt)'>{total:.2f}</text>"
+           f"<text x='21' y='26' text-anchor='middle' font-size='3' fill='var(--mut)'>{unidade} total</text></svg>")
+    return Markup(f"<div><h3>{escape(titulo)}</h3><div class='donut'>{svg}<ul>{''.join(legenda)}</ul></div></div>")
+
+
 @app.get("/consumo")
 @login_obrigatorio
 def consumo():
     m = c.consumo_mes(request.args.get("mes"))
     nomes = {"dados": "Pedidos de dados", "wake": "Wakes", "comando": "Comandos"}
+    por_cli = {}
+    for x in m["por_cliente"]:
+        por_cli[x["cliente"]] = por_cli.get(x["cliente"], 0) + x["custo"]
+    graf_tipo = donut("Por tipo de pedido", [(nomes[k], v["custo"]) for k, v in m["categorias"].items()])
+    graf_cli = donut("Por cliente", list(por_cli.items()))
     return render("Consumo", "consumo", """
+<div class="card"><h2>Onde foram gastos os créditos — {{ m.mes }}</h2>
+<div class="donuts">{{ graf_tipo }}{{ graf_cli }}</div>
+<p class="mutt" style="margin-bottom:0">Passe o rato (ou toque) numa fatia para ver o valor. Os mesmos números estão nas tabelas abaixo.</p></div>
 <div class="card"><h2>Consumo estimado — {{ m.mes }}</h2>
 {% set pct = m.credito_usado_pct or 0 %}
 <div class="grid" style="margin-bottom:12px">
@@ -831,7 +947,7 @@ def consumo():
 {% for x in m.por_dia %}<div style="display:flex;gap:10px;align-items:center;margin:3px 0">
 <span style="width:90px" class="mutt">{{ x.dia[5:] }}</span><div class="barra" style="flex:1"><div style="width:{{ 100 * x.n // maxd }}%"></div></div>
 <span style="width:40px;text-align:right">{{ x.n }}</span></div>{% else %}<p class="mutt">Sem pedidos este mês.</p>{% endfor %}
-</div>""", m=m, nomes=nomes)
+</div>""", m=m, nomes=nomes, graf_tipo=graf_tipo, graf_cli=graf_cli)
 
 
 @app.route("/tesla", methods=["GET", "POST"])
@@ -917,7 +1033,12 @@ def ler_filtro():
     periodo = request.args.get("periodo", "mes")
     omissao = {"semana": agora.strftime("%G-W%V"), "mes": agora.strftime("%Y-%m"), "ano": str(agora.year),
                "dias": "30", "tudo": ""}
-    valor = request.args.get("valor") or omissao.get(periodo, "")
+    if periodo not in omissao:
+        periodo = "mes"
+    formatos = {"semana": r"\d{4}-W\d{2}", "mes": r"\d{4}-\d{2}", "ano": r"\d{4}", "dias": r"\d{1,4}", "tudo": r".*"}
+    valor = request.args.get("valor") or ""
+    if not re.fullmatch(formatos[periodo], valor):
+        valor = omissao[periodo]          # ex.: ao mudar de "mês" para "ano" o valor antigo não serve
     de, ate = c.intervalo_periodo(periodo, valor)
     with c.db() as con:
         vins = [r[0] for r in con.execute("SELECT DISTINCT vin FROM viagens UNION SELECT vin FROM estado_veiculo")]

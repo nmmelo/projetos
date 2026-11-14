@@ -7,6 +7,7 @@ tesla-key gateway — API interna (porta 8000, só rede Docker).
 
 Clientes, token da Status API e definições geridos no portal admin ou com `tesla-setup`.
 """
+import re
 import time
 from datetime import datetime, timezone
 
@@ -146,6 +147,27 @@ def positions(vin):
     agregado = request.args.get("agregado", "1") != "0"
     pts = c.posicoes(vin, de, ate, agregado=agregado, so_viagens=request.args.get("so_viagens") == "1")
     return jsonify({"pontos": pts, "agregado": agregado, "de": de, "ate": ate})
+
+
+@app.get("/api/me/consumo")
+def me_consumo():
+    """Consumo estimado só deste cliente (sempre permitido)."""
+    return jsonify(c.consumo_cliente(g.cliente, request.args.get("mes")))
+
+
+@app.get("/api/consumo")
+def consumo():
+    requer("consumo")
+    mes = request.args.get("mes")
+    if mes and not re.fullmatch(r"\d{4}-\d{2}", mes):
+        abort(400, "mes: AAAA-MM")
+    return jsonify(c.consumo_mes(mes))
+
+
+@app.get("/api/recolha")
+def recolha():
+    requer("viagens")
+    return jsonify(c.estado_recolha())
 
 
 @app.get("/api/me")
