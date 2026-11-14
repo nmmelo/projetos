@@ -72,7 +72,9 @@ tesla-key/
 | `tesla-setup veiculos` | `GET /api/1/vehicles` |
 | `tesla-setup refresh` | Renova o access token |
 | `tesla-setup estado` | Resumo da configuração |
-| `tesla-setup admin` | Define o utilizador/password do portal admin |
+| `tesla-setup admin` | Cria/altera um administrador do portal |
+| `tesla-setup utilizador list\|add\|perfil\|password\|on\|off\|rm ...` | Utilizadores do portal (perfis `admin` e `leitura`) |
+| `tesla-setup auditoria [N] [TIPO]` | Auditoria do portal (login, login_falhado, bloqueado, acao, negado) |
 | `tesla-setup cliente add NOME [DESCRIÇÃO] [--perm LISTA]` | Cria um cliente e mostra a chave (só uma vez); sem `--perm` usa o preset `leitura` |
 | `tesla-setup cliente list` | Lista os clientes (prefixo, estado, último uso, pedidos, permissões) |
 | `tesla-setup cliente perm NOME [set\|add\|rm LISTA]` | Mostra ou altera as permissões do cliente |
@@ -272,24 +274,41 @@ desativada responde 404. Autenticação com `Authorization: Bearer <token>` (tok
 
 ### Portal admin (`http://<ip-nas>:8089`)
 
-| Página | O que permite |
+| Menu | O que tem |
 |---|---|
 | Estado | Gateway, token Tesla, clientes, consumo do mês, pedidos/warnings/erros 24 h, testar ligação, renovar token |
-| Viagens | Estado da recolha por veículo, viagens com filtros (semana, mês, ano, 30 dias) e totais; detalhe com mapa do percurso e exportação GPX/JSON |
-| Mapa | Mapa de calor das posições registadas ("por onde andou"), com filtros por semana, mês ou ano |
-| Dados | Contagens da base de dados, exportação (CSV, JSON, GPX, GeoJSON) e backups (criar, descarregar, restaurar, apagar, automático diário) |
-| API | Ajuda dos endpoints: método, caminho, permissão, parâmetros, exemplo `curl` e de resposta |
-| Consumo | Estimativa de créditos do mês: por tipo (dados, wakes, comandos), por cliente, por endpoint e por dia, com limites diários |
-| Clientes | Criar com preset de permissões (mostra a chave uma vez), editar permissões, ativar/desativar, nova chave, apagar |
-| Tesla | Ver e editar o `tesla.env` (segredos mascarados) e comparar os scopes pedidos com os do token atual |
-| Logs | Atividade, warnings e erros, com filtro por nível e cliente |
-| Definições | Tempos de atualização, secções do `/data` por omissão, funcionalidades ativas, preços/crédito, logs, Status API, password |
+| Consumo | Estimativa de créditos do mês: por tipo, cliente, endpoint e dia, com limites diários |
+| Viagens | Estado da recolha, viagens com filtros (semana, mês, ano, 30 dias) e totais; detalhe com mapa e GPX/JSON |
+| Mapa | Mapa de calor das posições registadas, com filtros por semana, mês ou ano |
+| Clientes | Criar com preset de permissões (chave mostrada uma vez), permissões, ativar/desativar, nova chave, apagar |
+| Tesla | Ver/editar o `tesla.env` (segredos mascarados) e comparar scopes pedidos vs. token |
+| **Definições** | Abas: |
 
-O portal adapta-se a ecrãs pequenos (telemóvel): menu deslizante, cartões em duas colunas, tabelas com
-deslocamento horizontal e formulários em coluna.
+| Aba de Definições | O que tem |
+|---|---|
+| Geral | Recolha de viagens, tempos de atualização, dados do `/data` por omissão, funcionalidades ativas, preços/crédito |
+| Acessos | Utilizadores do portal com perfil **Administrador** ou **Só leitura**; criar, mudar perfil, ativar/desativar, password, apagar; "A minha password" |
+| Logs | Sub-abas **Registos** (filtros, apagar selecionados/todos/antigos, retenção) e **Auditoria** (logins, falhas, bloqueios, ações e acessos negados, com data, IP, utilizador e navegador; filtros e apagar) e proteção do login |
+| Dados | Contagens, exportação (CSV, JSON, GPX, GeoJSON) e backups |
+| API | Sub-abas: "Como usar", uma por endpoint (permissão, parâmetros, `curl`, Python, exemplo de resposta), Status API e códigos de resposta |
+| Temas | Claro, Escuro e Tesla (minimalista); aplica-se a todos e ao ecrã de entrada |
 
-Login definido com `tesla-setup admin`. Sessão de 8 h, formulários com proteção CSRF, tentativas de login
-registadas nos logs.
+**Ecrã de entrada:** caixa "Gateway Tesla API" com o botão **Entrar**, que mostra os campos. Proteção contra
+tentativas automáticas: verificação humana (soma simples), campo-armadilha invisível, recusa de submissões
+feitas em menos de 2 s e bloqueio do IP após 5 falhas em 15 min (configurável em Definições → Logs → Auditoria).
+
+**Perfis:**
+
+| Perfil | Pode |
+|---|---|
+| Administrador | Tudo |
+| Só leitura | Ver todas as páginas (segredos mascarados) e exportar dados; mudar a própria password. Não altera nada nem descarrega backups (os botões ficam desativados e o servidor recusa) |
+
+Tem de existir sempre pelo menos um administrador ativo. Na primeira vez: `tesla-setup admin`. Ao atualizar de
+uma versão anterior, o login existente passa a ser um utilizador Administrador.
+
+Em telemóvel, as tabelas passam a cartões (cada linha mostra o nome da coluna ao lado do valor), o menu e as
+abas deslizam na horizontal e os formulários ficam em coluna.
 
 ### Logs
 

@@ -178,7 +178,10 @@ Outros:
   estado      resumo da configuração
 
 Gateway (portal admin, clientes, Status API, logs):
-  admin                         define utilizador/password do portal admin
+  admin                         cria/altera um administrador do portal admin
+  utilizador list|add|perfil|password|on|off|rm ...
+                                utilizadores do portal (perfis admin e leitura)
+  auditoria [N] [TIPO]          auditoria do portal (logins, falhas, bloqueios, ações)
   cliente add NOME [DESCRIÇÃO] [--perm LISTA]
                                 cria cliente e mostra a chave X-API-Key
                                 (LISTA: preset tudo|leitura|basico|nenhuma ou ex.: carga,imagem)
@@ -219,6 +222,11 @@ case "$cmd" in
     cliente)
         sub="${1:-list}"; shift || true
         exec python3 "$GATEWAY_CLI" "cliente-$sub" "$@" ;;
+    utilizador)
+        sub="${1:-list}"; shift || true
+        exec python3 "$GATEWAY_CLI" "utilizador-$sub" "$@" ;;
+    auditoria)
+        exec python3 "$GATEWAY_CLI" auditoria "$@" ;;
 esac
 carregar_conf
 case "$cmd" in

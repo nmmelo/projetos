@@ -7,12 +7,13 @@ e configurar a Status API e as definições.
 import json
 import os
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 from flask import (Flask, Response, abort, flash, jsonify, redirect, render_template_string, request,
                    send_file, session, url_for)
-from markupsafe import Markup
+from markupsafe import Markup, escape
 
 import common as c
 
@@ -22,54 +23,87 @@ app.secret_key = c.get_def("secret_key")
 app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Strict",
                   PERMANENT_SESSION_LIFETIME=timedelta(hours=8))
 
+TEMAS = {
+    "claro": {"nome": "Claro", "css": ":root{--bg:#f5f6f8;--card:#fff;--txt:#1d2433;--mut:#6b7385;--pri:#3157d5;--pri-txt:#fff;--ok:#1f8a4c;--warn:#b7791f;--err:#c53030;--bd:#e3e6ec;--sec:#eceef2;--code:#eceef2;--hdr:#1d2433;--hdr-txt:#fff;--hdr-mut:#c8cfe0;--okbg:#e3f4ea;--warnbg:#fbf0dc;--errbg:#fde8e8;--rad:8px;--font:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}"},
+    "escuro": {"nome": "Escuro", "css": ":root{--bg:#0f1218;--card:#171b23;--txt:#e6e9f0;--mut:#98a1b3;--pri:#5b7cfa;--pri-txt:#fff;--ok:#4cc38a;--warn:#e0a84b;--err:#f07171;--bd:#2a303c;--sec:#262c38;--code:#232937;--hdr:#0b0e13;--hdr-txt:#fff;--hdr-mut:#98a1b3;--okbg:rgba(76,195,138,.15);--warnbg:rgba(224,168,75,.15);--errbg:rgba(240,113,113,.15);--rad:8px;--font:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}"},
+    "tesla": {"nome": "Tesla (minimalista)", "css": ":root{--bg:#f4f4f4;--card:#fff;--txt:#171a20;--mut:#5c5e62;--pri:#3e6ae1;--pri-txt:#fff;--ok:#2d7d46;--warn:#9a6b00;--err:#c4161c;--bd:#e2e3e3;--sec:#f4f4f4;--code:#f4f4f4;--hdr:#fff;--hdr-txt:#171a20;--hdr-mut:#5c5e62;--okbg:#e8f3eb;--warnbg:#f8f0dc;--errbg:#fbe7e8;--rad:4px;--font:'Gotham SSm','Gotham','Montserrat','Helvetica Neue',Helvetica,Arial,sans-serif}"
+              "header{border-bottom:1px solid var(--bd);box-shadow:none}header b{letter-spacing:.25em;text-transform:uppercase;font-weight:600;font-size:14px}"
+              "nav a{font-weight:500;font-size:13px;padding:4px 10px;border-radius:4px}nav a.on,nav a:hover{background:rgba(23,26,32,.06)}"
+              ".card,.kpi{border:0;box-shadow:0 1px 2px rgba(0,0,0,.04)}h2{font-weight:500;letter-spacing:.02em}"
+              "button{font-weight:500;letter-spacing:.02em;min-height:36px}button.sec{background:#fff;border:1px solid var(--bd)}"
+              ".entrada{background:linear-gradient(180deg,#fff 0%,#f4f4f4 100%)}.entrada h1{font-weight:500;letter-spacing:.08em;text-transform:uppercase}"},
+}
+
+ICONE = """<svg viewBox="0 0 64 64" width="{s}" height="{s}" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" stroke-width="3"/>
+<path d="M35 10 19 36h11l-3 18 18-28H34l1-16z" fill="currentColor"/></svg>"""
+
 BASE = """<!doctype html>
 <html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>tesla-key · {{ titulo }}</title>
+<meta name="theme-color" content="#171a20"><title>Gateway Tesla API · {{ titulo }}</title>
 <style>
-:root{--bg:#f5f6f8;--card:#fff;--txt:#1d2433;--mut:#6b7385;--pri:#3157d5;--ok:#1f8a4c;--warn:#b7791f;--err:#c53030;--bd:#e3e6ec}
-*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt)}
-header{background:#1d2433;color:#fff;padding:0 24px;display:flex;align-items:center;gap:24px;height:52px}
-header b{font-size:16px}header a{color:#c8cfe0;text-decoration:none}header a.on,header a:hover{color:#fff}
-header .sp{flex:1}main{max-width:1100px;margin:24px auto;padding:0 16px}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:16px 20px;margin-bottom:16px}
-h2{font-size:15px;margin:0 0 12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
-.kpi{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:14px}.kpi small{color:var(--mut)}.kpi div{font-size:22px;font-weight:600}
+{{ tema_css|safe }}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 var(--font);background:var(--bg);color:var(--txt)}
+a{color:var(--pri)}
+header{background:var(--hdr);color:var(--hdr-txt);padding:0 24px;display:flex;align-items:center;gap:20px;min-height:54px;position:sticky;top:0;z-index:1000}
+header b{font-size:15px;display:flex;align-items:center;gap:8px;white-space:nowrap}header a{color:var(--hdr-mut);text-decoration:none}header a.on,header a:hover{color:var(--hdr-txt)}
+header .sp{flex:1}.quem{color:var(--hdr-mut);font-size:13px;white-space:nowrap}main{max-width:1100px;margin:24px auto;padding:0 16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:var(--rad);padding:16px 20px;margin-bottom:16px}
+h2{font-size:15px;margin:0 0 12px}h3{font-size:14px;margin:14px 0 8px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.kpi{background:var(--card);border:1px solid var(--bd);border-radius:var(--rad);padding:14px}.kpi small{color:var(--mut)}.kpi div{font-size:22px;font-weight:600}
 table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--bd);vertical-align:top}
 th{color:var(--mut);font-weight:500;font-size:12px;text-transform:uppercase}
 .b{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}
-.ok{background:#e3f4ea;color:var(--ok)}.warn{background:#fbf0dc;color:var(--warn)}.err{background:#fde8e8;color:var(--err)}.mut{background:#eceef2;color:var(--mut)}
-input,select{padding:7px 9px;border:1px solid var(--bd);border-radius:6px;font:inherit}
-button{padding:7px 12px;border:0;border-radius:6px;background:var(--pri);color:#fff;font:inherit;cursor:pointer}
-button.sec{background:#eceef2;color:var(--txt)}button.del{background:var(--err)}
-form.in{display:inline}.fl{padding:10px 14px;border-radius:6px;margin-bottom:12px}
-.fl.ok{border:1px solid #b9e2c8}.fl.err{border:1px solid #f3b9b9}.fl.warn{border:1px solid #f0d49b}
-code{background:#eceef2;padding:2px 6px;border-radius:4px;word-break:break-all}.mutt{color:var(--mut)}
+.ok{background:var(--okbg);color:var(--ok)}.warn{background:var(--warnbg);color:var(--warn)}.err{background:var(--errbg);color:var(--err)}.mut{background:var(--sec);color:var(--mut)}
+input,select{padding:7px 9px;border:1px solid var(--bd);border-radius:var(--rad);font:inherit;background:var(--card);color:var(--txt)}
+button{padding:7px 12px;border:0;border-radius:var(--rad);background:var(--pri);color:var(--pri-txt);font:inherit;cursor:pointer}
+button.sec{background:var(--sec);color:var(--txt)}button.del{background:var(--err);color:#fff}button:disabled{opacity:.5;cursor:not-allowed}
+form.in{display:inline}.fl{padding:10px 14px;border-radius:var(--rad);margin-bottom:12px}
+.fl.ok{border:1px solid var(--ok)}.fl.err{border:1px solid var(--err)}.fl.warn{border:1px solid var(--warn)}
+code{background:var(--code);padding:2px 6px;border-radius:4px;word-break:break-all}.mutt{color:var(--mut)}
 .key{font-family:ui-monospace,monospace;background:#1d2433;color:#7ee2a8;padding:10px;border-radius:6px;word-break:break-all;margin:6px 0}
-nav{display:flex;gap:18px;align-items:center}
+nav{display:flex;gap:16px;align-items:center}
 .row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end;margin-bottom:8px}.row label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mut)}
 .chk{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 16px;margin:6px 0 12px}.chk label{display:flex;gap:8px;align-items:flex-start}
-.barra{height:10px;background:#eceef2;border-radius:6px;overflow:hidden}.barra div{height:100%;background:var(--pri)}
+.barra{height:10px;background:var(--sec);border-radius:6px;overflow:hidden}.barra div{height:100%;background:var(--pri)}
 .barra div.warn{background:var(--warn)}.barra div.err{background:var(--err)}
-.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.mapa{height:480px;border-radius:8px;border:1px solid var(--bd)}
+.mapa{height:480px;border-radius:var(--rad);border:1px solid var(--bd)}
 .m{font-family:ui-monospace,monospace;font-size:12px;font-weight:700;padding:2px 7px;border-radius:4px;color:#fff}
 .m.GET{background:#1f8a4c}.m.POST{background:#b7791f}
 pre{background:#1d2433;color:#e6e9f0;padding:10px;border-radius:6px;overflow-x:auto;font-size:12px;white-space:pre-wrap;word-break:break-all}
+.abas{display:flex;gap:4px;border-bottom:1px solid var(--bd);margin:0 0 16px;overflow-x:auto;scrollbar-width:none}
+.abas a{padding:9px 14px;color:var(--mut);text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px}
+.abas a.on{color:var(--txt);border-bottom-color:var(--pri);font-weight:600}
+.sub{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;margin:0 0 14px;padding-bottom:4px;scrollbar-width:thin}
+.sub a{padding:5px 11px;border-radius:16px;background:var(--sec);color:var(--txt);text-decoration:none;white-space:nowrap;font-size:13px}
+.sub a.on{background:var(--pri);color:var(--pri-txt)}
+.leitura{background:var(--warnbg);color:var(--warn);text-align:center;padding:6px;font-size:13px}
+.entrada{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+.entrada .caixa{background:var(--card);border:1px solid var(--bd);border-radius:calc(var(--rad)*2);padding:36px 28px;width:100%;max-width:380px;text-align:center}
+.entrada h1{font-size:22px;margin:14px 0 4px}.entrada .ic{color:var(--txt)}
+.entrada form{text-align:left;margin-top:18px}.entrada input{width:100%;margin:6px 0}.entrada button{width:100%;margin-top:10px;padding:11px}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 @media (max-width:760px){
- header{height:auto;flex-wrap:wrap;padding:10px 12px;gap:8px 14px}
- header nav{order:3;width:100%;overflow-x:auto;gap:16px;padding-bottom:4px;white-space:nowrap}
+ header{flex-wrap:wrap;padding:8px 12px;gap:6px 12px}
+ header nav{order:3;width:100%;overflow-x:auto;gap:14px;padding-bottom:4px;white-space:nowrap;scrollbar-width:none}
  main{margin:12px auto;padding:0 8px}.card{padding:12px}
  .grid{grid-template-columns:repeat(2,1fr);gap:8px}.kpi div{font-size:18px}
- table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}th,td{white-space:nowrap;padding:6px}
+ table:not(.rt):not(.ft){display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+ table:not(.rt):not(.ft) th,table:not(.rt):not(.ft) td{white-space:nowrap;padding:6px}
+ table.rt,table.rt tbody{display:block}table.rt tr.rh{display:none}
+ table.rt tr{display:block;border:1px solid var(--bd);border-radius:var(--rad);margin:0 0 8px;padding:6px 12px;background:var(--card)}
+ table.rt td{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border:0;padding:5px 0;text-align:right;word-break:break-word}
+ table.rt td::before{content:attr(data-l);color:var(--mut);font-size:11px;text-transform:uppercase;text-align:left;flex:0 0 38%;padding-top:2px}
+ table.rt td[data-l=""]{justify-content:flex-start;flex-wrap:wrap;text-align:left}table.rt td[data-l=""]::before{display:none}
+ table.rt td.sel{justify-content:flex-start}
  input:not([type=checkbox]):not([type=radio]),select{width:100%}.row label{width:100%}
- button{padding:9px 12px}form.in{display:inline-block;margin:2px 0}
- table.ft,table.ft tbody,table.ft tr,table.ft td{display:block;width:100%;white-space:normal}
- table.ft td{border-bottom:0;padding:4px 0}table.ft tr{border-bottom:1px solid var(--bd);padding:8px 0}
+ button{padding:10px 12px}form.in{display:inline-block;margin:2px 0}
+ table.ft,table.ft tbody,table.ft tr,table.ft td,table.ft th{display:block;width:100%;white-space:normal}
+ table.ft td,table.ft th{border-bottom:0;padding:4px 0}table.ft tr{border-bottom:1px solid var(--bd);padding:8px 0}
  .mapa{height:360px}
 }
 </style></head><body>
 {% if session.get('user') %}
-<header><b>tesla-key</b>
+<header><b>{{ icone(20)|safe }} Gateway Tesla</b>
 <nav>
 <a href="{{ url_for('painel') }}" class="{{ 'on' if pag=='painel' }}">Estado</a>
 <a href="{{ url_for('consumo') }}" class="{{ 'on' if pag=='consumo' }}">Consumo</a>
@@ -77,20 +111,50 @@ pre{background:#1d2433;color:#e6e9f0;padding:10px;border-radius:6px;overflow-x:a
 <a href="{{ url_for('mapa') }}" class="{{ 'on' if pag=='mapa' }}">Mapa</a>
 <a href="{{ url_for('clientes') }}" class="{{ 'on' if pag=='clientes' }}">Clientes</a>
 <a href="{{ url_for('tesla_conf') }}" class="{{ 'on' if pag=='tesla' }}">Tesla</a>
-<a href="{{ url_for('dados') }}" class="{{ 'on' if pag=='dados' }}">Dados</a>
-<a href="{{ url_for('api_ajuda') }}" class="{{ 'on' if pag=='api' }}">API</a>
-<a href="{{ url_for('logs') }}" class="{{ 'on' if pag=='logs' }}">Logs</a>
 <a href="{{ url_for('definicoes') }}" class="{{ 'on' if pag=='definicoes' }}">Definições</a>
 </nav>
-<span class="sp"></span><span class="mutt">{{ session['user'] }}</span>
+<span class="sp"></span><span class="quem">{{ session['user'] }}{{ ' · leitura' if session.get('perfil') != 'admin' }}</span>
 <form class="in" method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="sec">Sair</button></form>
-</header>{% endif %}
+</header>
+{% if session.get('perfil') != 'admin' %}<div class="leitura">Perfil só de leitura: as alterações estão desativadas.</div>{% endif %}
+{% endif %}
+{% if pag == 'entrada' %}{{ corpo|safe }}{% else %}
 <main>
 {% for cat, msg in get_flashed_messages(with_categories=true) %}<div class="fl {{ cat }} card">{{ msg }}</div>{% endfor %}
 {% if nova_chave %}<div class="card fl warn"><b>{{ nova_chave.titulo }}</b> — copie agora, não volta a ser mostrada:
 <div class="key">{{ nova_chave.valor }}</div></div>{% endif %}
+{% if abas %}{{ abas|safe }}{% endif %}
 {{ corpo|safe }}
-</main></body></html>"""
+</main>{% endif %}
+<script>
+// Tabelas com cabeçalho passam a cartões no telemóvel (cada célula mostra o nome da coluna)
+document.querySelectorAll('table:not(.ft)').forEach(function (t) {
+  var cab = Array.prototype.find.call(t.rows, function (r) { return r.cells.length && Array.prototype.every.call(r.cells, function (c) { return c.tagName === 'TH'; }); });
+  if (!cab) return;
+  var nomes = Array.prototype.map.call(cab.cells, function (c) { return c.textContent.trim(); });
+  t.classList.add('rt'); cab.classList.add('rh');
+  Array.prototype.forEach.call(t.rows, function (r) {
+    if (r === cab) return;
+    Array.prototype.forEach.call(r.cells, function (c, i) { if (!c.hasAttribute('data-l')) c.setAttribute('data-l', c.colSpan > 1 ? '' : (nomes[i] || '')); });
+  });
+});
+{% if session.get('user') and session.get('perfil') != 'admin' %}
+document.querySelectorAll('main form[method=post]:not(.livre) button, main form[method=post]:not(.livre) input, main form[method=post]:not(.livre) select').forEach(function (e) { if (e.type !== 'hidden') e.disabled = true; });
+{% endif %}
+</script>
+</body></html>"""
+
+ABAS_DEF = [("geral", "Geral", "definicoes"), ("acessos", "Acessos", "acessos"), ("logs", "Logs", "logs"),
+            ("dados", "Dados", "dados"), ("api", "API", "api_ajuda"), ("temas", "Temas", "temas")]
+
+
+def abas_definicoes(atual):
+    return "<div class='abas'>" + "".join(
+        f"<a href='{url_for(fn)}' class='{'on' if k == atual else ''}'>{n}</a>" for k, n, fn in ABAS_DEF) + "</div>"
+
+
+def icone(s=28):
+    return ICONE.replace("{s}", str(s))
 
 
 def csrf():
@@ -99,19 +163,53 @@ def csrf():
     return session["csrf"]
 
 
-def render(titulo, pag, corpo, **ctx):
+def tema_atual():
+    return TEMAS.get(c.get_def("tema") or "claro", TEMAS["claro"])
+
+
+def render(titulo, pag, corpo, aba=None, **ctx):
     nova = session.pop("nova_chave", None)
-    corpo_html = render_template_string(corpo, csrf=csrf, **ctx)
-    return render_template_string(BASE, titulo=titulo, pag=pag, corpo=corpo_html, csrf=csrf, nova_chave=nova)
+    corpo_html = render_template_string(corpo, csrf=csrf, icone=icone, **ctx)
+    return render_template_string(BASE, titulo=titulo, pag=pag, corpo=corpo_html, csrf=csrf, nova_chave=nova,
+                                  icone=icone, tema_css=tema_atual()["css"],
+                                  abas=abas_definicoes(aba) if aba else "")
+
+
+def ip_cliente():
+    return request.remote_addr or "?"
+
+
+# Rotas que um perfil "leitura" pode usar com POST
+POST_LEITURA = {"logout", "minha_password"}
+# Rotas GET só para administradores
+GET_ADMIN = {"descarregar_backup"}
 
 
 def login_obrigatorio(f):
     @wraps(f)
     def w(*a, **kw):
-        if not session.get("user"):
+        user = session.get("user")
+        if not user:
             return redirect(url_for("login", proximo=request.path))
-        if request.method == "POST" and request.form.get("csrf") != session.get("csrf"):
-            abort(400, "CSRF inválido")
+        perfil = c.perfil_utilizador(user)
+        if not perfil:                              # apagado ou desativado entretanto
+            session.clear()
+            flash("Sessão terminada: utilizador inativo", "err")
+            return redirect(url_for("login"))
+        session["perfil"] = perfil
+        if request.method == "POST":
+            if request.form.get("csrf") != session.get("csrf"):
+                abort(400, "CSRF inválido")
+            if perfil != "admin" and request.endpoint not in POST_LEITURA:
+                c.auditar("negado", ip_cliente(), user, f"{request.path} {request.form.get('acao', '')}".strip())
+                flash("O seu perfil é só de leitura", "err")
+                return redirect(request.referrer or url_for("painel"))
+            if request.endpoint not in ("logout",):
+                c.auditar("acao", ip_cliente(), user, f"{request.path} {request.form.get('acao', '')}".strip(),
+                          request.user_agent.string)
+        elif request.endpoint in GET_ADMIN and perfil != "admin":
+            flash("Disponível só para administradores", "err")
+            return redirect(request.referrer or url_for("painel"))
         return f(*a, **kw)
     return w
 
@@ -127,35 +225,80 @@ def erro_gw(e):
 
 
 # ---------------------------------------------------------------------------
-# Login
+# Entrada (login)
 # ---------------------------------------------------------------------------
+
+def novo_desafio():
+    a, b = secrets.randbelow(9) + 1, secrets.randbelow(9) + 1
+    session["desafio"] = {"r": a + b, "t": time.time()}
+    return f"Quanto é {a} + {b}?"
+
+
+ENTRADA = """<div class="entrada"><div class="caixa">
+<div class="ic">{{ icone(64)|safe }}</div>
+<h1>Gateway Tesla API</h1><div class="mutt">Portal de administração</div>
+{% for cat, msg in get_flashed_messages(with_categories=true) %}<div class="fl {{ cat }}" style="margin-top:14px">{{ msg }}</div>{% endfor %}
+{% if sem_utilizadores %}
+<p style="margin-top:18px">Portal ainda não configurado. Crie o primeiro administrador dentro do contentor:</p><code>tesla-setup admin</code>
+{% elif bloqueado %}
+<p style="margin-top:18px" class="err fl">Demasiadas tentativas falhadas a partir deste endereço. Tente de novo dentro de {{ (bloqueado // 60) + 1 }} min.</p>
+{% else %}
+<button id="entrar" type="button" style="width:100%;margin-top:22px;padding:12px" onclick="document.getElementById('cred').style.display='block';this.style.display='none';document.getElementById('u').focus()">Entrar</button>
+<form id="cred" method="post" style="display:{{ 'block' if mostrar else 'none' }}" autocomplete="on">
+<input type="hidden" name="csrf" value="{{ csrf() }}">
+<div class="hp"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div>
+<input id="u" name="user" placeholder="Utilizador" autocomplete="username" required>
+<input name="password" type="password" placeholder="Password" autocomplete="current-password" required>
+<label class="mutt" style="display:block;margin-top:10px;font-size:13px">Verificação: {{ pergunta }}</label>
+<input name="humano" inputmode="numeric" pattern="[0-9]*" placeholder="Resposta" autocomplete="off" required>
+<button>Entrar</button></form>
+<noscript><style>#cred{display:block!important}#entrar{display:none}</style></noscript>
+{% endif %}
+</div></div>"""
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if not c.get_def("admin_pass_hash"):
-        return render("Login", "", """<div class="card" style="max-width:420px;margin:60px auto">
-<h2>Portal não configurado</h2><p>Defina o utilizador e a password dentro do contentor:</p>
-<code>tesla-setup admin</code></div>""")
+    ip = ip_cliente()
+    if not c.existem_utilizadores():
+        return render("Entrar", "entrada", ENTRADA, sem_utilizadores=True)
+    espera = c.ip_bloqueado(ip)
+    if espera:
+        if request.method == "POST":
+            c.auditar("bloqueado", ip, request.form.get("user", "")[:40], "tentativa durante o bloqueio",
+                      request.user_agent.string)
+        return render("Entrar", "entrada", ENTRADA, bloqueado=espera)
+    mostrar = False
     if request.method == "POST":
-        u, p = request.form.get("user", ""), request.form.get("password", "")
-        if c.validar_admin(u, p):
+        mostrar = True
+        u, p = request.form.get("user", "").strip(), request.form.get("password", "")
+        d = session.get("desafio") or {}
+        humano_ok = (request.form.get("csrf") == session.get("csrf") and not request.form.get("website")
+                     and str(d.get("r")) == request.form.get("humano", "").strip()
+                     and time.time() - d.get("t", 0) >= 2)
+        perfil = c.validar_utilizador(u, p) if humano_ok else None
+        if perfil:
             session.clear()
             session.permanent = True
-            session["user"] = u
-            c.log("INFO", "admin", f"login: {u}", cliente=request.remote_addr)
-            return redirect(request.args.get("proximo") or url_for("painel"))
-        c.log("WARNING", "admin", f"login falhado: {u}", cliente=request.remote_addr)
-        flash("Utilizador ou password inválidos", "err")
-    return render("Login", "", """<div class="card" style="max-width:360px;margin:60px auto">
-<h2>tesla-key · login</h2><form method="post">
-<p><input name="user" placeholder="utilizador" style="width:100%" autofocus required></p>
-<p><input name="password" type="password" placeholder="password" style="width:100%" required></p>
-<button style="width:100%">Entrar</button></form></div>""")
+            session["user"], session["perfil"] = u, perfil
+            c.auditar("login", ip, u, f"perfil {perfil}", request.user_agent.string)
+            c.log("INFO", "admin", f"login: {u}", cliente=ip)
+            proximo = request.args.get("proximo") or ""
+            return redirect(proximo if proximo.startswith("/") and not proximo.startswith("//") else url_for("painel"))
+        motivo = "verificação humana falhada" if not humano_ok else "credenciais inválidas"
+        c.auditar("login_falhado", ip, u[:40], motivo, request.user_agent.string)
+        c.log("WARNING", "admin", f"login falhado: {u[:40]} ({motivo})", cliente=ip)
+        flash("Não foi possível entrar. Verifique os dados e a resposta à verificação.", "err")
+        espera = c.ip_bloqueado(ip)
+        if espera:
+            return render("Entrar", "entrada", ENTRADA, bloqueado=espera)
+    return render("Entrar", "entrada", ENTRADA, pergunta=novo_desafio(), mostrar=mostrar)
 
 
 @app.post("/logout")
 @login_obrigatorio
 def logout():
+    c.auditar("logout", ip_cliente(), session.get("user"))
     session.clear()
     return redirect(url_for("login"))
 
@@ -287,33 +430,228 @@ def cliente_perm(nome):
                   nome=nome, atuais=atuais, perms=c.PERMISSOES, presets=c.PRESETS)
 
 
-def tabela_logs(linhas):
+def tabela_logs(linhas, selecionar=False):
     return Markup(render_template_string("""<table>
-<tr><th>Hora (UTC)</th><th>Nível</th><th>Origem</th><th>Cliente</th><th>Pedido</th><th>Status</th><th>ms</th><th>Mensagem</th></tr>
-{% for l in linhas %}<tr><td style="white-space:nowrap">{{ l.ts[:19].replace('T',' ') }}</td>
+<tr>{% if selecionar %}<th><input type="checkbox" onclick="document.querySelectorAll('input[name=id]').forEach(function(x){x.checked=this.checked}.bind(this))" aria-label="todos"></th>{% endif %}<th>Hora (UTC)</th><th>Nível</th><th>Origem</th><th>Cliente</th><th>Pedido</th><th>Status</th><th>ms</th><th>Mensagem</th></tr>
+{% for l in linhas %}<tr>{% if selecionar %}<td class="sel" data-l="Selecionar"><input type="checkbox" name="id" value="{{ l.id }}" form="apagar_sel"></td>{% endif %}<td style="white-space:nowrap">{{ l.ts[:19].replace('T',' ') }}</td>
 <td><span class="b {{ {'INFO':'ok','WARNING':'warn','ERROR':'err'}[l.nivel] }}">{{ l.nivel }}</span></td>
 <td>{{ l.origem }}</td><td>{{ l.cliente or '' }}</td><td>{{ (l.metodo or '') ~ ' ' ~ (l.caminho or '') }}</td>
 <td>{{ l.status or '' }}</td><td>{{ l.ms if l.ms is not none else '' }}</td><td>{{ l.mensagem or '' }}</td></tr>
-{% else %}<tr><td colspan="8" class="mutt">Sem registos.</td></tr>{% endfor %}</table>""", linhas=linhas))
+{% else %}<tr><td colspan="9" class="mutt">Sem registos.</td></tr>{% endfor %}</table>""", linhas=linhas, selecionar=selecionar))
 
 
-@app.get("/logs")
+def sub_logs(atual):
+    return Markup(f"<div class='sub'><a href='{url_for('logs')}' class='{'on' if atual == 'registos' else ''}'>Registos</a>"
+                  f"<a href='{url_for('auditoria')}' class='{'on' if atual == 'auditoria' else ''}'>Auditoria</a></div>")
+
+
+@app.route("/logs", methods=["GET", "POST"])
 @login_obrigatorio
 def logs():
+    if request.method == "POST":
+        acao = request.form.get("acao")
+        if acao == "apagar_sel":
+            n = c.apagar_logs(ids=request.form.getlist("id"))
+        elif acao == "apagar_dias":
+            n = c.apagar_logs(dias=int(request.form.get("dias") or 30))
+        elif acao == "apagar_todos":
+            n = c.apagar_logs(tudo=True, nivel=request.form.get("nivel") or None)
+        else:
+            n = 0
+        c.log("WARNING", "admin", f"{n} registos de log apagados por {session['user']}")
+        flash(f"{n} registos apagados", "ok")
+        return redirect(request.referrer or url_for("logs"))
     nivel = request.args.get("nivel") or None
     cliente = request.args.get("cliente") or None
     limite = min(int(request.args.get("limite", 200)), 2000)
-    return render("Logs", "logs", """
-<div class="card"><form method="get">
-<select name="nivel"><option value="">todos os níveis</option>
-{% for n in ['INFO','WARNING','ERROR'] %}<option {{ 'selected' if n==nivel }}>{{ n }}</option>{% endfor %}</select>
-<select name="cliente"><option value="">todos os clientes</option>
-{% for x in clientes %}<option {{ 'selected' if x.nome==cliente }}>{{ x.nome }}</option>{% endfor %}</select>
-<select name="limite">{% for n in [100,200,500,1000] %}<option {{ 'selected' if n==limite }}>{{ n }}</option>{% endfor %}</select>
+    return render("Logs", "definicoes", """{{ sub }}
+<div class="card"><form method="get" class="row">
+<label>Nível<select name="nivel"><option value="">todos</option>
+{% for n in ['INFO','WARNING','ERROR'] %}<option {{ 'selected' if n==nivel }}>{{ n }}</option>{% endfor %}</select></label>
+<label>Cliente<select name="cliente"><option value="">todos</option>
+{% for x in clientes %}<option {{ 'selected' if x.nome==cliente }}>{{ x.nome }}</option>{% endfor %}</select></label>
+<label>Mostrar<select name="limite">{% for n in [100,200,500,1000] %}<option {{ 'selected' if n==limite }}>{{ n }}</option>{% endfor %}</select></label>
 <button>Filtrar</button></form></div>
-<div class="card">{{ tabela(linhas) }}</div>""",
-                  linhas=c.ler_logs(nivel, cliente, limite), nivel=nivel, cliente=cliente, limite=limite,
-                  clientes=c.listar_clientes(), tabela=tabela_logs)
+<div class="card">
+<form id="apagar_sel" method="post" class="in" onsubmit="return confirm('Apagar os registos selecionados?')">
+<input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="apagar_sel"><button class="del">Apagar selecionados</button></form>
+<form method="post" class="in" onsubmit="return confirm('Apagar todos os registos{{ ' de nível ' ~ nivel if nivel }}?')">
+<input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="apagar_todos"><input type="hidden" name="nivel" value="{{ nivel or '' }}">
+<button class="sec">Apagar todos{{ ' (' ~ nivel ~ ')' if nivel }}</button></form>
+<div style="margin-top:10px">{{ tabela(linhas, True) }}</div></div>
+<div class="card"><h2>Retenção</h2><form method="post" action="{{ url_for('definicoes') }}" class="row">
+<input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="retencao">
+<label>Logs (dias)<input name="retencao_logs_dias" type="number" min="1" value="{{ ret }}"></label>
+<label>Auditoria (dias)<input name="retencao_auditoria_dias" type="number" min="1" value="{{ ret_aud }}"></label>
+<button>Guardar</button></form>
+<form method="post" class="row"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="apagar_dias">
+<label>Apagar logs com mais de (dias)<input name="dias" type="number" min="0" value="{{ ret }}"></label><button class="sec">Apagar</button></form>
+<p class="mutt">A limpeza automática pela retenção é feita em cada arranque do contentor.</p></div>""",
+                  aba="logs", sub=sub_logs("registos"), linhas=c.ler_logs(nivel, cliente, limite), nivel=nivel,
+                  cliente=cliente, limite=limite, clientes=c.listar_clientes(), tabela=tabela_logs,
+                  ret=c.get_def("retencao_logs_dias"), ret_aud=c.get_def("retencao_auditoria_dias"))
+
+
+TIPOS_AUD = {"login": ("ok", "Login"), "login_falhado": ("err", "Login falhado"), "bloqueado": ("err", "Bloqueado"),
+             "logout": ("mut", "Logout"), "acao": ("mut", "Ação"), "negado": ("warn", "Negado")}
+
+
+@app.route("/logs/auditoria", methods=["GET", "POST"])
+@login_obrigatorio
+def auditoria():
+    if request.method == "POST":
+        acao = request.form.get("acao")
+        if acao == "apagar_sel":
+            n = c.apagar_auditoria(ids=request.form.getlist("id"))
+        elif acao == "apagar_dias":
+            n = c.apagar_auditoria(dias=int(request.form.get("dias") or 90))
+        elif acao == "apagar_todos":
+            n = c.apagar_auditoria(tudo=True)
+        else:
+            n = 0
+        c.log("WARNING", "admin", f"{n} registos de auditoria apagados por {session['user']}")
+        flash(f"{n} registos de auditoria apagados", "ok")
+        return redirect(request.referrer or url_for("auditoria"))
+    tipo = request.args.get("tipo") or None
+    utilizador = request.args.get("utilizador") or None
+    ip = request.args.get("ip") or None
+    linhas = c.ler_auditoria(tipo, utilizador, ip, min(int(request.args.get("limite", 300)), 3000))
+    return render("Auditoria", "definicoes", """{{ sub }}
+<div class="card"><form method="get" class="row">
+<label>Tipo<select name="tipo"><option value="">todos</option>
+{% for k, (cl, n) in tipos.items() %}<option value="{{ k }}" {{ 'selected' if k==tipo }}>{{ n }}</option>{% endfor %}</select></label>
+<label>Utilizador<input name="utilizador" value="{{ utilizador or '' }}"></label>
+<label>IP<input name="ip" value="{{ ip or '' }}"></label>
+<button>Filtrar</button></form></div>
+<div class="card">
+<form id="apagar_sel" method="post" class="in" onsubmit="return confirm('Apagar os registos selecionados?')">
+<input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="apagar_sel"><button class="del">Apagar selecionados</button></form>
+<form method="post" class="in" onsubmit="return confirm('Apagar TODA a auditoria?')"><input type="hidden" name="csrf" value="{{ csrf() }}">
+<input type="hidden" name="acao" value="apagar_todos"><button class="sec">Apagar tudo</button></form>
+<form method="post" class="in"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="apagar_dias">
+<input type="hidden" name="dias" value="90"><button class="sec">Apagar com mais de 90 dias</button></form>
+<table style="margin-top:10px">
+<tr><th><input type="checkbox" onclick="document.querySelectorAll('input[name=id]').forEach(function(x){x.checked=this.checked}.bind(this))" aria-label="todos"></th>
+<th>Data (UTC)</th><th>Tipo</th><th>Utilizador</th><th>IP</th><th>Detalhe</th><th>Navegador</th></tr>
+{% for l in linhas %}<tr><td class="sel" data-l="Selecionar"><input type="checkbox" name="id" value="{{ l.id }}" form="apagar_sel"></td>
+<td style="white-space:nowrap">{{ l.ts[:19].replace('T',' ') }}</td>
+<td><span class="b {{ tipos.get(l.tipo, ('mut', l.tipo))[0] }}">{{ tipos.get(l.tipo, ('mut', l.tipo))[1] }}</span></td>
+<td><a href="?utilizador={{ l.utilizador or '' }}">{{ l.utilizador or '—' }}</a></td><td><a href="?ip={{ l.ip or '' }}">{{ l.ip or '—' }}</a></td>
+<td>{{ l.detalhe or '' }}</td><td class="mutt" style="font-size:12px">{{ (l.agente or '')[:60] }}</td></tr>
+{% else %}<tr><td colspan="7" class="mutt">Sem registos.</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>Proteção do login</h2>
+<form method="post" action="{{ url_for('definicoes') }}" class="row"><input type="hidden" name="csrf" value="{{ csrf() }}">
+<input type="hidden" name="acao" value="login_protecao">
+<label>Tentativas falhadas por IP<input name="login_max_tentativas" type="number" min="1" value="{{ p.login_max_tentativas }}"></label>
+<label>Na janela de (min)<input name="login_janela_minutos" type="number" min="1" value="{{ p.login_janela_minutos }}"></label>
+<label>Bloqueio (min)<input name="login_bloqueio_minutos" type="number" min="1" value="{{ p.login_bloqueio_minutos }}"></label>
+<button>Guardar</button></form>
+<p class="mutt">O login pede ainda uma verificação (soma simples), tem um campo-armadilha para robôs e recusa submissões feitas em menos de 2 s.</p></div>""",
+                  aba="logs", sub=sub_logs("auditoria"), linhas=linhas, tipos=TIPOS_AUD, tipo=tipo,
+                  utilizador=utilizador, ip=ip,
+                  p={k: c.get_def(k) for k in ("login_max_tentativas", "login_janela_minutos", "login_bloqueio_minutos")})
+
+
+@app.route("/definicoes/acessos", methods=["GET", "POST"])
+@login_obrigatorio
+def acessos():
+    if request.method == "POST":
+        acao, nome = request.form.get("acao"), request.form.get("nome", "")
+        if acao == "criar":
+            if request.form.get("password") != request.form.get("confirmar"):
+                flash("As passwords não coincidem", "err")
+            else:
+                c.definir_utilizador(nome, request.form.get("password"), request.form.get("perfil"))
+                flash(f"Utilizador '{nome}' criado", "ok")
+        elif acao == "perfil":
+            c.definir_utilizador(nome, perfil=request.form.get("perfil"), criar=False)
+            flash(f"Perfil de '{nome}' alterado", "ok")
+        elif acao in ("ativar", "desativar"):
+            if nome == session["user"] and acao == "desativar":
+                flash("Não pode desativar o seu próprio utilizador", "err")
+            else:
+                c.definir_utilizador(nome, ativo=acao == "ativar", criar=False)
+                flash(f"Utilizador '{nome}' {acao}do", "ok")
+        elif acao == "password":
+            c.definir_utilizador(nome, password=request.form.get("password"), criar=False)
+            flash(f"Password de '{nome}' alterada", "ok")
+        elif acao == "apagar":
+            if nome == session["user"]:
+                flash("Não pode apagar o seu próprio utilizador", "err")
+            else:
+                c.apagar_utilizador(nome)
+                flash(f"Utilizador '{nome}' apagado", "ok")
+        return redirect(url_for("acessos"))
+    return render("Acessos", "definicoes", """
+<div class="card"><h2>Utilizadores do portal</h2>
+<table><tr><th>Utilizador</th><th>Perfil</th><th>Estado</th><th>Último login</th><th>Criado</th><th></th></tr>
+{% for u in lista %}<tr><td><b>{{ u.nome }}</b>{{ ' (eu)' if u.nome == eu }}</td>
+<td><form method="post" class="in"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="perfil">
+<input type="hidden" name="nome" value="{{ u.nome }}"><select name="perfil" onchange="this.form.submit()" style="width:auto">
+{% for k, d in perfis.items() %}<option value="{{ k }}" {{ 'selected' if u.perfil==k }}>{{ 'Administrador' if k=='admin' else 'Só leitura' }}</option>{% endfor %}</select></form></td>
+<td>{% if u.ativo %}<span class="b ok">ativo</span>{% else %}<span class="b mut">inativo</span>{% endif %}</td>
+<td>{{ (u.ultimo_login or '—')[:16].replace('T',' ') }}</td><td>{{ (u.criado_em or '—')[:10] }}</td>
+<td style="white-space:nowrap">
+<form method="post" class="in"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="nome" value="{{ u.nome }}">
+<input type="hidden" name="acao" value="{{ 'desativar' if u.ativo else 'ativar' }}"><button class="sec">{{ 'Desativar' if u.ativo else 'Ativar' }}</button></form>
+<form method="post" class="in" onsubmit="var p=prompt('Nova password para {{ u.nome }} (mín. 8)'); if(!p) return false; this.password.value=p;">
+<input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="nome" value="{{ u.nome }}"><input type="hidden" name="acao" value="password">
+<input type="hidden" name="password"><button class="sec">Password</button></form>
+<form method="post" class="in" onsubmit="return confirm('Apagar o utilizador {{ u.nome }}?')"><input type="hidden" name="csrf" value="{{ csrf() }}">
+<input type="hidden" name="nome" value="{{ u.nome }}"><input type="hidden" name="acao" value="apagar"><button class="del">Apagar</button></form></td></tr>{% endfor %}
+</table></div>
+<div class="card"><h2>Novo utilizador</h2><form method="post" class="row"><input type="hidden" name="csrf" value="{{ csrf() }}">
+<input type="hidden" name="acao" value="criar">
+<label>Utilizador<input name="nome" required pattern="[A-Za-z0-9._-]{2,32}"></label>
+<label>Perfil<select name="perfil"><option value="leitura">Só leitura</option><option value="admin">Administrador</option></select></label>
+<label>Password<input name="password" type="password" minlength="8" required autocomplete="new-password"></label>
+<label>Confirmar<input name="confirmar" type="password" minlength="8" required autocomplete="new-password"></label>
+<button>Criar</button></form>
+<table class="ft"><tr><th>Administrador</th><td>Vê e altera tudo: clientes, permissões, tesla.env, definições, utilizadores, backups.</td></tr>
+<tr><th>Só leitura</th><td>Vê todas as páginas (segredos sempre mascarados) e exporta dados; não altera nada nem descarrega backups. Pode mudar a própria password.</td></tr></table></div>
+<div class="card"><h2>A minha password</h2><form method="post" action="{{ url_for('minha_password') }}" class="row livre">
+<input type="hidden" name="csrf" value="{{ csrf() }}">
+<label>Atual<input name="atual" type="password" required autocomplete="current-password"></label>
+<label>Nova (mín. 8)<input name="nova" type="password" minlength="8" required autocomplete="new-password"></label>
+<label>Confirmar<input name="confirmar" type="password" minlength="8" required autocomplete="new-password"></label>
+<button>Alterar</button></form></div>""",
+                  aba="acessos", lista=c.listar_utilizadores(), perfis=c.PERFIS, eu=session["user"])
+
+
+@app.post("/definicoes/minha-password")
+@login_obrigatorio
+def minha_password():
+    if not c.validar_utilizador(session["user"], request.form.get("atual", "")):
+        flash("Password atual errada", "err")
+    elif request.form.get("nova") != request.form.get("confirmar"):
+        flash("As passwords não coincidem", "err")
+    else:
+        c.definir_utilizador(session["user"], password=request.form.get("nova", ""), criar=False)
+        flash("Password alterada", "ok")
+    return redirect(url_for("acessos"))
+
+
+@app.route("/definicoes/temas", methods=["GET", "POST"])
+@login_obrigatorio
+def temas():
+    if request.method == "POST":
+        t = request.form.get("tema")
+        if t in TEMAS:
+            c.set_def("tema", t)
+            flash(f"Tema '{TEMAS[t]['nome']}' aplicado", "ok")
+        return redirect(url_for("temas"))
+    atual = c.get_def("tema") or "claro"
+    return render("Temas", "definicoes", """
+<div class="card"><h2>Tema do portal</h2><p class="mutt">Aplica-se a todos os utilizadores e ao ecrã de entrada.</p>
+<div class="grid">{% for k, t in temas.items() %}
+<form method="post" class="kpi" style="display:flex;flex-direction:column;gap:10px">
+<input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="tema" value="{{ k }}">
+<b>{{ t.nome }}</b>{% if k == atual %} <span class="b ok" style="align-self:flex-start">em uso</span>{% endif %}
+<div style="display:flex;gap:6px">{% for cor in amostras[k] %}<span style="width:28px;height:28px;border-radius:50%;background:{{ cor }};border:1px solid #ccc"></span>{% endfor %}</div>
+<button {{ 'disabled' if k == atual }}>{{ 'Aplicado' if k == atual else 'Aplicar' }}</button></form>{% endfor %}</div></div>""",
+                  aba="temas", temas=TEMAS, atual=atual,
+                  amostras={"claro": ["#1d2433", "#f5f6f8", "#3157d5"], "escuro": ["#0b0e13", "#171b23", "#5b7cfa"],
+                            "tesla": ["#ffffff", "#171a20", "#3e6ae1"]})
 
 
 @app.route("/definicoes", methods=["GET", "POST"])
@@ -376,7 +714,15 @@ def definicoes():
                 flash("Password alterada", "ok")
         elif acao == "limpar_logs":
             flash(f"{c.limpar_logs()} registos antigos apagados", "ok")
-        return redirect(url_for("definicoes"))
+        elif acao == "retencao":
+            c.set_def("retencao_logs_dias", max(1, int(request.form.get("retencao_logs_dias") or 30)))
+            c.set_def("retencao_auditoria_dias", max(1, int(request.form.get("retencao_auditoria_dias") or 180)))
+            flash("Retenção guardada", "ok")
+        elif acao == "login_protecao":
+            for k in ("login_max_tentativas", "login_janela_minutos", "login_bloqueio_minutos"):
+                c.set_def(k, max(1, int(request.form.get(k) or 1)))
+            flash("Proteção do login guardada", "ok")
+        return redirect(request.referrer or url_for("definicoes"))
     return render("Definições", "definicoes", """
 <div class="card"><h2>Recolha de viagens</h2>
 <p class="mutt">O gateway lê o carro periodicamente e regista viagens e posições (Viagens, Mapa). Cada leitura é um pedido
@@ -431,30 +777,8 @@ para todos, mesmo que o cliente tenha a permissão.</p>
 <label>Crédito mensal<input name="credito_mensal" value="{{ d.credito_mensal }}" inputmode="decimal"></label>
 </div><button>Guardar</button></form></div>
 
-<div class="card"><h2>Logs</h2><form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}">
-<input type="hidden" name="acao" value="gerais">
-<div class="row"><label>Retenção de logs (dias)<input name="retencao_logs_dias" type="number" min="1" value="{{ ret }}"></label>
-<button>Guardar</button></div></form>
-<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="limpar_logs">
-<button class="sec">Apagar logs com mais de {{ ret }} dias</button></form></div>
-
-<div class="card"><h2>Status API (para outro portal)</h2>
-<p>Estado: {% if ativa %}<span class="b ok">ativa</span>{% else %}<span class="b mut">desativada</span>{% endif %}
-{% if pref %} · token <code>{{ pref }}…</code>{% endif %}</p>
-<p class="mutt">Endpoints em <code>http://tesla-key:8000/status/v1/</code>: <code>health</code>, <code>resumo</code>,
-<code>clientes</code>, <code>logs?nivel=ERROR&amp;limite=50</code> — header <code>Authorization: Bearer &lt;token&gt;</code>.
-Só leitura: não dá acesso aos dados do carro.</p>
-{% for a,l,cl in ([('status_off','Desativar','sec')] if ativa else [('status_on','Ativar','')]) + [('status_token','Gerar novo token','sec')] %}
-<form class="in" method="post" {% if a=='status_token' %}onsubmit="return confirm('O token atual deixa de funcionar. Continuar?')"{% endif %}>
-<input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="{{ a }}"><button class="{{ cl }}">{{ l }}</button></form>{% endfor %}
-</div>
-
-<div class="card"><h2>Password do portal</h2><form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}">
-<input type="hidden" name="acao" value="password">
-<input name="atual" type="password" placeholder="atual" required>
-<input name="nova" type="password" placeholder="nova (mín. 8)" minlength="8" required>
-<input name="confirmar" type="password" placeholder="confirmar" minlength="8" required>
-<button>Alterar</button></form></div>""",
+<p class="mutt">Logs, auditoria, utilizadores, backups, ajuda da API e temas estão nas outras abas.</p>""",
+                  aba="geral",
                   cache=c.get_def("cache_segundos"), ret=c.get_def("retencao_logs_dias"),
                   d={k: c.get_def(k) for k in ("cache_segundos", "cache_localizacao_segundos",
                                                "cache_veiculos_segundos", "preco_dados", "preco_wake",
@@ -755,7 +1079,7 @@ def dados():
     with c.db() as con:
         cont = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ("viagens", "pontos", "consumo", "logs", "clientes")}
     tam = round(os.path.getsize(c.DB_FILE) / 1024, 1) if os.path.exists(c.DB_FILE) else 0
-    return render("Dados", "dados", """
+    return render("Dados", "definicoes", """
 <div class="card"><h2>Base de dados</h2>
 <div class="grid">{% for k, n in cont.items() %}<div class="kpi"><small>{{ k }}</small><div>{{ n }}</div></div>{% endfor %}
 <div class="kpi"><small>Tamanho</small><div>{{ tam }} KB</div></div></div></div>
@@ -779,7 +1103,7 @@ def dados():
 <form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="backup"><button>Criar backup agora</button></form>
 <table style="margin-top:10px"><tr><th>Ficheiro</th><th>Data (UTC)</th><th>Tamanho</th><th></th></tr>
 {% for b in backups %}<tr><td><code>{{ b.nome }}</code></td><td>{{ b.data[:19].replace('T',' ') }}</td><td>{{ b.tamanho_kb }} KB</td>
-<td style="white-space:nowrap"><a href="{{ url_for('descarregar_backup', nome=b.nome) }}"><button type="button" class="sec">Descarregar</button></a>
+<td style="white-space:nowrap">{% if session.get('perfil') == 'admin' %}<a href="{{ url_for('descarregar_backup', nome=b.nome) }}"><button type="button" class="sec">Descarregar</button></a>{% endif %}
 <form class="in" method="post" onsubmit="return confirm('Restaurar {{ b.nome }}? Os dados atuais são substituídos (é feito um backup antes).')">
 <input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="restaurar"><input type="hidden" name="nome" value="{{ b.nome }}"><button class="sec">Restaurar</button></form>
 <form class="in" method="post" onsubmit="return confirm('Apagar {{ b.nome }}?')"><input type="hidden" name="csrf" value="{{ csrf() }}">
@@ -787,7 +1111,7 @@ def dados():
 {% else %}<tr><td colspan="4" class="mutt">Sem backups.</td></tr>{% endfor %}</table>
 <p class="mutt">Ficam em <code>tesla/backups/</code> no NAS (volume). Incluem clientes, chaves (em hash), login, viagens, consumo e logs;
 o <code>tesla.env</code>, as chaves Tesla e os tokens estão em <code>tesla/</code> e não fazem parte do backup.</p></div>""",
-                  cont=cont, tam=tam, backups=c.listar_backups(), auto=c.get_def("backup_automatico"),
+                  aba="dados", cont=cont, tam=tam, backups=c.listar_backups(), auto=c.get_def("backup_automatico"),
                   ret=c.get_def("backup_retencao"))
 
 
@@ -810,32 +1134,70 @@ def descarregar_backup(nome):
 @app.get("/api-ajuda")
 @login_obrigatorio
 def api_ajuda():
-    return render("API", "api", """
+    eps = c.endpoints_json()
+    sel = request.args.get("ep", "inicio")
+    subs = [("inicio", "Como usar")] + [(str(i), f"{e['metodo']} {e['caminho'].replace('/api/vehicles/{vin}', '…').replace('/api/', '/')}")
+                                       for i, e in enumerate(eps)] + [("status", "Status API"), ("codigos", "Códigos")]
+    barra = Markup("<div class='sub'>" + "".join(
+        f"<a href='{url_for('api_ajuda', ep=k)}' class='{'on' if k == sel else ''}'>{escape(n)}</a>" for k, n in subs) + "</div>")
+    e = eps[int(sel)] if sel.isdigit() and int(sel) < len(eps) else None
+    return render("API", "definicoes", """{{ barra }}
+{% if sel == 'inicio' %}
 <div class="card"><h2>Como usar a API</h2>
 <table class="ft"><tr><th>URL base (mesma rede Docker)</th><td><code>http://tesla-key:8000</code></td></tr>
-<tr><th>Autenticação</th><td>Header <code>X-API-Key: tk_...</code> (chave do cliente, em Clientes)</td></tr>
+<tr><th>Autenticação</th><td>Header <code>X-API-Key: tk_...</code> (chave do cliente, criada em Clientes)</td></tr>
+<tr><th>Permissões</th><td>Cada endpoint exige uma permissão do cliente (Clientes → Permissões); sem ela a resposta é 403</td></tr>
 <tr><th>Formato</th><td>JSON; erros em <code>{"erro": "..."}</code></td></tr>
-<tr><th>Referência em JSON</th><td><code>GET /api/endpoints</code> (sem chave)</td></tr></table>
-<pre>curl -H "X-API-Key: tk_..." http://tesla-key:8000/api/vehicles</pre></div>
-
-{% for e in eps %}<div class="card">
-<h2><span class="m {{ e.metodo }}">{{ e.metodo }}</span> <code>{{ e.caminho }}</code></h2>
+<tr><th>Cache</th><td>Respostas repetidas vêm da cache (tempos em Definições → Geral); <code>?fresh=1</code> força um pedido novo à Tesla</td></tr>
+<tr><th>Referência em JSON</th><td><code>GET /api/endpoints</code> (sem chave), útil para gerar clientes</td></tr></table>
+<pre>curl -H "X-API-Key: tk_..." http://tesla-key:8000/api/vehicles</pre>
+<h3>Endpoints</h3><table><tr><th>Método</th><th>Caminho</th><th>Permissão</th><th>Para quê</th></tr>
+{% for x in eps %}<tr><td><span class="m {{ x.metodo }}">{{ x.metodo }}</span></td><td><a href="?ep={{ loop.index0 }}"><code>{{ x.caminho }}</code></a></td>
+<td>{{ x.permissao or '—' }}</td><td>{{ x.descricao }}</td></tr>{% endfor %}</table></div>
+{% elif e %}
+<div class="card"><h2><span class="m {{ e.metodo }}">{{ e.metodo }}</span> <code>{{ e.caminho }}</code></h2>
 <p>{{ e.descricao }}</p>
 <table class="ft"><tr><th>Permissão</th><td>{% if e.permissao %}{% for p in e.permissao.split(', ') %}<span class="b mut">{{ p }}</span> {% endfor %}{% else %}<span class="mutt">nenhuma</span>{% endif %}</td></tr>
-{% if e.parametros %}<tr><th>Parâmetros</th><td><code>{{ e.parametros }}</code></td></tr>{% endif %}</table>
+<tr><th>Parâmetros</th><td>{% if e.parametros %}<code>{{ e.parametros }}</code>{% else %}<span class="mutt">nenhum</span>{% endif %}</td></tr>
+<tr><th>Chave</th><td>{{ 'Header X-API-Key obrigatório' if e.permissao or e.caminho == '/api/me' else 'Não precisa' }}</td></tr></table>
+<h3>Pedido</h3>
 <pre>curl {{ '-X POST ' if e.metodo == 'POST' }}{{ '-H "X-API-Key: tk_..." ' if e.permissao or e.caminho == '/api/me' }}"http://tesla-key:8000{{ e.caminho|replace('{vin}', '<VIN>')|replace('{id}', '1')|replace('{caminho}', 'dx/charging/history') }}"</pre>
-<small class="mutt">Exemplo de resposta</small><pre>{{ e.exemplo }}</pre></div>{% endfor %}
-
+<pre>import requests
+r = requests.{{ e.metodo|lower }}("http://tesla-key:8000{{ e.caminho|replace('{vin}', '" + VIN + "')|replace('{id}', '1')|replace('{caminho}', 'dx/charging/history') }}",
+{{ '                 headers={"X-API-Key": CHAVE}, ' if e.permissao or e.caminho == '/api/me' else '                 ' }}timeout=30)
+print(r.status_code, r.json())</pre>
+<h3>Exemplo de resposta</h3><pre>{{ e.exemplo }}</pre>
+<p class="mutt">Detalhe completo dos campos no <code>API.md</code> e no <code>openapi.yaml</code> do projeto.</p></div>
+{% elif sel == 'status' %}
+<div class="card"><h2>Status API (para outro portal)</h2>
+<p>Estado: {% if ativa %}<span class="b ok">ativa</span>{% else %}<span class="b mut">desativada</span>{% endif %}
+{% if pref %} · token <code>{{ pref }}…</code>{% endif %}</p>
+<p>Dá a outro portal o estado do gateway (sem acesso aos dados do carro), com o header
+<code>Authorization: Bearer &lt;token&gt;</code>. Desativada responde 404.</p>
+<table><tr><th>Endpoint</th><th>Conteúdo</th></tr>
+<tr><td><code>/status/v1/health</code></td><td>Gateway a responder</td></tr>
+<tr><td><code>/status/v1/resumo</code></td><td>Configuração, token, clientes, contagens 24 h, consumo do mês</td></tr>
+<tr><td><code>/status/v1/clientes</code></td><td>Clientes com estado, último uso, pedidos e permissões</td></tr>
+<tr><td><code>/status/v1/logs?nivel=ERROR&amp;limite=50</code></td><td>Últimos registos (máx. 500)</td></tr></table>
+<pre>curl -H "Authorization: Bearer ts_..." http://tesla-key:8000/status/v1/resumo</pre>
+{% for a,l,cl in ([('status_off','Desativar','sec')] if ativa else [('status_on','Ativar','')]) + [('status_token','Gerar novo token','sec')] %}
+<form class="in" method="post" action="{{ url_for('definicoes') }}" {% if a=='status_token' %}onsubmit="return confirm('O token atual deixa de funcionar. Continuar?')"{% endif %}>
+<input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="{{ a }}"><button class="{{ cl }}">{{ l }}</button></form>{% endfor %}
+</div>
+{% else %}
 <div class="card"><h2>Códigos de resposta</h2><table>
-<tr><th>Código</th><th>Significado</th></tr>
-<tr><td>200</td><td>OK</td></tr><tr><td>400</td><td>Parâmetro inválido</td></tr>
-<tr><td>401</td><td>Chave em falta, errada ou cliente desativado</td></tr>
-<tr><td>403</td><td>Sem permissão, funcionalidade desativada, ou scope em falta na Tesla</td></tr>
-<tr><td>404</td><td>Caminho ou recurso inexistente</td></tr><tr><td>408</td><td>Carro a dormir ou offline</td></tr>
-<tr><td>429</td><td>Limite de pedidos da Tesla</td></tr><tr><td>502 / 503</td><td>Falha na Tesla / gateway sem tokens</td></tr>
-</table></div>""", eps=c.endpoints_json())
-
-
+<tr><th>Código</th><th>Significado</th><th>O que fazer</th></tr>
+<tr><td>200</td><td>OK</td><td>—</td></tr>
+<tr><td>400</td><td>Parâmetro inválido</td><td>Rever os parâmetros</td></tr>
+<tr><td>401</td><td>Chave em falta, errada ou cliente desativado</td><td>Verificar a chave; não repetir em ciclo</td></tr>
+<tr><td>403</td><td>Sem permissão, funcionalidade desativada, ou scope em falta na Tesla</td><td>Ver <code>GET /api/me</code></td></tr>
+<tr><td>404</td><td>Caminho ou recurso inexistente</td><td>Rever o URL</td></tr>
+<tr><td>408</td><td>Carro a dormir ou offline</td><td>Mostrar o último valor; tentar mais tarde</td></tr>
+<tr><td>429</td><td>Limite de pedidos da Tesla</td><td>Reduzir a frequência</td></tr>
+<tr><td>502 / 503</td><td>Falha na Tesla / gateway sem tokens</td><td>Ver os logs; refazer o login Tesla</td></tr>
+</table></div>
+{% endif %}""", aba="api", barra=barra, sel=sel, e=e, eps=eps,
+                  ativa=c.get_def("status_api_ativa") == "1", pref=c.get_def("status_api_token_prefixo"))
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8001)

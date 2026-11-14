@@ -310,3 +310,21 @@ passam pelo `docker-compose.yml`, por isso funcionam no `.env` e na stack do Por
 - Portal admin: Viagens (com mapa do percurso, GPX/JSON), Mapa (mapa de calor Leaflet com filtros),
   Dados (backups e exportação CSV/JSON/GPX/GeoJSON), API (ajuda de cada endpoint) e recolha em Definições.
 - CLI: `recolha`, `viagens`, `backup`, `backups`, `restaurar`, `exportar`.
+
+---
+
+## 21. Definições com abas, perfis, auditoria, temas e novo ecrã de entrada
+
+**Pergunta:**
+> A parte dos logs, dados, pode ser colocado nas definições ... aba com acessos, tendo utilizador e perfil, administrador, leitura apenas ... tabelas dinâmicas em dispositivos móveis ... login com o layout a dizer gateway Tesla API ... temas, mais um tema Tesla ... caixa no meio com um botão entrar ... ser humano para impedir tentativas de entrada bruta ... auditoria com data, ip e username e opção de apagar
+
+**Resposta:**
+- Menu reduzido; Definições com abas Geral, Acessos, Logs (Registos/Auditoria), Dados, API (sub-aba por endpoint) e Temas.
+- Utilizadores do portal na tabela `utilizadores` com perfis `admin` e `leitura` (migração automática do login
+  antigo); o perfil de leitura vê tudo, mas o servidor recusa alterações (e os botões ficam desativados).
+- Auditoria (`auditoria`): login, falhas, bloqueios, ações, acessos negados e logout, com data, IP, utilizador e
+  navegador; filtros e apagar (selecionados, tudo, antigos); retenção configurável.
+- Entrada: caixa "Gateway Tesla API" com botão Entrar, verificação humana (soma), campo-armadilha, tempo mínimo
+  e bloqueio por IP após falhas repetidas. Ícone genérico (não usa o logótipo da marca).
+- Temas Claro, Escuro e Tesla (minimalista). Tabelas em cartões no telemóvel.
+- CLI: `utilizador ...` e `auditoria`.

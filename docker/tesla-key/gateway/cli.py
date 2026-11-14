@@ -1,7 +1,13 @@
 """
 Gestão do gateway pela linha de comandos (chamado pelo `tesla-setup`).
 
-  admin                          define utilizador/password do portal (interativo)
+  admin                          cria/altera um administrador do portal (interativo)
+  utilizador-list                utilizadores do portal
+  utilizador-add NOME [admin|leitura]   cria utilizador (pede a password)
+  utilizador-perfil NOME admin|leitura  muda o perfil
+  utilizador-password NOME       muda a password
+  utilizador-on|off|rm NOME      ativa, desativa, apaga
+  auditoria [N] [TIPO]           últimos N registos de auditoria (login, login_falhado, bloqueado, acao...)
   cliente-add NOME [DESCRIÇÃO] [--perm LISTA]   cria cliente e mostra a chave
   cliente-list                   lista clientes e permissões
   cliente-on|off|rm|chave NOME   ativa, desativa, apaga, gera nova chave
@@ -57,8 +63,9 @@ def main(argv):
     cmd, args = argv[0], argv[1:]
 
     if cmd == "admin":
-        atual = c.get_def("admin_user")
-        user = input(f"Utilizador do portal [{atual or 'admin'}]: ").strip() or atual or "admin"
+        admins = [u["nome"] for u in c.listar_utilizadores() if u["perfil"] == "admin"]
+        atual = admins[0] if admins else "admin"
+        user = input(f"Administrador do portal [{atual}]: ").strip() or atual
         p1 = getpass.getpass("Password (mín. 8): ")
         p2 = getpass.getpass("Confirmar: ")
         if p1 != p2:
@@ -67,6 +74,44 @@ def main(argv):
         c.definir_admin(user, p1)
         print(f"Login do portal definido para '{user}'")
 
+    elif cmd == "utilizador-list":
+        tabela(c.listar_utilizadores(), ["nome", "perfil", "ativo", "ultimo_login", "criado_em"])
+    elif cmd in ("utilizador-add", "utilizador-password"):
+        if not args:
+            print(f"uso: {cmd} NOME" + (" [admin|leitura]" if cmd == "utilizador-add" else ""))
+            return 1
+        p1 = getpass.getpass("Password (mín. 8): ")
+        if p1 != getpass.getpass("Confirmar: "):
+            print("As passwords não coincidem")
+            return 1
+        if cmd == "utilizador-add":
+            c.definir_utilizador(args[0], p1, args[1] if len(args) > 1 else "leitura")
+        else:
+            c.definir_utilizador(args[0], password=p1, criar=False)
+        print("ok")
+    elif cmd == "utilizador-perfil":
+        if len(args) < 2:
+            print("uso: utilizador-perfil NOME admin|leitura")
+            return 1
+        c.definir_utilizador(args[0], perfil=args[1], criar=False)
+        print("ok")
+    elif cmd in ("utilizador-on", "utilizador-off", "utilizador-rm"):
+        if not args:
+            print(f"uso: {cmd} NOME")
+            return 1
+        if cmd == "utilizador-rm":
+            if input(f"Apagar '{args[0]}'? [s/N] ").lower() != "s":
+                return 1
+            c.apagar_utilizador(args[0])
+        else:
+            c.definir_utilizador(args[0], ativo=cmd == "utilizador-on", criar=False)
+        print("ok")
+    elif cmd == "auditoria":
+        n = int(args[0]) if args else 50
+        linhas = list(reversed(c.ler_auditoria(tipo=args[1] if len(args) > 1 else None, limite=n)))
+        for l in linhas:
+            l["ts"] = l["ts"][:19].replace("T", " ")
+        tabela(linhas, ["ts", "tipo", "utilizador", "ip", "detalhe"])
     elif cmd == "cliente-add":
         perm = None
         if "--perm" in args:

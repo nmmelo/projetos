@@ -53,6 +53,12 @@ DEFAULTS = {
     # backups
     "backup_automatico": "1",              # backup diário do gateway.db
     "backup_retencao": "14",               # nº de backups guardados
+    # portal admin
+    "tema": "claro",                       # claro | escuro | tesla
+    "login_max_tentativas": "5",           # tentativas falhadas por IP...
+    "login_janela_minutos": "15",          # ...nesta janela antes de bloquear
+    "login_bloqueio_minutos": "15",        # duração do bloqueio
+    "retencao_auditoria_dias": "180",
     "retencao_logs_dias": "30",
     "status_api_ativa": "0",
     "status_api_token_hash": "",
@@ -180,11 +186,33 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_pontos_vin_ts ON pontos(vin, ts);
         CREATE INDEX IF NOT EXISTS idx_pontos_viagem ON pontos(viagem_id);
+        CREATE TABLE IF NOT EXISTS utilizadores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT UNIQUE NOT NULL,
+            pass_hash TEXT NOT NULL,
+            perfil TEXT NOT NULL DEFAULT 'leitura',
+            ativo INTEGER DEFAULT 1,
+            criado_em TEXT, ultimo_login TEXT
+        );
+        CREATE TABLE IF NOT EXISTS auditoria (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT NOT NULL, ip TEXT, utilizador TEXT,
+            tipo TEXT NOT NULL,          -- login | login_falhado | bloqueado | logout | acao
+            detalhe TEXT, agente TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_auditoria_ts ON auditoria(ts);
+        CREATE INDEX IF NOT EXISTS idx_auditoria_ip ON auditoria(ip, tipo, ts);
         CREATE TABLE IF NOT EXISTS estado_veiculo (
             vin TEXT PRIMARY KEY, ts TEXT, estado TEXT, mudanca TEXT,
             lat REAL, lon REAL, odo_km REAL, bateria INTEGER, parado_desde TEXT, proxima_leitura REAL
         );
         """)
+        if not c.execute("SELECT COUNT(*) FROM utilizadores").fetchone()[0]:
+            u = c.execute("SELECT valor FROM definicoes WHERE chave='admin_user'").fetchone()
+            h = c.execute("SELECT valor FROM definicoes WHERE chave='admin_pass_hash'").fetchone()
+            if u and h and u[0] and h[0]:
+                c.execute("INSERT INTO utilizadores(nome, pass_hash, perfil, criado_em) VALUES (?,?,?,?)",
+                          (u[0], h[0], "admin", agora_iso()))
         cols = [r[1] for r in c.execute("PRAGMA table_info(clientes)")]
         if "permissoes" not in cols:
             # clientes que já existiam mantêm o acesso total
@@ -226,7 +254,10 @@ def log(nivel, origem, mensagem="", cliente=None, metodo=None, caminho=None, sta
 def limpar_logs():
     dias = int(get_def("retencao_logs_dias") or 30)
     limite = (datetime.now(timezone.utc) - timedelta(days=dias)).isoformat(timespec="seconds")
+    dias_aud = int(get_def("retencao_auditoria_dias") or 180)
+    limite_aud = (datetime.now(timezone.utc) - timedelta(days=dias_aud)).isoformat(timespec="seconds")
     with db() as c:
+        c.execute("DELETE FROM auditoria WHERE ts < ?", (limite_aud,))
         return c.execute("DELETE FROM logs WHERE ts < ?", (limite,)).rowcount
 
 
@@ -393,19 +424,164 @@ def validar_token_status(token):
 # Admin
 # ---------------------------------------------------------------------------
 
-def definir_admin(user, password):
+PERFIS = {"admin": "Administrador (tudo)", "leitura": "Só leitura (consulta, sem alterações)"}
+
+
+def _validar_nome_utilizador(nome):
+    nome = (nome or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9._-]{2,32}", nome):
+        raise ErroGateway(400, "nome de utilizador inválido (2–32: letras, números, . _ -)")
+    return nome
+
+
+def definir_utilizador(nome, password=None, perfil=None, ativo=None, criar=True):
+    """Cria ou altera um utilizador do portal. password=None mantém a atual."""
     from werkzeug.security import generate_password_hash
-    if len(password) < 8:
+    nome = _validar_nome_utilizador(nome)
+    if perfil is not None and perfil not in PERFIS:
+        raise ErroGateway(400, "perfil: admin | leitura")
+    if password is not None and len(password) < 8:
         raise ErroGateway(400, "a password tem de ter pelo menos 8 caracteres")
-    set_def("admin_user", user.strip())
-    set_def("admin_pass_hash", generate_password_hash(password))
-    log("WARNING", "admin", f"credenciais do portal definidas para '{user.strip()}'")
+    with db() as c:
+        existe = c.execute("SELECT perfil FROM utilizadores WHERE nome=?", (nome,)).fetchone()
+        if not existe:
+            if not criar:
+                raise ErroGateway(404, f"utilizador '{nome}' não existe")
+            if password is None:
+                raise ErroGateway(400, "password obrigatória para um utilizador novo")
+            c.execute("INSERT INTO utilizadores(nome, pass_hash, perfil, ativo, criado_em) VALUES (?,?,?,?,?)",
+                      (nome, generate_password_hash(password), perfil or "leitura",
+                       0 if ativo is False else 1, agora_iso()))
+        else:
+            if password is not None:
+                c.execute("UPDATE utilizadores SET pass_hash=? WHERE nome=?", (generate_password_hash(password), nome))
+            if perfil is not None:
+                c.execute("UPDATE utilizadores SET perfil=? WHERE nome=?", (perfil, nome))
+            if ativo is not None:
+                c.execute("UPDATE utilizadores SET ativo=? WHERE nome=?", (1 if ativo else 0, nome))
+        n_admin = c.execute("SELECT COUNT(*) FROM utilizadores WHERE perfil='admin' AND ativo=1").fetchone()[0]
+        if n_admin == 0:
+            c.rollback()
+            raise ErroGateway(400, "tem de existir pelo menos um administrador ativo")
+    log("WARNING", "admin", f"utilizador do portal {'criado' if not existe else 'alterado'}: {nome}")
+
+
+def apagar_utilizador(nome):
+    with db() as c:
+        r = c.execute("SELECT perfil FROM utilizadores WHERE nome=?", (nome,)).fetchone()
+        if not r:
+            raise ErroGateway(404, f"utilizador '{nome}' não existe")
+        if r["perfil"] == "admin" and c.execute(
+                "SELECT COUNT(*) FROM utilizadores WHERE perfil='admin' AND ativo=1").fetchone()[0] <= 1:
+            raise ErroGateway(400, "não é possível apagar o último administrador")
+        c.execute("DELETE FROM utilizadores WHERE nome=?", (nome,))
+    log("WARNING", "admin", f"utilizador do portal apagado: {nome}")
+
+
+def listar_utilizadores():
+    with db() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT nome, perfil, ativo, criado_em, ultimo_login FROM utilizadores ORDER BY nome")]
+
+
+def validar_utilizador(nome, password):
+    """Devolve o perfil se as credenciais forem válidas e o utilizador estiver ativo; senão None."""
+    from werkzeug.security import check_password_hash
+    with db() as c:
+        r = c.execute("SELECT pass_hash, perfil, ativo FROM utilizadores WHERE nome=?", (nome,)).fetchone()
+        if r and r["ativo"] and check_password_hash(r["pass_hash"], password):
+            c.execute("UPDATE utilizadores SET ultimo_login=? WHERE nome=?", (agora_iso(), nome))
+            return r["perfil"]
+    return None
+
+
+def perfil_utilizador(nome):
+    with db() as c:
+        r = c.execute("SELECT perfil, ativo FROM utilizadores WHERE nome=?", (nome,)).fetchone()
+    return r["perfil"] if r and r["ativo"] else None
+
+
+def existem_utilizadores():
+    with db() as c:
+        return c.execute("SELECT COUNT(*) FROM utilizadores").fetchone()[0] > 0
+
+
+# compatibilidade com versões anteriores (tesla-setup admin)
+def definir_admin(user, password):
+    definir_utilizador(user, password, perfil="admin")
 
 
 def validar_admin(user, password):
-    from werkzeug.security import check_password_hash
-    h = get_def("admin_pass_hash")
-    return bool(h) and user == get_def("admin_user") and check_password_hash(h, password)
+    return validar_utilizador(user, password) is not None
+
+
+# ---------------------------------------------------------------------------
+# Auditoria do portal e proteção contra tentativas repetidas
+# ---------------------------------------------------------------------------
+
+def auditar(tipo, ip=None, utilizador=None, detalhe="", agente=""):
+    try:
+        with db() as c:
+            c.execute("INSERT INTO auditoria(ts, ip, utilizador, tipo, detalhe, agente) VALUES (?,?,?,?,?,?)",
+                      (agora_iso(), ip, utilizador, tipo, (detalhe or "")[:300], (agente or "")[:200]))
+    except sqlite3.Error:
+        pass
+
+
+def ip_bloqueado(ip):
+    """Segundos de bloqueio restantes para o IP (0 se não estiver bloqueado)."""
+    janela = int(get_def("login_janela_minutos") or 15)
+    maxt = int(get_def("login_max_tentativas") or 5)
+    bloq = int(get_def("login_bloqueio_minutos") or 15)
+    desde = (datetime.now(timezone.utc) - timedelta(minutes=max(janela, bloq))).isoformat(timespec="seconds")
+    with db() as c:
+        falhas = [r[0] for r in c.execute(
+            "SELECT ts FROM auditoria WHERE ip=? AND tipo='login_falhado' AND ts >= ? ORDER BY ts DESC", (ip, desde))]
+        ultimo_ok = c.execute("SELECT MAX(ts) FROM auditoria WHERE ip=? AND tipo='login'", (ip,)).fetchone()[0]
+    if ultimo_ok:
+        falhas = [f for f in falhas if f > ultimo_ok]
+    if len(falhas) < maxt:
+        return 0
+    fim = datetime.fromisoformat(falhas[maxt - 1]) + timedelta(minutes=bloq)
+    return max(0, int((fim - datetime.now(timezone.utc)).total_seconds()))
+
+
+def ler_auditoria(tipo=None, utilizador=None, ip=None, limite=300):
+    sql, args = "SELECT * FROM auditoria WHERE 1=1", []
+    for campo, val in (("tipo", tipo), ("utilizador", utilizador), ("ip", ip)):
+        if val:
+            sql += f" AND {campo}=?"
+            args.append(val)
+    sql += " ORDER BY id DESC LIMIT ?"
+    args.append(int(limite))
+    with db() as c:
+        return [dict(r) for r in c.execute(sql, args)]
+
+
+def apagar_auditoria(ids=None, dias=None, tudo=False):
+    with db() as c:
+        if tudo:
+            n = c.execute("DELETE FROM auditoria").rowcount
+        elif dias is not None:
+            limite = (datetime.now(timezone.utc) - timedelta(days=int(dias))).isoformat(timespec="seconds")
+            n = c.execute("DELETE FROM auditoria WHERE ts < ?", (limite,)).rowcount
+        else:
+            ids = [int(i) for i in (ids or [])]
+            n = c.execute(f"DELETE FROM auditoria WHERE id IN ({','.join('?' * len(ids))})", ids).rowcount if ids else 0
+    return n
+
+
+def apagar_logs(ids=None, dias=None, tudo=False, nivel=None):
+    with db() as c:
+        if tudo:
+            n = c.execute("DELETE FROM logs" + (" WHERE nivel=?" if nivel else ""), (nivel,) if nivel else ()).rowcount
+        elif dias is not None:
+            limite = (datetime.now(timezone.utc) - timedelta(days=int(dias))).isoformat(timespec="seconds")
+            n = c.execute("DELETE FROM logs WHERE ts < ?", (limite,)).rowcount
+        else:
+            ids = [int(i) for i in (ids or [])]
+            n = c.execute(f"DELETE FROM logs WHERE id IN ({','.join('?' * len(ids))})", ids).rowcount if ids else 0
+    return n
 
 
 # ---------------------------------------------------------------------------
