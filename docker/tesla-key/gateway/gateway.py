@@ -7,11 +7,13 @@ tesla-key gateway — API interna (porta 8000, só rede Docker).
 
 Clientes, token da Status API e definições geridos no portal admin ou com `tesla-setup`.
 """
+import json
 import re
 import time
 from datetime import datetime, timezone
 
 from flask import Flask, abort, g, jsonify, request, send_file
+from werkzeug.exceptions import HTTPException
 
 import common as c
 import imagens
@@ -39,26 +41,39 @@ def autenticar():
             abort(404)
         token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
         if not c.validar_token_status(token):
-            c.log("WARNING", "status", "token inválido", metodo=request.method, caminho=p,
-                  status=401, cliente=request.remote_addr)
-            abort(401, "token inválido")
+            abort(401, f"token da Status API inválido ou em falta ({request.remote_addr})")
         g.cliente = "status-api"
         return
     if p.startswith("/api/"):
         nome, perms = c.validar_cliente(request.headers.get("X-API-Key", ""))
         g.perms = set(perms)
         if not nome:
-            c.log("WARNING", "api", f"chave inválida ou cliente inativo ({request.remote_addr})",
-                  metodo=request.method, caminho=p, status=401)
-            abort(401, "X-API-Key inválida ou cliente inativo")
+            pref = (request.headers.get("X-API-Key", "") or "")[:9]
+            abort(401, f"X-API-Key {'em falta' if not pref else 'inválida (' + pref + '…)'} ou cliente inativo; IP {request.remote_addr}")
         g.cliente = nome
         return
-    abort(404)
+    abort(404, f"caminho inexistente: {p}")
+
+
+def falha(codigo, motivo, **extra):
+    """Resposta de erro: regista o motivo nos logs (ver Definições → Logs → API) e devolve ao cliente
+    só o código e a referência (ou também o motivo, se 'erros_detalhados' estiver ativo)."""
+    ms = int((time.time() - getattr(g, "inicio", time.time())) * 1000)
+    origem = "status" if request.path.startswith("/status/") else "api"
+    nivel = "ERROR" if codigo >= 500 else "INFO" if codigo == 408 else "WARNING"
+    ref = c.log(nivel, origem, motivo, cliente=getattr(g, "cliente", None) or request.remote_addr,
+                metodo=request.method, caminho=request.full_path.rstrip("?"), status=codigo, ms=ms)
+    g.registado = True
+    corpo = {"codigo": codigo, "erro": c.CODIGOS_HTTP.get(codigo, ("Erro", ""))[0], "ref": ref}
+    if c.get_def("erros_detalhados") == "1":
+        corpo["detalhe"] = motivo
+    corpo.update(extra)
+    return jsonify(corpo), codigo
 
 
 @app.after_request
 def registar(resp):
-    if request.path in ("/api/health", "/api/endpoints") or resp.status_code in (401, 403, 304):
+    if request.path in ("/api/health", "/api/endpoints") or resp.status_code == 304 or getattr(g, "registado", False):
         return resp
     ms = int((time.time() - getattr(g, "inicio", time.time())) * 1000)
     nivel = "ERROR" if resp.status_code >= 500 else "WARNING" if resp.status_code >= 400 else "INFO"
@@ -70,7 +85,7 @@ def registar(resp):
 
 @app.errorhandler(c.ErroGateway)
 def erro_gateway(e):
-    return jsonify({"erro": e.mensagem}), e.codigo
+    return falha(e.codigo, e.mensagem)
 
 
 @app.errorhandler(400)
@@ -80,25 +95,44 @@ def erro_gateway(e):
 @app.errorhandler(405)
 @app.errorhandler(500)
 def erro(e):
-    return jsonify({"erro": getattr(e, "description", str(e))}), getattr(e, "code", 500)
+    codigo = getattr(e, "code", 500) or 500
+    motivo = getattr(e, "description", str(e))
+    if codigo == 405:
+        motivo = f"método {request.method} não permitido em {request.path}"
+    elif codigo == 404 and request.url_rule is None:
+        motivo = f"caminho inexistente: {request.method} {request.path} (ver GET /api/endpoints)"
+    return falha(codigo, motivo)
+
+
+@app.errorhandler(Exception)
+def erro_inesperado(e):
+    if isinstance(e, HTTPException):
+        return falha(e.code or 500, e.description or str(e))
+    return falha(500, f"{type(e).__name__}: {e}")
 
 
 def requer(perm):
     if perm not in c.funcionalidades_ativas():
-        c.log("WARNING", "api", f"funcionalidade '{perm}' desativada no gateway", cliente=g.cliente,
-              metodo=request.method, caminho=request.path, status=403)
-        abort(403, f"a funcionalidade '{perm}' está desativada no gateway")
+        abort(403, f"funcionalidade '{perm}' desativada no gateway (Definições → Geral → Funcionalidades ativas)")
     if perm not in getattr(g, "perms", set()):
-        c.log("WARNING", "api", f"sem permissão '{perm}'", cliente=g.cliente,
-              metodo=request.method, caminho=request.path, status=403)
-        abort(403, f"o cliente não tem a permissão '{perm}'")
+        abort(403, f"o cliente '{g.cliente}' não tem a permissão '{perm}' (Clientes → Permissões)")
+
+
+def motivo_tesla(st, corpo):
+    texto = corpo if isinstance(corpo, str) else (corpo.get("error") or corpo.get("erro") or corpo.get("error_description")
+                                                  or json.dumps(corpo, ensure_ascii=False)) if isinstance(corpo, dict) else str(corpo)
+    return f"Tesla respondeu {st}: {str(texto)[:400]}"
 
 
 def resposta(r):
     try:
         corpo = r.json()
     except ValueError:
-        corpo = {"erro": r.text[:500]}
+        corpo = r.text[:500]
+    if r.status_code >= 400:
+        if r.status_code == 408:
+            return adormecido()
+        return falha(r.status_code, motivo_tesla(r.status_code, corpo))
     return jsonify(corpo), r.status_code
 
 
@@ -240,7 +274,7 @@ def obter_vehicle_data(vin, endpoints, fresh=False, ttl=None):
 
 
 def adormecido():
-    return jsonify({"erro": "veículo a dormir ou offline", "estado": "asleep"}), 408
+    return falha(408, "veículo a dormir ou offline (a Tesla devolveu 408)", estado="asleep")
 
 
 @app.get("/api/vehicles/<vin>/data")
@@ -253,14 +287,12 @@ def vehicle_data(vin):
                   and c.SECCOES.get(x, "fleet") in ativas]
     negadas = [x for x in pedidas if x not in permitidas]
     if not permitidas:
-        c.log("WARNING", "api", f"sem permissão para {', '.join(pedidas)}", cliente=g.cliente,
-              metodo=request.method, caminho=request.path, status=403)
-        abort(403, "o cliente não tem permissão para nenhuma das secções pedidas")
+        abort(403, f"o cliente '{g.cliente}' não tem permissão para nenhuma das secções pedidas: {', '.join(pedidas)}")
     st, payload, cache, idade = obter_vehicle_data(vin, ";".join(permitidas), request.args.get("fresh") == "1")
     if st == 408:
         return adormecido()
     if st != 200:
-        return jsonify(payload), st
+        return falha(st, motivo_tesla(st, payload))
     extra = {"cache": cache, "idade_s": idade} if cache else {"cache": False}
     if negadas:
         extra["seccoes_negadas"] = negadas
@@ -277,13 +309,12 @@ def vehicle_location(vin):
     if st == 408:
         return adormecido()
     if st != 200:
-        return jsonify(payload), st
+        return falha(st, motivo_tesla(st, payload))
     d = (payload.get("response") or {}).get("drive_state") or {}
     lat = d.get("latitude", d.get("active_route_latitude"))
     lon = d.get("longitude", d.get("active_route_longitude"))
     if lat is None or lon is None:
-        c.log("WARNING", "api", "localização sem coordenadas (falta o scope vehicle_location?)", cliente=g.cliente)
-        return jsonify({"erro": "sem coordenadas: confirme o scope vehicle_location e refaça o OAuth"}), 403
+        return falha(403, "a Tesla não devolveu coordenadas: falta o scope vehicle_location no token (ativar na aplicação e refazer o login)")
     gps_ts = d.get("gps_as_of") or d.get("timestamp")
     if gps_ts and gps_ts > 10**11:  # milissegundos
         gps_ts = gps_ts // 1000
@@ -325,7 +356,7 @@ def vehicle_image(vin):
         if st == 408:
             return adormecido()
         if st != 200:
-            return jsonify(payload), st
+            return falha(st, motivo_tesla(st, payload))
         vcfg = (payload.get("response") or {}).get("vehicle_config") or {}
     url, origem = imagens.url_compositor(conf, vcfg, view, size)
     if request.args.get("formato") == "url":

@@ -136,6 +136,10 @@ curl -H "X-API-Key: $TESLA_GATEWAY_API_KEY" http://tesla-key:8000/api/vehicles
 ```
 Exemplo em Python: `gateway/cliente_exemplo.py`.
 
+**Erros:** o cliente recebe só `{"codigo": 403, "erro": "Forbidden", "ref": 1234}`; o motivo fica em
+Definições → Logs → API (pesquisa pela `ref`). Para desenvolver, pode ativar-se aí "Também o motivo"
+(acrescenta `"detalhe"`).
+
 ### Permissões por cliente
 
 Cada cliente só acede ao que lhe for atribuído; o resto devolve 403 (registado nos logs como WARNING).
@@ -291,7 +295,7 @@ desativada responde 404. Autenticação com `Authorization: Bearer <token>` (tok
 |---|---|
 | Geral | Recolha de viagens, tempos de atualização, dados do `/data` por omissão, funcionalidades ativas, preços/crédito |
 | Acessos | Utilizadores do portal com perfil **Administrador** ou **Só leitura**; criar, mudar perfil, ativar/desativar, password, apagar; "A minha password" |
-| Logs | Sub-abas **Registos** (filtros, apagar selecionados/todos/antigos, retenção) e **Auditoria** (logins, falhas, bloqueios, ações e acessos negados, com data, IP, utilizador e navegador; filtros e apagar) e proteção do login |
+| Logs | Sub-abas **Registos** (filtros, apagar selecionados/todos/antigos, retenção), **API** (erros dos clientes por código, com o significado e o motivo de cada pedido, pesquisa por `ref`, e a opção de resposta de erro) e **Auditoria** (logins, falhas, bloqueios, ações e acessos negados, com data, IP, utilizador e navegador; filtros e apagar) e proteção do login |
 | Dados | Contagens, exportação (CSV, JSON, GPX, GeoJSON) e backups |
 | API | Sub-abas: "Como usar", uma por endpoint (permissão, parâmetros, `curl`, Python, exemplo de resposta), Status API e códigos de resposta |
 | Temas | Tema **Padrão**, **Tesla (minimalista)** ou **Natal**, cada um com versão clara e escura; modo **Como o sistema** (segue o claro/escuro do dispositivo), **Pela hora** (claro das 8h às 20h), **Sempre claro** ou **Sempre escuro** |

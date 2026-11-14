@@ -60,6 +60,7 @@ DEFAULTS = {
     "login_janela_minutos": "15",          # ...nesta janela antes de bloquear
     "login_bloqueio_minutos": "15",        # duração do bloqueio
     "retencao_auditoria_dias": "180",
+    "erros_detalhados": "0",               # 0 = clientes recebem só o código (+ ref); 1 = também o motivo
     "retencao_logs_dias": "30",
     "status_api_ativa": "0",
     "status_api_token_hash": "",
@@ -246,15 +247,57 @@ def set_def(chave, valor):
 # ---------------------------------------------------------------------------
 
 def log(nivel, origem, mensagem="", cliente=None, metodo=None, caminho=None, status=None, ms=None):
+    """Regista e devolve o id do registo (usado como referência nos erros da API)."""
     try:
         with db() as c:
-            c.execute(
+            cur = c.execute(
                 "INSERT INTO logs(ts, nivel, origem, cliente, metodo, caminho, status, ms, mensagem)"
                 " VALUES (?,?,?,?,?,?,?,?,?)",
-                (agora_iso(), nivel, origem, cliente, metodo, caminho, status, ms, mensagem[:1000]),
+                (agora_iso(), nivel, origem, cliente, metodo, caminho, status, ms, (mensagem or "")[:1000]),
             )
+            return cur.lastrowid
     except sqlite3.Error:
-        pass
+        return None
+
+
+CODIGOS_HTTP = {
+    200: ("OK", "Pedido respondido com sucesso."),
+    400: ("Bad Request", "Parâmetro inválido ou em falta (ex.: período, mês, vista da imagem) ou pedido recusado pela Tesla."),
+    401: ("Unauthorized", "Chave X-API-Key em falta, errada, ou cliente desativado (ou token da Status API inválido)."),
+    403: ("Forbidden", "Chave válida, mas o cliente não tem a permissão, a funcionalidade está desligada no gateway, "
+                       "ou a Tesla recusou por falta de scope (ex.: vehicle_location)."),
+    404: ("Not Found", "Caminho inexistente, recurso não encontrado (ex.: viagem) ou Status API desativada."),
+    405: ("Method Not Allowed", "Método HTTP errado (ex.: GET em vez de POST no /wake)."),
+    408: ("Request Timeout", "O carro está a dormir ou offline; a Tesla não devolve dados."),
+    429: ("Too Many Requests", "Limite de pedidos da Tesla atingido."),
+    500: ("Internal Server Error", "Erro interno do gateway (ver o motivo e os logs ERROR)."),
+    502: ("Bad Gateway", "Falha na Tesla: ligação, renovação do token ou resposta inválida."),
+    503: ("Service Unavailable", "Gateway sem tokens Tesla (falta o tesla-setup url/token) ou sem refresh token."),
+}
+
+
+def ler_erros_api(codigo=None, cliente=None, desde=None, incluir_ok=False, limite=300):
+    sql = "SELECT * FROM logs WHERE origem IN ('api','status') AND status IS NOT NULL"
+    args = []
+    if not incluir_ok:
+        sql += " AND status >= 400"
+    if codigo:
+        sql += " AND status=?"
+        args.append(int(codigo))
+    if cliente:
+        sql += " AND cliente=?"
+        args.append(cliente)
+    if desde:
+        sql += " AND ts >= ?"
+        args.append(desde)
+    sql += " ORDER BY id DESC LIMIT ?"
+    args.append(int(limite))
+    with db() as c:
+        linhas = [dict(r) for r in c.execute(sql, args)]
+        resumo = [dict(r) for r in c.execute(
+            "SELECT status, COUNT(*) n FROM logs WHERE origem IN ('api','status') AND status >= 400"
+            + (" AND ts >= ?" if desde else "") + " GROUP BY status ORDER BY n DESC", [desde] if desde else [])]
+    return linhas, resumo
 
 
 def limpar_logs():

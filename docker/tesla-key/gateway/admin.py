@@ -119,8 +119,9 @@ header .sp{flex:1}.quem{color:var(--hdr-mut);font-size:13px;white-space:nowrap}m
 .card{background:var(--card);border:1px solid var(--bd);border-radius:var(--rad);padding:16px 20px;margin-bottom:16px}
 h2{font-size:15px;margin:0 0 12px}h3{font-size:14px;margin:14px 0 8px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
 .kpi{background:var(--card);border:1px solid var(--bd);border-radius:var(--rad);padding:14px}.kpi small{color:var(--mut)}.kpi div{font-size:22px;font-weight:600}
-table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--bd);vertical-align:top;overflow-wrap:anywhere}
-.card,.kpi{min-width:0;overflow-wrap:anywhere}select,input{max-width:100%}pre,code{overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--bd);vertical-align:top;overflow-wrap:break-word}
+th{white-space:nowrap}td code{word-break:break-all}.b{white-space:nowrap}
+.card,.kpi{min-width:0;overflow-wrap:break-word}select,input{max-width:100%}pre{overflow-wrap:anywhere}
 th{color:var(--mut);font-weight:500;font-size:12px;text-transform:uppercase}
 .b{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}
 .ok{background:var(--okbg);color:var(--ok)}.warn{background:var(--warnbg);color:var(--warn)}.err{background:var(--errbg);color:var(--err)}.mut{background:var(--sec);color:var(--mut)}
@@ -518,7 +519,64 @@ def tabela_logs(linhas, selecionar=False):
 
 def sub_logs(atual):
     return Markup(f"<div class='sub'><a href='{url_for('logs')}' class='{'on' if atual == 'registos' else ''}'>Registos</a>"
+                  f"<a href='{url_for('logs_api')}' class='{'on' if atual == 'api' else ''}'>API</a>"
                   f"<a href='{url_for('auditoria')}' class='{'on' if atual == 'auditoria' else ''}'>Auditoria</a></div>")
+
+
+@app.get("/logs/api")
+@login_obrigatorio
+def logs_api():
+    codigo = request.args.get("codigo") or None
+    cliente = request.args.get("cliente") or None
+    periodo = request.args.get("periodo", "7")
+    incluir_ok = request.args.get("ok") == "1"
+    ref = request.args.get("ref", "").strip().lstrip("#")
+    desde = None if periodo == "tudo" else (datetime.now(timezone.utc) - timedelta(days=int(periodo) if periodo.isdigit() else 7)).isoformat(timespec="seconds")
+    if ref.isdigit():
+        with c.db() as con:
+            linhas = [dict(r) for r in con.execute("SELECT * FROM logs WHERE id=?", (int(ref),))]
+        _, resumo = c.ler_erros_api(desde=desde)
+    else:
+        linhas, resumo = c.ler_erros_api(codigo, cliente, desde, incluir_ok, min(int(request.args.get("limite", 300)), 3000))
+    return render("Logs da API", "definicoes", """{{ sub }}
+<div class="card"><h2>Erros da API por código</h2>
+<p class="mutt">Os clientes recebem só o código e uma referência (<code>ref</code>); o motivo fica aqui.</p>
+<table><tr><th>Código</th><th>Significado</th><th>Ocorrências</th></tr>
+{% for r in resumo %}<tr><td><a href="?codigo={{ r.status }}&periodo={{ periodo }}"><span class="b {{ 'err' if r.status >= 500 else 'mut' if r.status == 408 else 'warn' }}">{{ r.status }}</span></a></td>
+<td>{{ cod.get(r.status, ('', '—'))[1] }}</td><td>{{ r.n }}</td></tr>
+{% else %}<tr><td colspan="3" class="mutt">Sem erros neste período.</td></tr>{% endfor %}</table></div>
+<div class="card"><form method="get" class="row">
+<label>Referência<input name="ref" value="{{ ref }}" placeholder="ex.: 1234" inputmode="numeric"></label>
+<label>Código<select name="codigo"><option value="">todos os erros</option>
+{% for k, (n, d) in cod.items() if k >= 400 %}<option value="{{ k }}" {{ 'selected' if codigo == k|string }}>{{ k }} {{ n }}</option>{% endfor %}</select></label>
+<label>Cliente<select name="cliente"><option value="">todos</option>
+{% for x in clientes %}<option {{ 'selected' if x.nome==cliente }}>{{ x.nome }}</option>{% endfor %}</select></label>
+<label>Período<select name="periodo">{% for v, n in [('1','24 h'),('7','7 dias'),('30','30 dias'),('tudo','Tudo')] %}
+<option value="{{ v }}" {{ 'selected' if v==periodo }}>{{ n }}</option>{% endfor %}</select></label>
+<label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" name="ok" value="1" {{ 'checked' if incluir_ok }}> incluir pedidos com sucesso</label>
+<button>Filtrar</button></form></div>
+<div class="card">
+<form id="apagar_sel" method="post" action="{{ url_for('logs') }}" class="in" onsubmit="return confirm('Apagar os registos selecionados?')">
+<input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="apagar_sel"><button class="del">Apagar selecionados</button></form>
+<table style="margin-top:10px">
+<tr><th><input type="checkbox" onclick="document.querySelectorAll('input[name=id]').forEach(function(x){x.checked=this.checked}.bind(this))" aria-label="todos"></th>
+<th>Data (UTC)</th><th>Ref</th><th>Cliente</th><th>Pedido</th><th>Código</th><th>Significado</th><th>Motivo</th></tr>
+{% for l in linhas %}<tr><td class="sel" data-l="Selecionar"><input type="checkbox" name="id" value="{{ l.id }}" form="apagar_sel"></td>
+<td style="white-space:nowrap">{{ l.ts[:19].replace('T',' ') }}</td><td>#{{ l.id }}</td><td>{{ l.cliente or '—' }}</td>
+<td><code>{{ l.metodo or '' }} {{ l.caminho or '' }}</code></td>
+<td><span class="b {{ 'ok' if (l.status or 0) < 400 else 'err' if l.status >= 500 else 'mut' if l.status == 408 else 'warn' }}">{{ l.status }}</span></td>
+<td>{{ cod.get(l.status, ('', '—'))[1] }}</td><td>{{ l.mensagem or '—' }}</td></tr>
+{% else %}<tr><td colspan="8" class="mutt">Sem registos.</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>Resposta de erro para os clientes</h2>
+<form method="post" action="{{ url_for('definicoes') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="erros">
+<label style="display:flex;gap:8px;padding:4px 0"><input type="radio" name="erros_detalhados" value="0" {{ 'checked' if not detalhe }}>
+<span>Só o código e a referência (recomendado): <code>{"codigo": 403, "erro": "Forbidden", "ref": 1234}</code></span></label>
+<label style="display:flex;gap:8px;padding:4px 0"><input type="radio" name="erros_detalhados" value="1" {{ 'checked' if detalhe }}>
+<span>Também o motivo (útil a desenvolver): acrescenta <code>"detalhe": "..."</code></span></label>
+<button>Guardar</button></form></div>""",
+                  aba="logs", sub=sub_logs("api"), linhas=linhas, resumo=resumo, cod=c.CODIGOS_HTTP, codigo=codigo,
+                  cliente=cliente, periodo=periodo, incluir_ok=incluir_ok, ref=ref, clientes=c.listar_clientes(),
+                  detalhe=c.get_def("erros_detalhados") == "1")
 
 
 @app.route("/logs", methods=["GET", "POST"])
@@ -800,6 +858,9 @@ def definicoes():
             c.set_def("retencao_logs_dias", max(1, int(request.form.get("retencao_logs_dias") or 30)))
             c.set_def("retencao_auditoria_dias", max(1, int(request.form.get("retencao_auditoria_dias") or 180)))
             flash("Retenção guardada", "ok")
+        elif acao == "erros":
+            c.set_def("erros_detalhados", "1" if request.form.get("erros_detalhados") == "1" else "0")
+            flash("Resposta de erro guardada", "ok")
         elif acao == "login_protecao":
             for k in ("login_max_tentativas", "login_janela_minutos", "login_bloqueio_minutos"):
                 c.set_def(k, max(1, int(request.form.get(k) or 1)))
@@ -1306,7 +1367,9 @@ print(r.status_code, r.json())</pre>
 <input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="{{ a }}"><button class="{{ cl }}">{{ l }}</button></form>{% endfor %}
 </div>
 {% else %}
-<div class="card"><h2>Códigos de resposta</h2><table>
+<div class="card"><h2>Códigos de resposta</h2>
+<p>Em caso de erro o cliente recebe <code>{"codigo": 403, "erro": "Forbidden", "ref": 1234}</code> (e, se ativo, <code>"detalhe"</code>).
+O motivo de cada <code>ref</code> está em Definições → Logs → API.</p><table>
 <tr><th>Código</th><th>Significado</th><th>O que fazer</th></tr>
 <tr><td>200</td><td>OK</td><td>—</td></tr>
 <tr><td>400</td><td>Parâmetro inválido</td><td>Rever os parâmetros</td></tr>

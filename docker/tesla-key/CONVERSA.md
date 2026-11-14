@@ -344,3 +344,18 @@ passam pelo `docker-compose.yml`, por isso funcionam no `.env` e na stack do Por
   Pela hora (8h–20h) / Sempre claro / Sempre escuro.
 - Consumo: gráficos circulares por tipo de pedido e por cliente, com legenda e valores.
 - API: `GET /api/consumo` (permissão `consumo`), `GET /api/me/consumo` (sempre permitido) e `GET /api/recolha`.
+
+---
+
+## 23. Erros da API: só o código para o cliente, motivo nos logs
+
+**Pergunta:**
+> caso dê este tipo de erro, do lado do cliente pode dizer apenas o código, mas no lado do gateway, na web admin ter nos logs uma aba para api, onde temos o código e porque desse código
+
+**Resposta:**
+- Todas as respostas de erro passam por uma única função: o cliente recebe `{"codigo", "erro", "ref"}` (e
+  `"estado": "asleep"` no 408); o motivo (permissão em falta, funcionalidade desligada, chave inválida com o
+  prefixo e IP, resposta da Tesla, parâmetro, método, caminho) fica nos logs com o id igual à `ref`.
+- Definições → Logs → **API**: resumo por código com o significado, filtros (código, cliente, período, sucessos),
+  pesquisa por `ref`, apagar e a opção "Também o motivo" (`"detalhe"`) para desenvolvimento.
+- Respostas de erro da Tesla no passthrough também passam a seguir este formato.

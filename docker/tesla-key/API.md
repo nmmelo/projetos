@@ -11,7 +11,7 @@ Especificação formal: [`openapi.yaml`](openapi.yaml).
 | URL base (LAN, se `API_PORT` publicado) | `http://<ip-nas>:<API_PORT>` |
 | Autenticação | Header `X-API-Key: tk_...` (chave do cliente, criada com `tesla-setup cliente add <nome>`) |
 | Formato | JSON (UTF-8) |
-| Erros | Sempre `{"erro": "<mensagem>"}` com o código HTTP correspondente |
+| Erros | `{"codigo": 403, "erro": "Forbidden", "ref": 1234}` com o código HTTP correspondente (ver "Códigos de resposta") |
 
 Variáveis sugeridas no projeto cliente:
 ```bash
@@ -364,17 +364,30 @@ A resposta é a da Tesla, sem alterações.
 
 ## Códigos de resposta
 
+Em caso de erro o gateway devolve só o código, o nome e uma referência:
+```json
+{ "codigo": 403, "erro": "Forbidden", "ref": 1234 }
+```
+O motivo fica registado no gateway: portal admin → Definições → Logs → **API** (pesquisa por `ref`). O
+administrador pode ativar a opção "Também o motivo", que acrescenta `"detalhe": "..."` à resposta (útil a
+desenvolver). Com o carro a dormir, o 408 inclui também `"estado": "asleep"`.
+
 | Código | Quando | O que o cliente deve fazer |
 |---|---|---|
 | 200 | OK | — |
+| 400 | Parâmetro inválido, ou pedido recusado pela Tesla (passthrough) | Rever os parâmetros |
 | 401 | `X-API-Key` em falta, errada ou cliente desativado | Verificar a chave; não repetir em ciclo |
-| 403 | Cliente sem a permissão do endpoint, ou `/location` sem coordenadas (falta o scope `vehicle_location`) | Ver `GET /api/me`; pedir a permissão ao administrador |
-| 404 | Caminho inexistente | Rever o URL (prefixo `/api`, sem duplicar) |
+| 403 | Chave válida, mas sem a permissão, funcionalidade desligada no gateway, ou scope em falta na Tesla | Ver `GET /api/me`; pedir a permissão ao administrador |
+| 404 | Caminho inexistente ou recurso não encontrado | Rever o URL (`GET /api/endpoints`) |
 | 405 | Método errado (ex.: `GET .../wake`) | Usar o método da tabela |
 | 408 | Carro a dormir ou offline | Mostrar o último valor conhecido; tentar mais tarde |
 | 429 | Limite de pedidos da Tesla | Esperar e reduzir a frequência |
-| 502 | Falha na Tesla ou na renovação do token | Tentar mais tarde; ver logs no portal admin |
+| 500 | Erro interno do gateway | Indicar a `ref` ao administrador |
+| 502 | Falha na Tesla ou na renovação do token | Tentar mais tarde |
 | 503 | Gateway sem tokens (falta o `tesla-setup token`) | Avisar o administrador |
+
+Mostrar ao utilizador o código e a `ref` (ex.: "Erro 403 (ref 1234)") permite ao administrador encontrar o
+motivo exato.
 
 ## Boas práticas para o cliente
 

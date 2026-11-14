@@ -51,8 +51,12 @@ components:
         pontos: { type: integer }
     Erro:
       type: object
+      description: "O motivo fica nos logs do gateway (Definições → Logs → API), pesquisável pela ref."
       properties:
-        erro: { type: string }
+        codigo: { type: integer, example: 403 }
+        erro: { type: string, example: Forbidden }
+        ref: { type: integer, description: "id do registo no gateway", example: 1234 }
+        detalhe: { type: string, description: "só se o administrador ativar respostas detalhadas" }
     Veiculo:
       type: object
       properties:
