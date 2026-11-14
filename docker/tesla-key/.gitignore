@@ -8,3 +8,5 @@ tesla/gateway.db
 tesla/.tokens.lock
 __pycache__/
 .backup/
+tesla/exportacoes/
+tesla/backups/

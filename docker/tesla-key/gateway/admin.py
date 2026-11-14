@@ -4,12 +4,14 @@ tesla-key — portal admin (porta 8001, só LAN).
 Login definido com `tesla-setup admin`. Permite ver o estado, gerir clientes, ver logs
 e configurar a Status API e as definições.
 """
+import json
+import os
 import secrets
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 
-from flask import (Flask, abort, flash, redirect, render_template_string, request,
-                   session, url_for)
+from flask import (Flask, Response, abort, flash, jsonify, redirect, render_template_string, request,
+                   send_file, session, url_for)
 from markupsafe import Markup
 
 import common as c
@@ -49,6 +51,10 @@ nav{display:flex;gap:18px;align-items:center}
 .barra{height:10px;background:#eceef2;border-radius:6px;overflow:hidden}.barra div{height:100%;background:var(--pri)}
 .barra div.warn{background:var(--warn)}.barra div.err{background:var(--err)}
 .tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.mapa{height:480px;border-radius:8px;border:1px solid var(--bd)}
+.m{font-family:ui-monospace,monospace;font-size:12px;font-weight:700;padding:2px 7px;border-radius:4px;color:#fff}
+.m.GET{background:#1f8a4c}.m.POST{background:#b7791f}
+pre{background:#1d2433;color:#e6e9f0;padding:10px;border-radius:6px;overflow-x:auto;font-size:12px;white-space:pre-wrap;word-break:break-all}
 @media (max-width:760px){
  header{height:auto;flex-wrap:wrap;padding:10px 12px;gap:8px 14px}
  header nav{order:3;width:100%;overflow-x:auto;gap:16px;padding-bottom:4px;white-space:nowrap}
@@ -59,6 +65,7 @@ nav{display:flex;gap:18px;align-items:center}
  button{padding:9px 12px}form.in{display:inline-block;margin:2px 0}
  table.ft,table.ft tbody,table.ft tr,table.ft td{display:block;width:100%;white-space:normal}
  table.ft td{border-bottom:0;padding:4px 0}table.ft tr{border-bottom:1px solid var(--bd);padding:8px 0}
+ .mapa{height:360px}
 }
 </style></head><body>
 {% if session.get('user') %}
@@ -66,8 +73,12 @@ nav{display:flex;gap:18px;align-items:center}
 <nav>
 <a href="{{ url_for('painel') }}" class="{{ 'on' if pag=='painel' }}">Estado</a>
 <a href="{{ url_for('consumo') }}" class="{{ 'on' if pag=='consumo' }}">Consumo</a>
+<a href="{{ url_for('viagens') }}" class="{{ 'on' if pag=='viagens' }}">Viagens</a>
+<a href="{{ url_for('mapa') }}" class="{{ 'on' if pag=='mapa' }}">Mapa</a>
 <a href="{{ url_for('clientes') }}" class="{{ 'on' if pag=='clientes' }}">Clientes</a>
 <a href="{{ url_for('tesla_conf') }}" class="{{ 'on' if pag=='tesla' }}">Tesla</a>
+<a href="{{ url_for('dados') }}" class="{{ 'on' if pag=='dados' }}">Dados</a>
+<a href="{{ url_for('api_ajuda') }}" class="{{ 'on' if pag=='api' }}">API</a>
 <a href="{{ url_for('logs') }}" class="{{ 'on' if pag=='logs' }}">Logs</a>
 <a href="{{ url_for('definicoes') }}" class="{{ 'on' if pag=='definicoes' }}">Definições</a>
 </nav>
@@ -320,6 +331,13 @@ def definicoes():
             c.set_def("imagem_cache_dias", max(1, int(request.form.get("imagem_cache_dias") or 30)))
             c.log("INFO", "admin", "tempos de atualização alterados")
             flash("Tempos de atualização guardados", "ok")
+        elif acao == "recolha":
+            c.set_def("recolha_ativa", "1" if request.form.get("recolha_ativa") else "0")
+            for k in ("recolha_intervalo_conduzir", "recolha_intervalo_parado", "recolha_minutos_parado",
+                      "recolha_intervalo_dormir", "recolha_limite_diario"):
+                c.set_def(k, max(1, int(request.form.get(k) or 1)))
+            c.log("WARNING", "admin", f"recolha de viagens {'ativa' if c.get_def('recolha_ativa') == '1' else 'desativada'}")
+            flash("Recolha de viagens guardada", "ok")
         elif acao == "seccoes":
             sel = [x for x in request.form.getlist("seccao") if x in c.SECCOES]
             if not sel:
@@ -360,6 +378,22 @@ def definicoes():
             flash(f"{c.limpar_logs()} registos antigos apagados", "ok")
         return redirect(url_for("definicoes"))
     return render("Definições", "definicoes", """
+<div class="card"><h2>Recolha de viagens</h2>
+<p class="mutt">O gateway lê o carro periodicamente e regista viagens e posições (Viagens, Mapa). Cada leitura é um pedido
+de dados pago (cliente <code>recolha</code> em Consumo). Requer o scope <code>vehicle_location</code>.</p>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="recolha">
+<p><label><input type="checkbox" name="recolha_ativa" value="1" {{ 'checked' if rec.recolha_ativa == '1' }}> <b>Recolha ativa</b></label></p>
+<div class="row">
+<label>A conduzir (s)<input name="recolha_intervalo_conduzir" type="number" min="30" value="{{ rec.recolha_intervalo_conduzir }}"></label>
+<label>Parado e acordado (s)<input name="recolha_intervalo_parado" type="number" min="60" value="{{ rec.recolha_intervalo_parado }}"></label>
+<label>Minutos parado até "a dormir"<input name="recolha_minutos_parado" type="number" min="1" value="{{ rec.recolha_minutos_parado }}"></label>
+<label>A dormir (s)<input name="recolha_intervalo_dormir" type="number" min="300" value="{{ rec.recolha_intervalo_dormir }}"></label>
+<label>Máx. leituras/dia/veículo<input name="recolha_limite_diario" type="number" min="1" max="200" value="{{ rec.recolha_limite_diario }}"></label>
+</div>
+<p class="mutt">Com 2 min a conduzir, 10 min parado e 30 min a dormir: ~30 leituras por hora de condução + ~48/dia em repouso
+(≈ 0,15–0,25 $/dia). A Tesla limita a 200 pedidos de dados por veículo e por dia.</p>
+<button>Guardar</button></form></div>
+
 <div class="card"><h2>Tempos de atualização</h2>
 <p class="mutt">Durante este tempo o gateway responde com o último valor, sem pedir à Tesla (poupa créditos).
 Um cliente pode forçar com <code>?fresh=1</code>.</p>
@@ -430,6 +464,9 @@ Só leitura: não dá acesso aos dados do carro.</p>
                   seccoes={k: v for k, v in c.SECCOES.items()},
                   omissao=(c.get_def("data_endpoints_omissao") or "").split(";"),
                   perms=c.PERMISSOES, func=c.funcionalidades_ativas(),
+                  rec={k: c.get_def(k) for k in ("recolha_ativa", "recolha_intervalo_conduzir", "recolha_intervalo_parado",
+                                                  "recolha_minutos_parado", "recolha_intervalo_dormir",
+                                                  "recolha_limite_diario")},
                   ativa=c.get_def("status_api_ativa") == "1", pref=c.get_def("status_api_token_prefixo"))
 
 
@@ -530,6 +567,274 @@ def tesla_conf():
 automaticamente. Mudar o Client ID/Secret ou a região exige refazer o login.</p></div>""",
                   campos=c.CAMPOS_ENV, env=env, scopes=c.SCOPES_TESLA, pedidos=pedidos, no_token=no_token,
                   mascarar=c.mascarar, outros=[k for k in env if k not in conhecidos])
+
+# ---------------------------------------------------------------------------
+# Viagens, mapa, dados (backups/exportação) e ajuda da API
+# ---------------------------------------------------------------------------
+
+LEAFLET = """<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>"""
+
+FILTRO = """<form method="get" class="row">
+<label>Período<select name="periodo" onchange="this.form.submit()">
+{% for v, n in [('semana','Semana'),('mes','Mês'),('ano','Ano'),('dias','Últimos 30 dias'),('tudo','Tudo')] %}
+<option value="{{ v }}" {{ 'selected' if f.periodo==v }}>{{ n }}</option>{% endfor %}</select></label>
+{% if f.periodo=='semana' %}<label>Semana<input type="week" name="valor" value="{{ f.valor }}"></label>
+{% elif f.periodo=='mes' %}<label>Mês<input type="month" name="valor" value="{{ f.valor }}"></label>
+{% elif f.periodo=='ano' %}<label>Ano<select name="valor">{% for a in f.anos %}<option {{ 'selected' if a==f.valor }}>{{ a }}</option>{% endfor %}</select></label>
+{% elif f.periodo=='dias' %}<input type="hidden" name="valor" value="30">{% endif %}
+{% if f.vins|length > 1 %}<label>Veículo<select name="vin"><option value="">todos</option>
+{% for v in f.vins %}<option value="{{ v }}" {{ 'selected' if v==f.vin }}>…{{ v[-6:] }}</option>{% endfor %}</select></label>{% endif %}
+<button>Filtrar</button></form>"""
+
+
+def ler_filtro():
+    agora = datetime.now(timezone.utc)
+    periodo = request.args.get("periodo", "mes")
+    omissao = {"semana": agora.strftime("%G-W%V"), "mes": agora.strftime("%Y-%m"), "ano": str(agora.year),
+               "dias": "30", "tudo": ""}
+    valor = request.args.get("valor") or omissao.get(periodo, "")
+    de, ate = c.intervalo_periodo(periodo, valor)
+    with c.db() as con:
+        vins = [r[0] for r in con.execute("SELECT DISTINCT vin FROM viagens UNION SELECT vin FROM estado_veiculo")]
+    anos = c.anos_com_dados() or [str(agora.year)]
+    return {"periodo": periodo, "valor": valor, "de": de, "ate": ate, "vin": request.args.get("vin") or None,
+            "vins": vins, "anos": anos}
+
+
+@app.get("/viagens")
+@login_obrigatorio
+def viagens():
+    f = ler_filtro()
+    lista = c.listar_viagens(f["vin"], f["de"], f["ate"], limite=1000)
+    res = c.resumo_viagens(f["vin"], f["de"], f["ate"])
+    hoje = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with c.db() as con:
+        estados = [dict(r) for r in con.execute("SELECT * FROM estado_veiculo")]
+        for e in estados:
+            e["hoje"] = con.execute("SELECT COUNT(*) FROM consumo WHERE dia=? AND cliente='recolha' AND caminho LIKE ?",
+                                    (hoje, f"vehicles/{e['vin']}/%")).fetchone()[0]
+            e["proxima"] = (datetime.fromtimestamp(e["proxima_leitura"], timezone.utc).isoformat(timespec="seconds")
+                            if e.get("proxima_leitura") else None)
+    for v in lista:
+        try:
+            v["duracao_min"] = round((datetime.fromisoformat(v["fim"]) - datetime.fromisoformat(v["inicio"])).total_seconds() / 60) if v["fim"] else None
+        except (TypeError, ValueError):
+            v["duracao_min"] = None
+    return render("Viagens", "viagens", """
+<div class="card"><h2>Recolha</h2>
+<p>{% if ativa %}<span class="b ok">ativa</span>{% else %}<span class="b mut">desativada</span>
+— ative em <a href="{{ url_for('definicoes') }}">Definições</a>{% endif %}</p>
+{% if estados %}<table><tr><th>Veículo</th><th>Estado</th><th>Última leitura</th><th>Próxima</th><th>Leituras hoje</th><th>Bateria</th></tr>
+{% for e in estados %}<tr><td>…{{ e.vin[-6:] }}</td><td>{{ e.estado or '—' }}</td><td>{{ (e.ts or '—')[:19].replace('T',' ') }}</td>
+<td>{{ (e.proxima or '—')[:19].replace('T',' ') }}</td><td>{{ e.hoje }} / {{ limite }}</td><td>{{ e.bateria if e.bateria is not none else '—' }}{{ ' %' if e.bateria is not none }}</td></tr>{% endfor %}
+</table>{% endif %}</div>
+<div class="card">""" + FILTRO + """
+<div class="grid" style="margin:12px 0">
+ <div class="kpi"><small>Viagens</small><div>{{ res.n }}</div></div>
+ <div class="kpi"><small>Distância</small><div>{{ res.km }} km</div></div>
+ <div class="kpi"><small>Bateria usada</small><div>{{ res.bateria }} %</div></div>
+ <div class="kpi"><small>Velocidade máx.</small><div>{{ res.vmax or '—' }}{{ ' km/h' if res.vmax }}</div></div>
+</div>
+<table><tr><th>Início</th><th>Duração</th><th>Distância</th><th>Bateria</th><th>V. máx.</th><th>Pontos</th><th></th></tr>
+{% for v in lista %}<tr><td>{{ v.inicio[:16].replace('T',' ') }}</td>
+<td>{{ v.duracao_min ~ ' min' if v.duracao_min is not none else ('a decorrer' if v.estado=='aberta' else '—') }}</td>
+<td>{{ v.km ~ ' km' if v.km is not none else '—' }}</td>
+<td>{{ v.bateria_inicio if v.bateria_inicio is not none else '?' }} → {{ v.bateria_fim if v.bateria_fim is not none else '?' }} %</td>
+<td>{{ v.velocidade_max_kmh or '—' }}</td><td>{{ v.pontos }}</td>
+<td><a href="{{ url_for('viagem', viagem_id=v.id) }}"><button type="button" class="sec">Ver</button></a></td></tr>
+{% else %}<tr><td colspan="7" class="mutt">Sem viagens neste período.</td></tr>{% endfor %}</table></div>""",
+                  f=f, lista=lista, res=res, estados=estados, ativa=c.get_def("recolha_ativa") == "1",
+                  limite=c.get_def("recolha_limite_diario"))
+
+
+@app.get("/viagens/<int:viagem_id>")
+@login_obrigatorio
+def viagem(viagem_id):
+    v = c.obter_viagem(viagem_id)
+    return render(f"Viagem {viagem_id}", "viagens", LEAFLET + """
+<div class="card"><h2>Viagem {{ v.id }} — {{ v.inicio[:16].replace('T',' ') }}</h2>
+<div class="grid" style="margin-bottom:12px">
+ <div class="kpi"><small>Distância</small><div>{{ v.km ~ ' km' if v.km is not none else '—' }}</div></div>
+ <div class="kpi"><small>Fim</small><div style="font-size:15px">{{ (v.fim or 'a decorrer')[:16].replace('T',' ') }}</div></div>
+ <div class="kpi"><small>Bateria</small><div>{{ v.bateria_inicio }} → {{ v.bateria_fim if v.bateria_fim is not none else '?' }} %</div></div>
+ <div class="kpi"><small>V. máx.</small><div>{{ v.velocidade_max_kmh or '—' }}</div></div>
+</div>
+<div id="mapa" class="mapa"></div>
+<p><a href="{{ url_for('exportar_viagem', viagem_id=v.id, formato='gpx') }}"><button type="button" class="sec">GPX</button></a>
+<a href="{{ url_for('exportar_viagem', viagem_id=v.id, formato='json') }}"><button type="button" class="sec">JSON</button></a>
+<a href="{{ url_for('viagens') }}"><button type="button" class="sec">Voltar</button></a></p>
+<p class="mutt">Percurso aproximado: um ponto por leitura (intervalo "a conduzir" em Definições).</p></div>
+<script>
+const pts = {{ v.percurso|map(attribute='lat')|list|tojson }}.map((la, i) => [la, {{ v.percurso|map(attribute='lon')|list|tojson }}[i]]);
+const m = L.map('mapa'); L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+ {maxZoom: 19, attribution: '&copy; OpenStreetMap'}).addTo(m);
+if (pts.length) { const l = L.polyline(pts, {color: '#3157d5', weight: 4}).addTo(m); m.fitBounds(l.getBounds(), {padding: [20, 20]});
+ L.circleMarker(pts[0], {radius: 7, color: '#1f8a4c'}).addTo(m).bindPopup('Início');
+ L.circleMarker(pts[pts.length-1], {radius: 7, color: '#c53030'}).addTo(m).bindPopup('Fim'); }
+else { m.setView([39.5, -8], 6); }
+</script>""", v=v)
+
+
+@app.get("/viagens/<int:viagem_id>.<formato>")
+@login_obrigatorio
+def exportar_viagem(viagem_id, formato):
+    v = c.obter_viagem(viagem_id)
+    if formato == "json":
+        return Response(json.dumps(v, ensure_ascii=False, indent=1), mimetype="application/json",
+                        headers={"Content-Disposition": f"attachment; filename=viagem-{viagem_id}.json"})
+    if formato == "gpx":
+        corpo = ['<?xml version="1.0" encoding="UTF-8"?>',
+                 '<gpx version="1.1" creator="tesla-key" xmlns="http://www.topografix.com/GPX/1/1">',
+                 f'<trk><name>Viagem {viagem_id}</name><trkseg>']
+        corpo += [f'<trkpt lat="{p["lat"]}" lon="{p["lon"]}"><time>{p["ts"]}</time></trkpt>' for p in v["percurso"]]
+        corpo += ["</trkseg></trk>", "</gpx>"]
+        return Response("\n".join(corpo), mimetype="application/gpx+xml",
+                        headers={"Content-Disposition": f"attachment; filename=viagem-{viagem_id}.gpx"})
+    abort(404)
+
+
+@app.get("/mapa")
+@login_obrigatorio
+def mapa():
+    f = ler_filtro()
+    return render("Mapa", "mapa", LEAFLET + """
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<div class="card"><h2>Por onde andou o carro</h2>""" + FILTRO + """
+<p><label><input type="checkbox" id="so_viagens"> só pontos de viagens (sem estacionamentos)</label>
+<span id="info" class="mutt" style="margin-left:10px"></span></p>
+<div id="mapa" class="mapa"></div>
+<p class="mutt">Mapa de calor das posições registadas (grelha de ~100 m): quanto mais quente, mais vezes o carro passou ou esteve lá.</p></div>
+<script>
+const m = L.map('mapa').setView([39.5, -8], 6);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; OpenStreetMap'}).addTo(m);
+let camada = null;
+function carregar() {
+  const q = new URLSearchParams({periodo: {{ f.periodo|tojson }}, valor: {{ f.valor|tojson }}, vin: {{ (f.vin or '')|tojson }},
+    so_viagens: document.getElementById('so_viagens').checked ? '1' : '0'});
+  fetch('{{ url_for("mapa_dados") }}?' + q).then(r => r.json()).then(d => {
+    if (camada) m.removeLayer(camada);
+    const max = Math.max(1, ...d.pontos.map(p => p.n));
+    camada = L.heatLayer(d.pontos.map(p => [p.lat, p.lon, Math.max(0.15, Math.log(1 + p.n) / Math.log(1 + max))]),
+      {radius: 18, blur: 15, maxZoom: 15, minOpacity: 0.35}).addTo(m);
+    document.getElementById('info').textContent = d.pontos.length + ' zonas · ' + d.total + ' pontos';
+    if (d.pontos.length) m.fitBounds(d.pontos.map(p => [p.lat, p.lon]), {padding: [20, 20], maxZoom: 14});
+  });
+}
+document.getElementById('so_viagens').addEventListener('change', carregar);
+carregar();
+</script>""", f=f)
+
+
+@app.get("/mapa/dados.json")
+@login_obrigatorio
+def mapa_dados():
+    f = ler_filtro()
+    pts = c.posicoes(f["vin"], f["de"], f["ate"], agregado=True, so_viagens=request.args.get("so_viagens") == "1")
+    return jsonify({"pontos": pts, "total": sum(p["n"] for p in pts)})
+
+
+@app.route("/dados", methods=["GET", "POST"])
+@login_obrigatorio
+def dados():
+    if request.method == "POST":
+        acao = request.form.get("acao")
+        if acao == "backup":
+            flash(f"Backup criado: {c.criar_backup('manual')}", "ok")
+        elif acao == "apagar":
+            c.apagar_backup(request.form.get("nome"))
+            flash("Backup apagado", "ok")
+        elif acao == "restaurar":
+            c.restaurar_backup(request.form.get("nome"))
+            flash("Base de dados restaurada (foi feito antes um backup 'antes-restauro')", "ok")
+        elif acao == "config":
+            c.set_def("backup_automatico", "1" if request.form.get("backup_automatico") else "0")
+            c.set_def("backup_retencao", max(1, int(request.form.get("backup_retencao") or 14)))
+            flash("Definições de backup guardadas", "ok")
+        return redirect(url_for("dados"))
+    with c.db() as con:
+        cont = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ("viagens", "pontos", "consumo", "logs", "clientes")}
+    tam = round(os.path.getsize(c.DB_FILE) / 1024, 1) if os.path.exists(c.DB_FILE) else 0
+    return render("Dados", "dados", """
+<div class="card"><h2>Base de dados</h2>
+<div class="grid">{% for k, n in cont.items() %}<div class="kpi"><small>{{ k }}</small><div>{{ n }}</div></div>{% endfor %}
+<div class="kpi"><small>Tamanho</small><div>{{ tam }} KB</div></div></div></div>
+
+<div class="card"><h2>Exportar</h2>
+<form method="get" action="{{ url_for('exportar') }}" class="row">
+<label>Dados<select name="tipo"><option value="viagens">Viagens</option><option value="pontos">Posições</option>
+<option value="consumo">Consumo</option><option value="logs">Logs</option></select></label>
+<label>Formato<select name="formato"><option value="csv">CSV (Excel)</option><option value="json">JSON</option>
+<option value="gpx">GPX (viagens)</option><option value="geojson">GeoJSON (posições)</option></select></label>
+<label>Período<select name="periodo"><option value="tudo">Tudo</option><option value="ano">Este ano</option>
+<option value="mes">Este mês</option><option value="semana">Esta semana</option></select></label>
+<button>Exportar</button></form>
+<p class="mutt">CSV com separador <code>;</code>. GPX abre no Google Earth, Strava, etc.; GeoJSON em QGIS/geojson.io.</p></div>
+
+<div class="card"><h2>Backups</h2>
+<form method="post" class="row"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="config">
+<label style="flex-direction:row;align-items:center"><input type="checkbox" name="backup_automatico" value="1" {{ 'checked' if auto == '1' }}> Backup automático diário</label>
+<label>Guardar (nº de backups automáticos)<input name="backup_retencao" type="number" min="1" value="{{ ret }}"></label>
+<button>Guardar</button></form>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="backup"><button>Criar backup agora</button></form>
+<table style="margin-top:10px"><tr><th>Ficheiro</th><th>Data (UTC)</th><th>Tamanho</th><th></th></tr>
+{% for b in backups %}<tr><td><code>{{ b.nome }}</code></td><td>{{ b.data[:19].replace('T',' ') }}</td><td>{{ b.tamanho_kb }} KB</td>
+<td style="white-space:nowrap"><a href="{{ url_for('descarregar_backup', nome=b.nome) }}"><button type="button" class="sec">Descarregar</button></a>
+<form class="in" method="post" onsubmit="return confirm('Restaurar {{ b.nome }}? Os dados atuais são substituídos (é feito um backup antes).')">
+<input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="restaurar"><input type="hidden" name="nome" value="{{ b.nome }}"><button class="sec">Restaurar</button></form>
+<form class="in" method="post" onsubmit="return confirm('Apagar {{ b.nome }}?')"><input type="hidden" name="csrf" value="{{ csrf() }}">
+<input type="hidden" name="acao" value="apagar"><input type="hidden" name="nome" value="{{ b.nome }}"><button class="del">Apagar</button></form></td></tr>
+{% else %}<tr><td colspan="4" class="mutt">Sem backups.</td></tr>{% endfor %}</table>
+<p class="mutt">Ficam em <code>tesla/backups/</code> no NAS (volume). Incluem clientes, chaves (em hash), login, viagens, consumo e logs;
+o <code>tesla.env</code>, as chaves Tesla e os tokens estão em <code>tesla/</code> e não fazem parte do backup.</p></div>""",
+                  cont=cont, tam=tam, backups=c.listar_backups(), auto=c.get_def("backup_automatico"),
+                  ret=c.get_def("backup_retencao"))
+
+
+@app.get("/dados/exportar")
+@login_obrigatorio
+def exportar():
+    periodo = request.args.get("periodo", "tudo")
+    de, ate = c.intervalo_periodo(periodo, None)
+    corpo, mime, nome = c.exportar(request.args.get("tipo", "viagens"), request.args.get("formato", "csv"), None, de, ate)
+    c.log("INFO", "admin", f"exportação: {nome} ({periodo})")
+    return Response(corpo, mimetype=mime, headers={"Content-Disposition": f"attachment; filename={nome}"})
+
+
+@app.get("/dados/backup/<nome>")
+@login_obrigatorio
+def descarregar_backup(nome):
+    return send_file(c.caminho_backup(nome), as_attachment=True, download_name=nome)
+
+
+@app.get("/api-ajuda")
+@login_obrigatorio
+def api_ajuda():
+    return render("API", "api", """
+<div class="card"><h2>Como usar a API</h2>
+<table class="ft"><tr><th>URL base (mesma rede Docker)</th><td><code>http://tesla-key:8000</code></td></tr>
+<tr><th>Autenticação</th><td>Header <code>X-API-Key: tk_...</code> (chave do cliente, em Clientes)</td></tr>
+<tr><th>Formato</th><td>JSON; erros em <code>{"erro": "..."}</code></td></tr>
+<tr><th>Referência em JSON</th><td><code>GET /api/endpoints</code> (sem chave)</td></tr></table>
+<pre>curl -H "X-API-Key: tk_..." http://tesla-key:8000/api/vehicles</pre></div>
+
+{% for e in eps %}<div class="card">
+<h2><span class="m {{ e.metodo }}">{{ e.metodo }}</span> <code>{{ e.caminho }}</code></h2>
+<p>{{ e.descricao }}</p>
+<table class="ft"><tr><th>Permissão</th><td>{% if e.permissao %}{% for p in e.permissao.split(', ') %}<span class="b mut">{{ p }}</span> {% endfor %}{% else %}<span class="mutt">nenhuma</span>{% endif %}</td></tr>
+{% if e.parametros %}<tr><th>Parâmetros</th><td><code>{{ e.parametros }}</code></td></tr>{% endif %}</table>
+<pre>curl {{ '-X POST ' if e.metodo == 'POST' }}{{ '-H "X-API-Key: tk_..." ' if e.permissao or e.caminho == '/api/me' }}"http://tesla-key:8000{{ e.caminho|replace('{vin}', '<VIN>')|replace('{id}', '1')|replace('{caminho}', 'dx/charging/history') }}"</pre>
+<small class="mutt">Exemplo de resposta</small><pre>{{ e.exemplo }}</pre></div>{% endfor %}
+
+<div class="card"><h2>Códigos de resposta</h2><table>
+<tr><th>Código</th><th>Significado</th></tr>
+<tr><td>200</td><td>OK</td></tr><tr><td>400</td><td>Parâmetro inválido</td></tr>
+<tr><td>401</td><td>Chave em falta, errada ou cliente desativado</td></tr>
+<tr><td>403</td><td>Sem permissão, funcionalidade desativada, ou scope em falta na Tesla</td></tr>
+<tr><td>404</td><td>Caminho ou recurso inexistente</td></tr><tr><td>408</td><td>Carro a dormir ou offline</td></tr>
+<tr><td>429</td><td>Limite de pedidos da Tesla</td></tr><tr><td>502 / 503</td><td>Falha na Tesla / gateway sem tokens</td></tr>
+</table></div>""", eps=c.endpoints_json())
+
 
 
 if __name__ == "__main__":

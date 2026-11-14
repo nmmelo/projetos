@@ -25,6 +25,7 @@ tesla-key/
 ├── gateway/
 │   ├── common.py           # base de dados, clientes, tokens Tesla, logs
 │   ├── gateway.py          # API de clientes + Status API (porta 8000, rede Docker)
+│   ├── recolha.py          # recolha de viagens e backup diário (processo em segundo plano)
 │   ├── imagens.py          # imagem do carro (compositor do configurador Tesla)
 │   ├── admin.py            # portal admin web (porta 8001, LAN)
 │   ├── cli.py              # gestão por linha de comandos (via tesla-setup)
@@ -37,6 +38,7 @@ tesla-key/
 │   ├── keys/               # private-key.pem / public-key.pem (não vai para o Git)
 │   ├── tokens.json         # access/refresh token (não vai para o Git)
 │   ├── imagens/            # imagens do carro em cache
+│   ├── backups/            # backups do gateway.db
 │   └── gateway.db          # SQLite: clientes, definições, login, logs (não vai para o Git)
 └── hostkeys/               # criado no 1.º arranque (host key SSH persistente)
 ```
@@ -78,6 +80,10 @@ tesla-key/
 | `tesla-setup funcionalidades [set LISTA]` | Funcionalidades ativas no gateway (para todos os clientes) |
 | `tesla-setup consumo [AAAA-MM]` | Estimativa de consumo (créditos) no mês |
 | `tesla-setup config` | `tesla.env` com segredos mascarados e scopes do token |
+| `tesla-setup recolha [on\|off]` | Estado da recolha de viagens / ativar / desativar |
+| `tesla-setup viagens [PERIODO VALOR]` | Viagens registadas (ex.: `viagens mes 2026-11`) |
+| `tesla-setup backup` / `backups` / `restaurar NOME` | Backups do `gateway.db` |
+| `tesla-setup exportar TIPO FORMATO [FICHEIRO] [PERIODO VALOR]` | Exportar viagens, pontos, consumo ou logs |
 | `tesla-setup cliente on\|off\|rm\|chave NOME` | Ativa, desativa, apaga ou gera nova chave |
 | `tesla-setup status-api on\|off\|token\|info` | Gere a Status API e o token Bearer |
 | `tesla-setup definicao [CHAVE [VALOR]]` | Tempos (`cache_segundos`, `cache_localizacao_segundos`, `cache_veiculos_segundos`, `imagem_cache_dias`), `data_endpoints_omissao`, preços (`preco_dados`, `preco_wake`, `preco_comando`, `credito_mensal`), `retencao_logs_dias` |
@@ -178,6 +184,36 @@ de 10 $/mês). É uma estimativa: só conta o que passa pelo gateway; o valor of
 developer.tesla.com. Também mostra o número de pedidos do dia face aos limites diários por veículo
 (200 dados, 50 comandos, 15 wakes).
 
+### Viagens (recolha por leituras periódicas)
+
+A Fleet API não tem histórico de viagens. Com a recolha ativa (Definições → Recolha de viagens, ou
+`tesla-setup recolha on`), um processo do contentor (`recolha.py`) lê o carro periodicamente e regista
+viagens e posições no `gateway.db`.
+
+| Situação | Intervalo (omissão) |
+|---|---|
+| A conduzir (mudança D/R/N ou velocidade > 0) | 120 s |
+| Parado e acordado | 600 s |
+| Parado há mais de 30 min, ou a dormir/offline (408) | 1800 s |
+| Limite de leituras por veículo e por dia | 150 (a Tesla permite 200 pedidos de dados) |
+
+- Cada leitura é um pedido de dados pago (aparece como cliente `recolha` em Consumo); com os valores por
+  omissão, ~30 leituras por hora de condução + ~48 por dia em repouso.
+- Distância pelo odómetro (exata); percurso com um ponto por leitura (aproximado). Se a viagem começar entre
+  leituras, o início usa a última posição e odómetro conhecidos.
+- Requer o scope `vehicle_location` e a permissão `viagens` para os clientes (incluída em `leitura` e `tudo`;
+  clientes com permissões escolhidas à mão: `tesla-setup cliente perm <nome> add viagens`).
+- O mapa e o detalhe da viagem no portal admin carregam o Leaflet e os mapas do OpenStreetMap a partir da
+  internet (pelo browser).
+
+### Backups e exportação
+
+- Backup automático diário do `gateway.db` em `tesla/backups/` (guarda os últimos 14; configurável em Dados).
+- Backups manuais, descarregar, restaurar (faz antes um backup `antes-restauro`) e apagar na página Dados ou
+  com `tesla-setup backup | backups | restaurar`.
+- Exportação de viagens (CSV, JSON, GPX), posições (CSV, JSON, GeoJSON), consumo e logs (CSV, JSON).
+- O `tesla.env`, as chaves Tesla e os tokens ficam fora do backup (estão na pasta `tesla/` do NAS).
+
 ### Ativar a localização
 
 A localização exige o scope `vehicle_location`, que tem de existir na aplicação e no token.
@@ -239,6 +275,10 @@ desativada responde 404. Autenticação com `Authorization: Bearer <token>` (tok
 | Página | O que permite |
 |---|---|
 | Estado | Gateway, token Tesla, clientes, consumo do mês, pedidos/warnings/erros 24 h, testar ligação, renovar token |
+| Viagens | Estado da recolha por veículo, viagens com filtros (semana, mês, ano, 30 dias) e totais; detalhe com mapa do percurso e exportação GPX/JSON |
+| Mapa | Mapa de calor das posições registadas ("por onde andou"), com filtros por semana, mês ou ano |
+| Dados | Contagens da base de dados, exportação (CSV, JSON, GPX, GeoJSON) e backups (criar, descarregar, restaurar, apagar, automático diário) |
+| API | Ajuda dos endpoints: método, caminho, permissão, parâmetros, exemplo `curl` e de resposta |
 | Consumo | Estimativa de créditos do mês: por tipo (dados, wakes, comandos), por cliente, por endpoint e por dia, com limites diários |
 | Clientes | Criar com preset de permissões (mostra a chave uma vez), editar permissões, ativar/desativar, nova chave, apagar |
 | Tesla | Ver e editar o `tesla.env` (segredos mascarados) e comparar os scopes pedidos com os do token atual |

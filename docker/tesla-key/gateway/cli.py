@@ -12,12 +12,20 @@ Gestão do gateway pela linha de comandos (chamado pelo `tesla-setup`).
   funcionalidades [set LISTA]    funcionalidades ativas no gateway (para todos os clientes)
   consumo [AAAA-MM]              estimativa de consumo da Fleet API no mês
   config                         tesla.env (segredos mascarados) e scopes do token
+  recolha [on|off]               estado da recolha de viagens (ou ativar/desativar)
+  viagens [PERIODO VALOR]        viagens registadas (ex.: viagens mes 2026-11; viagens ano 2026)
+  backup                         cria um backup do gateway.db
+  backups                        lista os backups
+  restaurar NOME                 restaura um backup (faz antes um backup "antes-restauro")
+  exportar TIPO FORMATO [FICH] [PERIODO VALOR]
+                                 TIPO viagens|pontos|consumo|logs; FORMATO csv|json|gpx|geojson
   logs [N] [NIVEL]               últimos N registos (INFO|WARNING|ERROR)
   logs-limpar                    apaga logs mais antigos que a retenção
   resumo                         estado do gateway (JSON)
 """
 import getpass
 import json
+import os
 import sys
 
 import common as c
@@ -184,6 +192,52 @@ def main(argv):
         for k, v in c.ler_env_bruto():
             print(f"  {k:<24} {c.mascarar(k, v)}")
         print(f"\n  scopes no token: {' '.join(c.scopes_token()) or '(sem token)'}")
+    elif cmd == "recolha":
+        if args and args[0] in ("on", "off"):
+            c.set_def("recolha_ativa", "1" if args[0] == "on" else "0")
+            c.log("WARNING", "admin", f"recolha de viagens {'ativa' if args[0] == 'on' else 'desativada'} (cli)")
+        print(f"recolha: {'ativa' if c.get_def('recolha_ativa') == '1' else 'desativada'}")
+        for k in ("recolha_intervalo_conduzir", "recolha_intervalo_parado", "recolha_minutos_parado",
+                  "recolha_intervalo_dormir", "recolha_limite_diario"):
+            print(f"  {k:<28} {c.get_def(k)}")
+        with c.db() as con:
+            est = [dict(r) for r in con.execute("SELECT vin, estado, ts, bateria FROM estado_veiculo")]
+        if est:
+            print()
+            tabela([{**e, "vin": "…" + e["vin"][-6:]} for e in est], ["vin", "estado", "ts", "bateria"])
+    elif cmd == "viagens":
+        de, ate = c.intervalo_periodo(args[0], args[1] if len(args) > 1 else None) if args else c.intervalo_periodo("dias", 30)
+        r = c.resumo_viagens(None, de, ate)
+        print(f"{r['n']} viagens, {r['km']} km, {r['bateria']} % de bateria (de {de[:10]} a {ate[:10]})\n")
+        tabela([{k: v[k] for k in ("id", "inicio", "fim", "km", "bateria_inicio", "bateria_fim", "pontos", "estado")}
+                for v in c.listar_viagens(None, de, ate, 100)],
+               ["id", "inicio", "fim", "km", "bateria_inicio", "bateria_fim", "pontos", "estado"])
+    elif cmd == "backup":
+        print("backup criado:", c.criar_backup("manual"))
+    elif cmd == "backups":
+        tabela(c.listar_backups(), ["nome", "data", "tamanho_kb"])
+    elif cmd == "restaurar":
+        if not args:
+            print("uso: restaurar NOME (ver: backups)")
+            return 1
+        if input(f"Restaurar {args[0]}? Os dados atuais são substituídos. [s/N] ").lower() != "s":
+            return 1
+        c.restaurar_backup(args[0])
+        print("restaurado")
+    elif cmd == "exportar":
+        if len(args) < 2:
+            print("uso: exportar TIPO FORMATO [FICHEIRO] [PERIODO VALOR]")
+            return 1
+        tipo, formato = args[0], args[1]
+        fich = args[2] if len(args) > 2 and args[2] not in ("ano", "mes", "semana", "dias", "tudo") else None
+        resto = args[3:] if fich else args[2:]
+        de, ate = c.intervalo_periodo(resto[0], resto[1] if len(resto) > 1 else None) if resto else ("0000", "9999")
+        corpo, _, nome = c.exportar(tipo, formato, None, de, ate)
+        fich = fich or os.path.join(c.BASE, "exportacoes", nome)
+        os.makedirs(os.path.dirname(fich) or ".", exist_ok=True)
+        with open(fich, "w", encoding="utf-8") as f:
+            f.write(corpo)
+        print("exportado:", fich)
     elif cmd == "logs":
         n = int(args[0]) if args else 50
         nivel = args[1].upper() if len(args) > 1 else None

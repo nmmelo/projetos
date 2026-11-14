@@ -35,6 +35,7 @@ consultar as suas permissões em `GET /api/me`.
 | `config` | Modelo, cor e jantes (`vehicle_config`) | `/data` |
 | `localizacao` | Coordenadas GPS (`location_data`) | `/location`, `/data` |
 | `imagem` | Imagem do modelo | `/image` |
+| `viagens` | Viagens e posições registadas pelo gateway | `/trips`, `/positions` |
 | `token` | Estado do token Tesla | `/api/token/status` |
 | `acordar` | Acordar o carro (sensível) | `/wake` |
 | `fleet` | Passthrough para qualquer GET da Fleet API (sensível, acesso amplo) | `/api/fleet/...` |
@@ -71,6 +72,10 @@ para forçar um pedido novo à Tesla (conta como pedido pago).
 | GET | `/api/vehicles/{vin}/data` | sim | Dados completos (`vehicle_data`), com cache |
 | GET | `/api/vehicles/{vin}/location` | sim | Localização simplificada (latitude, longitude, direção, velocidade) |
 | GET | `/api/vehicles/{vin}/image` | sim | Imagem do modelo (render do configurador, não das câmaras) |
+| GET | `/api/vehicles/{vin}/trips` | sim | Viagens registadas pelo gateway, com totais |
+| GET | `/api/vehicles/{vin}/trips/{id}` | sim | Uma viagem com o percurso |
+| GET | `/api/vehicles/{vin}/positions` | sim | Posições registadas (mapa de calor ou percurso) |
+| GET | `/api/endpoints` | não | Esta referência em JSON |
 | POST | `/api/vehicles/{vin}/wake` | sim | Acorda o carro (usar com moderação) |
 | GET | `/api/fleet/{caminho}` | sim | Passthrough só de leitura para `/api/1/{caminho}` da Fleet API |
 
@@ -246,6 +251,69 @@ def carro():
     r = requests.get(f"{URL}/api/vehicles/{VIN}/image?size=800", headers=H, timeout=30)
     return Response(r.content, mimetype=r.headers.get("Content-Type", "image/png"))
 ```
+
+### Viagens (`/trips`, `/positions`)
+
+A Tesla não tem histórico de viagens: é o gateway que as regista, com leituras periódicas (recolha ativada
+pelo administrador). Uma viagem começa quando a mudança passa a D/R/N (ou há velocidade) e termina quando
+volta a P ou o carro adormece. A distância vem do odómetro; o percurso tem um ponto por leitura
+(por omissão de 2 em 2 minutos), por isso é aproximado.
+
+**Filtros** (comuns a `/trips` e `/positions`, usar um):
+
+| Parâmetro | Exemplo | Intervalo |
+|---|---|---|
+| `ano` | `2026` | o ano |
+| `mes` | `2026-11` | o mês |
+| `semana` | `2026-W46` | semana ISO (segunda a domingo) |
+| `dias` | `30` | últimos N dias |
+| `de`, `ate` | `2026-11-01`, `2026-11-15` | intervalo livre (`ate` exclusivo) |
+| (nenhum) | | tudo |
+
+#### `GET /api/vehicles/{vin}/trips`
+`limite` (omissão 200, máx. 5000).
+```json
+{
+  "viagens": [
+    {
+      "id": 12, "vin": "...", "estado": "fechada",
+      "inicio": "2026-11-14T08:02:11+00:00", "fim": "2026-11-14T08:31:40+00:00",
+      "lat_inicio": 38.70, "lon_inicio": -9.10, "lat_fim": 38.77, "lon_fim": -9.17,
+      "odo_inicio_km": 16093.4, "odo_fim_km": 16113.6, "km": 20.2,
+      "bateria_inicio": 80, "bateria_fim": 76, "velocidade_max_kmh": 112, "pontos": 15
+    }
+  ],
+  "resumo": { "n": 1, "km": 20.2, "bateria": 4, "vmax": 112 },
+  "de": "2026-11-01", "ate": "2026-12-01"
+}
+```
+`estado` é `aberta` enquanto a viagem decorre (sem `fim`, `km` nem `bateria_fim`).
+
+#### `GET /api/vehicles/{vin}/trips/{id}`
+A viagem (mesmos campos) mais `percurso`:
+```json
+{ "id": 12, "km": 20.2, "percurso": [
+  { "ts": "2026-11-14T08:02:11+00:00", "lat": 38.70, "lon": -9.10, "velocidade_kmh": 0, "direcao": 90, "bateria": 80, "odo_km": 16093.4 } ] }
+```
+
+#### `GET /api/vehicles/{vin}/positions`
+
+| Parâmetro | Omissão | Descrição |
+|---|---|---|
+| `agregado` | `1` | `1`: grelha de ~100 m com contagem `n` (para mapa de calor); `0`: pontos individuais |
+| `so_viagens` | — | `1` exclui as posições de estacionamento |
+
+```json
+{ "pontos": [ { "lat": 38.722, "lon": -9.139, "n": 14 } ], "agregado": true, "de": "2026-01-01", "ate": "2027-01-01" }
+```
+Com `agregado=0`: `{ "ts", "lat", "lon", "velocidade_kmh", "viagem_id" }` por ponto.
+
+Exemplo de mapa de calor no portal (Leaflet + leaflet.heat): pedir `/positions?mes=2026-11` no servidor do
+portal e passar `[lat, lon, n]` ao `L.heatLayer`.
+
+### `GET /api/endpoints`
+Lista de endpoints com método, caminho, permissão, descrição, parâmetros e exemplo (sem chave). O portal admin
+mostra a mesma informação na página **API**.
 
 ### `POST /api/vehicles/{vin}/wake`
 Acorda o carro. Demora 10–60 s até `state` passar a `online` (consultar `GET /api/vehicles/{vin}`).

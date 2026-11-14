@@ -192,6 +192,14 @@ Gateway (portal admin, clientes, Status API, logs):
   funcionalidades [set LISTA]   funcionalidades ativas no gateway (todos os clientes)
   consumo [AAAA-MM]             estimativa de consumo (créditos) no mês
   config                        tesla.env com segredos mascarados e scopes do token
+
+Viagens e dados:
+  recolha [on|off]              recolha de viagens (estado, ativar, desativar)
+  viagens [PERIODO VALOR]       viagens registadas (ex.: viagens mes 2026-11)
+  backup | backups              cria / lista backups do gateway.db
+  restaurar NOME                restaura um backup
+  exportar TIPO FORMATO [FICHEIRO] [PERIODO VALOR]
+                                viagens|pontos|consumo|logs em csv|json|gpx|geojson
   logs [N] [NIVEL]              últimos N registos (INFO|WARNING|ERROR)
   logs-limpar                   apaga logs mais antigos que a retenção
   resumo                        estado do gateway (JSON)
@@ -206,7 +214,7 @@ cmd="${1:-ajuda}"; shift || true
 GATEWAY_CLI="${GATEWAY_CLI:-/opt/gateway/cli.py}"
 case "$cmd" in
     ajuda|-h|--help) ajuda; exit 0 ;;
-    admin|status-api|definicao|logs|logs-limpar|resumo|permissoes|funcionalidades|consumo|config)
+    admin|status-api|definicao|logs|logs-limpar|resumo|permissoes|funcionalidades|consumo|config|recolha|viagens|backup|backups|restaurar|exportar)
         exec python3 "$GATEWAY_CLI" "$cmd" "$@" ;;
     cliente)
         sub="${1:-list}"; shift || true

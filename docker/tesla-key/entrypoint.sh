@@ -32,5 +32,7 @@ runuser -u "${SSH_USER}" -- gunicorn --chdir /opt/gateway --bind 0.0.0.0:8000 --
     --access-logfile - --error-logfile - gateway:app &
 runuser -u "${SSH_USER}" -- gunicorn --chdir /opt/gateway --bind 0.0.0.0:8001 --workers 1 --threads 2 \
     --error-logfile - admin:app &
+# Recolha de viagens e backup diário (reinicia sozinha se terminar)
+runuser -u "${SSH_USER}" -- bash -c 'cd /opt/gateway; while true; do python3 recolha.py; sleep 10; done' &
 
 exec nginx -g 'daemon off;'

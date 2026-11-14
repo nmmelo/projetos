@@ -31,7 +31,7 @@ def autenticar():
     g.inicio = time.time()
     g.cliente = None
     p = request.path
-    if p == "/api/health":
+    if p in ("/api/health", "/api/endpoints"):
         return
     if p.startswith("/status/"):
         if c.get_def("status_api_ativa") != "1":
@@ -57,7 +57,7 @@ def autenticar():
 
 @app.after_request
 def registar(resp):
-    if request.path == "/api/health" or resp.status_code in (401, 403, 304):
+    if request.path in ("/api/health", "/api/endpoints") or resp.status_code in (401, 403, 304):
         return resp
     ms = int((time.time() - getattr(g, "inicio", time.time())) * 1000)
     nivel = "ERROR" if resp.status_code >= 500 else "WARNING" if resp.status_code >= 400 else "INFO"
@@ -108,6 +108,44 @@ def resposta(r):
 @app.get("/api/health")
 def health():
     return jsonify({"ok": True})
+
+
+@app.get("/api/endpoints")
+def endpoints():
+    """Referência dos endpoints (sempre permitido)."""
+    return jsonify(c.endpoints_json())
+
+
+def filtros_periodo():
+    a = request.args
+    for p in ("ano", "mes", "semana", "dias"):
+        if a.get(p):
+            return c.intervalo_periodo(p, a.get(p))
+    return c.intervalo_periodo(de=a.get("de"), ate=a.get("ate"))
+
+
+@app.get("/api/vehicles/<vin>/trips")
+def trips(vin):
+    requer("viagens")
+    de, ate = filtros_periodo()
+    limite = min(int(request.args.get("limite", 200)), 5000)
+    return jsonify({"viagens": c.listar_viagens(vin, de, ate, limite),
+                    "resumo": c.resumo_viagens(vin, de, ate), "de": de, "ate": ate})
+
+
+@app.get("/api/vehicles/<vin>/trips/<int:viagem_id>")
+def trip(vin, viagem_id):
+    requer("viagens")
+    return jsonify(c.obter_viagem(viagem_id, vin))
+
+
+@app.get("/api/vehicles/<vin>/positions")
+def positions(vin):
+    requer("viagens")
+    de, ate = filtros_periodo()
+    agregado = request.args.get("agregado", "1") != "0"
+    pts = c.posicoes(vin, de, ate, agregado=agregado, so_viagens=request.args.get("so_viagens") == "1")
+    return jsonify({"pontos": pts, "agregado": agregado, "de": de, "ate": ate})
 
 
 @app.get("/api/me")

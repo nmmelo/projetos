@@ -18,12 +18,37 @@ components:
       in: header
       name: X-API-Key
   parameters:
+    ano: { name: ano, in: query, schema: { type: integer }, description: "ex.: 2026" }
+    mes: { name: mes, in: query, schema: { type: string }, description: "ex.: 2026-11" }
+    semana: { name: semana, in: query, schema: { type: string }, description: "semana ISO, ex.: 2026-W46" }
+    dias: { name: dias, in: query, schema: { type: integer }, description: "últimos N dias" }
+    de: { name: de, in: query, schema: { type: string, format: date } }
+    ate: { name: ate, in: query, schema: { type: string, format: date }, description: exclusivo }
     vin:
       name: vin
       in: path
       required: true
       schema: { type: string }
   schemas:
+    Viagem:
+      type: object
+      properties:
+        id: { type: integer }
+        vin: { type: string }
+        estado: { type: string, enum: [aberta, fechada] }
+        inicio: { type: string, format: date-time }
+        fim: { type: string, format: date-time, nullable: true }
+        lat_inicio: { type: number }
+        lon_inicio: { type: number }
+        lat_fim: { type: number, nullable: true }
+        lon_fim: { type: number, nullable: true }
+        odo_inicio_km: { type: number }
+        odo_fim_km: { type: number, nullable: true }
+        km: { type: number, nullable: true }
+        bateria_inicio: { type: integer }
+        bateria_fim: { type: integer, nullable: true }
+        velocidade_max_kmh: { type: integer, nullable: true }
+        pontos: { type: integer }
     Erro:
       type: object
       properties:
@@ -146,7 +171,7 @@ paths:
                     type: array
                     items:
                       type: string
-                      enum: [veiculos, carga, clima, conducao, estado, config, localizacao, imagem, token, acordar, fleet]
+                      enum: [veiculos, carga, clima, conducao, estado, config, localizacao, imagem, token, acordar, fleet, viagens]
                   desativadas_no_gateway: { type: array, items: { type: string } }
                   descricao: { type: object, additionalProperties: { type: string } }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
@@ -289,6 +314,94 @@ paths:
         "403": { $ref: "#/components/responses/SemPermissao" }
         "408": { $ref: "#/components/responses/Adormecido" }
         "502": { $ref: "#/components/responses/FalhaTesla" }
+
+  /api/vehicles/{vin}/trips:
+    get:
+      summary: Viagens registadas pelo gateway (mais recentes primeiro)
+      parameters:
+        - { $ref: "#/components/parameters/vin" }
+        - { $ref: "#/components/parameters/ano" }
+        - { $ref: "#/components/parameters/mes" }
+        - { $ref: "#/components/parameters/semana" }
+        - { $ref: "#/components/parameters/dias" }
+        - { $ref: "#/components/parameters/de" }
+        - { $ref: "#/components/parameters/ate" }
+        - { name: limite, in: query, schema: { type: integer, default: 200, maximum: 5000 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  viagens: { type: array, items: { $ref: "#/components/schemas/Viagem" } }
+                  resumo:
+                    type: object
+                    properties: { n: { type: integer }, km: { type: number }, bateria: { type: integer }, vmax: { type: integer, nullable: true } }
+                  de: { type: string }
+                  ate: { type: string }
+        "400": { description: Período inválido }
+        "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
+
+  /api/vehicles/{vin}/trips/{id}:
+    get:
+      summary: Viagem com o percurso
+      parameters:
+        - { $ref: "#/components/parameters/vin" }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/Viagem" }
+                  - type: object
+                    properties:
+                      percurso:
+                        type: array
+                        items:
+                          type: object
+                          properties: { ts: { type: string }, lat: { type: number }, lon: { type: number }, velocidade_kmh: { type: integer, nullable: true }, direcao: { type: integer, nullable: true }, bateria: { type: integer, nullable: true }, odo_km: { type: number, nullable: true } }
+        "404": { description: Viagem não encontrada }
+        "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
+
+  /api/vehicles/{vin}/positions:
+    get:
+      summary: Posições registadas (agregado=1 para mapa de calor)
+      parameters:
+        - { $ref: "#/components/parameters/vin" }
+        - { $ref: "#/components/parameters/ano" }
+        - { $ref: "#/components/parameters/mes" }
+        - { $ref: "#/components/parameters/semana" }
+        - { $ref: "#/components/parameters/dias" }
+        - { $ref: "#/components/parameters/de" }
+        - { $ref: "#/components/parameters/ate" }
+        - { name: agregado, in: query, schema: { type: string, enum: ["0", "1"], default: "1" } }
+        - { name: so_viagens, in: query, schema: { type: string, enum: ["1"] } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pontos: { type: array, items: { type: object, properties: { lat: { type: number }, lon: { type: number }, n: { type: integer } } } }
+                  agregado: { type: boolean }
+        "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
+
+  /api/endpoints:
+    get:
+      summary: Referência dos endpoints (sem autenticação)
+      security: []
+      responses:
+        "200": { description: Lista de endpoints }
 
   /api/vehicles/{vin}/wake:
     post:

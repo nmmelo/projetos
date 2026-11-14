@@ -292,3 +292,21 @@ Novo `ssh-utilizadores.sh`, chamado pelo `entrypoint.sh` em cada arranque: cria 
 separadas por `;`), aplica sudo sem password (`SSH_EXTRA_SUDO=1`), reescreve o `AllowUsers` antes de qualquer
 bloco `Match` e valida com `sshd -t`. `SSH_PUBKEY` acrescenta chaves ao utilizador principal. As variáveis
 passam pelo `docker-compose.yml`, por isso funcionam no `.env` e na stack do Portainer.
+
+---
+
+## 20. Viagens, mapa de calor, ajuda da API, backups e exportação
+
+**Perguntas:**
+> Na viagem, o gateway consegue ir buscar os dados das viagens feitas pelo Tesla?
+> Sim podemos optar pela opção a, quero tb que no web admin explique os endpoints ... opção de backup dos dados ... export ... mapa com as zonas onde o Tesla já passou, com filtros, por ano, mês, semana
+
+**Resposta:**
+- A Fleet API só dá dados em tempo real; as viagens são registadas pelo gateway (opção A, leituras periódicas).
+- `recolha.py` (processo em segundo plano): intervalos por estado (a conduzir / parado / a dormir), limite
+  diário, viagens abertas e fechadas pela mudança, distância pelo odómetro, pontos por leitura; backup diário.
+- API: `/trips`, `/trips/{id}`, `/positions` (agregado para mapa de calor), filtros `ano|mes|semana|dias|de/ate`,
+  permissão `viagens`, `GET /api/endpoints`.
+- Portal admin: Viagens (com mapa do percurso, GPX/JSON), Mapa (mapa de calor Leaflet com filtros),
+  Dados (backups e exportação CSV/JSON/GPX/GeoJSON), API (ajuda de cada endpoint) e recolha em Definições.
+- CLI: `recolha`, `viagens`, `backup`, `backups`, `restaurar`, `exportar`.

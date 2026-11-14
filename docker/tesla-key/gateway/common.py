@@ -5,6 +5,7 @@ Base de dados SQLite em /opt/tesla/gateway.db (volume ./tesla).
 """
 import base64
 import fcntl
+import re
 import hashlib
 import json
 import os
@@ -42,6 +43,16 @@ DEFAULTS = {
     "preco_wake": "0.02",
     "preco_comando": "0.001",
     "credito_mensal": "10",
+    # recolha de viagens (leituras periódicas)
+    "recolha_ativa": "0",
+    "recolha_intervalo_conduzir": "120",   # s entre leituras a conduzir
+    "recolha_intervalo_parado": "600",     # s entre leituras parado e acordado
+    "recolha_minutos_parado": "30",        # depois disto parado, passa ao intervalo de "a dormir"
+    "recolha_intervalo_dormir": "1800",    # s entre tentativas com o carro a dormir
+    "recolha_limite_diario": "150",        # máx. pedidos de dados por veículo e por dia (Tesla: 200)
+    # backups
+    "backup_automatico": "1",              # backup diário do gateway.db
+    "backup_retencao": "14",               # nº de backups guardados
     "retencao_logs_dias": "30",
     "status_api_ativa": "0",
     "status_api_token_hash": "",
@@ -64,6 +75,7 @@ PERMISSOES = {
     "token":       ("Estado do token Tesla", "/api/token/status"),
     "acordar":     ("Acordar o carro (custo extra, gasta bateria)", "/wake"),
     "fleet":       ("Passthrough de leitura para qualquer endpoint da Fleet API (acesso amplo)", "/api/fleet/..."),
+    "viagens":     ("Viagens e posições registadas pelo gateway", "/trips, /positions"),
 }
 PRESETS = {
     "tudo": list(PERMISSOES),
@@ -149,6 +161,29 @@ def init_db():
             status INTEGER
         );
         CREATE INDEX IF NOT EXISTS idx_consumo_dia ON consumo(dia);
+        CREATE TABLE IF NOT EXISTS viagens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vin TEXT NOT NULL,
+            inicio TEXT NOT NULL, fim TEXT,
+            lat_inicio REAL, lon_inicio REAL, lat_fim REAL, lon_fim REAL,
+            odo_inicio_km REAL, odo_fim_km REAL, km REAL,
+            bateria_inicio INTEGER, bateria_fim INTEGER,
+            velocidade_max_kmh INTEGER, pontos INTEGER DEFAULT 0,
+            estado TEXT DEFAULT 'aberta'
+        );
+        CREATE INDEX IF NOT EXISTS idx_viagens_vin_inicio ON viagens(vin, inicio);
+        CREATE TABLE IF NOT EXISTS pontos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vin TEXT NOT NULL, viagem_id INTEGER,
+            ts TEXT NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL,
+            velocidade_kmh INTEGER, direcao INTEGER, bateria INTEGER, odo_km REAL
+        );
+        CREATE INDEX IF NOT EXISTS idx_pontos_vin_ts ON pontos(vin, ts);
+        CREATE INDEX IF NOT EXISTS idx_pontos_viagem ON pontos(viagem_id);
+        CREATE TABLE IF NOT EXISTS estado_veiculo (
+            vin TEXT PRIMARY KEY, ts TEXT, estado TEXT, mudanca TEXT,
+            lat REAL, lon REAL, odo_km REAL, bateria INTEGER, parado_desde TEXT, proxima_leitura REAL
+        );
         """)
         cols = [r[1] for r in c.execute("PRAGMA table_info(clientes)")]
         if "permissoes" not in cols:
@@ -498,7 +533,7 @@ def registar_consumo(categoria, caminho, status, cliente=None):
         pass
 
 
-def tesla(metodo, caminho, **kw):
+def tesla(metodo, caminho, cliente_consumo=None, **kw):
     conf = ler_conf()
     url = f"{conf['AUDIENCE']}/api/1/{caminho.lstrip('/')}"
     r = None
@@ -511,7 +546,7 @@ def tesla(metodo, caminho, **kw):
             raise ErroGateway(502, "falha de ligação à Tesla Fleet API")
         if r.status_code != 401:
             break
-    registar_consumo(_categoria(metodo, caminho), caminho, r.status_code, _cliente_atual())
+    registar_consumo(_categoria(metodo, caminho), caminho, r.status_code, cliente_consumo or _cliente_atual())
     if r.status_code >= 500:
         log("ERROR", "tesla", f"{metodo} {caminho} -> {r.status_code} {r.text[:200]}")
     elif r.status_code == 429:
@@ -674,6 +709,268 @@ def scopes_token():
         return scp if isinstance(scp, list) else str(scp).split()
     except Exception:
         return []
+
+
+# ---------------------------------------------------------------------------
+# Viagens e posições
+# ---------------------------------------------------------------------------
+
+def intervalo_periodo(periodo=None, valor=None, de=None, ate=None):
+    """Converte filtros em (de, ate) ISO UTC. periodo: ano (2026) | mes (2026-11) | semana (2026-W46) | dias (30)."""
+    from datetime import date
+    if de or ate:
+        return (de or "0000"), (ate or "9999")
+    if not periodo or periodo == "tudo":
+        return "0000", "9999"
+    try:
+        if periodo == "ano":
+            a = int(valor or datetime.now(timezone.utc).year)
+            return f"{a:04d}-01-01", f"{a + 1:04d}-01-01"
+        if periodo == "mes":
+            v = valor or datetime.now(timezone.utc).strftime("%Y-%m")
+            a, m = (int(x) for x in v.split("-"))
+            a2, m2 = (a + 1, 1) if m == 12 else (a, m + 1)
+            return f"{a:04d}-{m:02d}-01", f"{a2:04d}-{m2:02d}-01"
+        if periodo == "semana":
+            v = valor or datetime.now(timezone.utc).strftime("%G-W%V")
+            a, w = v.split("-W")
+            ini = date.fromisocalendar(int(a), int(w), 1)
+            return ini.isoformat(), (ini + timedelta(days=7)).isoformat()
+        if periodo == "dias":
+            ini = datetime.now(timezone.utc) - timedelta(days=int(valor or 30))
+            return ini.isoformat(timespec="seconds"), "9999"
+    except (ValueError, TypeError):
+        pass
+    raise ErroGateway(400, "período inválido: ano=AAAA | mes=AAAA-MM | semana=AAAA-Www | dias=N")
+
+
+def listar_viagens(vin=None, de="0000", ate="9999", limite=200):
+    sql = "SELECT * FROM viagens WHERE inicio >= ? AND inicio < ?"
+    args = [de, ate]
+    if vin:
+        sql += " AND vin=?"
+        args.append(vin)
+    sql += " ORDER BY inicio DESC LIMIT ?"
+    args.append(int(limite))
+    with db() as c:
+        return [dict(r) for r in c.execute(sql, args)]
+
+
+def resumo_viagens(vin=None, de="0000", ate="9999"):
+    sql = ("SELECT COUNT(*) n, COALESCE(SUM(km),0) km, COALESCE(SUM(bateria_inicio-bateria_fim),0) bateria,"
+           " MAX(velocidade_max_kmh) vmax FROM viagens WHERE estado='fechada' AND inicio >= ? AND inicio < ?")
+    args = [de, ate]
+    if vin:
+        sql += " AND vin=?"
+        args.append(vin)
+    with db() as c:
+        r = dict(c.execute(sql, args).fetchone())
+    r["km"] = round(r["km"], 1)
+    return r
+
+
+def obter_viagem(viagem_id, vin=None):
+    with db() as c:
+        v = c.execute("SELECT * FROM viagens WHERE id=?" + (" AND vin=?" if vin else ""),
+                      (viagem_id, vin) if vin else (viagem_id,)).fetchone()
+        if not v:
+            raise ErroGateway(404, "viagem não encontrada")
+        pts = [dict(r) for r in c.execute(
+            "SELECT ts, lat, lon, velocidade_kmh, direcao, bateria, odo_km FROM pontos WHERE viagem_id=? ORDER BY ts",
+            (viagem_id,))]
+    return {**dict(v), "percurso": pts}
+
+
+def posicoes(vin=None, de="0000", ate="9999", agregado=True, so_viagens=False, limite=50000):
+    """Pontos para mapa. agregado: grelha de ~100 m com contagem (peso) — para mapa de calor."""
+    cond, args = "ts >= ? AND ts < ?", [de, ate]
+    if vin:
+        cond += " AND vin=?"
+        args.append(vin)
+    if so_viagens:
+        cond += " AND viagem_id IS NOT NULL"
+    with db() as c:
+        if agregado:
+            rows = c.execute(
+                f"SELECT ROUND(lat,3) lat, ROUND(lon,3) lon, COUNT(*) n FROM pontos WHERE {cond}"
+                f" GROUP BY ROUND(lat,3), ROUND(lon,3) ORDER BY n DESC LIMIT ?", args + [int(limite)])
+        else:
+            rows = c.execute(f"SELECT ts, lat, lon, velocidade_kmh, viagem_id FROM pontos WHERE {cond}"
+                             f" ORDER BY ts LIMIT ?", args + [int(limite)])
+        return [dict(r) for r in rows]
+
+
+def anos_com_dados():
+    with db() as c:
+        return [r[0] for r in c.execute("SELECT DISTINCT substr(ts,1,4) FROM pontos ORDER BY 1 DESC")]
+
+
+# ---------------------------------------------------------------------------
+# Exportação e backups
+# ---------------------------------------------------------------------------
+
+BACKUP_DIR = os.path.join(BASE, "backups")
+
+
+def exportar(tipo, formato, vin=None, de="0000", ate="9999"):
+    """Devolve (conteúdo, mimetype, nome). tipo: viagens|pontos|consumo|logs. formato: csv|json|geojson|gpx."""
+    import csv
+    import io
+    if tipo == "viagens":
+        linhas = listar_viagens(vin, de, ate, limite=10**7)
+        if formato == "json":
+            linhas = [obter_viagem(v["id"]) for v in linhas]
+        elif formato == "gpx":
+            gpx = ['<?xml version="1.0" encoding="UTF-8"?>',
+                   '<gpx version="1.1" creator="tesla-key" xmlns="http://www.topografix.com/GPX/1/1">']
+            for v in reversed(linhas):
+                vg = obter_viagem(v["id"])
+                gpx.append(f'<trk><name>Viagem {v["id"]} {v["inicio"][:16]}</name><trkseg>')
+                gpx += [f'<trkpt lat="{p["lat"]}" lon="{p["lon"]}"><time>{p["ts"]}</time></trkpt>' for p in vg["percurso"]]
+                gpx.append("</trkseg></trk>")
+            gpx.append("</gpx>")
+            return "\n".join(gpx), "application/gpx+xml", "viagens.gpx"
+    elif tipo == "pontos":
+        linhas = posicoes(vin, de, ate, agregado=False, limite=10**7)
+        if formato == "geojson":
+            fc = {"type": "FeatureCollection", "features": [
+                {"type": "Feature", "geometry": {"type": "Point", "coordinates": [p["lon"], p["lat"]]},
+                 "properties": {k: p[k] for k in ("ts", "velocidade_kmh", "viagem_id")}} for p in linhas]}
+            return json.dumps(fc), "application/geo+json", "pontos.geojson"
+    elif tipo == "consumo":
+        with db() as c:
+            linhas = [dict(r) for r in c.execute("SELECT * FROM consumo WHERE ts >= ? AND ts < ? ORDER BY ts", (de, ate))]
+    elif tipo == "logs":
+        with db() as c:
+            linhas = [dict(r) for r in c.execute("SELECT * FROM logs WHERE ts >= ? AND ts < ? ORDER BY ts", (de, ate))]
+    else:
+        raise ErroGateway(400, "tipo: viagens | pontos | consumo | logs")
+    if formato == "json":
+        return json.dumps(linhas, ensure_ascii=False, indent=1), "application/json", f"{tipo}.json"
+    if formato != "csv":
+        raise ErroGateway(400, "formato inválido para este tipo (csv | json; viagens: gpx; pontos: geojson)")
+    buf = io.StringIO()
+    if linhas:
+        w = csv.DictWriter(buf, fieldnames=list(linhas[0].keys()), delimiter=";")
+        w.writeheader()
+        w.writerows(linhas)
+    return buf.getvalue(), "text/csv", f"{tipo}.csv"
+
+
+def criar_backup(motivo="manual"):
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    nome = f"gateway-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{motivo}.db"
+    destino = os.path.join(BACKUP_DIR, nome)
+    src = sqlite3.connect(DB_FILE, timeout=30)
+    dst = sqlite3.connect(destino)
+    try:
+        src.backup(dst)
+    finally:
+        dst.close()
+        src.close()
+    os.chmod(destino, 0o600)
+    log("INFO", "backup", f"backup criado: {nome}")
+    limpar_backups()
+    return nome
+
+
+def listar_backups():
+    if not os.path.isdir(BACKUP_DIR):
+        return []
+    out = []
+    for f in sorted(os.listdir(BACKUP_DIR), reverse=True):
+        if f.endswith(".db"):
+            st = os.stat(os.path.join(BACKUP_DIR, f))
+            out.append({"nome": f, "tamanho_kb": round(st.st_size / 1024, 1),
+                        "data": datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat(timespec="seconds")})
+    return out
+
+
+def caminho_backup(nome):
+    if not re.fullmatch(r"gateway-[0-9]{8}-[0-9]{6}-[a-z-]+\.db", nome or ""):
+        raise ErroGateway(400, "nome de backup inválido")
+    f = os.path.join(BACKUP_DIR, nome)
+    if not os.path.exists(f):
+        raise ErroGateway(404, "backup não encontrado")
+    return f
+
+
+def apagar_backup(nome):
+    os.remove(caminho_backup(nome))
+    log("WARNING", "backup", f"backup apagado: {nome}")
+
+
+def limpar_backups():
+    ret = int(get_def("backup_retencao") or 14)
+    automaticos = [b for b in listar_backups() if b["nome"].endswith("-auto.db")]
+    for b in automaticos[ret:]:
+        os.remove(os.path.join(BACKUP_DIR, b["nome"]))
+
+
+def restaurar_backup(nome):
+    f = caminho_backup(nome)
+    criar_backup("antes-restauro")
+    src = sqlite3.connect(f)
+    dst = sqlite3.connect(DB_FILE, timeout=30)
+    try:
+        src.backup(dst)
+    finally:
+        dst.close()
+        src.close()
+    log("WARNING", "backup", f"base de dados restaurada a partir de {nome}")
+
+
+def backup_diario():
+    """Cria um backup automático se o último tiver mais de 24 h."""
+    if get_def("backup_automatico") != "1":
+        return None
+    autos = [b for b in listar_backups() if b["nome"].endswith("-auto.db")]
+    if autos and (datetime.now(timezone.utc) - datetime.fromisoformat(autos[0]["data"])) < timedelta(hours=24):
+        return None
+    return criar_backup("auto")
+
+
+# ---------------------------------------------------------------------------
+# Referência dos endpoints (portal admin → API, e GET /api/endpoints)
+# ---------------------------------------------------------------------------
+
+ENDPOINTS = [
+    # metodo, caminho, permissao, descricao, parametros, exemplo de resposta
+    ("GET", "/api/health", None, "Gateway a responder. Sem chave.", "", '{"ok": true}'),
+    ("GET", "/api/endpoints", None, "Esta lista de endpoints (para documentação). Sem chave.", "", '[{"metodo": "GET", "caminho": "/api/me", ...}]'),
+    ("GET", "/api/me", None, "Nome do cliente e permissões efetivas.", "",
+     '{"cliente": "portal", "permissoes": ["veiculos", "carga"], "desativadas_no_gateway": []}'),
+    ("GET", "/api/token/status", "token", "Validade do token Tesla.", "",
+     '{"ok": true, "expira_em": "2026-11-14T20:00:00+00:00", "segundos_restantes": 27000}'),
+    ("GET", "/api/vehicles", "veiculos", "Lista de veículos da conta (com cache).", "fresh=1",
+     '{"response": [{"vin": "...", "display_name": "Tesla", "state": "online"}], "count": 1}'),
+    ("GET", "/api/vehicles/{vin}", "veiculos", "Estado do veículo (online/asleep/offline); não acorda o carro.", "fresh=1",
+     '{"response": {"vin": "...", "state": "asleep"}}'),
+    ("GET", "/api/vehicles/{vin}/data", "carga, clima, conducao, estado, config", "Dados atuais (vehicle_data) das secções permitidas. 408 se o carro estiver a dormir.",
+     "endpoints=charge_state;climate_state · fresh=1",
+     '{"response": {"charge_state": {"battery_level": 78, "battery_range": 221.4}}, "cache": false}'),
+    ("GET", "/api/vehicles/{vin}/location", "localizacao", "Posição atual (requer o scope vehicle_location). 408 se a dormir.", "fresh=1",
+     '{"latitude": 38.72, "longitude": -9.13, "velocidade_kmh": null, "gps_em": "...", "mapa": "https://..."}'),
+    ("GET", "/api/vehicles/{vin}/image", "imagem", "Imagem do modelo (PNG/JPEG).", "view=STUD_3QTR|STUD_SIDE|STUD_REAR|STUD_FRONT|STUD_SEAT · size=800 · fresh=1 · formato=url",
+     "(imagem) ou {\"url\": \"https://static-assets.tesla.com/...\"}"),
+    ("GET", "/api/vehicles/{vin}/trips", "viagens", "Viagens registadas pelo gateway, mais recentes primeiro, com totais.",
+     "ano=2026 | mes=2026-11 | semana=2026-W46 | dias=30 | de=AAAA-MM-DD&ate=AAAA-MM-DD · limite=200",
+     '{"viagens": [{"id": 12, "inicio": "...", "fim": "...", "km": 23.4, "bateria_inicio": 80, "bateria_fim": 75}], "resumo": {"n": 1, "km": 23.4}}'),
+    ("GET", "/api/vehicles/{vin}/trips/{id}", "viagens", "Detalhe de uma viagem com o percurso (pontos).", "",
+     '{"id": 12, "km": 23.4, "percurso": [{"ts": "...", "lat": 38.7, "lon": -9.1, "velocidade_kmh": 50}]}'),
+    ("GET", "/api/vehicles/{vin}/positions", "viagens", "Posições registadas para mapas. agregado=1 (omissão) devolve uma grelha de ~100 m com contagem, para mapa de calor.",
+     "mesmos filtros de /trips · agregado=0|1 · so_viagens=1",
+     '{"pontos": [{"lat": 38.722, "lon": -9.139, "n": 14}], "agregado": true}'),
+    ("POST", "/api/vehicles/{vin}/wake", "acordar", "Acorda o carro (custo extra, gasta bateria).", "",
+     '{"response": {"state": "online"}}'),
+    ("GET", "/api/fleet/{caminho}", "fleet", "Passthrough de leitura para /api/1/{caminho} da Fleet API (ex.: dx/charging/history).", "os da Tesla",
+     "(resposta da Tesla)"),
+]
+
+
+def endpoints_json():
+    return [{"metodo": m, "caminho": p, "permissao": perm, "descricao": d, "parametros": par, "exemplo": ex}
+            for m, p, perm, d, par, ex in ENDPOINTS]
 
 
 def resumo():
