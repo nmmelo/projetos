@@ -22,11 +22,14 @@ Gestão do gateway pela linha de comandos (chamado pelo `tesla-setup`).
   viagens [PERIODO VALOR]        viagens registadas (ex.: viagens mes 2026-11; viagens ano 2026)
   carregamentos [PERIODO VALOR]  carregamentos registados (ex.: carregamentos mes 2026-11)
   importar-supercharger          importa já o histórico de Superchargers da Tesla
+  importar-tessie [--sem-percursos]
+                                 importa o histórico da Tessie (pede o token; não o guarda)
+  bateria                        saúde da bateria (últimas medições e degradação)
   backup                         cria um backup do gateway.db
   backups                        lista os backups
   restaurar NOME                 restaura um backup (faz antes um backup "antes-restauro")
   exportar TIPO FORMATO [FICH] [PERIODO VALOR]
-                                 TIPO viagens|pontos|consumo|logs; FORMATO csv|json|gpx|geojson
+                                 TIPO viagens|pontos|carregamentos|bateria|paragens|consumo|logs; FORMATO csv|json|gpx|geojson
   logs [N] [NIVEL]               últimos N registos (INFO|WARNING|ERROR)
   logs-limpar                    apaga logs mais antigos que a retenção
   resumo                         estado do gateway (JSON)
@@ -271,6 +274,19 @@ def main(argv):
         r = recolha.importar_supercharger()
         print(f"{r['recebidas']} recebidas, {r['novos']} novas, {r['associados']} associadas, "
               f"{r['existentes']} já existentes, {r['ignoradas']} ignoradas" + (f"\nERRO: {r['erro']}" if r["erro"] else ""))
+    elif cmd == "importar-tessie":
+        import getpass
+        import tessie
+        token = os.environ.get("TESSIE_TOKEN") or getpass.getpass("Token da Tessie: ")
+        print("A importar (pode demorar vários minutos)...", flush=True)
+        r = tessie.importar(token, percursos="--sem-percursos" not in args)
+        tabela([{"dados": k, "n": v} for k, v in r.items() if k != "avisos"], ["dados", "n"])
+        for a in r["avisos"][:20]:
+            print("aviso:", a)
+    elif cmd == "bateria":
+        sb = c.saude_bateria()
+        print(json.dumps(sb["resumo"], ensure_ascii=False, indent=1))
+        tabela(sb["medicoes"][-20:], ["ts", "odo_km", "autonomia_max_km", "capacidade_kwh", "origem"])
     elif cmd == "backup":
         print("backup criado:", c.criar_backup("manual"))
     elif cmd == "backups":

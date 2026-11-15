@@ -201,6 +201,8 @@ Viagens e dados:
   viagens [PERIODO VALOR]       viagens registadas (ex.: viagens mes 2026-11)
   carregamentos [PERIODO VALOR] carregamentos registados
   importar-supercharger         importa já o histórico de Superchargers
+  importar-tessie [--sem-percursos]  importa o histórico da Tessie (pede o token)
+  bateria                       saúde da bateria
   backup | backups              cria / lista backups do gateway.db
   restaurar NOME                restaura um backup
   exportar TIPO FORMATO [FICHEIRO] [PERIODO VALOR]
@@ -219,7 +221,7 @@ cmd="${1:-ajuda}"; shift || true
 GATEWAY_CLI="${GATEWAY_CLI:-/opt/gateway/cli.py}"
 case "$cmd" in
     ajuda|-h|--help) ajuda; exit 0 ;;
-    admin|status-api|definicao|logs|logs-limpar|resumo|permissoes|funcionalidades|consumo|config|recolha|viagens|carregamentos|importar-supercharger|backup|backups|restaurar|exportar)
+    admin|status-api|definicao|logs|logs-limpar|resumo|permissoes|funcionalidades|consumo|config|recolha|viagens|carregamentos|importar-supercharger|importar-tessie|bateria|backup|backups|restaurar|exportar)
         exec python3 "$GATEWAY_CLI" "$cmd" "$@" ;;
     cliente)
         sub="${1:-list}"; shift || true

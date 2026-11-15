@@ -88,6 +88,7 @@ PERMISSOES = {
     "viagens":     ("Viagens e posições registadas pelo gateway; estado da recolha", "/trips, /positions, /api/recolha"),
     "consumo":     ("Consumo estimado de créditos da Fleet API (todos os clientes)", "/api/consumo"),
     "carregamentos": ("Carregamentos registados pelo gateway (casa, AC, Superchargers)", "/charges"),
+    "bateria":     ("Saúde da bateria (autonomia máxima e capacidade ao longo do tempo) e perdas com o carro parado", "/battery-health, /idles"),
 }
 PRESETS = {
     "tudo": list(PERMISSOES),
@@ -227,6 +228,23 @@ def init_db():
             bateria INTEGER, potencia_kw REAL, energia_kwh REAL
         );
         CREATE INDEX IF NOT EXISTS idx_carreg_pontos ON carregamento_pontos(carregamento_id);
+        CREATE TABLE IF NOT EXISTS bateria_saude (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vin TEXT NOT NULL, ts TEXT NOT NULL, odo_km REAL,
+            autonomia_max_km REAL, autonomia_ideal_km REAL, capacidade_kwh REAL,
+            origem TEXT DEFAULT 'leituras',        -- leituras | tessie
+            UNIQUE(vin, ts, origem)
+        );
+        CREATE INDEX IF NOT EXISTS idx_bateria_vin_ts ON bateria_saude(vin, ts);
+        CREATE TABLE IF NOT EXISTS paragens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vin TEXT NOT NULL, inicio TEXT NOT NULL, fim TEXT,
+            local TEXT, lat REAL, lon REAL,
+            bateria_inicio INTEGER, bateria_fim INTEGER, energia_kwh REAL, autonomia_km REAL,
+            clima_pct REAL, sentinela_pct REAL,
+            origem TEXT DEFAULT 'tessie', tessie_id INTEGER UNIQUE
+        );
+        CREATE INDEX IF NOT EXISTS idx_paragens_vin_inicio ON paragens(vin, inicio);
         CREATE TABLE IF NOT EXISTS estado_veiculo (
             vin TEXT PRIMARY KEY, ts TEXT, estado TEXT, mudanca TEXT,
             lat REAL, lon REAL, odo_km REAL, bateria INTEGER, parado_desde TEXT, proxima_leitura REAL
@@ -244,6 +262,17 @@ def init_db():
             c.execute("INSERT OR REPLACE INTO definicoes(chave, valor) VALUES ('tema_modo', ?)", (t[0],))
         if "origem" not in [r[1] for r in c.execute("PRAGMA table_info(viagens)")]:
             c.execute("ALTER TABLE viagens ADD COLUMN origem TEXT DEFAULT 'leituras'")
+        # colunas acrescentadas com a importação da Tessie
+        novas = {"viagens": ["tessie_id INTEGER", "local_inicio TEXT", "local_fim TEXT", "energia_kwh REAL",
+                             "velocidade_media_kmh REAL", "temp_exterior REAL", "temp_interior REAL", "autopilot_km REAL"],
+                 "carregamentos": ["tessie_id INTEGER", "autonomia_km REAL"]}
+        for tab, defs in novas.items():
+            existentes = [r[1] for r in c.execute(f"PRAGMA table_info({tab})")]
+            for d in defs:
+                if d.split()[0] not in existentes:
+                    c.execute(f"ALTER TABLE {tab} ADD COLUMN {d}")
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_viagens_tessie ON viagens(tessie_id) WHERE tessie_id IS NOT NULL")
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_carreg_tessie ON carregamentos(tessie_id) WHERE tessie_id IS NOT NULL")
         cols = [r[1] for r in c.execute("PRAGMA table_info(clientes)")]
         if "permissoes" not in cols:
             # clientes que já existiam mantêm o acesso total
@@ -1124,10 +1153,58 @@ def obter_carregamento(cid, vin=None):
     return {**dict(v), "curva": pts}
 
 
+def saude_bateria(vin=None, de="0000", ate="9999", origem=None, limite=5000):
+    sql, args = "SELECT * FROM bateria_saude WHERE ts >= ? AND ts < ?", [de, ate]
+    if vin:
+        sql += " AND vin=?"
+        args.append(vin)
+    if origem:
+        sql += " AND origem=?"
+        args.append(origem)
+    sql += " ORDER BY ts LIMIT ?"
+    args.append(int(limite))
+    with db() as c:
+        linhas = [dict(r) for r in c.execute(sql, args)]
+    resumo = {"n": len(linhas)}
+    if linhas:
+        resumo.update(primeira=linhas[0]["ts"], ultima=linhas[-1]["ts"], odo_km=linhas[-1]["odo_km"])
+        # a série da Tessie (mais precisa) tem prioridade; as leituras do gateway continuam depois dela
+        serie = [x for x in linhas if x["origem"] == "tessie"] or linhas
+        ult_t = serie[-1]["ts"]
+        serie += [x for x in linhas if x["origem"] != "tessie" and x["ts"] > ult_t and serie is not linhas]
+        for campo, nome in (("autonomia_max_km", "degradacao_autonomia_pct"), ("capacidade_kwh", "degradacao_capacidade_pct")):
+            vals = [x[campo] for x in serie if x[campo]]
+            resumo[campo] = next((x[campo] for x in reversed(linhas) if x[campo]), None)
+            # degradação: média das primeiras vs. últimas medições (até 5 de cada lado, suaviza o ruído)
+            if len(vals) >= 2:
+                k = max(1, min(5, len(vals) // 2))
+                a, b = sum(vals[:k]) / k, sum(vals[-k:]) / k
+                resumo[nome] = round((a - b) / a * 100, 1) if a else None
+    return {"medicoes": linhas, "resumo": resumo}
+
+
+def listar_paragens(vin=None, de="0000", ate="9999", limite=200):
+    sql, args = "SELECT * FROM paragens WHERE inicio >= ? AND inicio < ?", [de, ate]
+    if vin:
+        sql += " AND vin=?"
+        args.append(vin)
+    sql += " ORDER BY inicio DESC LIMIT ?"
+    args.append(int(limite))
+    with db() as c:
+        linhas = [dict(r) for r in c.execute(sql, args)]
+        r = dict(c.execute("SELECT COUNT(*) n, COALESCE(SUM(energia_kwh),0) kwh, COALESCE(SUM(bateria_inicio-bateria_fim),0) bateria"
+                           " FROM paragens WHERE inicio >= ? AND inicio < ?" + (" AND vin=?" if vin else ""),
+                           [de, ate] + ([vin] if vin else [])).fetchone())
+    r["kwh"] = round(r["kwh"], 1)
+    return {"paragens": linhas, "resumo": r}
+
+
 def anos_com_dados():
     with db() as c:
         return [r[0] for r in c.execute("SELECT DISTINCT substr(ts,1,4) FROM pontos UNION "
-                                        "SELECT DISTINCT substr(inicio,1,4) FROM carregamentos ORDER BY 1 DESC")]
+                                        "SELECT DISTINCT substr(inicio,1,4) FROM carregamentos UNION "
+                                        "SELECT DISTINCT substr(inicio,1,4) FROM viagens UNION "
+                                        "SELECT DISTINCT substr(ts,1,4) FROM bateria_saude ORDER BY 1 DESC")]
 
 
 # ---------------------------------------------------------------------------
@@ -1166,6 +1243,10 @@ def exportar(tipo, formato, vin=None, de="0000", ate="9999"):
         linhas = listar_carregamentos(vin, de, ate, limite=10**7)
         if formato == "json":
             linhas = [obter_carregamento(x["id"]) for x in linhas]
+    elif tipo == "bateria":
+        linhas = saude_bateria(vin, de, ate, limite=10**7)["medicoes"]
+    elif tipo == "paragens":
+        linhas = listar_paragens(vin, de, ate, limite=10**7)["paragens"]
     elif tipo == "consumo":
         with db() as c:
             linhas = [dict(r) for r in c.execute("SELECT * FROM consumo WHERE ts >= ? AND ts < ? ORDER BY ts", (de, ate))]
@@ -1173,7 +1254,7 @@ def exportar(tipo, formato, vin=None, de="0000", ate="9999"):
         with db() as c:
             linhas = [dict(r) for r in c.execute("SELECT * FROM logs WHERE ts >= ? AND ts < ? ORDER BY ts", (de, ate))]
     else:
-        raise ErroGateway(400, "tipo: viagens | pontos | carregamentos | consumo | logs")
+        raise ErroGateway(400, "tipo: viagens | pontos | carregamentos | bateria | paragens | consumo | logs")
     if formato == "json":
         return json.dumps(linhas, ensure_ascii=False, indent=1), "application/json", f"{tipo}.json"
     if formato != "csv":
@@ -1293,10 +1374,16 @@ ENDPOINTS = [
      "mesmos filtros de /trips · agregado=0|1 · so_viagens=1",
      '{"pontos": [{"lat": 38.722, "lon": -9.139, "n": 14}], "agregado": true}'),
     ("GET", "/api/vehicles/{vin}/charges", "carregamentos", "Carregamentos registados pelo gateway (leituras, inferidos pela bateria e Superchargers importados da Tesla), com totais.",
-     "ano | mes | semana | dias | de&ate (como /trips) · origem=leituras|inferido|supercharger · limite=200",
+     "ano | mes | semana | dias | de&ate (como /trips) · origem=leituras|inferido|supercharger|tessie · limite=200",
      '{"carregamentos": [{"id": 7, "inicio": "...", "fim": "...", "tipo": "AC", "bateria_inicio": 40, "bateria_fim": 80, "energia_kwh": 24.6, "potencia_max_kw": 11.0, "custo": null}], "resumo": {"n": 1, "kwh": 24.6}}'),
     ("GET", "/api/vehicles/{vin}/charges/{id}", "carregamentos", "Detalhe de um carregamento com a curva (bateria, potência e energia por leitura).", "",
      '{"id": 7, "energia_kwh": 24.6, "curva": [{"ts": "...", "bateria": 52, "potencia_kw": 11.0, "energia_kwh": 8.2}]}'),
+    ("GET", "/api/vehicles/{vin}/battery-health", "bateria", "Saúde da bateria ao longo do tempo: autonomia máxima estimada (100 %), capacidade (kWh, só Tessie) e degradação.",
+     "ano | mes | semana | dias | de&ate · origem=leituras|tessie",
+     '{"medicoes": [{"ts": "...", "odo_km": 41000, "autonomia_max_km": 452.1, "capacidade_kwh": 74.2, "origem": "tessie"}], "resumo": {"degradacao_autonomia_pct": 6.3}}'),
+    ("GET", "/api/vehicles/{vin}/idles", "bateria", "Períodos com o carro parado e a energia perdida (clima, sentinela). Importados da Tessie.",
+     "ano | mes | semana | dias | de&ate · limite=200",
+     '{"paragens": [{"inicio": "...", "fim": "...", "local": "...", "bateria_inicio": 80, "bateria_fim": 77, "energia_kwh": 2.1, "sentinela_pct": 0.9}], "resumo": {"n": 1, "kwh": 2.1}}'),
     ("POST", "/api/vehicles/{vin}/wake", "acordar", "Acorda o carro (custo extra, gasta bateria).", "",
      '{"response": {"state": "online"}}'),
     ("GET", "/api/recolha", "viagens", "Estado da recolha de viagens: ativa, intervalos e, por veículo, estado, última/próxima leitura e leituras de hoje.", "",

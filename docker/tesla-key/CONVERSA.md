@@ -401,3 +401,17 @@ A mensagem não distinguia "a Tesla não devolveu nada" de "erro" ou de "já imp
 pedir o histórico por cada VIN conhecido; aceitar as várias formas de resposta (`response.data`, `data`,
 `response` em lista); contar recebidas, novas, associadas, já existentes e ignoradas; mostrar o erro da Tesla
 quando há; e registar nos logs (origem `recolha`) a resposta quando vem vazia.
+
+---
+
+## 27. Importar o histórico da Tessie antes de cancelar
+
+**Pergunta:**
+> eu vou cancelar a subscrição da tessie, eu queria era aproveitar para ir buscar os dados que já tenho lá, tipo juntar aos dados da tesla, e outros dados novos como viagens, saude da bateria
+
+**Resposta:**
+Novo módulo `gateway/tessie.py` e importação em Definições → Dados (ou `tesla-setup importar-tessie`):
+viagens com percurso, carregamentos, saúde da bateria e paragens. Junta-se aos registos do gateway (completa os
+que coincidem, substitui os inferidos), faz backup antes, pode repetir-se e não guarda o token.
+Novo menu **Bateria** (autonomia a 100 %, capacidade, degradação, perdas parado), API `/battery-health` e `/idles`
+(permissão `bateria`), e 1 medição diária da saúde da bateria pela recolha para continuar sem a Tessie.

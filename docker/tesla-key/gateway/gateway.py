@@ -231,11 +231,29 @@ def charges(vin):
     requer("carregamentos")
     de, ate = filtros_periodo()
     origem = request.args.get("origem") or None
-    if origem and origem not in ("leituras", "inferido", "supercharger"):
-        abort(400, "origem: leituras | inferido | supercharger")
+    if origem and origem not in ("leituras", "inferido", "supercharger", "tessie"):
+        abort(400, "origem: leituras | inferido | supercharger | tessie")
     limite = min(int(request.args.get("limite", 200)), 5000)
     return jsonify({"carregamentos": c.listar_carregamentos(vin, de, ate, limite, origem),
                     "resumo": c.resumo_carregamentos(vin, de, ate), "de": de, "ate": ate})
+
+
+@app.get("/api/vehicles/<vin>/battery-health")
+def battery_health(vin):
+    requer("bateria")
+    de, ate = filtros_periodo()
+    origem = request.args.get("origem") or None
+    if origem and origem not in ("leituras", "tessie"):
+        abort(400, "origem: leituras | tessie")
+    return jsonify({**c.saude_bateria(vin, de, ate, origem), "de": de, "ate": ate})
+
+
+@app.get("/api/vehicles/<vin>/idles")
+def idles(vin):
+    requer("bateria")
+    de, ate = filtros_periodo()
+    limite = min(int(request.args.get("limite", 200)), 5000)
+    return jsonify({**c.listar_paragens(vin, de, ate, limite), "de": de, "ate": ate})
 
 
 @app.get("/api/vehicles/<vin>/charges/<int:cid>")

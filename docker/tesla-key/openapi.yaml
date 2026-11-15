@@ -49,7 +49,15 @@ components:
         bateria_fim: { type: integer, nullable: true }
         velocidade_max_kmh: { type: integer, nullable: true }
         pontos: { type: integer }
-        origem: { type: string, enum: [leituras, inferida] }
+        origem: { type: string, enum: [leituras, inferida, tessie] }
+        tessie_id: { type: integer, nullable: true }
+        local_inicio: { type: string, nullable: true }
+        local_fim: { type: string, nullable: true }
+        energia_kwh: { type: number, nullable: true }
+        velocidade_media_kmh: { type: number, nullable: true }
+        temp_exterior: { type: number, nullable: true }
+        temp_interior: { type: number, nullable: true }
+        autopilot_km: { type: number, nullable: true }
     Carregamento:
       type: object
       properties:
@@ -58,7 +66,8 @@ components:
         inicio: { type: string, format: date-time }
         fim: { type: string, format: date-time, nullable: true }
         estado: { type: string, enum: [a_carregar, terminado] }
-        origem: { type: string, enum: [leituras, inferido, supercharger] }
+        origem: { type: string, enum: [leituras, inferido, supercharger, tessie] }
+        tessie_id: { type: integer, nullable: true }
         tipo: { type: string, enum: [AC, DC], nullable: true }
         lat: { type: number, nullable: true }
         lon: { type: number, nullable: true }
@@ -198,7 +207,7 @@ paths:
                     type: array
                     items:
                       type: string
-                      enum: [veiculos, carga, clima, conducao, estado, config, localizacao, imagem, token, acordar, fleet, viagens, consumo, carregamentos]
+                      enum: [veiculos, carga, clima, conducao, estado, config, localizacao, imagem, token, acordar, fleet, viagens, consumo, carregamentos, bateria]
                   desativadas_no_gateway: { type: array, items: { type: string } }
                   descricao: { type: object, additionalProperties: { type: string } }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
@@ -408,7 +417,7 @@ paths:
         - { $ref: "#/components/parameters/dias" }
         - { $ref: "#/components/parameters/de" }
         - { $ref: "#/components/parameters/ate" }
-        - { name: origem, in: query, schema: { type: string, enum: [leituras, inferido, supercharger] } }
+        - { name: origem, in: query, schema: { type: string, enum: [leituras, inferido, supercharger, tessie] } }
         - { name: limite, in: query, schema: { type: integer, default: 200, maximum: 5000 } }
       responses:
         "200":
@@ -442,6 +451,56 @@ paths:
                     properties:
                       curva: { type: array, items: { type: object, properties: { ts: { type: string }, bateria: { type: integer, nullable: true }, potencia_kw: { type: number, nullable: true }, energia_kwh: { type: number, nullable: true } } } }
         "404": { description: Não encontrado }
+        "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
+
+  /api/vehicles/{vin}/battery-health:
+    get:
+      summary: Saúde da bateria ao longo do tempo (permissão bateria)
+      parameters:
+        - { $ref: "#/components/parameters/vin" }
+        - { $ref: "#/components/parameters/ano" }
+        - { $ref: "#/components/parameters/mes" }
+        - { $ref: "#/components/parameters/semana" }
+        - { $ref: "#/components/parameters/dias" }
+        - { $ref: "#/components/parameters/de" }
+        - { $ref: "#/components/parameters/ate" }
+        - { name: origem, in: query, schema: { type: string, enum: [leituras, tessie] } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  medicoes: { type: array, items: { type: object, properties: { ts: { type: string }, odo_km: { type: number, nullable: true }, autonomia_max_km: { type: number, nullable: true }, autonomia_ideal_km: { type: number, nullable: true }, capacidade_kwh: { type: number, nullable: true }, origem: { type: string } } } }
+                  resumo: { type: object }
+        "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
+
+  /api/vehicles/{vin}/idles:
+    get:
+      summary: Paragens e energia perdida com o carro parado (permissão bateria)
+      parameters:
+        - { $ref: "#/components/parameters/vin" }
+        - { $ref: "#/components/parameters/ano" }
+        - { $ref: "#/components/parameters/mes" }
+        - { $ref: "#/components/parameters/semana" }
+        - { $ref: "#/components/parameters/dias" }
+        - { $ref: "#/components/parameters/de" }
+        - { $ref: "#/components/parameters/ate" }
+        - { name: limite, in: query, schema: { type: integer, default: 200, maximum: 5000 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paragens: { type: array, items: { type: object } }
+                  resumo: { type: object, properties: { n: { type: integer }, kwh: { type: number }, bateria: { type: integer } } }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
         "403": { $ref: "#/components/responses/SemPermissao" }
 

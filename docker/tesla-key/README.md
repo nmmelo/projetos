@@ -86,6 +86,8 @@ tesla-key/
 | `tesla-setup viagens [PERIODO VALOR]` | Viagens registadas (ex.: `viagens mes 2026-11`) |
 | `tesla-setup carregamentos [PERIODO VALOR]` | Carregamentos registados |
 | `tesla-setup importar-supercharger` | Importa já o histórico de Superchargers da Tesla |
+| `tesla-setup importar-tessie [--sem-percursos]` | Importa o histórico da Tessie (pede o token, não o guarda) |
+| `tesla-setup bateria` | Saúde da bateria (degradação e últimas medições) |
 | `tesla-setup backup` / `backups` / `restaurar NOME` | Backups do `gateway.db` |
 | `tesla-setup exportar TIPO FORMATO [FICHEIRO] [PERIODO VALOR]` | Exportar viagens, pontos, consumo ou logs |
 | `tesla-setup cliente on\|off\|rm\|chave NOME` | Ativa, desativa, apaga ou gera nova chave |
@@ -237,6 +239,23 @@ A Tesla não tem histórico de viagens nem de carregamentos em casa: só ficam r
 depois de a recolha estar ativa. O histórico de Superchargers inclui sessões anteriores e requer o scope
 `vehicle_charging_cmds`. Intervalo "a carregar" e importação diária em Definições → Recolha de viagens.
 
+### Importar o histórico da Tessie
+
+Para quem teve Tessie: em Definições → Dados → **Importar da Tessie** (ou `tesla-setup importar-tessie`), com um
+token gerado em dash.tessie.com → Settings → API. Importa, desde o início da conta Tessie:
+
+| Dados | Para onde |
+|---|---|
+| Viagens (locais, energia, velocidade média, temperaturas, Autopilot) e percursos | `viagens` / `pontos`, origem `tessie` |
+| Carregamentos (local, kWh, custo, bateria) | `carregamentos`, origem `tessie` |
+| Saúde da bateria (autonomia máxima, capacidade) | `bateria_saude`, menu **Bateria** |
+| Paragens (energia perdida, clima, sentinela) | `paragens`, menu **Bateria** |
+
+Registos que coincidem com os do gateway (±10 min viagens, ±30 min carregamentos) são completados, não duplicados;
+viagens e carregamentos "inferidos" cobertos pela Tessie são substituídos. Faz um backup antes (`antes-tessie`) e
+pode repetir-se. O token não é guardado. Depois de cancelar a Tessie, o gateway continua a registar 1 medição de
+saúde da bateria por dia (autonomia atual ÷ bateria × 100, com bateria ≥ 50 %).
+
 ### Backups e exportação
 
 - Backup automático diário do `gateway.db` em `tesla/backups/` (guarda os últimos 14; configurável em Dados).
@@ -309,6 +328,7 @@ desativada responde 404. Autenticação com `Authorization: Bearer <token>` (tok
 | Consumo | Gráficos circulares de onde foram gastos os créditos (por tipo e por cliente) e estimativa do mês por tipo, cliente, endpoint e dia, com limites diários |
 | Viagens | Estado da recolha, viagens com filtros (semana, mês, ano, 30 dias) e totais; detalhe com mapa e GPX/JSON |
 | Carregamentos | Todos os carregamentos (casa/AC, rápidos/DC, Superchargers) com filtros, totais (kWh, custo), detalhe com curva de bateria e potência e local; importar o histórico de Superchargers |
+| Bateria | Saúde da bateria (autonomia a 100 %, capacidade, degradação) e perdas com o carro parado |
 | Mapa | Mapa de calor das posições registadas, com filtros por semana, mês ou ano |
 | Clientes | Criar com preset de permissões (chave mostrada uma vez), permissões, ativar/desativar, nova chave, apagar |
 | Tesla | Ver/editar o `tesla.env` (segredos mascarados) e comparar scopes pedidos vs. token |

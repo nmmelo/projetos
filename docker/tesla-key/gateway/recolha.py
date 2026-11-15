@@ -104,6 +104,7 @@ def ler(vin):
         "direcao": ds.get("heading"),
         "lat": ds.get("latitude"), "lon": ds.get("longitude"),
         "bateria": cs.get("battery_level"),
+        "autonomia_km": round(cs["battery_range"] * MILHA, 1) if cs.get("battery_range") is not None else None,
         "odo_km": round(odo * MILHA, 1) if odo is not None else None,
         "carga_estado": cs.get("charging_state"),
         "carga_kwh": cs.get("charge_energy_added"),
@@ -111,6 +112,18 @@ def ler(vin):
         "carga_dc": bool(cs.get("fast_charger_present")),
         "carga_dc_tipo": cs.get("fast_charger_type"),
     }
+
+
+def registar_saude_bateria(vin, l):
+    """Uma medição por dia: autonomia estimada a 100 % = autonomia atual / bateria × 100.
+    Só com bateria ≥ 50 % (abaixo disso a estimativa da Tesla é pouco fiável)."""
+    b, a = l.get("bateria"), l.get("autonomia_km")
+    if not b or not a or b < 50:
+        return
+    dia = l["ts"][:10] + "T00:00:00+00:00"
+    with c.db() as con:
+        con.execute("INSERT OR IGNORE INTO bateria_saude(vin, ts, odo_km, autonomia_max_km, origem) VALUES (?,?,?,?,'leituras')",
+                    (vin, dia, l.get("odo_km"), round(a / b * 100, 1)))
 
 
 def guardar_ponto(vin, viagem_id, l):
@@ -157,6 +170,7 @@ def processar(vin):
 
     a_conduzir = l["mudanca"] in ("D", "R", "N") or (l["velocidade_kmh"] or 0) > 0
     a_carregar = l.get("carga_estado") in ("Charging", "Starting")
+    registar_saude_bateria(vin, l)
     tratar_carregamento(vin, e, l, a_carregar, a_conduzir)
 
     # viagem que aconteceu toda entre duas leituras (o carro estava a dormir): deteta-se pelo odómetro

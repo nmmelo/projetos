@@ -189,6 +189,7 @@ pre{background:#1d2433;color:#e6e9f0;padding:10px;border-radius:6px;overflow-x:a
 <a href="{{ url_for('consumo') }}" class="{{ 'on' if pag=='consumo' }}">Consumo</a>
 <a href="{{ url_for('viagens') }}" class="{{ 'on' if pag=='viagens' }}">Viagens</a>
 <a href="{{ url_for('carregamentos') }}" class="{{ 'on' if pag=='carregamentos' }}">Carregamentos</a>
+<a href="{{ url_for('bateria') }}" class="{{ 'on' if pag=='bateria' }}">Bateria</a>
 <a href="{{ url_for('mapa') }}" class="{{ 'on' if pag=='mapa' }}">Mapa</a>
 <a href="{{ url_for('clientes') }}" class="{{ 'on' if pag=='clientes' }}">Clientes</a>
 <a href="{{ url_for('tesla_conf') }}" class="{{ 'on' if pag=='tesla' }}">Tesla</a>
@@ -1156,7 +1157,7 @@ def viagens():
 <td>{{ v.duracao_min ~ ' min' if v.duracao_min is not none else ('a decorrer' if v.estado=='aberta' else ('entre leituras' if v.origem=='inferida' else '—')) }}</td>
 <td>{{ v.km ~ ' km' if v.km is not none else '—' }}</td>
 <td>{{ v.bateria_inicio if v.bateria_inicio is not none else '?' }} → {{ v.bateria_fim if v.bateria_fim is not none else '?' }} %</td>
-<td>{{ v.velocidade_max_kmh or '—' }}</td><td>{{ v.pontos }}{% if v.origem == 'inferida' %} <span class="b mut" title="Aconteceu entre duas leituras (o carro estava a dormir): distância pelo odómetro, sem percurso">inferida</span>{% endif %}</td>
+<td>{{ v.velocidade_max_kmh or '—' }}</td><td>{{ v.pontos }}{% if v.origem == 'inferida' %} <span class="b mut" title="Aconteceu entre duas leituras (o carro estava a dormir): distância pelo odómetro, sem percurso">inferida</span>{% elif v.origem == 'tessie' %} <span class="b ok" title="Importada da Tessie">tessie</span>{% elif v.tessie_id %} <span class="b mut" title="completada com dados da Tessie">+tessie</span>{% endif %}</td>
 <td><a href="{{ url_for('viagem', viagem_id=v.id) }}"><button type="button" class="sec">Ver</button></a></td></tr>
 {% else %}<tr><td colspan="7" class="mutt">Sem viagens neste período.</td></tr>{% endfor %}</table></div>""",
                   f=f, lista=lista, res=res, estados=estados, ativa=c.get_def("recolha_ativa") == "1",
@@ -1175,11 +1176,19 @@ def viagem(viagem_id):
  <div class="kpi"><small>Bateria</small><div>{{ v.bateria_inicio }} → {{ v.bateria_fim if v.bateria_fim is not none else '?' }} %</div></div>
  <div class="kpi"><small>V. máx.</small><div>{{ v.velocidade_max_kmh or '—' }}</div></div>
 </div>
+{% if v.local_inicio or v.energia_kwh is not none or v.velocidade_media_kmh is not none %}
+<table class="ft" style="margin-bottom:12px">
+{% if v.local_inicio %}<tr><th>De</th><td>{{ v.local_inicio }}</td></tr><tr><th>Para</th><td>{{ v.local_fim or '—' }}</td></tr>{% endif %}
+{% if v.energia_kwh is not none %}<tr><th>Energia</th><td>{{ '%.1f'|format(v.energia_kwh) }} kWh{% if v.km %} · {{ '%.0f'|format(v.energia_kwh * 1000 / v.km) }} Wh/km{% endif %}</td></tr>{% endif %}
+{% if v.velocidade_media_kmh is not none %}<tr><th>V. média</th><td>{{ '%.0f'|format(v.velocidade_media_kmh) }} km/h</td></tr>{% endif %}
+{% if v.temp_exterior is not none %}<tr><th>Temperatura</th><td>exterior {{ v.temp_exterior }} °C · interior {{ v.temp_interior if v.temp_interior is not none else '—' }} °C</td></tr>{% endif %}
+{% if v.autopilot_km %}<tr><th>Autopilot</th><td>{{ v.autopilot_km }} km</td></tr>{% endif %}
+<tr><th>Origem</th><td>{{ v.origem }}{{ ' + tessie' if v.tessie_id and v.origem != 'tessie' }}</td></tr></table>{% endif %}
 <div id="mapa" class="mapa"></div>
 <p><a href="{{ url_for('exportar_viagem', viagem_id=v.id, formato='gpx') }}"><button type="button" class="sec">GPX</button></a>
 <a href="{{ url_for('exportar_viagem', viagem_id=v.id, formato='json') }}"><button type="button" class="sec">JSON</button></a>
 <a href="{{ url_for('viagens') }}"><button type="button" class="sec">Voltar</button></a></p>
-<p class="mutt">Percurso aproximado: um ponto por leitura (intervalo "a conduzir" em Definições).</p></div>
+<p class="mutt">{{ 'Percurso importado da Tessie.' if v.origem == 'tessie' else 'Percurso aproximado: um ponto por leitura (intervalo "a conduzir" em Definições).' }}</p></div>
 <script>
 const pts = {{ v.percurso|map(attribute='lat')|list|tojson }}.map((la, i) => [la, {{ v.percurso|map(attribute='lon')|list|tojson }}[i]]);
 const m = L.map('mapa'); L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -1242,7 +1251,7 @@ def carregamentos():
 
 
 FILTRO_ORIGEM = """<label>Origem<select name="origem"><option value="">todas</option>
-{% for k, n in [('leituras','Leituras'),('inferido','Inferido'),('supercharger','Supercharger')] %}<option value="{{ k }}" {{ 'selected' if origem==k }}>{{ n }}</option>{% endfor %}</select></label>
+{% for k, n in [('leituras','Leituras'),('inferido','Inferido'),('supercharger','Supercharger'),('tessie','Tessie')] %}<option value="{{ k }}" {{ 'selected' if origem==k }}>{{ n }}</option>{% endfor %}</select></label>
 <button>Filtrar</button>"""
 
 CARREG_LISTA = """
@@ -1260,13 +1269,14 @@ CARREG_LISTA = """
 <td>{{ ('%.1f kWh'|format(x.energia_kwh)) if x.energia_kwh is not none else '—' }}</td>
 <td>{{ ('%.0f kW'|format(x.potencia_max_kw)) if x.potencia_max_kw else '—' }}</td>
 <td>{{ ('%.2f %s'|format(x.custo, x.moeda or '')) if x.custo is not none else '—' }}</td>
-<td><span class="b {{ 'ok' if x.origem=='supercharger' else 'mut' }}">{{ x.origem }}</span></td>
+<td><span class="b {{ 'ok' if x.origem in ('supercharger','tessie') else 'mut' }}">{{ x.origem }}</span>{% if x.tessie_id and x.origem != 'tessie' %} <span class="b mut" title="completado com dados da Tessie">+tessie</span>{% endif %}</td>
 <td><a href="{{ url_for('carregamento', cid=x.id) }}"><button type="button" class="sec">Ver</button></a></td></tr>
 {% else %}<tr><td colspan="10" class="mutt">Sem carregamentos neste período.</td></tr>{% endfor %}</table></div>
 <div class="card"><h2>Como são registados</h2>
 <table class="ft"><tr><th>leituras</th><td>Detetado pela recolha (estado "a carregar"): início, fim, bateria, energia, potência e curva.</td></tr>
 <tr><th>inferido</th><td>A bateria subiu 3 % ou mais entre duas leituras sem se ver o carregamento (carro a dormir): sem curva.</td></tr>
-<tr><th>supercharger</th><td>Importado do histórico de Superchargers da Tesla (local, kWh, custo); se coincidir com um carregamento já registado, junta-se a ele.</td></tr></table>
+<tr><th>supercharger</th><td>Importado do histórico de Superchargers da Tesla (local, kWh, custo); se coincidir com um carregamento já registado, junta-se a ele.</td></tr>
+<tr><th>tessie</th><td>Importado do histórico da Tessie (Definições → Dados); os que coincidem com um registo do gateway completam-no.</td></tr></table>
 <form method="post" style="margin-top:10px"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="sec">Importar agora o histórico de Superchargers</button></form></div>"""
 
 CARREG_DETALHE = """
@@ -1298,9 +1308,11 @@ def carregamento(cid):
     return render(f"Carregamento {cid}", "carregamentos", LEAFLET + CARREG_DETALHE, x=x, graf_bat=graf_bat, graf_kw=graf_kw)
 
 
-def linha_svg(valores, unidade, ymin=0, ymax=None):
-    """Gráfico de linha simples (um eixo) em SVG para a curva de um carregamento."""
+def linha_svg(valores, unidade, ymin=0, ymax=None, rotulos=("início", "fim"), dicas=None):
+    """Gráfico de linha simples (um eixo) em SVG. dicas: texto por ponto (tooltip)."""
     vals = [v for v in valores if v is not None]
+    if ymin is None and vals:
+        ymin = min(vals) * 0.97
     if len(vals) < 2:
         return Markup("<p class='mutt'>Poucas leituras para desenhar a curva.</p>")
     ymax = ymax if ymax is not None else (max(vals) * 1.15 or 1)
@@ -1313,12 +1325,61 @@ def linha_svg(valores, unidade, ymin=0, ymax=None):
         f"<line x1='{pe}' x2='{w - 6}' y1='{h - pb - k * (h - pb - 8) / 4:.1f}' y2='{h - pb - k * (h - pb - 8) / 4:.1f}' "
         f"stroke='var(--bd)' stroke-width='1'/><text x='{pe - 6}' y='{h - pb - k * (h - pb - 8) / 4 + 4:.1f}' "
         f"text-anchor='end' font-size='10' fill='var(--mut)'>{ymin + k * (ymax - ymin) / 4:.0f}</text>" for k in range(5))
-    marcas = "".join(f"<circle cx='{x:.1f}' cy='{y:.1f}' r='4' fill='var(--c1)' stroke='var(--card)' stroke-width='2'>"
-                     f"<title>{v} {unidade}</title></circle>" for (x, y), v in zip(pts, vals))
+    textos = [dicas[i] for i in idx] if dicas else [""] * len(idx)
+    r = 4 if len(pts) <= 60 else 2.5
+    marcas = "".join(f"<circle cx='{x:.1f}' cy='{y:.1f}' r='{r}' fill='var(--c1)' stroke='var(--card)' stroke-width='1.5'>"
+                     f"<title>{escape(t)} {v} {unidade}</title></circle>" for (x, y), v, t in zip(pts, vals, textos))
     return Markup(f"<svg viewBox='0 0 {w} {h}' style='width:100%;height:auto' role='img' aria-label='curva em {unidade}'>"
                   f"{grelha}<polyline points='{linha}' fill='none' stroke='var(--c1)' stroke-width='2' stroke-linejoin='round'/>"
-                  f"{marcas}<text x='{pe}' y='{h - 3}' font-size='10' fill='var(--mut)'>início</text>"
-                  f"<text x='{w - 6}' y='{h - 3}' text-anchor='end' font-size='10' fill='var(--mut)'>fim</text></svg>")
+                  f"{marcas}<text x='{pe}' y='{h - 3}' font-size='10' fill='var(--mut)'>{escape(rotulos[0])}</text>"
+                  f"<text x='{w - 6}' y='{h - 3}' text-anchor='end' font-size='10' fill='var(--mut)'>{escape(rotulos[1])}</text></svg>")
+
+
+@app.get("/bateria")
+@login_obrigatorio
+def bateria():
+    f = ler_filtro()
+    sb = c.saude_bateria(f["vin"], f["de"], f["ate"])
+    pg = c.listar_paragens(f["vin"], f["de"], f["ate"], limite=100)
+    med = sb["medicoes"]
+    # para o gráfico: Tessie quando existe (mais precisa), senão as leituras do gateway
+    serie = [m for m in med if m["origem"] == "tessie"] or med
+    graf_aut = linha_svg([m["autonomia_max_km"] for m in serie], "km", None, None,
+                         (serie[0]["ts"][:10], serie[-1]["ts"][:10]) if serie else ("", ""),
+                         [m["ts"][:10] for m in serie])
+    cap = [m for m in med if m["capacidade_kwh"]]
+    graf_cap = linha_svg([m["capacidade_kwh"] for m in cap], "kWh", None, None,
+                         (cap[0]["ts"][:10], cap[-1]["ts"][:10]) if cap else ("", ""), [m["ts"][:10] for m in cap]) if cap else None
+    return render("Bateria", "bateria", """
+<div class="card">""" + FILTRO + """
+<div class="grid" style="margin:12px 0">
+ <div class="kpi"><small>Autonomia a 100 %</small><div>{{ ('%.0f km'|format(r.autonomia_max_km)) if r.autonomia_max_km else '—' }}</div></div>
+ <div class="kpi"><small>Capacidade</small><div>{{ ('%.1f kWh'|format(r.capacidade_kwh)) if r.capacidade_kwh else '—' }}</div></div>
+ <div class="kpi"><small>Degradação (autonomia)</small><div>{{ ('%.1f %%'|format(r.degradacao_autonomia_pct)) if r.degradacao_autonomia_pct is defined and r.degradacao_autonomia_pct is not none else '—' }}</div></div>
+ <div class="kpi"><small>Medições</small><div>{{ r.n }}</div></div>
+</div></div>
+<div class="card"><h2>Autonomia estimada a 100 % (km)</h2>{{ graf_aut }}
+<p class="mutt">Tessie: medição da Tessie. Gateway: 1×/dia, autonomia atual ÷ bateria × 100 (com bateria ≥ 50 %); varia com a temperatura.</p></div>
+{% if graf_cap %}<div class="card"><h2>Capacidade (kWh)</h2>{{ graf_cap }}</div>{% endif %}
+<div class="card"><h2>Perdas com o carro parado</h2>
+<div class="grid" style="margin-bottom:12px">
+ <div class="kpi"><small>Paragens</small><div>{{ pg.resumo.n }}</div></div>
+ <div class="kpi"><small>Energia perdida</small><div>{{ pg.resumo.kwh }} kWh</div></div>
+ <div class="kpi"><small>Bateria perdida</small><div>{{ pg.resumo.bateria }} %</div></div>
+</div>
+<table><tr><th>Início</th><th>Fim</th><th>Local</th><th>Bateria</th><th>Energia</th><th>Clima</th><th>Sentinela</th></tr>
+{% for p in pg.paragens %}<tr><td>{{ p.inicio[:16].replace('T',' ') }}</td><td>{{ (p.fim or '—')[:16].replace('T',' ') }}</td>
+<td>{{ p.local or '—' }}</td><td>{{ p.bateria_inicio }} → {{ p.bateria_fim }} %</td>
+<td>{{ ('%.2f kWh'|format(p.energia_kwh)) if p.energia_kwh is not none else '—' }}</td>
+<td>{{ ('%.0f %%'|format(p.clima_pct)) if p.clima_pct is not none else '—' }}</td><td>{{ ('%.0f %%'|format(p.sentinela_pct)) if p.sentinela_pct is not none else '—' }}</td></tr>
+{% else %}<tr><td colspan="7" class="mutt">Sem paragens registadas (vêm da importação da Tessie).</td></tr>{% endfor %}</table>
+<p class="mutt">Últimas 100 do período. Clima e sentinela: % do tempo parado com cada um ligado.</p></div>
+<div class="card"><h2>Medições</h2><table><tr><th>Data</th><th>Odómetro</th><th>Autonomia a 100 %</th><th>Ideal</th><th>Capacidade</th><th>Origem</th></tr>
+{% for m in med|reverse %}{% if loop.index <= 60 %}<tr><td>{{ m.ts[:10] }}</td><td>{{ ('%.0f km'|format(m.odo_km)) if m.odo_km else '—' }}</td>
+<td>{{ ('%.0f km'|format(m.autonomia_max_km)) if m.autonomia_max_km else '—' }}</td><td>{{ ('%.0f km'|format(m.autonomia_ideal_km)) if m.autonomia_ideal_km else '—' }}</td>
+<td>{{ ('%.1f kWh'|format(m.capacidade_kwh)) if m.capacidade_kwh else '—' }}</td><td><span class="b mut">{{ m.origem }}</span></td></tr>{% endif %}
+{% else %}<tr><td colspan="6" class="mutt">Sem medições neste período.</td></tr>{% endfor %}</table></div>""",
+                  f=f, r=sb["resumo"], med=med, pg=pg, graf_aut=graf_aut, graf_cap=graf_cap)
 
 
 @app.get("/mapa")
@@ -1374,13 +1435,26 @@ def dados():
         elif acao == "restaurar":
             c.restaurar_backup(request.form.get("nome"))
             flash("Base de dados restaurada (foi feito antes um backup 'antes-restauro')", "ok")
+        elif acao == "tessie":
+            import tessie
+            token = (request.form.get("tessie_token") or "").strip()
+            partes = [p for p in tessie.PARTES if request.form.get(f"t_{p}")]
+            if not token or not partes:
+                flash("Indique o token da Tessie e o que importar", "err")
+            else:
+                try:
+                    tessie.importar_em_fundo(token, partes, bool(request.form.get("t_percursos")))
+                    flash("Importação da Tessie iniciada (é feito um backup antes). Acompanhe o estado abaixo.", "ok")
+                except c.ErroGateway as e:
+                    flash(e.mensagem, "err")
         elif acao == "config":
             c.set_def("backup_automatico", "1" if request.form.get("backup_automatico") else "0")
             c.set_def("backup_retencao", max(1, int(request.form.get("backup_retencao") or 14)))
             flash("Definições de backup guardadas", "ok")
         return redirect(url_for("dados"))
     with c.db() as con:
-        cont = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ("viagens", "pontos", "consumo", "logs", "clientes")}
+        cont = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                for t in ("viagens", "pontos", "carregamentos", "bateria_saude", "paragens", "consumo", "logs", "clientes")}
     tam = round(os.path.getsize(c.DB_FILE) / 1024, 1) if os.path.exists(c.DB_FILE) else 0
     return render("Dados", "definicoes", """
 <div class="card"><h2>Base de dados</h2>
@@ -1390,6 +1464,7 @@ def dados():
 <div class="card"><h2>Exportar</h2>
 <form method="get" action="{{ url_for('exportar') }}" class="row">
 <label>Dados<select name="tipo"><option value="viagens">Viagens</option><option value="carregamentos">Carregamentos</option><option value="pontos">Posições</option>
+<option value="bateria">Saúde da bateria</option><option value="paragens">Paragens</option>
 <option value="consumo">Consumo</option><option value="logs">Logs</option></select></label>
 <label>Formato<select name="formato"><option value="csv">CSV (Excel)</option><option value="json">JSON</option>
 <option value="gpx">GPX (viagens)</option><option value="geojson">GeoJSON (posições)</option></select></label>
@@ -1397,6 +1472,26 @@ def dados():
 <option value="mes">Este mês</option><option value="semana">Esta semana</option></select></label>
 <button>Exportar</button></form>
 <p class="mutt">CSV com separador <code>;</code>. GPX abre no Google Earth, Strava, etc.; GeoJSON em QGIS/geojson.io.</p></div>
+
+<div class="card"><h2>Importar da Tessie</h2>
+<p>Traz o histórico guardado na Tessie para o gateway (antes de cancelar a subscrição): viagens com percurso, carregamentos,
+saúde da bateria e paragens. Os registos que já existem no gateway são completados, não duplicados; as viagens e
+carregamentos "inferidos" cobertos pela Tessie são substituídos. Pode repetir: o que já foi importado é ignorado.</p>
+{% if ts.fase %}<table class="ft" style="margin-bottom:10px"><tr><th>Estado</th><td>{% if ts.a_decorrer %}<span class="b warn">a decorrer</span>{% elif ts.erro %}<span class="b err">falhou</span>{% else %}<span class="b ok">concluída</span>{% endif %}
+{{ ts.fase }} <span class="mutt">({{ (ts.atualizado or '')[:19].replace('T',' ') }})</span>{% if ts.a_decorrer %} · <a href="{{ url_for('dados') }}">atualizar</a>{% endif %}</td></tr>
+{% if ts.erro %}<tr><th>Erro</th><td>{{ ts.erro }}</td></tr>{% endif %}
+<tr><th>Viagens</th><td>{{ ts.viagens_recebidas or 0 }} na Tessie: {{ ts.viagens_novas or 0 }} novas, {{ ts.viagens_associadas or 0 }} completadas, {{ ts.viagens_existentes or 0 }} já importadas{% if ts.inferidas_substituidas %}, {{ ts.inferidas_substituidas }} inferidas substituídas{% endif %}</td></tr>
+<tr><th>Carregamentos</th><td>{{ ts.carregamentos_recebidos or 0 }} na Tessie: {{ ts.carregamentos_novos or 0 }} novos, {{ ts.carregamentos_associados or 0 }} completados, {{ ts.carregamentos_existentes or 0 }} já importados</td></tr>
+<tr><th>Bateria / paragens</th><td>{{ ts.bateria_medicoes or 0 }} medições · {{ ts.paragens or 0 }} paragens{% if ts.pedidos %} · {{ ts.pedidos }} pedidos à Tessie em {{ ts.minutos }} min{% endif %}</td></tr>
+{% if ts.avisos %}<tr><th>Avisos</th><td>{{ ts.avisos|length }} (ver Logs, origem tessie)</td></tr>{% endif %}</table>{% endif %}
+{% if session.get('perfil') == 'admin' and not ts.a_decorrer %}
+<form method="post" autocomplete="off"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="tessie">
+<label>Token da Tessie (dash.tessie.com → Settings → API → Generate Access Token)<input name="tessie_token" type="password" required></label>
+<p class="row">{% for k, n in [('viagens','Viagens'),('carregamentos','Carregamentos'),('bateria','Saúde da bateria'),('paragens','Paragens')] %}
+<label style="flex-direction:row;align-items:center"><input type="checkbox" name="t_{{ k }}" value="1" checked> {{ n }}</label>{% endfor %}
+<label style="flex-direction:row;align-items:center"><input type="checkbox" name="t_percursos" value="1" checked> Percursos das viagens (1 pedido por viagem, mais lento)</label></p>
+<button>Importar da Tessie</button></form>
+<p class="mutt">O token só é usado nesta importação: não é guardado nem fica nos logs. Pode demorar vários minutos com muitas viagens.</p>{% endif %}</div>
 
 <div class="card"><h2>Backups</h2>
 <form method="post" class="row"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="config">
@@ -1415,7 +1510,7 @@ def dados():
 <p class="mutt">Ficam em <code>tesla/backups/</code> no NAS (volume). Incluem clientes, chaves (em hash), login, viagens, consumo e logs;
 o <code>tesla.env</code>, as chaves Tesla e os tokens estão em <code>tesla/</code> e não fazem parte do backup.</p></div>""",
                   aba="dados", cont=cont, tam=tam, backups=c.listar_backups(), auto=c.get_def("backup_automatico"),
-                  ret=c.get_def("backup_retencao"))
+                  ret=c.get_def("backup_retencao"), ts=__import__("tessie").estado())
 
 
 @app.get("/dados/exportar")

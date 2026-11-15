@@ -39,6 +39,7 @@ consultar as suas permissões em `GET /api/me`.
 | `viagens` | Viagens e posições registadas pelo gateway; estado da recolha | `/trips`, `/positions`, `/api/recolha` |
 | `consumo` | Consumo estimado de créditos (todos os clientes) | `/api/consumo` |
 | `carregamentos` | Carregamentos registados pelo gateway | `/charges` |
+| `bateria` | Saúde da bateria e perdas com o carro parado | `/battery-health`, `/idles` |
 | `token` | Estado do token Tesla | `/api/token/status` |
 | `acordar` | Acordar o carro (sensível) | `/wake` |
 | `fleet` | Passthrough para qualquer GET da Fleet API (sensível, acesso amplo) | `/api/fleet/...` |
@@ -80,6 +81,8 @@ para forçar um pedido novo à Tesla (conta como pedido pago).
 | GET | `/api/vehicles/{vin}/positions` | sim | Posições registadas (mapa de calor ou percurso) |
 | GET | `/api/vehicles/{vin}/charges` | sim | Carregamentos registados pelo gateway, com totais |
 | GET | `/api/vehicles/{vin}/charges/{id}` | sim | Um carregamento com a curva |
+| GET | `/api/vehicles/{vin}/battery-health` | sim | Saúde da bateria ao longo do tempo |
+| GET | `/api/vehicles/{vin}/idles` | sim | Paragens e energia perdida com o carro parado |
 | GET | `/api/recolha` | sim | Estado da recolha de viagens |
 | GET | `/api/consumo` | sim | Consumo estimado de créditos no mês (todos os clientes) |
 | GET | `/api/me/consumo` | sim | Consumo estimado só deste cliente |
@@ -377,7 +380,8 @@ Superchargers da Tesla. Filtros iguais aos de `/trips` (`ano`, `mes`, `semana`, 
 | Campo | Significado |
 |---|---|
 | `estado` | `a_carregar` (a decorrer) ou `terminado` |
-| `origem` | `leituras`, `inferido` (bateria subiu ≥ 3 % entre leituras, sem curva) ou `supercharger` (importado da Tesla) |
+| `origem` | `leituras`, `inferido` (bateria subiu ≥ 3 % entre leituras, sem curva), `supercharger` (importado da Tesla) ou `tessie` (importado da Tessie) |
+| `tessie_id` | Preenchido quando o registo veio ou foi completado com a Tessie |
 | `tipo` | `AC` (casa, wallbox) ou `DC` (rápido / Supercharger) |
 | `local` | Nome do Supercharger (quando conhecido) |
 | `custo`, `moeda` | Valor faturado pela Tesla (Superchargers) |
@@ -387,6 +391,29 @@ O carregamento mais `curva`:
 ```json
 { "id": 7, "energia_kwh": 25.1, "curva": [ { "ts": "...", "bateria": 52, "potencia_kw": 11.0, "energia_kwh": 8.2 } ] }
 ```
+
+### Saúde da bateria (`/battery-health`) e paragens (`/idles`)
+
+Permissão `bateria`. Filtros como `/trips`.
+
+#### `GET /api/vehicles/{vin}/battery-health?origem=tessie|leituras`
+```json
+{ "medicoes": [ { "ts": "2026-11-01T00:00:00+00:00", "odo_km": 41000, "autonomia_max_km": 450.0,
+                  "autonomia_ideal_km": 470.0, "capacidade_kwh": 73.9, "origem": "tessie" } ],
+  "resumo": { "n": 42, "autonomia_max_km": 445.0, "capacidade_kwh": 73.9,
+              "degradacao_autonomia_pct": 7.3, "degradacao_capacidade_pct": 5.4 } }
+```
+`tessie`: histórico importado. `leituras`: 1 medição por dia do gateway (autonomia ÷ bateria × 100, sem capacidade).
+
+#### `GET /api/vehicles/{vin}/idles`
+```json
+{ "paragens": [ { "inicio": "...", "fim": "...", "local": "...", "bateria_inicio": 80, "bateria_fim": 78,
+                  "energia_kwh": 1.3, "clima_pct": 0, "sentinela_pct": 50 } ],
+  "resumo": { "n": 1, "kwh": 1.3, "bateria": 2 } }
+```
+
+As viagens importadas da Tessie (`origem: "tessie"`) e as completadas têm ainda `local_inicio`, `local_fim`,
+`energia_kwh`, `velocidade_media_kmh`, `temp_exterior`, `temp_interior` e `autopilot_km`.
 
 ### `GET /api/endpoints`
 Lista de endpoints com método, caminho, permissão, descrição, parâmetros e exemplo (sem chave). O portal admin

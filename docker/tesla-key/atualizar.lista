@@ -13,6 +13,7 @@ gateway/admin.py
 gateway/cli.py
 gateway/imagens.py
 gateway/recolha.py
+gateway/tessie.py
 gateway/cliente_exemplo.py
 .env.example
 tesla/tesla.env.example
