@@ -1214,8 +1214,15 @@ def exportar_viagem(viagem_id, formato):
 def carregamentos():
     if request.method == "POST":
         import recolha
-        novos, assoc = recolha.importar_supercharger()
-        flash(f"Histórico de Superchargers: {novos} novos, {assoc} associados a carregamentos já registados", "ok")
+        r = recolha.importar_supercharger()
+        msg = (f"Histórico de Superchargers: {r['recebidas']} sessões recebidas da Tesla — {r['novos']} novas, "
+               f"{r['associados']} associadas a carregamentos já registados, {r['existentes']} já existiam"
+               + (f", {r['ignoradas']} ignoradas (sem id, data ou VIN)" if r["ignoradas"] else ""))
+        if r["erro"]:
+            flash(f"Histórico de Superchargers: {r['erro']}", "err")
+        else:
+            flash(msg + ("" if r["recebidas"] else ". A Tesla não devolveu sessões (conta sem Superchargers pagos, "
+                         "ou falta o scope vehicle_charging_cmds — ver Tesla → Scopes)."), "ok" if r["recebidas"] else "warn")
         return redirect(request.referrer or url_for("carregamentos"))
     f = ler_filtro()
     origem = request.args.get("origem") or None

@@ -268,57 +268,94 @@ def tratar_carregamento(vin, e, l, a_carregar, a_conduzir):
         c.log("INFO", "recolha", f"carregamento inferido pela bateria: {e['bateria']} → {l['bateria']} %")
 
 
+def _lista_sessoes(corpo):
+    """Aceita as formas de resposta conhecidas: {"response": {"data": [...]}}, {"data": [...]}, {"response": [...]}."""
+    resp = corpo.get("response", corpo) if isinstance(corpo, dict) else corpo
+    if isinstance(resp, list):
+        return resp, False
+    if isinstance(resp, dict):
+        return (resp.get("data") or resp.get("sessions") or resp.get("chargingHistory") or []), bool(resp.get("hasMoreData"))
+    return [], False
+
+
+def _data_utc(valor):
+    if not valor:
+        return None
+    try:
+        return datetime.fromisoformat(str(valor).replace("Z", "+00:00")).astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
 def importar_supercharger(vin=None):
     """Importa o histórico de carregamentos pagos (Superchargers) da Tesla; junta-o aos carregamentos registados
-    pelas leituras quando as horas coincidem. Requer o scope vehicle_charging_cmds. Devolve (novos, atualizados)."""
-    novos = atualizados = 0
-    pagina = 1                       # a Tesla numera as páginas a partir de 1 (pageNo=0 dá 400 "Invalid page no")
-    while pagina <= 20:
-        params = {"pageNo": pagina, "pageSize": 50}
-        if vin:
-            params["vin"] = vin
-        r = c.tesla("GET", "dx/charging/history", params=params, cliente_consumo="recolha")
-        if r.status_code != 200:
-            c.log("WARNING", "recolha", f"histórico de Superchargers: Tesla respondeu {r.status_code} {r.text[:150]}")
-            break
-        resp = r.json().get("response") or {}
-        lote = resp.get("data") or []
-        for s in lote:
-            sid = str(s.get("sessionId") or "")
-            ini, fim = s.get("chargeStartDateTime"), s.get("chargeStopDateTime") or s.get("unlatchDateTime")
-            if not sid or not ini:
-                continue
-            fees = [f for f in (s.get("fees") or []) if isinstance(f, dict)]
-            custo = round(sum(float(f.get("totalDue") or 0) for f in fees), 2) if fees else None
-            moeda = next((f.get("currencyCode") or f.get("currency") for f in fees if f.get("currencyCode") or f.get("currency")), None)
-            kwh = sum(float(f.get("usageBase") or 0) for f in fees
-                      if (f.get("feeType") or "").upper() == "CHARGING" and (f.get("uom") or "kwh").lower() == "kwh") or None
-            v = s.get("vin") or vin
-            with c.db() as con:
-                if con.execute("SELECT 1 FROM carregamentos WHERE sessao_tesla=?", (sid,)).fetchone():
+    pelas leituras quando as horas coincidem (±30 min). Requer o scope vehicle_charging_cmds.
+    Devolve um dict com recebidas, novos, associados, existentes, ignoradas e erro."""
+    st = {"recebidas": 0, "novos": 0, "associados": 0, "existentes": 0, "ignoradas": 0, "erro": None}
+    alvo = [vin] if vin else (vins() or [None])
+    for v_pedido in alvo:
+        pagina = 1                   # a Tesla numera as páginas a partir de 1 (pageNo=0 dá 400 "Invalid page no")
+        while pagina <= 20:
+            params = {"pageNo": pagina, "pageSize": 50}
+            if v_pedido:
+                params["vin"] = v_pedido
+            r = c.tesla("GET", "dx/charging/history", params=params, cliente_consumo="recolha")
+            if r.status_code != 200:
+                st["erro"] = f"Tesla respondeu {r.status_code}: {r.text[:200]}"
+                break
+            try:
+                lote, mais = _lista_sessoes(r.json())
+            except ValueError:
+                st["erro"] = f"resposta não é JSON: {r.text[:200]}"
+                break
+            if pagina == 1 and not lote:
+                c.log("INFO", "recolha", f"histórico de Superchargers vazio{' para …' + v_pedido[-6:] if v_pedido else ''}: "
+                                         f"{r.text[:300]}")
+            for s in lote:
+                st["recebidas"] += 1
+                if not isinstance(s, dict):
+                    st["ignoradas"] += 1
                     continue
-                ini_utc = datetime.fromisoformat(ini.replace("Z", "+00:00")).astimezone(timezone.utc)
-                janela = (iso(ini_utc - timedelta(minutes=30)), iso(ini_utc + timedelta(minutes=30)))
-                par = con.execute("SELECT id FROM carregamentos WHERE vin=? AND sessao_tesla IS NULL AND inicio BETWEEN ? AND ?"
-                                  " ORDER BY inicio LIMIT 1", (v, *janela)).fetchone()
-                if par:
-                    con.execute("UPDATE carregamentos SET sessao_tesla=?, local=?, custo=?, moeda=?, tipo='DC',"
-                                " energia_kwh=COALESCE(?, energia_kwh) WHERE id=?",
-                                (sid, s.get("siteLocationName"), custo, moeda, kwh, par[0]))
-                    atualizados += 1
-                else:
-                    con.execute("""INSERT INTO carregamentos(vin, inicio, fim, estado, origem, tipo, local, energia_kwh,
-                                   custo, moeda, sessao_tesla) VALUES (?,?,?,'terminado','supercharger','DC',?,?,?,?,?)""",
-                                (v, iso(ini_utc), fim and iso(datetime.fromisoformat(fim.replace("Z", "+00:00")).astimezone(timezone.utc)),
-                                 s.get("siteLocationName"), kwh, custo, moeda, sid))
-                    novos += 1
-        if not lote or not resp.get("hasMoreData"):
-            break
-        pagina += 1
+                sid = str(s.get("sessionId") or s.get("session_id") or s.get("id") or "")
+                ini = _data_utc(s.get("chargeStartDateTime") or s.get("startDateTime"))
+                fim = _data_utc(s.get("chargeStopDateTime") or s.get("unlatchDateTime") or s.get("endDateTime"))
+                v = s.get("vin") or v_pedido
+                if not sid or not ini or not v:
+                    st["ignoradas"] += 1
+                    continue
+                fees = [f for f in (s.get("fees") or []) if isinstance(f, dict)]
+                custo = round(sum(float(f.get("totalDue") or 0) for f in fees), 2) if fees else None
+                moeda = next((f.get("currencyCode") or f.get("currency") for f in fees
+                              if f.get("currencyCode") or f.get("currency")), None)
+                kwh = sum(float(f.get("usageBase") or 0) for f in fees
+                          if (f.get("feeType") or "").upper() == "CHARGING"
+                          and (f.get("uom") or "kwh").lower() == "kwh") or None
+                local = s.get("siteLocationName") or s.get("siteName")
+                with c.db() as con:
+                    if con.execute("SELECT 1 FROM carregamentos WHERE sessao_tesla=?", (sid,)).fetchone():
+                        st["existentes"] += 1
+                        continue
+                    janela = (iso(ini - timedelta(minutes=30)), iso(ini + timedelta(minutes=30)))
+                    par = con.execute("SELECT id FROM carregamentos WHERE vin=? AND sessao_tesla IS NULL"
+                                      " AND inicio BETWEEN ? AND ? ORDER BY inicio LIMIT 1", (v, *janela)).fetchone()
+                    if par:
+                        con.execute("UPDATE carregamentos SET sessao_tesla=?, local=?, custo=?, moeda=?, tipo='DC',"
+                                    " energia_kwh=COALESCE(?, energia_kwh) WHERE id=?",
+                                    (sid, local, custo, moeda, kwh, par[0]))
+                        st["associados"] += 1
+                    else:
+                        con.execute("""INSERT INTO carregamentos(vin, inicio, fim, estado, origem, tipo, local, energia_kwh,
+                                       custo, moeda, sessao_tesla) VALUES (?,?,?,'terminado','supercharger','DC',?,?,?,?,?)""",
+                                    (v, iso(ini), iso(fim) if fim else None, local, kwh, custo, moeda, sid))
+                        st["novos"] += 1
+            if not lote or not mais:
+                break
+            pagina += 1
     c.set_def("recolha_supercharger_ts", time.time())
-    if novos or atualizados:
-        c.log("INFO", "recolha", f"histórico de Superchargers: {novos} novos, {atualizados} associados")
-    return novos, atualizados
+    msg = (f"histórico de Superchargers: {st['recebidas']} recebidas, {st['novos']} novas, {st['associados']} associadas, "
+           f"{st['existentes']} já existentes, {st['ignoradas']} ignoradas" + (f"; erro: {st['erro']}" if st["erro"] else ""))
+    c.log("WARNING" if st["erro"] else "INFO", "recolha", msg)
+    return st
 
 
 def vins():

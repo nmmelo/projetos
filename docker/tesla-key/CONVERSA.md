@@ -388,3 +388,16 @@ passam pelo `docker-compose.yml`, por isso funcionam no `.env` e na stack do Por
 O pedido a `/docs` vinha de um cliente à procura da documentação (como noutras APIs). O gateway passa a servir,
 sem chave: `/docs` e `/api/docs` (página HTML com os endpoints), `/openapi.yaml` e `/API.md` (copiados para a
 imagem no build) e `/api/endpoints` (JSON).
+
+---
+
+## 26. Importação de Superchargers com 0 resultados
+
+**Pergunta:**
+> então porque dá 0 Histórico de Superchargers: 0 novos, 0 associados a carregamentos já registados
+
+**Resposta:**
+A mensagem não distinguia "a Tesla não devolveu nada" de "erro" ou de "já importado". A importação passa a:
+pedir o histórico por cada VIN conhecido; aceitar as várias formas de resposta (`response.data`, `data`,
+`response` em lista); contar recebidas, novas, associadas, já existentes e ignoradas; mostrar o erro da Tesla
+quando há; e registar nos logs (origem `recolha`) a resposta quando vem vazia.

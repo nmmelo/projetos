@@ -268,8 +268,9 @@ def main(argv):
                ["id", "inicio", "tipo", "bateria_inicio", "bateria_fim", "energia_kwh", "custo", "origem"])
     elif cmd == "importar-supercharger":
         import recolha
-        novos, assoc = recolha.importar_supercharger()
-        print(f"{novos} novos, {assoc} associados")
+        r = recolha.importar_supercharger()
+        print(f"{r['recebidas']} recebidas, {r['novos']} novas, {r['associados']} associadas, "
+              f"{r['existentes']} já existentes, {r['ignoradas']} ignoradas" + (f"\nERRO: {r['erro']}" if r["erro"] else ""))
     elif cmd == "backup":
         print("backup criado:", c.criar_backup("manual"))
     elif cmd == "backups":
