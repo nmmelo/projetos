@@ -138,6 +138,9 @@ curl -H "X-API-Key: $TESLA_GATEWAY_API_KEY" http://tesla-key:8000/api/vehicles
 ```
 Exemplo em Python: `gateway/cliente_exemplo.py`.
 
+**Documentação servida pelo próprio gateway (sem chave):** `http://tesla-key:8000/docs` (página HTML, também
+`/api/docs`), `/openapi.yaml` (OpenAPI 3, para Postman/Swagger ou gerar clientes), `/API.md` e `/api/endpoints` (JSON).
+
 **Erros:** o cliente recebe só `{"codigo": 403, "erro": "Forbidden", "ref": 1234}`; o motivo fica em
 Definições → Logs → API (pesquisa pela `ref`). Para desenvolver, pode ativar-se aí "Também o motivo"
 (acrescenta `"detalhe"`).

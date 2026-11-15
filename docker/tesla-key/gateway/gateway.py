@@ -8,11 +8,13 @@ tesla-key gateway — API interna (porta 8000, só rede Docker).
 Clientes, token da Status API e definições geridos no portal admin ou com `tesla-setup`.
 """
 import json
+import os
 import re
 import time
 from datetime import datetime, timezone
 
 from flask import Flask, abort, g, jsonify, request, send_file
+from markupsafe import escape
 from werkzeug.exceptions import HTTPException
 
 import common as c
@@ -29,12 +31,17 @@ _cache = {}  # (vin, endpoints) -> (timestamp, payload)
 # Autenticação e logs
 # ---------------------------------------------------------------------------
 
+# Caminhos sem chave (documentação e verificação)
+PUBLICOS = ("/api/health", "/api/endpoints", "/docs", "/docs/", "/openapi.yaml", "/api/docs", "/API.md")
+DOCS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs")
+
+
 @app.before_request
 def autenticar():
     g.inicio = time.time()
     g.cliente = None
     p = request.path
-    if p in ("/api/health", "/api/endpoints"):
+    if p in PUBLICOS:
         return
     if p.startswith("/status/"):
         if c.get_def("status_api_ativa") != "1":
@@ -73,7 +80,7 @@ def falha(codigo, motivo, **extra):
 
 @app.after_request
 def registar(resp):
-    if request.path in ("/api/health", "/api/endpoints") or resp.status_code == 304 or getattr(g, "registado", False):
+    if request.path in PUBLICOS or resp.status_code == 304 or getattr(g, "registado", False):
         return resp
     ms = int((time.time() - getattr(g, "inicio", time.time())) * 1000)
     nivel = "ERROR" if resp.status_code >= 500 else "WARNING" if resp.status_code >= 400 else "INFO"
@@ -143,6 +150,51 @@ def resposta(r):
 @app.get("/api/health")
 def health():
     return jsonify({"ok": True})
+
+
+@app.get("/openapi.yaml")
+def openapi_yaml():
+    """Especificação OpenAPI (sem chave)."""
+    f = os.path.join(DOCS_DIR, "openapi.yaml")
+    if not os.path.exists(f):
+        abort(404, "openapi.yaml não incluído na imagem")
+    return send_file(f, mimetype="application/yaml")
+
+
+@app.get("/API.md")
+def api_md():
+    f = os.path.join(DOCS_DIR, "API.md")
+    if not os.path.exists(f):
+        abort(404, "API.md não incluído na imagem")
+    return send_file(f, mimetype="text/markdown")
+
+
+@app.get("/docs")
+@app.get("/docs/")
+@app.get("/api/docs")
+def docs():
+    """Página simples com a referência dos endpoints (sem chave)."""
+    linhas = "".join(
+        f"<tr><td><b class='m {e['metodo']}'>{e['metodo']}</b></td><td><code>{escape(e['caminho'])}</code></td>"
+        f"<td>{escape(e['permissao'] or '—')}</td><td>{escape(e['descricao'])}"
+        f"{'<br><small>Parâmetros: <code>' + escape(e['parametros']) + '</code></small>' if e['parametros'] else ''}</td></tr>"
+        for e in c.endpoints_json())
+    html = f"""<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gateway Tesla API · referência</title><style>
+body{{font:14px/1.5 system-ui,sans-serif;margin:0;background:#f5f6f8;color:#1d2433}}main{{max-width:1000px;margin:24px auto;padding:0 12px}}
+.card{{background:#fff;border:1px solid #e3e6ec;border-radius:8px;padding:16px;margin-bottom:14px}}
+table{{width:100%;border-collapse:collapse}}td,th{{text-align:left;padding:7px;border-bottom:1px solid #e3e6ec;vertical-align:top;overflow-wrap:anywhere}}
+code{{background:#eceef2;padding:1px 5px;border-radius:4px}}.m{{color:#fff;padding:2px 6px;border-radius:4px;font:700 12px monospace}}
+.GET{{background:#1f8a4c}}.POST{{background:#b7791f}}@media(prefers-color-scheme:dark){{body{{background:#0f1218;color:#e6e9f0}}
+.card{{background:#171b23;border-color:#2a303c}}td,th{{border-color:#2a303c}}code{{background:#262c38}}}}</style></head><body><main>
+<div class="card"><h1 style="font-size:20px;margin:0 0 6px">Gateway Tesla API</h1>
+<p>URL base: <code>http://tesla-key:8000</code> · Autenticação: header <code>X-API-Key: tk_...</code> ·
+Erros: <code>{{"codigo": 403, "erro": "Forbidden", "ref": 1234}}</code></p>
+<p>Especificação: <a href="/openapi.yaml">openapi.yaml</a> · Referência completa: <a href="/API.md">API.md</a> ·
+JSON: <a href="/api/endpoints">/api/endpoints</a></p></div>
+<div class="card"><table><tr><th>Método</th><th>Caminho</th><th>Permissão</th><th>Descrição</th></tr>{linhas}</table></div>
+</main></body></html>"""
+    return html, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
 @app.get("/api/endpoints")

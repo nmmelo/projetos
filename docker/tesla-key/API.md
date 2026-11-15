@@ -1,6 +1,7 @@
 # tesla-key — referência da API para clientes
 
 Documento para entregar a quem desenvolve um projeto que vai ler dados do Tesla através do gateway.
+O gateway também o serve em `GET /API.md`, com a página `GET /docs` e a especificação `GET /openapi.yaml` (sem chave).
 Especificação formal: [`openapi.yaml`](openapi.yaml).
 
 ## Ligação

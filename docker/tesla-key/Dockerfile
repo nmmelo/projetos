@@ -30,6 +30,7 @@ COPY entrypoint.sh /entrypoint.sh
 COPY ssh-utilizadores.sh /usr/local/sbin/ssh-utilizadores.sh
 COPY tesla-setup.sh /usr/local/bin/tesla-setup
 COPY gateway/ /opt/gateway/
+COPY openapi.yaml API.md /opt/gateway/docs/
 RUN chmod +x /entrypoint.sh /usr/local/sbin/ssh-utilizadores.sh /usr/local/bin/tesla-setup
 
 EXPOSE 22 80 8000 8001

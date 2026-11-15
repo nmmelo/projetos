@@ -1267,6 +1267,8 @@ ENDPOINTS = [
     # metodo, caminho, permissao, descricao, parametros, exemplo de resposta
     ("GET", "/api/health", None, "Gateway a responder. Sem chave.", "", '{"ok": true}'),
     ("GET", "/api/endpoints", None, "Esta lista de endpoints (para documentação). Sem chave.", "", '[{"metodo": "GET", "caminho": "/api/me", ...}]'),
+    ("GET", "/docs", None, "Página HTML com esta referência (também /api/docs). Sem chave.", "", "(página HTML)"),
+    ("GET", "/openapi.yaml", None, "Especificação OpenAPI 3 (para gerar clientes ou importar no Postman/Swagger). Sem chave.", "", "(YAML)"),
     ("GET", "/api/me", None, "Nome do cliente e permissões efetivas.", "",
      '{"cliente": "portal", "permissoes": ["veiculos", "carga"], "desativadas_no_gateway": []}'),
     ("GET", "/api/token/status", "token", "Validade do token Tesla.", "",

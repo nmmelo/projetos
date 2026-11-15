@@ -376,3 +376,15 @@ passam pelo `docker-compose.yml`, por isso funcionam no `.env` e na stack do Por
 - Portal admin: menu **Carregamentos** (filtros, totais, detalhe com curvas e mapa, importar); viagens inferidas
   identificadas; exportação de carregamentos.
 - API: `/charges`, `/charges/{id}` (permissão `carregamentos`); CLI `carregamentos` e `importar-supercharger`.
+
+---
+
+## 25. Página de documentação no gateway
+
+**Pergunta:**
+> agora dá outro erro, caminho inexistente: GET /docs (ver GET /api/endpoints)
+
+**Resposta:**
+O pedido a `/docs` vinha de um cliente à procura da documentação (como noutras APIs). O gateway passa a servir,
+sem chave: `/docs` e `/api/docs` (página HTML com os endpoints), `/openapi.yaml` e `/API.md` (copiados para a
+imagem no build) e `/api/endpoints` (JSON).
