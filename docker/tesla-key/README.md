@@ -84,6 +84,8 @@ tesla-key/
 | `tesla-setup config` | `tesla.env` com segredos mascarados e scopes do token |
 | `tesla-setup recolha [on\|off]` | Estado da recolha de viagens / ativar / desativar |
 | `tesla-setup viagens [PERIODO VALOR]` | Viagens registadas (ex.: `viagens mes 2026-11`) |
+| `tesla-setup carregamentos [PERIODO VALOR]` | Carregamentos registados |
+| `tesla-setup importar-supercharger` | Importa já o histórico de Superchargers da Tesla |
 | `tesla-setup backup` / `backups` / `restaurar NOME` | Backups do `gateway.db` |
 | `tesla-setup exportar TIPO FORMATO [FICHEIRO] [PERIODO VALOR]` | Exportar viagens, pontos, consumo ou logs |
 | `tesla-setup cliente on\|off\|rm\|chave NOME` | Ativa, desativa, apaga ou gera nova chave |
@@ -215,6 +217,23 @@ viagens e posições no `gateway.db`.
 - O mapa e o detalhe da viagem no portal admin carregam o Leaflet e os mapas do OpenStreetMap a partir da
   internet (pelo browser).
 
+### Carregamentos e viagens entre leituras
+
+Tudo fica guardado no `gateway.db` (todas as viagens e carregamentos, sem limite), para os outros projetos não
+terem de pedir à Tesla.
+
+| Origem | Como é detetado | Dados |
+|---|---|---|
+| Viagem `leituras` | Mudança D/R/N ou velocidade numa leitura | Início, fim, km, bateria, percurso |
+| Viagem `inferida` | O odómetro subiu ≥ 0,5 km entre duas leituras sem se ver o carro a andar (estava a dormir) | Início/fim aproximados, km, bateria, sem percurso |
+| Carregamento `leituras` | Estado "a carregar" numa leitura (lido a cada 5 min enquanto carrega) | Início, fim, AC/DC, bateria, kWh, potência máx., curva, local |
+| Carregamento `inferido` | A bateria subiu ≥ 3 % entre duas leituras sem se ver o carregamento | Bateria, local, sem curva |
+| Carregamento `supercharger` | Histórico de Superchargers da Tesla (importado 1×/dia ou manualmente) | Local, kWh e custo faturados; junta-se ao carregamento já registado se as horas coincidirem (±30 min) |
+
+A Tesla não tem histórico de viagens nem de carregamentos em casa: só ficam registados os que acontecem
+depois de a recolha estar ativa. O histórico de Superchargers inclui sessões anteriores e requer o scope
+`vehicle_charging_cmds`. Intervalo "a carregar" e importação diária em Definições → Recolha de viagens.
+
 ### Backups e exportação
 
 - Backup automático diário do `gateway.db` em `tesla/backups/` (guarda os últimos 14; configurável em Dados).
@@ -286,6 +305,7 @@ desativada responde 404. Autenticação com `Authorization: Bearer <token>` (tok
 | Estado | Gateway, token Tesla, clientes, consumo do mês, pedidos/warnings/erros 24 h, testar ligação, renovar token |
 | Consumo | Gráficos circulares de onde foram gastos os créditos (por tipo e por cliente) e estimativa do mês por tipo, cliente, endpoint e dia, com limites diários |
 | Viagens | Estado da recolha, viagens com filtros (semana, mês, ano, 30 dias) e totais; detalhe com mapa e GPX/JSON |
+| Carregamentos | Todos os carregamentos (casa/AC, rápidos/DC, Superchargers) com filtros, totais (kWh, custo), detalhe com curva de bateria e potência e local; importar o histórico de Superchargers |
 | Mapa | Mapa de calor das posições registadas, com filtros por semana, mês ou ano |
 | Clientes | Criar com preset de permissões (chave mostrada uma vez), permissões, ativar/desativar, nova chave, apagar |
 | Tesla | Ver/editar o `tesla.env` (segredos mascarados) e comparar scopes pedidos vs. token |

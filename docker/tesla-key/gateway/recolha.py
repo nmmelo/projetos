@@ -105,6 +105,11 @@ def ler(vin):
         "lat": ds.get("latitude"), "lon": ds.get("longitude"),
         "bateria": cs.get("battery_level"),
         "odo_km": round(odo * MILHA, 1) if odo is not None else None,
+        "carga_estado": cs.get("charging_state"),
+        "carga_kwh": cs.get("charge_energy_added"),
+        "carga_kw": cs.get("charger_power"),
+        "carga_dc": bool(cs.get("fast_charger_present")),
+        "carga_dc_tipo": cs.get("fast_charger_type"),
     }
 
 
@@ -142,11 +147,22 @@ def processar(vin):
     if l is None or "erro" in l:                       # a dormir, offline ou erro
         if v and l is None:
             fechar_viagem(v)
-        guardar_estado(vin, ts=iso(agora()), estado="asleep" if l is None else "erro",
+        cg = carregamento_aberto(vin)
+        if cg and l is None:
+            fechar_carregamento(cg)
+        # "ts" fica com a hora da última leitura com dados (usada como início das viagens/carregamentos inferidos)
+        guardar_estado(vin, estado="asleep" if l is None else "erro",
                        proxima_leitura=t + defi("recolha_intervalo_dormir", 1800))
         return
 
     a_conduzir = l["mudanca"] in ("D", "R", "N") or (l["velocidade_kmh"] or 0) > 0
+    a_carregar = l.get("carga_estado") in ("Charging", "Starting")
+    tratar_carregamento(vin, e, l, a_carregar, a_conduzir)
+
+    # viagem que aconteceu toda entre duas leituras (o carro estava a dormir): deteta-se pelo odómetro
+    if not a_conduzir and not v and e.get("odo_km") and l.get("odo_km") and l["odo_km"] - e["odo_km"] >= 0.5:
+        criar_viagem_inferida(vin, e, l)
+
     if a_conduzir:
         if not v:
             # início: usa a última posição/odómetro conhecidos (o arranque pode ter sido entre leituras)
@@ -181,9 +197,128 @@ def processar(vin):
         minutos = 0
     intervalo = (defi("recolha_intervalo_dormir", 1800) if minutos >= defi("recolha_minutos_parado", 30)
                  else defi("recolha_intervalo_parado", 600))
+    if a_carregar:
+        intervalo = min(intervalo, defi("recolha_intervalo_carregar", 300))
     guardar_estado(vin, ts=l["ts"], estado="parado", mudanca=l["mudanca"], lat=l["lat"], lon=l["lon"],
                    odo_km=l["odo_km"], bateria=l["bateria"], parado_desde=parado_desde,
                    proxima_leitura=t + intervalo)
+
+
+def criar_viagem_inferida(vin, e, l):
+    km = round(l["odo_km"] - e["odo_km"], 1)
+    with c.db() as con:
+        con.execute("""INSERT INTO viagens(vin, inicio, fim, lat_inicio, lon_inicio, lat_fim, lon_fim, odo_inicio_km,
+                       odo_fim_km, km, bateria_inicio, bateria_fim, pontos, estado, origem)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0,'fechada','inferida')""",
+                    (vin, e.get("ts") or l["ts"], l["ts"], e.get("lat"), e.get("lon"), l["lat"], l["lon"],
+                     e["odo_km"], l["odo_km"], km, e.get("bateria"), l["bateria"]))
+    c.log("INFO", "recolha", f"viagem inferida pelo odómetro: {km} km (entre leituras, sem percurso)")
+
+
+def carregamento_aberto(vin):
+    with c.db() as con:
+        r = con.execute("SELECT * FROM carregamentos WHERE vin=? AND estado='a_carregar' ORDER BY id DESC LIMIT 1",
+                        (vin,)).fetchone()
+    return dict(r) if r else None
+
+
+def fechar_carregamento(cg, l=None):
+    with c.db() as con:
+        ult = con.execute("SELECT * FROM carregamento_pontos WHERE carregamento_id=? ORDER BY ts DESC LIMIT 1",
+                          (cg["id"],)).fetchone()
+        ult = dict(ult) if ult else {}
+        n = con.execute("SELECT COUNT(*) FROM carregamento_pontos WHERE carregamento_id=?", (cg["id"],)).fetchone()[0]
+        energia = (l or {}).get("carga_kwh") or ult.get("energia_kwh") or cg.get("energia_kwh")
+        bat = (l or {}).get("bateria") or ult.get("bateria") or cg.get("bateria_fim")
+        con.execute("UPDATE carregamentos SET fim=?, estado='terminado', bateria_fim=?, energia_kwh=?, pontos=? WHERE id=?",
+                    ((l or {}).get("ts") or ult.get("ts") or cg["inicio"], bat, energia, n, cg["id"]))
+    c.log("INFO", "recolha", f"carregamento {cg['id']} terminado: {energia if energia is not None else '?'} kWh")
+
+
+def tratar_carregamento(vin, e, l, a_carregar, a_conduzir):
+    cg = carregamento_aberto(vin)
+    if a_carregar:
+        if not cg:
+            with c.db() as con:
+                cur = con.execute("""INSERT INTO carregamentos(vin, inicio, tipo, lat, lon, local, bateria_inicio, bateria_fim,
+                                     energia_kwh, potencia_max_kw, odo_km, origem) VALUES (?,?,?,?,?,?,?,?,?,?,?,'leituras')""",
+                                  (vin, l["ts"], "DC" if l["carga_dc"] else "AC", l["lat"], l["lon"],
+                                   l.get("carga_dc_tipo") if l["carga_dc"] else None, l["bateria"], l["bateria"],
+                                   l["carga_kwh"], l["carga_kw"], l["odo_km"]))
+                cg = {"id": cur.lastrowid, "potencia_max_kw": l["carga_kw"]}
+            c.log("INFO", "recolha", f"carregamento {cg['id']} iniciado ({'DC' if l['carga_dc'] else 'AC'})")
+        with c.db() as con:
+            con.execute("INSERT INTO carregamento_pontos(carregamento_id, ts, bateria, potencia_kw, energia_kwh) VALUES (?,?,?,?,?)",
+                        (cg["id"], l["ts"], l["bateria"], l["carga_kw"], l["carga_kwh"]))
+            con.execute("""UPDATE carregamentos SET bateria_fim=?, energia_kwh=?,
+                           potencia_max_kw=MAX(COALESCE(potencia_max_kw,0), COALESCE(?,0)) WHERE id=?""",
+                        (l["bateria"], l["carga_kwh"], l["carga_kw"], cg["id"]))
+        return
+    if cg:
+        fechar_carregamento(cg, l)
+        return
+    # carregamento que aconteceu todo entre duas leituras: deteta-se pela subida da bateria (>= 3 %)
+    if (not a_conduzir and e.get("bateria") is not None and l.get("bateria") is not None
+            and l["bateria"] - e["bateria"] >= 3):
+        with c.db() as con:
+            con.execute("""INSERT INTO carregamentos(vin, inicio, fim, estado, origem, lat, lon, bateria_inicio, bateria_fim,
+                           energia_kwh, odo_km) VALUES (?,?,?,'terminado','inferido',?,?,?,?,?,?)""",
+                        (vin, e.get("ts") or l["ts"], l["ts"], l["lat"], l["lon"], e["bateria"], l["bateria"],
+                         l.get("carga_kwh") if l.get("carga_estado") in ("Complete", "Stopped") else None, l["odo_km"]))
+        c.log("INFO", "recolha", f"carregamento inferido pela bateria: {e['bateria']} → {l['bateria']} %")
+
+
+def importar_supercharger(vin=None):
+    """Importa o histórico de carregamentos pagos (Superchargers) da Tesla; junta-o aos carregamentos registados
+    pelas leituras quando as horas coincidem. Requer o scope vehicle_charging_cmds. Devolve (novos, atualizados)."""
+    novos = atualizados = 0
+    pagina = 0
+    while pagina < 20:
+        params = {"pageNo": pagina, "pageSize": 50}
+        if vin:
+            params["vin"] = vin
+        r = c.tesla("GET", "dx/charging/history", params=params, cliente_consumo="recolha")
+        if r.status_code != 200:
+            c.log("WARNING", "recolha", f"histórico de Superchargers: Tesla respondeu {r.status_code} {r.text[:150]}")
+            break
+        resp = r.json().get("response") or {}
+        lote = resp.get("data") or []
+        for s in lote:
+            sid = str(s.get("sessionId") or "")
+            ini, fim = s.get("chargeStartDateTime"), s.get("chargeStopDateTime") or s.get("unlatchDateTime")
+            if not sid or not ini:
+                continue
+            fees = [f for f in (s.get("fees") or []) if isinstance(f, dict)]
+            custo = round(sum(float(f.get("totalDue") or 0) for f in fees), 2) if fees else None
+            moeda = next((f.get("currencyCode") or f.get("currency") for f in fees if f.get("currencyCode") or f.get("currency")), None)
+            kwh = sum(float(f.get("usageBase") or 0) for f in fees
+                      if (f.get("feeType") or "").upper() == "CHARGING" and (f.get("uom") or "kwh").lower() == "kwh") or None
+            v = s.get("vin") or vin
+            with c.db() as con:
+                if con.execute("SELECT 1 FROM carregamentos WHERE sessao_tesla=?", (sid,)).fetchone():
+                    continue
+                ini_utc = datetime.fromisoformat(ini.replace("Z", "+00:00")).astimezone(timezone.utc)
+                janela = (iso(ini_utc - timedelta(minutes=30)), iso(ini_utc + timedelta(minutes=30)))
+                par = con.execute("SELECT id FROM carregamentos WHERE vin=? AND sessao_tesla IS NULL AND inicio BETWEEN ? AND ?"
+                                  " ORDER BY inicio LIMIT 1", (v, *janela)).fetchone()
+                if par:
+                    con.execute("UPDATE carregamentos SET sessao_tesla=?, local=?, custo=?, moeda=?, tipo='DC',"
+                                " energia_kwh=COALESCE(?, energia_kwh) WHERE id=?",
+                                (sid, s.get("siteLocationName"), custo, moeda, kwh, par[0]))
+                    atualizados += 1
+                else:
+                    con.execute("""INSERT INTO carregamentos(vin, inicio, fim, estado, origem, tipo, local, energia_kwh,
+                                   custo, moeda, sessao_tesla) VALUES (?,?,?,'terminado','supercharger','DC',?,?,?,?,?)""",
+                                (v, iso(ini_utc), fim and iso(datetime.fromisoformat(fim.replace("Z", "+00:00")).astimezone(timezone.utc)),
+                                 s.get("siteLocationName"), kwh, custo, moeda, sid))
+                    novos += 1
+        if not lote or not resp.get("hasMoreData"):
+            break
+        pagina += 1
+    c.set_def("recolha_supercharger_ts", time.time())
+    if novos or atualizados:
+        c.log("INFO", "recolha", f"histórico de Superchargers: {novos} novos, {atualizados} associados")
+    return novos, atualizados
 
 
 def vins():
@@ -215,6 +350,9 @@ def main():
             if c.get_def("recolha_ativa") == "1":
                 for vin in vins():
                     processar(vin)
+                if (c.get_def("recolha_supercharger") == "1"
+                        and time.time() - float(c.get_def("recolha_supercharger_ts") or 0) > 24 * 3600):
+                    importar_supercharger()
         except c.ErroGateway as e:
             c.log("WARNING", "recolha", e.mensagem)
             time.sleep(60)

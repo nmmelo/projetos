@@ -50,6 +50,8 @@ DEFAULTS = {
     "recolha_minutos_parado": "30",        # depois disto parado, passa ao intervalo de "a dormir"
     "recolha_intervalo_dormir": "1800",    # s entre tentativas com o carro a dormir
     "recolha_limite_diario": "150",        # máx. pedidos de dados por veículo e por dia (Tesla: 200)
+    "recolha_intervalo_carregar": "300",   # s entre leituras a carregar
+    "recolha_supercharger": "1",           # importar o histórico de Superchargers da Tesla uma vez por dia
     # backups
     "backup_automatico": "1",              # backup diário do gateway.db
     "backup_retencao": "14",               # nº de backups guardados
@@ -85,6 +87,7 @@ PERMISSOES = {
     "fleet":       ("Passthrough de leitura para qualquer endpoint da Fleet API (acesso amplo)", "/api/fleet/..."),
     "viagens":     ("Viagens e posições registadas pelo gateway; estado da recolha", "/trips, /positions, /api/recolha"),
     "consumo":     ("Consumo estimado de créditos da Fleet API (todos os clientes)", "/api/consumo"),
+    "carregamentos": ("Carregamentos registados pelo gateway (casa, AC, Superchargers)", "/charges"),
 }
 PRESETS = {
     "tudo": list(PERMISSOES),
@@ -205,6 +208,25 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_auditoria_ts ON auditoria(ts);
         CREATE INDEX IF NOT EXISTS idx_auditoria_ip ON auditoria(ip, tipo, ts);
+        CREATE TABLE IF NOT EXISTS carregamentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vin TEXT NOT NULL,
+            inicio TEXT NOT NULL, fim TEXT,
+            estado TEXT DEFAULT 'a_carregar',      -- a_carregar | terminado
+            origem TEXT DEFAULT 'leituras',        -- leituras | inferido | supercharger
+            tipo TEXT,                             -- AC | DC
+            lat REAL, lon REAL, local TEXT,
+            bateria_inicio INTEGER, bateria_fim INTEGER,
+            energia_kwh REAL, potencia_max_kw REAL,
+            custo REAL, moeda TEXT, sessao_tesla TEXT UNIQUE, odo_km REAL, pontos INTEGER DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_carreg_vin_inicio ON carregamentos(vin, inicio);
+        CREATE TABLE IF NOT EXISTS carregamento_pontos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            carregamento_id INTEGER NOT NULL, ts TEXT NOT NULL,
+            bateria INTEGER, potencia_kw REAL, energia_kwh REAL
+        );
+        CREATE INDEX IF NOT EXISTS idx_carreg_pontos ON carregamento_pontos(carregamento_id);
         CREATE TABLE IF NOT EXISTS estado_veiculo (
             vin TEXT PRIMARY KEY, ts TEXT, estado TEXT, mudanca TEXT,
             lat REAL, lon REAL, odo_km REAL, bateria INTEGER, parado_desde TEXT, proxima_leitura REAL
@@ -220,6 +242,8 @@ def init_db():
         if t and t[0] in ("claro", "escuro"):
             c.execute("UPDATE definicoes SET valor='padrao' WHERE chave='tema'")
             c.execute("INSERT OR REPLACE INTO definicoes(chave, valor) VALUES ('tema_modo', ?)", (t[0],))
+        if "origem" not in [r[1] for r in c.execute("PRAGMA table_info(viagens)")]:
+            c.execute("ALTER TABLE viagens ADD COLUMN origem TEXT DEFAULT 'leituras'")
         cols = [r[1] for r in c.execute("PRAGMA table_info(clientes)")]
         if "permissoes" not in cols:
             # clientes que já existiam mantêm o acesso total
@@ -1057,9 +1081,53 @@ def posicoes(vin=None, de="0000", ate="9999", agregado=True, so_viagens=False, l
         return [dict(r) for r in rows]
 
 
+def listar_carregamentos(vin=None, de="0000", ate="9999", limite=200, origem=None):
+    sql, args = "SELECT * FROM carregamentos WHERE inicio >= ? AND inicio < ?", [de, ate]
+    if vin:
+        sql += " AND vin=?"
+        args.append(vin)
+    if origem:
+        sql += " AND origem=?"
+        args.append(origem)
+    sql += " ORDER BY inicio DESC LIMIT ?"
+    args.append(int(limite))
+    with db() as c:
+        return [dict(r) for r in c.execute(sql, args)]
+
+
+def resumo_carregamentos(vin=None, de="0000", ate="9999"):
+    sql = ("SELECT COUNT(*) n, COALESCE(SUM(energia_kwh),0) kwh, COALESCE(SUM(custo),0) custo,"
+           " SUM(CASE WHEN tipo='DC' THEN 1 ELSE 0 END) dc, SUM(CASE WHEN origem='supercharger' THEN 1 ELSE 0 END) sc,"
+           " COALESCE(SUM(bateria_fim-bateria_inicio),0) bateria FROM carregamentos WHERE inicio >= ? AND inicio < ?")
+    args = [de, ate]
+    if vin:
+        sql += " AND vin=?"
+        args.append(vin)
+    with db() as c:
+        r = dict(c.execute(sql, args).fetchone())
+        moeda = c.execute("SELECT moeda FROM carregamentos WHERE moeda IS NOT NULL ORDER BY id DESC LIMIT 1").fetchone()
+    r["kwh"], r["custo"] = round(r["kwh"], 1), round(r["custo"], 2)
+    r["moeda"] = moeda[0] if moeda else None
+    r["dc"], r["sc"] = r["dc"] or 0, r["sc"] or 0
+    return r
+
+
+def obter_carregamento(cid, vin=None):
+    with db() as c:
+        v = c.execute("SELECT * FROM carregamentos WHERE id=?" + (" AND vin=?" if vin else ""),
+                      (cid, vin) if vin else (cid,)).fetchone()
+        if not v:
+            raise ErroGateway(404, "carregamento não encontrado")
+        pts = [dict(r) for r in c.execute(
+            "SELECT ts, bateria, potencia_kw, energia_kwh FROM carregamento_pontos WHERE carregamento_id=? ORDER BY ts",
+            (cid,))]
+    return {**dict(v), "curva": pts}
+
+
 def anos_com_dados():
     with db() as c:
-        return [r[0] for r in c.execute("SELECT DISTINCT substr(ts,1,4) FROM pontos ORDER BY 1 DESC")]
+        return [r[0] for r in c.execute("SELECT DISTINCT substr(ts,1,4) FROM pontos UNION "
+                                        "SELECT DISTINCT substr(inicio,1,4) FROM carregamentos ORDER BY 1 DESC")]
 
 
 # ---------------------------------------------------------------------------
@@ -1094,6 +1162,10 @@ def exportar(tipo, formato, vin=None, de="0000", ate="9999"):
                 {"type": "Feature", "geometry": {"type": "Point", "coordinates": [p["lon"], p["lat"]]},
                  "properties": {k: p[k] for k in ("ts", "velocidade_kmh", "viagem_id")}} for p in linhas]}
             return json.dumps(fc), "application/geo+json", "pontos.geojson"
+    elif tipo == "carregamentos":
+        linhas = listar_carregamentos(vin, de, ate, limite=10**7)
+        if formato == "json":
+            linhas = [obter_carregamento(x["id"]) for x in linhas]
     elif tipo == "consumo":
         with db() as c:
             linhas = [dict(r) for r in c.execute("SELECT * FROM consumo WHERE ts >= ? AND ts < ? ORDER BY ts", (de, ate))]
@@ -1101,7 +1173,7 @@ def exportar(tipo, formato, vin=None, de="0000", ate="9999"):
         with db() as c:
             linhas = [dict(r) for r in c.execute("SELECT * FROM logs WHERE ts >= ? AND ts < ? ORDER BY ts", (de, ate))]
     else:
-        raise ErroGateway(400, "tipo: viagens | pontos | consumo | logs")
+        raise ErroGateway(400, "tipo: viagens | pontos | carregamentos | consumo | logs")
     if formato == "json":
         return json.dumps(linhas, ensure_ascii=False, indent=1), "application/json", f"{tipo}.json"
     if formato != "csv":
@@ -1218,6 +1290,11 @@ ENDPOINTS = [
     ("GET", "/api/vehicles/{vin}/positions", "viagens", "Posições registadas para mapas. agregado=1 (omissão) devolve uma grelha de ~100 m com contagem, para mapa de calor.",
      "mesmos filtros de /trips · agregado=0|1 · so_viagens=1",
      '{"pontos": [{"lat": 38.722, "lon": -9.139, "n": 14}], "agregado": true}'),
+    ("GET", "/api/vehicles/{vin}/charges", "carregamentos", "Carregamentos registados pelo gateway (leituras, inferidos pela bateria e Superchargers importados da Tesla), com totais.",
+     "ano | mes | semana | dias | de&ate (como /trips) · origem=leituras|inferido|supercharger · limite=200",
+     '{"carregamentos": [{"id": 7, "inicio": "...", "fim": "...", "tipo": "AC", "bateria_inicio": 40, "bateria_fim": 80, "energia_kwh": 24.6, "potencia_max_kw": 11.0, "custo": null}], "resumo": {"n": 1, "kwh": 24.6}}'),
+    ("GET", "/api/vehicles/{vin}/charges/{id}", "carregamentos", "Detalhe de um carregamento com a curva (bateria, potência e energia por leitura).", "",
+     '{"id": 7, "energia_kwh": 24.6, "curva": [{"ts": "...", "bateria": 52, "potencia_kw": 11.0, "energia_kwh": 8.2}]}'),
     ("POST", "/api/vehicles/{vin}/wake", "acordar", "Acorda o carro (custo extra, gasta bateria).", "",
      '{"response": {"state": "online"}}'),
     ("GET", "/api/recolha", "viagens", "Estado da recolha de viagens: ativa, intervalos e, por veículo, estado, última/próxima leitura e leituras de hoje.", "",

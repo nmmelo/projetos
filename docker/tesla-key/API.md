@@ -37,6 +37,7 @@ consultar as suas permissões em `GET /api/me`.
 | `imagem` | Imagem do modelo | `/image` |
 | `viagens` | Viagens e posições registadas pelo gateway; estado da recolha | `/trips`, `/positions`, `/api/recolha` |
 | `consumo` | Consumo estimado de créditos (todos os clientes) | `/api/consumo` |
+| `carregamentos` | Carregamentos registados pelo gateway | `/charges` |
 | `token` | Estado do token Tesla | `/api/token/status` |
 | `acordar` | Acordar o carro (sensível) | `/wake` |
 | `fleet` | Passthrough para qualquer GET da Fleet API (sensível, acesso amplo) | `/api/fleet/...` |
@@ -76,6 +77,8 @@ para forçar um pedido novo à Tesla (conta como pedido pago).
 | GET | `/api/vehicles/{vin}/trips` | sim | Viagens registadas pelo gateway, com totais |
 | GET | `/api/vehicles/{vin}/trips/{id}` | sim | Uma viagem com o percurso |
 | GET | `/api/vehicles/{vin}/positions` | sim | Posições registadas (mapa de calor ou percurso) |
+| GET | `/api/vehicles/{vin}/charges` | sim | Carregamentos registados pelo gateway, com totais |
+| GET | `/api/vehicles/{vin}/charges/{id}` | sim | Um carregamento com a curva |
 | GET | `/api/recolha` | sim | Estado da recolha de viagens |
 | GET | `/api/consumo` | sim | Consumo estimado de créditos no mês (todos os clientes) |
 | GET | `/api/me/consumo` | sim | Consumo estimado só deste cliente |
@@ -291,7 +294,8 @@ volta a P ou o carro adormece. A distância vem do odómetro; o percurso tem um 
   "de": "2026-11-01", "ate": "2026-12-01"
 }
 ```
-`estado` é `aberta` enquanto a viagem decorre (sem `fim`, `km` nem `bateria_fim`).
+`estado` é `aberta` enquanto a viagem decorre (sem `fim`, `km` nem `bateria_fim`). `origem` é `leituras`
+ou `inferida` (aconteceu entre duas leituras com o carro a dormir: km pelo odómetro, `pontos` = 0, sem percurso).
 
 #### `GET /api/vehicles/{vin}/trips/{id}`
 A viagem (mesmos campos) mais `percurso`:
@@ -348,6 +352,39 @@ administrador. O valor oficial está no dashboard de developer.tesla.com.
 ```json
 { "cliente": "portal", "mes": "2026-11", "total_usd": 0.32,
   "categorias": { "dados": { "pedidos": 120, "custo": 0.24 }, "wake": { "pedidos": 4, "custo": 0.08 } } }
+```
+
+### Carregamentos (`/charges`)
+
+Registados pelo gateway (todos, desde que a recolha está ativa) e completados com o histórico de
+Superchargers da Tesla. Filtros iguais aos de `/trips` (`ano`, `mes`, `semana`, `dias`, `de`/`ate`), mais
+`origem=leituras|inferido|supercharger` e `limite`.
+
+#### `GET /api/vehicles/{vin}/charges`
+```json
+{
+  "carregamentos": [
+    { "id": 7, "vin": "...", "inicio": "2026-11-15T17:53:00+00:00", "fim": "2026-11-15T18:23:00+00:00",
+      "estado": "terminado", "origem": "leituras", "tipo": "AC", "lat": 38.75, "lon": -9.15, "local": null,
+      "bateria_inicio": 40, "bateria_fim": 80, "energia_kwh": 25.1, "potencia_max_kw": 11.0,
+      "custo": null, "moeda": null, "sessao_tesla": null, "odo_km": 16253.2, "pontos": 4 }
+  ],
+  "resumo": { "n": 1, "kwh": 25.1, "custo": 0.0, "moeda": null, "dc": 0, "sc": 0, "bateria": 40 },
+  "de": "2026-11-01", "ate": "2026-12-01"
+}
+```
+| Campo | Significado |
+|---|---|
+| `estado` | `a_carregar` (a decorrer) ou `terminado` |
+| `origem` | `leituras`, `inferido` (bateria subiu ≥ 3 % entre leituras, sem curva) ou `supercharger` (importado da Tesla) |
+| `tipo` | `AC` (casa, wallbox) ou `DC` (rápido / Supercharger) |
+| `local` | Nome do Supercharger (quando conhecido) |
+| `custo`, `moeda` | Valor faturado pela Tesla (Superchargers) |
+
+#### `GET /api/vehicles/{vin}/charges/{id}`
+O carregamento mais `curva`:
+```json
+{ "id": 7, "energia_kwh": 25.1, "curva": [ { "ts": "...", "bateria": 52, "potencia_kw": 11.0, "energia_kwh": 8.2 } ] }
 ```
 
 ### `GET /api/endpoints`

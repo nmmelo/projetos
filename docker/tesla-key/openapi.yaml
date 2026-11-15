@@ -49,6 +49,29 @@ components:
         bateria_fim: { type: integer, nullable: true }
         velocidade_max_kmh: { type: integer, nullable: true }
         pontos: { type: integer }
+        origem: { type: string, enum: [leituras, inferida] }
+    Carregamento:
+      type: object
+      properties:
+        id: { type: integer }
+        vin: { type: string }
+        inicio: { type: string, format: date-time }
+        fim: { type: string, format: date-time, nullable: true }
+        estado: { type: string, enum: [a_carregar, terminado] }
+        origem: { type: string, enum: [leituras, inferido, supercharger] }
+        tipo: { type: string, enum: [AC, DC], nullable: true }
+        lat: { type: number, nullable: true }
+        lon: { type: number, nullable: true }
+        local: { type: string, nullable: true }
+        bateria_inicio: { type: integer, nullable: true }
+        bateria_fim: { type: integer, nullable: true }
+        energia_kwh: { type: number, nullable: true }
+        potencia_max_kw: { type: number, nullable: true }
+        custo: { type: number, nullable: true }
+        moeda: { type: string, nullable: true }
+        sessao_tesla: { type: string, nullable: true }
+        odo_km: { type: number, nullable: true }
+        pontos: { type: integer }
     Erro:
       type: object
       description: "O motivo fica nos logs do gateway (Definições → Logs → API), pesquisável pela ref."
@@ -175,7 +198,7 @@ paths:
                     type: array
                     items:
                       type: string
-                      enum: [veiculos, carga, clima, conducao, estado, config, localizacao, imagem, token, acordar, fleet, viagens, consumo]
+                      enum: [veiculos, carga, clima, conducao, estado, config, localizacao, imagem, token, acordar, fleet, viagens, consumo, carregamentos]
                   desativadas_no_gateway: { type: array, items: { type: string } }
                   descricao: { type: object, additionalProperties: { type: string } }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
@@ -371,6 +394,54 @@ paths:
                           type: object
                           properties: { ts: { type: string }, lat: { type: number }, lon: { type: number }, velocidade_kmh: { type: integer, nullable: true }, direcao: { type: integer, nullable: true }, bateria: { type: integer, nullable: true }, odo_km: { type: number, nullable: true } }
         "404": { description: Viagem não encontrada }
+        "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
+
+  /api/vehicles/{vin}/charges:
+    get:
+      summary: Carregamentos registados pelo gateway (permissão carregamentos)
+      parameters:
+        - { $ref: "#/components/parameters/vin" }
+        - { $ref: "#/components/parameters/ano" }
+        - { $ref: "#/components/parameters/mes" }
+        - { $ref: "#/components/parameters/semana" }
+        - { $ref: "#/components/parameters/dias" }
+        - { $ref: "#/components/parameters/de" }
+        - { $ref: "#/components/parameters/ate" }
+        - { name: origem, in: query, schema: { type: string, enum: [leituras, inferido, supercharger] } }
+        - { name: limite, in: query, schema: { type: integer, default: 200, maximum: 5000 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  carregamentos: { type: array, items: { $ref: "#/components/schemas/Carregamento" } }
+                  resumo: { type: object, properties: { n: { type: integer }, kwh: { type: number }, custo: { type: number }, moeda: { type: string, nullable: true }, dc: { type: integer }, sc: { type: integer }, bateria: { type: integer } } }
+        "400": { description: Filtro inválido }
+        "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "403": { $ref: "#/components/responses/SemPermissao" }
+
+  /api/vehicles/{vin}/charges/{id}:
+    get:
+      summary: Carregamento com a curva
+      parameters:
+        - { $ref: "#/components/parameters/vin" }
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/Carregamento" }
+                  - type: object
+                    properties:
+                      curva: { type: array, items: { type: object, properties: { ts: { type: string }, bateria: { type: integer, nullable: true }, potencia_kw: { type: number, nullable: true }, energia_kwh: { type: number, nullable: true } } } }
+        "404": { description: Não encontrado }
         "401": { $ref: "#/components/responses/NaoAutorizado" }
         "403": { $ref: "#/components/responses/SemPermissao" }
 

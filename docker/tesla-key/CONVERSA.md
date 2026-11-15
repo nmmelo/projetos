@@ -359,3 +359,20 @@ passam pelo `docker-compose.yml`, por isso funcionam no `.env` e na stack do Por
 - Definições → Logs → **API**: resumo por código com o significado, filtros (código, cliente, período, sucessos),
   pesquisa por `ref`, apagar e a opção "Também o motivo" (`"detalhe"`) para desenvolvimento.
 - Respostas de erro da Tesla no passthrough também passam a seguir este formato.
+
+---
+
+## 24. Todas as viagens e carregamentos guardados no gateway
+
+**Pergunta:**
+> No tesla-key, apenas guarda a ultima viagem, gostava de guardar todas as viagens e carregamentos feitos pelo tesla no gateway ... também quero uma aba com carregamentos
+
+**Resposta:**
+- As viagens já ficavam todas guardadas, mas as que aconteciam com o carro a dormir entre leituras (intervalo de
+  30 min) não eram vistas. Passam a ser registadas como viagens `inferidas` pela subida do odómetro.
+- Carregamentos (tabelas `carregamentos` e `carregamento_pontos`): detetados nas leituras (estado "a carregar",
+  leitura a cada 5 min), inferidos pela subida da bateria, e importados do histórico de Superchargers da Tesla
+  (1×/dia ou manual, junta-se ao registo existente se as horas coincidirem).
+- Portal admin: menu **Carregamentos** (filtros, totais, detalhe com curvas e mapa, importar); viagens inferidas
+  identificadas; exportação de carregamentos.
+- API: `/charges`, `/charges/{id}` (permissão `carregamentos`); CLI `carregamentos` e `importar-supercharger`.

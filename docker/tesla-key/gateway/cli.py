@@ -20,6 +20,8 @@ Gestão do gateway pela linha de comandos (chamado pelo `tesla-setup`).
   config                         tesla.env (segredos mascarados) e scopes do token
   recolha [on|off]               estado da recolha de viagens (ou ativar/desativar)
   viagens [PERIODO VALOR]        viagens registadas (ex.: viagens mes 2026-11; viagens ano 2026)
+  carregamentos [PERIODO VALOR]  carregamentos registados (ex.: carregamentos mes 2026-11)
+  importar-supercharger          importa já o histórico de Superchargers da Tesla
   backup                         cria um backup do gateway.db
   backups                        lista os backups
   restaurar NOME                 restaura um backup (faz antes um backup "antes-restauro")
@@ -257,6 +259,17 @@ def main(argv):
         tabela([{k: v[k] for k in ("id", "inicio", "fim", "km", "bateria_inicio", "bateria_fim", "pontos", "estado")}
                 for v in c.listar_viagens(None, de, ate, 100)],
                ["id", "inicio", "fim", "km", "bateria_inicio", "bateria_fim", "pontos", "estado"])
+    elif cmd == "carregamentos":
+        de, ate = c.intervalo_periodo(args[0], args[1] if len(args) > 1 else None) if args else c.intervalo_periodo("dias", 30)
+        r = c.resumo_carregamentos(None, de, ate)
+        print(f"{r['n']} carregamentos, {r['kwh']} kWh, {r['custo']} {r['moeda'] or ''} (de {de[:10]} a {ate[:10]})\n")
+        tabela([{k: x[k] for k in ("id", "inicio", "tipo", "bateria_inicio", "bateria_fim", "energia_kwh", "custo", "origem")}
+                for x in c.listar_carregamentos(None, de, ate, 100)],
+               ["id", "inicio", "tipo", "bateria_inicio", "bateria_fim", "energia_kwh", "custo", "origem"])
+    elif cmd == "importar-supercharger":
+        import recolha
+        novos, assoc = recolha.importar_supercharger()
+        print(f"{novos} novos, {assoc} associados")
     elif cmd == "backup":
         print("backup criado:", c.criar_backup("manual"))
     elif cmd == "backups":

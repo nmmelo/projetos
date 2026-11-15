@@ -188,6 +188,7 @@ pre{background:#1d2433;color:#e6e9f0;padding:10px;border-radius:6px;overflow-x:a
 <a href="{{ url_for('painel') }}" class="{{ 'on' if pag=='painel' }}">Estado</a>
 <a href="{{ url_for('consumo') }}" class="{{ 'on' if pag=='consumo' }}">Consumo</a>
 <a href="{{ url_for('viagens') }}" class="{{ 'on' if pag=='viagens' }}">Viagens</a>
+<a href="{{ url_for('carregamentos') }}" class="{{ 'on' if pag=='carregamentos' }}">Carregamentos</a>
 <a href="{{ url_for('mapa') }}" class="{{ 'on' if pag=='mapa' }}">Mapa</a>
 <a href="{{ url_for('clientes') }}" class="{{ 'on' if pag=='clientes' }}">Clientes</a>
 <a href="{{ url_for('tesla_conf') }}" class="{{ 'on' if pag=='tesla' }}">Tesla</a>
@@ -811,8 +812,9 @@ def definicoes():
             flash("Tempos de atualização guardados", "ok")
         elif acao == "recolha":
             c.set_def("recolha_ativa", "1" if request.form.get("recolha_ativa") else "0")
+            c.set_def("recolha_supercharger", "1" if request.form.get("recolha_supercharger") else "0")
             for k in ("recolha_intervalo_conduzir", "recolha_intervalo_parado", "recolha_minutos_parado",
-                      "recolha_intervalo_dormir", "recolha_limite_diario"):
+                      "recolha_intervalo_dormir", "recolha_limite_diario", "recolha_intervalo_carregar"):
                 c.set_def(k, max(1, int(request.form.get(k) or 1)))
             c.log("WARNING", "admin", f"recolha de viagens {'ativa' if c.get_def('recolha_ativa') == '1' else 'desativada'}")
             flash("Recolha de viagens guardada", "ok")
@@ -878,6 +880,11 @@ de dados pago (cliente <code>recolha</code> em Consumo). Requer o scope <code>ve
 <label>Minutos parado até "a dormir"<input name="recolha_minutos_parado" type="number" min="1" value="{{ rec.recolha_minutos_parado }}"></label>
 <label>A dormir (s)<input name="recolha_intervalo_dormir" type="number" min="300" value="{{ rec.recolha_intervalo_dormir }}"></label>
 <label>Máx. leituras/dia/veículo<input name="recolha_limite_diario" type="number" min="1" max="200" value="{{ rec.recolha_limite_diario }}"></label>
+<label>A carregar (s)<input name="recolha_intervalo_carregar" type="number" min="60" value="{{ rec.recolha_intervalo_carregar }}"></label>
+</div>
+<p><label><input type="checkbox" name="recolha_supercharger" value="1" {{ 'checked' if rec.recolha_supercharger == '1' }}>
+Importar uma vez por dia o histórico de Superchargers da Tesla (local, kWh e custo; requer o scope <code>vehicle_charging_cmds</code>)</label></p>
+<div>
 </div>
 <p class="mutt">Com 2 min a conduzir, 10 min parado e 30 min a dormir: ~30 leituras por hora de condução + ~48/dia em repouso
 (≈ 0,15–0,25 $/dia). A Tesla limita a 200 pedidos de dados por veículo e por dia.</p>
@@ -933,7 +940,8 @@ para todos, mesmo que o cliente tenha a permissão.</p>
                   perms=c.PERMISSOES, func=c.funcionalidades_ativas(),
                   rec={k: c.get_def(k) for k in ("recolha_ativa", "recolha_intervalo_conduzir", "recolha_intervalo_parado",
                                                   "recolha_minutos_parado", "recolha_intervalo_dormir",
-                                                  "recolha_limite_diario")},
+                                                  "recolha_limite_diario", "recolha_intervalo_carregar",
+                                                  "recolha_supercharger")},
                   ativa=c.get_def("status_api_ativa") == "1", pref=c.get_def("status_api_token_prefixo"))
 
 
@@ -1124,7 +1132,8 @@ def viagens():
                             if e.get("proxima_leitura") else None)
     for v in lista:
         try:
-            v["duracao_min"] = round((datetime.fromisoformat(v["fim"]) - datetime.fromisoformat(v["inicio"])).total_seconds() / 60) if v["fim"] else None
+            v["duracao_min"] = (round((datetime.fromisoformat(v["fim"]) - datetime.fromisoformat(v["inicio"])).total_seconds() / 60)
+                                if v["fim"] and v.get("origem") != "inferida" else None)
         except (TypeError, ValueError):
             v["duracao_min"] = None
     return render("Viagens", "viagens", """
@@ -1144,10 +1153,10 @@ def viagens():
 </div>
 <table><tr><th>Início</th><th>Duração</th><th>Distância</th><th>Bateria</th><th>V. máx.</th><th>Pontos</th><th></th></tr>
 {% for v in lista %}<tr><td>{{ v.inicio[:16].replace('T',' ') }}</td>
-<td>{{ v.duracao_min ~ ' min' if v.duracao_min is not none else ('a decorrer' if v.estado=='aberta' else '—') }}</td>
+<td>{{ v.duracao_min ~ ' min' if v.duracao_min is not none else ('a decorrer' if v.estado=='aberta' else ('entre leituras' if v.origem=='inferida' else '—')) }}</td>
 <td>{{ v.km ~ ' km' if v.km is not none else '—' }}</td>
 <td>{{ v.bateria_inicio if v.bateria_inicio is not none else '?' }} → {{ v.bateria_fim if v.bateria_fim is not none else '?' }} %</td>
-<td>{{ v.velocidade_max_kmh or '—' }}</td><td>{{ v.pontos }}</td>
+<td>{{ v.velocidade_max_kmh or '—' }}</td><td>{{ v.pontos }}{% if v.origem == 'inferida' %} <span class="b mut" title="Aconteceu entre duas leituras (o carro estava a dormir): distância pelo odómetro, sem percurso">inferida</span>{% endif %}</td>
 <td><a href="{{ url_for('viagem', viagem_id=v.id) }}"><button type="button" class="sec">Ver</button></a></td></tr>
 {% else %}<tr><td colspan="7" class="mutt">Sem viagens neste período.</td></tr>{% endfor %}</table></div>""",
                   f=f, lista=lista, res=res, estados=estados, ativa=c.get_def("recolha_ativa") == "1",
@@ -1198,6 +1207,111 @@ def exportar_viagem(viagem_id, formato):
         return Response("\n".join(corpo), mimetype="application/gpx+xml",
                         headers={"Content-Disposition": f"attachment; filename=viagem-{viagem_id}.gpx"})
     abort(404)
+
+
+@app.route("/carregamentos", methods=["GET", "POST"])
+@login_obrigatorio
+def carregamentos():
+    if request.method == "POST":
+        import recolha
+        novos, assoc = recolha.importar_supercharger()
+        flash(f"Histórico de Superchargers: {novos} novos, {assoc} associados a carregamentos já registados", "ok")
+        return redirect(request.referrer or url_for("carregamentos"))
+    f = ler_filtro()
+    origem = request.args.get("origem") or None
+    lista = c.listar_carregamentos(f["vin"], f["de"], f["ate"], 1000, origem)
+    res = c.resumo_carregamentos(f["vin"], f["de"], f["ate"])
+    for x in lista:
+        try:
+            x["duracao_min"] = (round((datetime.fromisoformat(x["fim"]) - datetime.fromisoformat(x["inicio"])).total_seconds() / 60)
+                                if x["fim"] and x["origem"] != "inferido" else None)
+            if x["duracao_min"] is not None and x["duracao_min"] < 0:
+                x["duracao_min"] = None
+        except (TypeError, ValueError):
+            x["duracao_min"] = None
+    filtro = FILTRO.replace("<button>Filtrar</button>", FILTRO_ORIGEM)
+    return render("Carregamentos", "carregamentos", '<div class="card">' + filtro + CARREG_LISTA,
+                  f=f, lista=lista, res=res, origem=origem)
+
+
+FILTRO_ORIGEM = """<label>Origem<select name="origem"><option value="">todas</option>
+{% for k, n in [('leituras','Leituras'),('inferido','Inferido'),('supercharger','Supercharger')] %}<option value="{{ k }}" {{ 'selected' if origem==k }}>{{ n }}</option>{% endfor %}</select></label>
+<button>Filtrar</button>"""
+
+CARREG_LISTA = """
+<div class="grid" style="margin:12px 0">
+ <div class="kpi"><small>Carregamentos</small><div>{{ res.n }}</div></div>
+ <div class="kpi"><small>Energia</small><div>{{ res.kwh }} kWh</div></div>
+ <div class="kpi"><small>Custo (Superchargers)</small><div>{{ '%.2f'|format(res.custo) }} {{ res.moeda or '' }}</div></div>
+ <div class="kpi"><small>Rápidos (DC)</small><div>{{ res.dc }}</div></div>
+</div>
+<table><tr><th>Início</th><th>Duração</th><th>Tipo</th><th>Local</th><th>Bateria</th><th>Energia</th><th>Potência máx.</th><th>Custo</th><th>Origem</th><th></th></tr>
+{% for x in lista %}<tr><td>{{ x.inicio[:16].replace('T',' ') }}</td>
+<td>{{ x.duracao_min ~ ' min' if x.duracao_min is not none else ('a carregar' if x.estado=='a_carregar' else ('entre leituras' if x.origem=='inferido' else '—')) }}</td>
+<td>{{ x.tipo or '—' }}</td><td>{{ x.local or ('%.4f, %.4f'|format(x.lat, x.lon) if x.lat is not none else '—') }}</td>
+<td>{{ x.bateria_inicio if x.bateria_inicio is not none else '?' }} → {{ x.bateria_fim if x.bateria_fim is not none else '?' }} %</td>
+<td>{{ ('%.1f kWh'|format(x.energia_kwh)) if x.energia_kwh is not none else '—' }}</td>
+<td>{{ ('%.0f kW'|format(x.potencia_max_kw)) if x.potencia_max_kw else '—' }}</td>
+<td>{{ ('%.2f %s'|format(x.custo, x.moeda or '')) if x.custo is not none else '—' }}</td>
+<td><span class="b {{ 'ok' if x.origem=='supercharger' else 'mut' }}">{{ x.origem }}</span></td>
+<td><a href="{{ url_for('carregamento', cid=x.id) }}"><button type="button" class="sec">Ver</button></a></td></tr>
+{% else %}<tr><td colspan="10" class="mutt">Sem carregamentos neste período.</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>Como são registados</h2>
+<table class="ft"><tr><th>leituras</th><td>Detetado pela recolha (estado "a carregar"): início, fim, bateria, energia, potência e curva.</td></tr>
+<tr><th>inferido</th><td>A bateria subiu 3 % ou mais entre duas leituras sem se ver o carregamento (carro a dormir): sem curva.</td></tr>
+<tr><th>supercharger</th><td>Importado do histórico de Superchargers da Tesla (local, kWh, custo); se coincidir com um carregamento já registado, junta-se a ele.</td></tr></table>
+<form method="post" style="margin-top:10px"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="sec">Importar agora o histórico de Superchargers</button></form></div>"""
+
+CARREG_DETALHE = """
+<div class="card"><h2>Carregamento {{ x.id }} — {{ x.inicio[:16].replace('T',' ') }}</h2>
+<div class="grid" style="margin-bottom:12px">
+ <div class="kpi"><small>Bateria</small><div>{{ x.bateria_inicio if x.bateria_inicio is not none else '?' }} → {{ x.bateria_fim if x.bateria_fim is not none else '?' }} %</div></div>
+ <div class="kpi"><small>Energia</small><div>{{ ('%.1f kWh'|format(x.energia_kwh)) if x.energia_kwh is not none else '—' }}</div></div>
+ <div class="kpi"><small>Potência máx.</small><div>{{ ('%.0f kW'|format(x.potencia_max_kw)) if x.potencia_max_kw else '—' }}</div></div>
+ <div class="kpi"><small>Custo</small><div>{{ ('%.2f %s'|format(x.custo, x.moeda or '')) if x.custo is not none else '—' }}</div></div>
+</div>
+<table class="ft"><tr><th>Fim</th><td>{{ (x.fim or 'a carregar')[:16].replace('T',' ') }}</td></tr>
+<tr><th>Tipo</th><td>{{ x.tipo or '—' }}</td></tr><tr><th>Local</th><td>{{ x.local or '—' }}</td></tr>
+<tr><th>Origem</th><td>{{ x.origem }}</td></tr></table></div>
+{% if x.curva %}<div class="card"><h2>Bateria (%)</h2>{{ graf_bat }}</div>
+<div class="card"><h2>Potência (kW)</h2>{{ graf_kw }}</div>{% endif %}
+{% if x.lat is not none %}<div class="card"><h2>Local</h2><div id="mapa" class="mapa" style="height:300px"></div></div>
+<script>const m=L.map('mapa').setView([{{ x.lat }}, {{ x.lon }}], 15);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(m);
+L.circleMarker([{{ x.lat }}, {{ x.lon }}],{radius:8,color:'#1f8a4c'}).addTo(m);</script>{% endif %}
+<p><a href="{{ url_for('carregamentos') }}"><button type="button" class="sec">Voltar</button></a></p>"""
+
+
+@app.get("/carregamentos/<int:cid>")
+@login_obrigatorio
+def carregamento(cid):
+    x = c.obter_carregamento(cid)
+    graf_bat = linha_svg([p["bateria"] for p in x["curva"]], "%", 0, 100)
+    graf_kw = linha_svg([p["potencia_kw"] for p in x["curva"]], "kW", 0, None)
+    return render(f"Carregamento {cid}", "carregamentos", LEAFLET + CARREG_DETALHE, x=x, graf_bat=graf_bat, graf_kw=graf_kw)
+
+
+def linha_svg(valores, unidade, ymin=0, ymax=None):
+    """Gráfico de linha simples (um eixo) em SVG para a curva de um carregamento."""
+    vals = [v for v in valores if v is not None]
+    if len(vals) < 2:
+        return Markup("<p class='mutt'>Poucas leituras para desenhar a curva.</p>")
+    ymax = ymax if ymax is not None else (max(vals) * 1.15 or 1)
+    w, h, pe, pb = 600, 160, 34, 18
+    idx = [i for i, v in enumerate(valores) if v is not None]
+    n = len(valores)
+    pts = [(pe + i * (w - pe - 6) / (n - 1), h - pb - (valores[i] - ymin) / (ymax - ymin) * (h - pb - 8)) for i in idx]
+    linha = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    grelha = "".join(
+        f"<line x1='{pe}' x2='{w - 6}' y1='{h - pb - k * (h - pb - 8) / 4:.1f}' y2='{h - pb - k * (h - pb - 8) / 4:.1f}' "
+        f"stroke='var(--bd)' stroke-width='1'/><text x='{pe - 6}' y='{h - pb - k * (h - pb - 8) / 4 + 4:.1f}' "
+        f"text-anchor='end' font-size='10' fill='var(--mut)'>{ymin + k * (ymax - ymin) / 4:.0f}</text>" for k in range(5))
+    marcas = "".join(f"<circle cx='{x:.1f}' cy='{y:.1f}' r='4' fill='var(--c1)' stroke='var(--card)' stroke-width='2'>"
+                     f"<title>{v} {unidade}</title></circle>" for (x, y), v in zip(pts, vals))
+    return Markup(f"<svg viewBox='0 0 {w} {h}' style='width:100%;height:auto' role='img' aria-label='curva em {unidade}'>"
+                  f"{grelha}<polyline points='{linha}' fill='none' stroke='var(--c1)' stroke-width='2' stroke-linejoin='round'/>"
+                  f"{marcas}<text x='{pe}' y='{h - 3}' font-size='10' fill='var(--mut)'>início</text>"
+                  f"<text x='{w - 6}' y='{h - 3}' text-anchor='end' font-size='10' fill='var(--mut)'>fim</text></svg>")
 
 
 @app.get("/mapa")
@@ -1268,7 +1382,7 @@ def dados():
 
 <div class="card"><h2>Exportar</h2>
 <form method="get" action="{{ url_for('exportar') }}" class="row">
-<label>Dados<select name="tipo"><option value="viagens">Viagens</option><option value="pontos">Posições</option>
+<label>Dados<select name="tipo"><option value="viagens">Viagens</option><option value="carregamentos">Carregamentos</option><option value="pontos">Posições</option>
 <option value="consumo">Consumo</option><option value="logs">Logs</option></select></label>
 <label>Formato<select name="formato"><option value="csv">CSV (Excel)</option><option value="json">JSON</option>
 <option value="gpx">GPX (viagens)</option><option value="geojson">GeoJSON (posições)</option></select></label>

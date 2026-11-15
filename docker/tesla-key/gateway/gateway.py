@@ -174,6 +174,24 @@ def trip(vin, viagem_id):
     return jsonify(c.obter_viagem(viagem_id, vin))
 
 
+@app.get("/api/vehicles/<vin>/charges")
+def charges(vin):
+    requer("carregamentos")
+    de, ate = filtros_periodo()
+    origem = request.args.get("origem") or None
+    if origem and origem not in ("leituras", "inferido", "supercharger"):
+        abort(400, "origem: leituras | inferido | supercharger")
+    limite = min(int(request.args.get("limite", 200)), 5000)
+    return jsonify({"carregamentos": c.listar_carregamentos(vin, de, ate, limite, origem),
+                    "resumo": c.resumo_carregamentos(vin, de, ate), "de": de, "ate": ate})
+
+
+@app.get("/api/vehicles/<vin>/charges/<int:cid>")
+def charge(vin, cid):
+    requer("carregamentos")
+    return jsonify(c.obter_carregamento(cid, vin))
+
+
 @app.get("/api/vehicles/<vin>/positions")
 def positions(vin):
     requer("viagens")
