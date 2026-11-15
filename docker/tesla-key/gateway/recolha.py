@@ -272,8 +272,8 @@ def importar_supercharger(vin=None):
     """Importa o histórico de carregamentos pagos (Superchargers) da Tesla; junta-o aos carregamentos registados
     pelas leituras quando as horas coincidem. Requer o scope vehicle_charging_cmds. Devolve (novos, atualizados)."""
     novos = atualizados = 0
-    pagina = 0
-    while pagina < 20:
+    pagina = 1                       # a Tesla numera as páginas a partir de 1 (pageNo=0 dá 400 "Invalid page no")
+    while pagina <= 20:
         params = {"pageNo": pagina, "pageSize": 50}
         if vin:
             params["vin"] = vin
