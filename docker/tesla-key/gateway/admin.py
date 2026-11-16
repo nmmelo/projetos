@@ -1167,6 +1167,17 @@ def viagens():
                   limite=c.get_def("recolha_limite_diario"))
 
 
+@app.post("/viagens/<int:viagem_id>/inicio")
+@login_obrigatorio
+def completar_inicio(viagem_id):
+    try:
+        ref = c.completar_inicio(viagem_id)
+        flash(f"A viagem passa a começar no último estacionamento: {ref}", "ok")
+    except c.ErroGateway as e:
+        flash(e.mensagem, "err")
+    return redirect(url_for("viagem", viagem_id=viagem_id))
+
+
 @app.post("/viagens/<int:viagem_id>/juntar")
 @login_obrigatorio
 def juntar_viagem(viagem_id):
@@ -1183,6 +1194,7 @@ def juntar_viagem(viagem_id):
 @login_obrigatorio
 def viagem(viagem_id):
     v = c.obter_viagem(viagem_id)
+    est = c.ultimo_estacionamento(v["vin"], v["inicio"]) if v and v.get("estado") != "aberta" else None
     return render(f"Viagem {viagem_id}", "viagens", LEAFLET + """
 <div class="card"><h2>Viagem {{ v.id }} — {{ v.inicio[:16].replace('T',' ') }}</h2>
 <div class="grid" style="margin-bottom:12px">
@@ -1208,7 +1220,13 @@ def viagem(viagem_id):
 {% if session.get('perfil') == 'admin' and v.estado != 'aberta' %}
 <form method="post" action="{{ url_for('juntar_viagem', viagem_id=v.id) }}" onsubmit="return confirm('Juntar esta viagem à anterior? Fica uma só viagem, do início da anterior ao fim desta.')">
 <input type="hidden" name="csrf" value="{{ csrf() }}"><button class="sec">Juntar à viagem anterior</button>
-<span class="mutt">Para viagens partidas a meio (começa ou acaba no meio do caminho).</span></form>{% endif %}</div>
+<span class="mutt">Quando a viagem anterior acaba no sítio onde esta começa (viagem partida por falta de rede).</span></form>
+{% if not v.inicio_ref and est %}<form method="post" action="{{ url_for('completar_inicio', viagem_id=v.id) }}" style="margin-top:8px"
+ onsubmit="return confirm('A viagem passa a começar no último estacionamento ({{ est.fonte }}, {{ est.ts[:16].replace('T',' ') }}) e os km são recalculados. Continuar?')">
+<input type="hidden" name="csrf" value="{{ csrf() }}"><button class="sec">Começar no último estacionamento</button>
+<span class="mutt">{{ est.local or ('%.5f, %.5f'|format(est.lat, est.lon)) }} · {{ est.ts[:16].replace('T',' ') }} ({{ est.fonte }}).
+Quando o arranque não foi registado e a viagem começa a meio do caminho.</span></form>{% endif %}{% endif %}
+{% if v.inicio_ref %}<p class="mutt">Início completado com o {{ v.inicio_ref }}; a hora de partida real não é conhecida.</p>{% endif %}</div>
 <script>
 const pts = {{ v.percurso|map(attribute='lat')|list|tojson }}.map((la, i) => [la, {{ v.percurso|map(attribute='lon')|list|tojson }}[i]]);
 const m = L.map('mapa'); L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -1217,7 +1235,7 @@ if (pts.length) { const l = L.polyline(pts, {color: '#3157d5', weight: 4}).addTo
  L.circleMarker(pts[0], {radius: 7, color: '#1f8a4c'}).addTo(m).bindPopup('Início');
  L.circleMarker(pts[pts.length-1], {radius: 7, color: '#c53030'}).addTo(m).bindPopup('Fim'); }
 else { m.setView([39.5, -8], 6); }
-</script>""", v=v)
+</script>""", v=v, est=est)
 
 
 @app.get("/viagens/<int:viagem_id>.<formato>")

@@ -269,7 +269,7 @@ def init_db():
         # colunas acrescentadas com a importação da Tessie
         novas = {"viagens": ["tessie_id INTEGER", "local_inicio TEXT", "local_fim TEXT", "energia_kwh REAL",
                              "velocidade_media_kmh REAL", "temp_exterior REAL", "temp_interior REAL", "autopilot_km REAL",
-                             "fechada_por TEXT"],
+                             "fechada_por TEXT", "inicio_ref TEXT"],
                  "carregamentos": ["tessie_id INTEGER", "autonomia_km REAL"]}
         for tab, defs in novas.items():
             existentes = [r[1] for r in c.execute(f"PRAGMA table_info({tab})")]
@@ -1156,6 +1156,51 @@ def obter_carregamento(cid, vin=None):
             "SELECT ts, bateria, potencia_kw, energia_kwh FROM carregamento_pontos WHERE carregamento_id=? ORDER BY ts",
             (cid,))]
     return {**dict(v), "curva": pts}
+
+
+def ultimo_estacionamento(vin, antes):
+    """Último sítio conhecido onde o carro esteve parado antes de `antes`: fim da viagem anterior
+    (fechada porque estacionou) ou local de um carregamento. Devolve dict ou None."""
+    with db() as c:
+        cands = []
+        v = c.execute("SELECT fim ts, lat_fim lat, lon_fim lon, odo_fim_km odo, bateria_fim bateria, local_fim local"
+                      " FROM viagens WHERE vin=? AND fim IS NOT NULL AND fim <= ? AND lat_fim IS NOT NULL"
+                      " AND COALESCE(fechada_por,'parado') != 'falha' ORDER BY fim DESC LIMIT 1", (vin, antes)).fetchone()
+        if v:
+            cands.append(dict(v, fonte="fim da viagem anterior"))
+        cg = c.execute("SELECT COALESCE(fim, inicio) ts, lat, lon, odo_km odo, bateria_fim bateria, local"
+                       " FROM carregamentos WHERE vin=? AND COALESCE(fim, inicio) <= ? AND lat IS NOT NULL"
+                       " ORDER BY COALESCE(fim, inicio) DESC LIMIT 1", (vin, antes)).fetchone()
+        if cg:
+            cands.append(dict(cg, fonte="carregamento"))
+    return max(cands, key=lambda x: x["ts"]) if cands else None
+
+
+def completar_inicio(vid):
+    """Faz a viagem começar no último estacionamento conhecido (o arranque não foi visto pelas leituras).
+    Acrescenta esse ponto ao percurso e recalcula os km pelo odómetro."""
+    with db() as c:
+        v = c.execute("SELECT * FROM viagens WHERE id=?", (vid,)).fetchone()
+    if not v:
+        raise ErroGateway(404, "viagem não encontrada")
+    if v["inicio_ref"]:
+        raise ErroGateway(409, "o início desta viagem já foi completado")
+    e = ultimo_estacionamento(v["vin"], v["inicio"])
+    if not e:
+        raise ErroGateway(404, "não há estacionamento conhecido antes desta viagem")
+    with db() as c:
+        houve_carga = c.execute("SELECT 1 FROM carregamentos WHERE vin=? AND inicio > ? AND inicio < ?",
+                                (v["vin"], e["ts"], v["inicio"])).fetchone()
+        odo_ini = e["odo"] if e["odo"] and (not v["odo_fim_km"] or e["odo"] <= v["odo_fim_km"]) else v["odo_inicio_km"]
+        km = round(v["odo_fim_km"] - odo_ini, 1) if v["odo_fim_km"] and odo_ini else v["km"]
+        bat = e["bateria"] if e["bateria"] is not None and not houve_carga else v["bateria_inicio"]
+        ref = f"{e['fonte']}{' (' + e['local'] + ')' if e.get('local') else ''}, {e['ts'][:16].replace('T', ' ')}"
+        c.execute("INSERT INTO pontos(vin, viagem_id, ts, lat, lon, velocidade_kmh, bateria, odo_km) VALUES (?,?,?,?,?,0,?,?)",
+                  (v["vin"], vid, e["ts"], e["lat"], e["lon"], bat, odo_ini))
+        c.execute("""UPDATE viagens SET lat_inicio=?, lon_inicio=?, odo_inicio_km=?, km=?, bateria_inicio=?,
+                     local_inicio=COALESCE(?, local_inicio), inicio_ref=?, pontos=pontos+1 WHERE id=?""",
+                  (e["lat"], e["lon"], odo_ini, km, bat, e.get("local"), ref, vid))
+    return ref
 
 
 def juntar_viagens(vid):

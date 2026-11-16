@@ -442,3 +442,16 @@ Quando o carro ficava sem rede a meio da viagem (resposta 408), o gateway fechav
 30 min depois; a leitura seguinte abria uma viagem nova a partir do meio do caminho. Agora: tolerância de 15 min
 (tenta de 2 em 2 min) antes de fechar; viagens fechadas por falha (`fechada_por = falha`) são retomadas se o carro
 voltar a aparecer a conduzir em até 90 min; e há o botão "Juntar à viagem anterior" para corrigir as já gravadas.
+
+---
+
+## 30. Começar a viagem no último estacionamento
+
+**Pergunta:**
+> neste caso podemos colocar a opção de juntar o caminho para casa por exemplo, ou seja colocar uma referencia ou ir buscar o seu ultimo ponto onde estava estacionado.
+
+**Resposta:**
+Novo botão no detalhe da viagem, **Começar no último estacionamento**: usa o fim da última viagem terminada
+(estacionada, não por falha) ou o local do último carregamento, o que for mais recente. Acrescenta esse ponto ao
+percurso, muda o início e recalcula os km pelo odómetro (e a bateria inicial, se não houve carregamento pelo meio).
+Fica registado em `inicio_ref`.
