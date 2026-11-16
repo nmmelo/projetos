@@ -32,7 +32,8 @@ _cache = {}  # (vin, endpoints) -> (timestamp, payload)
 # ---------------------------------------------------------------------------
 
 # Caminhos sem chave (documentação e verificação)
-PUBLICOS = ("/api/health", "/api/endpoints", "/docs", "/docs/", "/openapi.yaml", "/api/docs", "/API.md")
+PUBLICOS = ("/api/health", "/api/endpoints", "/docs", "/docs/", "/openapi.yaml", "/api/docs", "/API.md",
+            "/docs/openapi.yaml", "/api/openapi.yaml", "/openapi.json", "/api/openapi.json")
 DOCS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs")
 
 
@@ -153,12 +154,26 @@ def health():
 
 
 @app.get("/openapi.yaml")
+@app.get("/docs/openapi.yaml")
+@app.get("/api/openapi.yaml")
 def openapi_yaml():
     """Especificação OpenAPI (sem chave)."""
     f = os.path.join(DOCS_DIR, "openapi.yaml")
     if not os.path.exists(f):
         abort(404, "openapi.yaml não incluído na imagem")
     return send_file(f, mimetype="application/yaml")
+
+
+@app.get("/openapi.json")
+@app.get("/api/openapi.json")
+def openapi_json():
+    """A mesma especificação em JSON (alguns clientes procuram este nome)."""
+    import yaml
+    f = os.path.join(DOCS_DIR, "openapi.yaml")
+    if not os.path.exists(f):
+        abort(404, "openapi.yaml não incluído na imagem")
+    with open(f, encoding="utf-8") as fh:
+        return jsonify(yaml.safe_load(fh))
 
 
 @app.get("/API.md")
@@ -208,14 +223,25 @@ def filtros_periodo():
     for p in ("ano", "mes", "semana", "dias"):
         if a.get(p):
             return c.intervalo_periodo(p, a.get(p))
-    return c.intervalo_periodo(de=a.get("de"), ate=a.get("ate"))
+    # aceita também os nomes em inglês: since/from e until/to
+    de = a.get("de") or a.get("since") or a.get("from")
+    ate = a.get("ate") or a.get("until") or a.get("to")
+    # um "+" não codificado no fuso (…+00:00) chega como espaço
+    return c.intervalo_periodo(de=de.replace(" ", "+") if de else None, ate=ate.replace(" ", "+") if ate else None)
+
+
+def ler_limite(omissao=200, maximo=5000):
+    try:
+        return max(1, min(int(request.args.get("limite") or request.args.get("limit") or omissao), maximo))
+    except ValueError:
+        abort(400, "limite inválido")
 
 
 @app.get("/api/vehicles/<vin>/trips")
 def trips(vin):
     requer("viagens")
     de, ate = filtros_periodo()
-    limite = min(int(request.args.get("limite", 200)), 5000)
+    limite = ler_limite()
     return jsonify({"viagens": c.listar_viagens(vin, de, ate, limite),
                     "resumo": c.resumo_viagens(vin, de, ate), "de": de, "ate": ate})
 
@@ -233,7 +259,7 @@ def charges(vin):
     origem = request.args.get("origem") or None
     if origem and origem not in ("leituras", "inferido", "supercharger", "tessie"):
         abort(400, "origem: leituras | inferido | supercharger | tessie")
-    limite = min(int(request.args.get("limite", 200)), 5000)
+    limite = ler_limite()
     return jsonify({"carregamentos": c.listar_carregamentos(vin, de, ate, limite, origem),
                     "resumo": c.resumo_carregamentos(vin, de, ate), "de": de, "ate": ate})
 
@@ -252,7 +278,7 @@ def battery_health(vin):
 def idles(vin):
     requer("bateria")
     de, ate = filtros_periodo()
-    limite = min(int(request.args.get("limite", 200)), 5000)
+    limite = ler_limite()
     return jsonify({**c.listar_paragens(vin, de, ate, limite), "de": de, "ate": ate})
 
 

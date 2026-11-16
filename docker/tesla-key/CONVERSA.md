@@ -415,3 +415,17 @@ viagens com percurso, carregamentos, saúde da bateria e paragens. Junta-se aos 
 que coincidem, substitui os inferidos), faz backup antes, pode repetir-se e não guarda o token.
 Novo menu **Bateria** (autonomia a 100 %, capacidade, degradação, perdas parado), API `/battery-health` e `/idles`
 (permissão `bateria`), e 1 medição diária da saúde da bateria pela recolha para continuar sem a Tessie.
+
+---
+
+## 28. Tabela de logs desformatada
+
+**Pergunta:**
+> a tabela dos logs está mal formatada conforme a imagem
+
+**Resposta:**
+A coluna Pedido não quebrava os URL longos e esticava a tabela para fora do cartão. Pedido e Mensagem passam a
+quebrar linha (Pedido com largura máxima), o Cliente/IP não parte, e os URL aparecem descodificados (`%3A` → `:`).
+Também nos logs da imagem: "database is locked" (SQLite passa a modo WAL com espera de 30 s); pedidos a
+`/docs/openapi.yaml` e `/api/openapi.yaml` (passam a existir, mais `/openapi.json`); e o portal usa `limit` e
+`since`, que agora são aceites como `limite` e `de`.

@@ -5,6 +5,7 @@ Login definido com `tesla-setup admin`. Permite ver o estado, gerir clientes, ve
 e configurar a Status API e as definições.
 """
 import json
+import urllib.parse
 import re
 import os
 import secrets
@@ -121,6 +122,7 @@ h2{font-size:15px;margin:0 0 12px}h3{font-size:14px;margin:14px 0 8px}.grid{disp
 .kpi{background:var(--card);border:1px solid var(--bd);border-radius:var(--rad);padding:14px}.kpi small{color:var(--mut)}.kpi div{font-size:22px;font-weight:600}
 table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--bd);vertical-align:top;overflow-wrap:break-word}
 th{white-space:nowrap}td code{word-break:break-all}.b{white-space:nowrap}
+td.q{overflow-wrap:anywhere;word-break:break-word}td.ped{min-width:18ch;max-width:46ch}td.msg{min-width:22ch}
 .card,.kpi{min-width:0;overflow-wrap:break-word}select,input{max-width:100%}pre{overflow-wrap:anywhere}
 th{color:var(--mut);font-weight:500;font-size:12px;text-transform:uppercase}
 .b{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600}
@@ -514,9 +516,10 @@ def tabela_logs(linhas, selecionar=False):
 <tr>{% if selecionar %}<th><input type="checkbox" onclick="document.querySelectorAll('input[name=id]').forEach(function(x){x.checked=this.checked}.bind(this))" aria-label="todos"></th>{% endif %}<th>Hora (UTC)</th><th>Nível</th><th>Origem</th><th>Cliente</th><th>Pedido</th><th>Status</th><th>ms</th><th>Mensagem</th></tr>
 {% for l in linhas %}<tr>{% if selecionar %}<td class="sel" data-l="Selecionar"><input type="checkbox" name="id" value="{{ l.id }}" form="apagar_sel"></td>{% endif %}<td style="white-space:nowrap">{{ l.ts[:19].replace('T',' ') }}</td>
 <td><span class="b {{ {'INFO':'ok','WARNING':'warn','ERROR':'err'}[l.nivel] }}">{{ l.nivel }}</span></td>
-<td>{{ l.origem }}</td><td>{{ l.cliente or '' }}</td><td>{{ (l.metodo or '') ~ ' ' ~ (l.caminho or '') }}</td>
-<td>{{ l.status or '' }}</td><td>{{ l.ms if l.ms is not none else '' }}</td><td>{{ l.mensagem or '' }}</td></tr>
-{% else %}<tr><td colspan="9" class="mutt">Sem registos.</td></tr>{% endfor %}</table>""", linhas=linhas, selecionar=selecionar))
+<td>{{ l.origem }}</td><td style="white-space:nowrap">{{ l.cliente or '' }}</td><td class="q ped">{{ (l.metodo or '') ~ ' ' ~ unq(l.caminho or '') }}</td>
+<td>{{ l.status or '' }}</td><td>{{ l.ms if l.ms is not none else '' }}</td><td class="q msg">{{ l.mensagem or '' }}</td></tr>
+{% else %}<tr><td colspan="9" class="mutt">Sem registos.</td></tr>{% endfor %}</table>""", linhas=linhas, selecionar=selecionar,
+                                         unq=urllib.parse.unquote))
 
 
 def sub_logs(atual):

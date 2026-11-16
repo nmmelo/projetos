@@ -125,7 +125,10 @@ def agora_iso():
 
 @contextmanager
 def db():
-    con = sqlite3.connect(DB_FILE, timeout=10)
+    # WAL: leituras não bloqueiam escritas (recolha, importações e portal em simultâneo)
+    con = sqlite3.connect(DB_FILE, timeout=30)
+    con.execute("PRAGMA busy_timeout=30000")
+    con.execute("PRAGMA journal_mode=WAL")
     con.row_factory = sqlite3.Row
     try:
         yield con

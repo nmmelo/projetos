@@ -1,6 +1,7 @@
 # tesla-key — referência da API para clientes
 
 Documento para entregar a quem desenvolve um projeto que vai ler dados do Tesla através do gateway.
+Os filtros aceitam também os nomes em inglês: `limit` (= `limite`), `since`/`from` (= `de`) e `until`/`to` (= `ate`).
 O gateway também o serve em `GET /API.md`, com a página `GET /docs` e a especificação `GET /openapi.yaml` (sem chave).
 Especificação formal: [`openapi.yaml`](openapi.yaml).
 
@@ -362,7 +363,7 @@ administrador. O valor oficial está no dashboard de developer.tesla.com.
 
 Registados pelo gateway (todos, desde que a recolha está ativa) e completados com o histórico de
 Superchargers da Tesla. Filtros iguais aos de `/trips` (`ano`, `mes`, `semana`, `dias`, `de`/`ate`), mais
-`origem=leituras|inferido|supercharger` e `limite`.
+`origem=leituras|inferido|supercharger|tessie` e `limite`.
 
 #### `GET /api/vehicles/{vin}/charges`
 ```json

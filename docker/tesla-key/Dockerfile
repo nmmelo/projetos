@@ -8,7 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends nginx openssh-server sudo ca-certificates curl jq openssl \
-        python3 python3-flask python3-requests gunicorn && \
+        python3 python3-flask python3-requests python3-yaml gunicorn && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /run/sshd && \
     userdel -r ubuntu 2>/dev/null || true
