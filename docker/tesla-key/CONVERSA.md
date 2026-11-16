@@ -469,3 +469,15 @@ OSRM próprio. Novo `gateway/rotas.py`: liga os pontos da viagem pelas estradas 
 ponto, para não encaixar no sentido contrário da autoestrada), valida contra os km do odómetro e guarda em
 `viagem_rota`. Calculado ao fechar cada viagem, ao juntar e ao completar o início; botões no detalhe; opção para as
 viagens antigas; `rota` e `rota_km` na API; CLI `tesla-setup rotas`.
+
+---
+
+## 32. Erro na importação da Tessie (saúde da bateria)
+
+**Pergunta:**
+> o import do tessie deu erro ... TypeError: '>' not supported between instances of 'str' and 'int'
+
+**Resposta:**
+A Tessie devolve as datas da saúde da bateria como texto, e não como número. As datas passam a ser aceites em
+qualquer formato (segundos, milissegundos, número em texto ou ISO). Cada parte da importação (viagens,
+carregamentos, bateria, paragens) fica isolada: um formato inesperado numa parte gera um aviso e as outras continuam.

@@ -18,11 +18,29 @@ _LOCK = threading.Lock()
 
 
 def _iso(ts):
-    if ts is None:
+    """Aceita segundos ou milissegundos (número ou texto) e datas ISO ("2024-05-01", "2024-05-01T10:00:00Z")."""
+    if ts is None or ts == "":
         return None
+    if isinstance(ts, str):
+        t = ts.strip()
+        try:
+            ts = float(t)
+        except ValueError:
+            try:
+                d = datetime.fromisoformat(t.replace("Z", "+00:00").replace(" ", "T"))
+            except ValueError:
+                return None
+            if d.tzinfo is None:
+                d = d.replace(tzinfo=timezone.utc)
+            return d.astimezone(timezone.utc).isoformat(timespec="seconds")
     if ts > 10**11:                       # milissegundos
         ts /= 1000
     return datetime.fromtimestamp(ts, timezone.utc).isoformat(timespec="seconds")
+
+
+def _epoch(ts):
+    i = _iso(ts)
+    return int(datetime.fromisoformat(i).timestamp()) if i else None
 
 
 def _num(v, casas=1):
@@ -153,7 +171,7 @@ def _viagens(t, vin, percursos, st):
 
 
 def _percurso(t, vin, vid, d):
-    pts = t.resultados(f"{vin}/path", **{"from": int(d["started_at"]), "to": int(d["ended_at"]) + 1},
+    pts = t.resultados(f"{vin}/path", **{"from": _epoch(d["started_at"]), "to": _epoch(d["ended_at"]) + 1},
                        details="true", simplify="true", distance_format="km")
     linhas = []
     for p in pts:
@@ -223,11 +241,15 @@ def _bateria(t, vin, st):
     lista = (d.get("results") if isinstance(d, dict) else d) or []
     with c.db() as con:
         for m in lista:
-            if not isinstance(m, dict) or not m.get("timestamp"):
+            ts = _iso(m.get("timestamp") if isinstance(m, dict) else None) if isinstance(m, dict) else None
+            if not ts:
+                ts = _iso(m.get("date") or m.get("created_at")) if isinstance(m, dict) else None
+            if not ts:
+                st["ignoradas"] += 1
                 continue
             cur = con.execute("INSERT OR IGNORE INTO bateria_saude(vin, ts, odo_km, autonomia_max_km, autonomia_ideal_km,"
                               " capacidade_kwh, origem) VALUES (?,?,?,?,?,?,'tessie')",
-                              (vin, _iso(m["timestamp"]), _num(m.get("odometer")), _num(m.get("max_range")),
+                              (vin, ts, _num(m.get("odometer")), _num(m.get("max_range")),
                                _num(m.get("max_ideal_range")), _num(m.get("capacity"), 2)))
             st["bateria_medicoes"] += cur.rowcount
 
@@ -261,7 +283,7 @@ def importar(token, partes=PARTES, percursos=True):
     st = {k: 0 for k in ("viagens_recebidas", "viagens_novas", "viagens_associadas", "viagens_existentes",
                          "inferidas_substituidas", "carregamentos_recebidos", "carregamentos_novos",
                          "carregamentos_associados", "carregamentos_existentes", "inferidos_substituidos",
-                         "bateria_medicoes", "paragens")}
+                         "bateria_medicoes", "paragens", "ignoradas")}
     st["avisos"] = []
     inicio = time.time()
     try:
@@ -274,16 +296,22 @@ def importar(token, partes=PARTES, percursos=True):
             raise c.ErroGateway(404, "a Tessie não devolveu veículos para este token")
         st["veiculos"] = len(vins)
         for vin in vins:
-            if "viagens" in partes:
-                _viagens(t, vin, percursos, st)
-            if "carregamentos" in partes:
-                _carregamentos(t, vin, st)
-            if "bateria" in partes:
-                _estado(fase=f"saúde da bateria …{vin[-6:]}", **st)
-                _bateria(t, vin, st)
-            if "paragens" in partes:
-                _estado(fase=f"paragens …{vin[-6:]}", **st)
-                _paragens(t, vin, st)
+            for parte, fn in (("viagens", lambda: _viagens(t, vin, percursos, st)),
+                              ("carregamentos", lambda: _carregamentos(t, vin, st)),
+                              ("bateria", lambda: _bateria(t, vin, st)),
+                              ("paragens", lambda: _paragens(t, vin, st))):
+                if parte not in partes:
+                    continue
+                _estado(fase=f"{parte} …{vin[-6:]}", **st)
+                try:
+                    fn()
+                except c.ErroGateway as e:
+                    if e.codigo in (401, 403):
+                        raise                          # token inválido: não vale a pena continuar
+                    st["avisos"].append(f"{parte}: {e.mensagem}"[:300])
+                except Exception as e:                 # formato inesperado numa parte: segue para as outras
+                    st["avisos"].append(f"{parte}: {type(e).__name__}: {e}"[:300])
+                    c.log("WARNING", "tessie", f"importação Tessie, {parte} …{vin[-6:]}: {type(e).__name__}: {e}"[:400])
         st["pedidos"] = t.pedidos
         st["minutos"] = round((time.time() - inicio) / 60, 1)
         resumo = (f"importação Tessie: {st['viagens_novas']} viagens novas, {st['viagens_associadas']} completadas; "
