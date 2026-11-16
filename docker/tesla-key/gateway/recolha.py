@@ -63,8 +63,9 @@ def viagem_aberta(vin):
     return dict(r) if r else None
 
 
-def fechar_viagem(v, leitura=None):
-    """Fecha a viagem com a última leitura (ou com o último ponto, se não houver leitura)."""
+def fechar_viagem(v, leitura=None, motivo="parado"):
+    """Fecha a viagem com a última leitura (ou com o último ponto, se não houver leitura).
+    motivo: "parado" (o carro estacionou) ou "falha" (deixou de responder a meio da viagem)."""
     with c.db() as con:
         if leitura is None or leitura.get("lat") is None:
             ult = con.execute("SELECT * FROM pontos WHERE viagem_id=? ORDER BY ts DESC LIMIT 1", (v["id"],)).fetchone()
@@ -76,10 +77,27 @@ def fechar_viagem(v, leitura=None):
         vmax = con.execute("SELECT MAX(velocidade_kmh) FROM pontos WHERE viagem_id=?", (v["id"],)).fetchone()[0]
         npts = con.execute("SELECT COUNT(*) FROM pontos WHERE viagem_id=?", (v["id"],)).fetchone()[0]
         con.execute("""UPDATE viagens SET fim=?, lat_fim=?, lon_fim=?, odo_fim_km=?, km=?, bateria_fim=?,
-                       velocidade_max_kmh=?, pontos=?, estado='fechada' WHERE id=?""",
+                       velocidade_max_kmh=?, pontos=?, estado='fechada', fechada_por=? WHERE id=?""",
                     (leitura.get("ts"), leitura.get("lat"), leitura.get("lon"), odo_fim, km,
-                     leitura.get("bateria"), vmax, npts, v["id"]))
+                     leitura.get("bateria"), vmax, npts, motivo, v["id"]))
     c.log("INFO", "recolha", f"viagem {v['id']} fechada: {km if km is not None else '?'} km")
+
+
+def retomar_viagem(vin, janela_min=90):
+    """Se a última viagem foi fechada por falta de resposta (não porque o carro estacionou) há pouco tempo,
+    reabre-a em vez de começar outra a meio do caminho."""
+    with c.db() as con:
+        r = con.execute("SELECT * FROM viagens WHERE vin=? ORDER BY inicio DESC LIMIT 1", (vin,)).fetchone()
+        if not r or r["fechada_por"] != "falha" or not r["fim"]:
+            return None
+        try:
+            if (agora() - datetime.fromisoformat(r["fim"])).total_seconds() / 60 > janela_min:
+                return None
+        except ValueError:
+            return None
+        con.execute("UPDATE viagens SET estado='aberta', fim=NULL, fechada_por=NULL WHERE id=?", (r["id"],))
+    c.log("INFO", "recolha", f"viagem {r['id']} retomada (o carro esteve sem responder)")
+    return dict(r)
 
 
 def ler(vin):
@@ -158,8 +176,20 @@ def processar(vin):
     v = viagem_aberta(vin)
 
     if l is None or "erro" in l:                       # a dormir, offline ou erro
-        if v and l is None:
-            fechar_viagem(v)
+        if v:
+            # a meio de uma viagem o carro pode ficar sem rede (túnel, zona sem cobertura): não fecha logo,
+            # tenta de novo no intervalo "a conduzir" durante a tolerância; só depois fecha com o último ponto
+            try:
+                sem_resposta = (agora() - datetime.fromisoformat(e.get("ts") or v["inicio"])).total_seconds() / 60
+            except ValueError:
+                sem_resposta = 999
+            if sem_resposta < defi("recolha_tolerancia_falha", 15):
+                guardar_estado(vin, proxima_leitura=t + defi("recolha_intervalo_conduzir", 120))
+                return
+            fechar_viagem(v, motivo="falha")
+            # pode ainda estar a conduzir sem rede: volta a tentar mais cedo do que com o carro a dormir
+            guardar_estado(vin, estado="sem_resposta", proxima_leitura=t + defi("recolha_intervalo_parado", 600))
+            return
         cg = carregamento_aberto(vin)
         if cg and l is None:
             fechar_carregamento(cg)
@@ -178,6 +208,8 @@ def processar(vin):
         criar_viagem_inferida(vin, e, l)
 
     if a_conduzir:
+        if not v:
+            v = retomar_viagem(vin)
         if not v:
             # início: usa a última posição/odómetro conhecidos (o arranque pode ter sido entre leituras)
             ini_lat, ini_lon = e.get("lat") or l["lat"], e.get("lon") or l["lon"]

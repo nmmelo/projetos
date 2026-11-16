@@ -1167,6 +1167,18 @@ def viagens():
                   limite=c.get_def("recolha_limite_diario"))
 
 
+@app.post("/viagens/<int:viagem_id>/juntar")
+@login_obrigatorio
+def juntar_viagem(viagem_id):
+    try:
+        fica = c.juntar_viagens(viagem_id)
+    except c.ErroGateway as e:
+        flash(e.mensagem, "err")
+        return redirect(url_for("viagem", viagem_id=viagem_id))
+    flash(f"Viagem {viagem_id} junta à viagem {fica}", "ok")
+    return redirect(url_for("viagem", viagem_id=fica))
+
+
 @app.get("/viagens/<int:viagem_id>")
 @login_obrigatorio
 def viagem(viagem_id):
@@ -1191,7 +1203,12 @@ def viagem(viagem_id):
 <p><a href="{{ url_for('exportar_viagem', viagem_id=v.id, formato='gpx') }}"><button type="button" class="sec">GPX</button></a>
 <a href="{{ url_for('exportar_viagem', viagem_id=v.id, formato='json') }}"><button type="button" class="sec">JSON</button></a>
 <a href="{{ url_for('viagens') }}"><button type="button" class="sec">Voltar</button></a></p>
-<p class="mutt">{{ 'Percurso importado da Tessie.' if v.origem == 'tessie' else 'Percurso aproximado: um ponto por leitura (intervalo "a conduzir" em Definições).' }}</p></div>
+<p class="mutt">{{ 'Percurso importado da Tessie.' if v.origem == 'tessie' else 'Percurso aproximado: um ponto por leitura (intervalo "a conduzir" em Definições).' }}
+{% if v.fechada_por == 'falha' %}<br>Fechada porque o carro deixou de responder (sem rede?); pode continuar na viagem seguinte.{% endif %}</p>
+{% if session.get('perfil') == 'admin' and v.estado != 'aberta' %}
+<form method="post" action="{{ url_for('juntar_viagem', viagem_id=v.id) }}" onsubmit="return confirm('Juntar esta viagem à anterior? Fica uma só viagem, do início da anterior ao fim desta.')">
+<input type="hidden" name="csrf" value="{{ csrf() }}"><button class="sec">Juntar à viagem anterior</button>
+<span class="mutt">Para viagens partidas a meio (começa ou acaba no meio do caminho).</span></form>{% endif %}</div>
 <script>
 const pts = {{ v.percurso|map(attribute='lat')|list|tojson }}.map((la, i) => [la, {{ v.percurso|map(attribute='lon')|list|tojson }}[i]]);
 const m = L.map('mapa'); L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',

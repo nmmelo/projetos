@@ -429,3 +429,16 @@ quebrar linha (Pedido com largura máxima), o Cliente/IP não parte, e os URL ap
 Também nos logs da imagem: "database is locked" (SQLite passa a modo WAL com espera de 30 s); pedidos a
 `/docs/openapi.yaml` e `/api/openapi.yaml` (passam a existir, mais `/openapi.json`); e o portal usa `limit` e
 `since`, que agora são aceites como `limite` e `de`.
+
+---
+
+## 29. Viagem que começava a meio da autoestrada
+
+**Pergunta:**
+> na viagem de 19km, está incompleta, parece que começou no meio da autoestrada.
+
+**Resposta:**
+Quando o carro ficava sem rede a meio da viagem (resposta 408), o gateway fechava a viagem e só voltava a ler
+30 min depois; a leitura seguinte abria uma viagem nova a partir do meio do caminho. Agora: tolerância de 15 min
+(tenta de 2 em 2 min) antes de fechar; viagens fechadas por falha (`fechada_por = falha`) são retomadas se o carro
+voltar a aparecer a conduzir em até 90 min; e há o botão "Juntar à viagem anterior" para corrigir as já gravadas.

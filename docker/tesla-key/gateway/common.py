@@ -50,7 +50,8 @@ DEFAULTS = {
     "recolha_minutos_parado": "30",        # depois disto parado, passa ao intervalo de "a dormir"
     "recolha_intervalo_dormir": "1800",    # s entre tentativas com o carro a dormir
     "recolha_limite_diario": "150",        # máx. pedidos de dados por veículo e por dia (Tesla: 200)
-    "recolha_intervalo_carregar": "300",   # s entre leituras a carregar
+    "recolha_intervalo_carregar": "300",
+    "recolha_tolerancia_falha": "15",   # minutos sem resposta a meio de uma viagem antes de a fechar   # s entre leituras a carregar
     "recolha_supercharger": "1",           # importar o histórico de Superchargers da Tesla uma vez por dia
     # backups
     "backup_automatico": "1",              # backup diário do gateway.db
@@ -267,7 +268,8 @@ def init_db():
             c.execute("ALTER TABLE viagens ADD COLUMN origem TEXT DEFAULT 'leituras'")
         # colunas acrescentadas com a importação da Tessie
         novas = {"viagens": ["tessie_id INTEGER", "local_inicio TEXT", "local_fim TEXT", "energia_kwh REAL",
-                             "velocidade_media_kmh REAL", "temp_exterior REAL", "temp_interior REAL", "autopilot_km REAL"],
+                             "velocidade_media_kmh REAL", "temp_exterior REAL", "temp_interior REAL", "autopilot_km REAL",
+                             "fechada_por TEXT"],
                  "carregamentos": ["tessie_id INTEGER", "autonomia_km REAL"]}
         for tab, defs in novas.items():
             existentes = [r[1] for r in c.execute(f"PRAGMA table_info({tab})")]
@@ -1154,6 +1156,32 @@ def obter_carregamento(cid, vin=None):
             "SELECT ts, bateria, potencia_kw, energia_kwh FROM carregamento_pontos WHERE carregamento_id=? ORDER BY ts",
             (cid,))]
     return {**dict(v), "curva": pts}
+
+
+def juntar_viagens(vid):
+    """Junta a viagem `vid` à viagem anterior do mesmo carro (ex.: viagem partida por falta de rede).
+    A anterior passa a ir do seu início até ao fim de `vid`; `vid` é apagada. Devolve o id que fica."""
+    with db() as c:
+        b = c.execute("SELECT * FROM viagens WHERE id=?", (vid,)).fetchone()
+        if not b:
+            raise ErroGateway(404, "viagem não encontrada")
+        a = c.execute("SELECT * FROM viagens WHERE vin=? AND inicio < ? AND id != ? ORDER BY inicio DESC LIMIT 1",
+                      (b["vin"], b["inicio"], vid)).fetchone()
+        if not a:
+            raise ErroGateway(404, "não há viagem anterior para juntar")
+        if b["estado"] == "aberta":
+            raise ErroGateway(409, "a viagem ainda está a decorrer")
+        c.execute("UPDATE pontos SET viagem_id=? WHERE viagem_id=?", (a["id"], vid))
+        npts = c.execute("SELECT COUNT(*) FROM pontos WHERE viagem_id=?", (a["id"],)).fetchone()[0]
+        vmax = c.execute("SELECT MAX(velocidade_kmh) FROM pontos WHERE viagem_id=?", (a["id"],)).fetchone()[0]
+        odo_ini, odo_fim = a["odo_inicio_km"], b["odo_fim_km"]
+        km = round(odo_fim - odo_ini, 1) if odo_ini and odo_fim else round((a["km"] or 0) + (b["km"] or 0), 1)
+        c.execute("""UPDATE viagens SET fim=?, lat_fim=?, lon_fim=?, odo_fim_km=?, km=?, bateria_fim=?,
+                     velocidade_max_kmh=?, pontos=?, local_fim=COALESCE(?, local_fim), fechada_por=? WHERE id=?""",
+                  (b["fim"], b["lat_fim"], b["lon_fim"], odo_fim, km, b["bateria_fim"], vmax, npts,
+                   b["local_fim"], b["fechada_por"], a["id"]))
+        c.execute("DELETE FROM viagens WHERE id=?", (vid,))
+    return a["id"]
 
 
 def saude_bateria(vin=None, de="0000", ate="9999", origem=None, limite=5000):
