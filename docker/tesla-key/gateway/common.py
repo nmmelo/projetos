@@ -51,7 +51,9 @@ DEFAULTS = {
     "recolha_intervalo_dormir": "1800",    # s entre tentativas com o carro a dormir
     "recolha_limite_diario": "150",        # máx. pedidos de dados por veículo e por dia (Tesla: 200)
     "recolha_intervalo_carregar": "300",
-    "recolha_tolerancia_falha": "15",   # minutos sem resposta a meio de uma viagem antes de a fechar   # s entre leituras a carregar
+    "recolha_tolerancia_falha": "15",
+    "rota_ativa": "1",                  # percurso pelas estradas (OSRM) em vez de retas entre leituras
+    "rota_url": "https://router.project-osrm.org",   # minutos sem resposta a meio de uma viagem antes de a fechar   # s entre leituras a carregar
     "recolha_supercharger": "1",           # importar o histórico de Superchargers da Tesla uma vez por dia
     # backups
     "backup_automatico": "1",              # backup diário do gateway.db
@@ -232,6 +234,11 @@ def init_db():
             bateria INTEGER, potencia_kw REAL, energia_kwh REAL
         );
         CREATE INDEX IF NOT EXISTS idx_carreg_pontos ON carregamento_pontos(carregamento_id);
+        CREATE TABLE IF NOT EXISTS viagem_rota (
+            viagem_id INTEGER PRIMARY KEY,         -- percurso pelas estradas (OSRM) entre os pontos registados
+            coordenadas TEXT NOT NULL,             -- JSON [[lat, lon], ...]
+            km REAL, criada TEXT
+        );
         CREATE TABLE IF NOT EXISTS bateria_saude (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             vin TEXT NOT NULL, ts TEXT NOT NULL, odo_km REAL,
@@ -1093,7 +1100,9 @@ def obter_viagem(viagem_id, vin=None):
         pts = [dict(r) for r in c.execute(
             "SELECT ts, lat, lon, velocidade_kmh, direcao, bateria, odo_km FROM pontos WHERE viagem_id=? ORDER BY ts",
             (viagem_id,))]
-    return {**dict(v), "percurso": pts}
+        r = c.execute("SELECT coordenadas, km FROM viagem_rota WHERE viagem_id=?", (viagem_id,)).fetchone()
+    return {**dict(v), "percurso": pts, "rota": json.loads(r["coordenadas"]) if r else None,
+            "rota_km": r["km"] if r else None}
 
 
 def posicoes(vin=None, de="0000", ate="9999", agregado=True, so_viagens=False, limite=50000):
@@ -1200,6 +1209,8 @@ def completar_inicio(vid):
         c.execute("""UPDATE viagens SET lat_inicio=?, lon_inicio=?, odo_inicio_km=?, km=?, bateria_inicio=?,
                      local_inicio=COALESCE(?, local_inicio), inicio_ref=?, pontos=pontos+1 WHERE id=?""",
                   (e["lat"], e["lon"], odo_ini, km, bat, e.get("local"), ref, vid))
+    import rotas
+    rotas.tentar(vid)
     return ref
 
 
@@ -1226,6 +1237,9 @@ def juntar_viagens(vid):
                   (b["fim"], b["lat_fim"], b["lon_fim"], odo_fim, km, b["bateria_fim"], vmax, npts,
                    b["local_fim"], b["fechada_por"], a["id"]))
         c.execute("DELETE FROM viagens WHERE id=?", (vid,))
+        c.execute("DELETE FROM viagem_rota WHERE viagem_id=?", (vid,))
+    import rotas
+    rotas.tentar(a["id"])
     return a["id"]
 
 

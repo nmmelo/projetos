@@ -455,3 +455,17 @@ Novo botão no detalhe da viagem, **Começar no último estacionamento**: usa o 
 (estacionada, não por falha) ou o local do último carregamento, o que for mais recente. Acrescenta esse ponto ao
 percurso, muda o início e recalcula os km pelo odómetro (e a bateria inicial, se não houve carregamento pelo meio).
 Fica registado em `inicio_ref`.
+
+---
+
+## 31. Percurso pelas estradas em vez de retas
+
+**Pergunta:**
+> mas quando junto ponto ou o ultimo estacionamento, deve fazer o caminho e não uma reta, senão não fica bem, escolher uma opção que permita fazer isso.
+
+**Resposta:**
+Escolhido o OSRM (motor de rotas sobre o OpenStreetMap): servidor público gratuito sem chave por omissão, ou um
+OSRM próprio. Novo `gateway/rotas.py`: liga os pontos da viagem pelas estradas (com a direção do carro em cada
+ponto, para não encaixar no sentido contrário da autoestrada), valida contra os km do odómetro e guarda em
+`viagem_rota`. Calculado ao fechar cada viagem, ao juntar e ao completar o início; botões no detalhe; opção para as
+viagens antigas; `rota` e `rota_km` na API; CLI `tesla-setup rotas`.

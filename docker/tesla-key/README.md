@@ -240,6 +240,21 @@ A Tesla não tem histórico de viagens nem de carregamentos em casa: só ficam r
 depois de a recolha estar ativa. O histórico de Superchargers inclui sessões anteriores e requer o scope
 `vehicle_charging_cmds`. Intervalo "a carregar" e importação diária em Definições → Recolha de viagens.
 
+### Percurso pelas estradas
+
+As leituras são feitas de 2 em 2 min a conduzir (pontos a vários km de distância na autoestrada), e um início
+completado com o último estacionamento fica longe do primeiro ponto. Para o mapa não mostrar retas, ao fechar cada
+viagem o gateway liga os pontos pelas estradas com um serviço OSRM (tabela `viagem_rota`; os pontos lidos não mudam):
+
+| | |
+|---|---|
+| Serviço | Por omissão o público `https://router.project-osrm.org` (gratuito, sem chave, 1 pedido/s). Pode usar um OSRM próprio (`osrm/osrm-backend` com o mapa de Portugal) para não enviar coordenadas para fora |
+| Onde se configura | Definições → Recolha de viagens: ativar, endereço do serviço, calcular para as viagens antigas |
+| Por viagem | Botões "Seguir as estradas" / "Recalcular" / "Mostrar só as leituras" no detalhe; também ao juntar viagens ou completar o início |
+| Validação | Se o percurso calculado for muito maior do que os km do odómetro, é rejeitado e fica o traçado das leituras |
+| API | `GET /trips/{id}` devolve `rota` (`[[lat, lon], ...]`) e `rota_km` |
+| Consola | `tesla-setup rotas` (viagens sem percurso), `rotas ID`, `rotas --todas` |
+
 ### Importar o histórico da Tessie
 
 Para quem teve Tessie: em Definições → Dados → **Importar da Tessie** (ou `tesla-setup importar-tessie`), com um

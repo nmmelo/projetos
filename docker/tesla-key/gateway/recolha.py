@@ -81,6 +81,9 @@ def fechar_viagem(v, leitura=None, motivo="parado"):
                     (leitura.get("ts"), leitura.get("lat"), leitura.get("lon"), odo_fim, km,
                      leitura.get("bateria"), vmax, npts, motivo, v["id"]))
     c.log("INFO", "recolha", f"viagem {v['id']} fechada: {km if km is not None else '?'} km")
+    if motivo == "parado":
+        import rotas
+        rotas.tentar(v["id"])
 
 
 def retomar_viagem(vin, janela_min=90):
@@ -96,6 +99,7 @@ def retomar_viagem(vin, janela_min=90):
         except ValueError:
             return None
         con.execute("UPDATE viagens SET estado='aberta', fim=NULL, fechada_por=NULL WHERE id=?", (r["id"],))
+        con.execute("DELETE FROM viagem_rota WHERE viagem_id=?", (r["id"],))
     c.log("INFO", "recolha", f"viagem {r['id']} retomada (o carro esteve sem responder)")
     return dict(r)
 

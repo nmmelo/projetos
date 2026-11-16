@@ -817,6 +817,17 @@ def definicoes():
         elif acao == "recolha":
             c.set_def("recolha_ativa", "1" if request.form.get("recolha_ativa") else "0")
             c.set_def("recolha_supercharger", "1" if request.form.get("recolha_supercharger") else "0")
+            c.set_def("rota_ativa", "1" if request.form.get("rota_ativa") else "0")
+            url = (request.form.get("rota_url") or "").strip().rstrip("/")
+            if url and not re.match(r"^https?://[\w.\-:]+(/[\w.\-/]*)?$", url):
+                flash("Endereço do serviço de rotas inválido", "err")
+                return redirect(url_for("definicoes"))
+            c.set_def("rota_url", url or "https://router.project-osrm.org")
+            if request.form.get("rotas_todas"):
+                import threading
+                import rotas
+                threading.Thread(target=rotas.calcular_todas, daemon=True, name="rotas").start()
+                flash("A calcular o percurso pelas estradas das viagens antigas (em segundo plano, ~1 s por viagem)", "ok")
             for k in ("recolha_intervalo_conduzir", "recolha_intervalo_parado", "recolha_minutos_parado",
                       "recolha_intervalo_dormir", "recolha_limite_diario", "recolha_intervalo_carregar"):
                 c.set_def(k, max(1, int(request.form.get(k) or 1)))
@@ -888,6 +899,13 @@ de dados pago (cliente <code>recolha</code> em Consumo). Requer o scope <code>ve
 </div>
 <p><label><input type="checkbox" name="recolha_supercharger" value="1" {{ 'checked' if rec.recolha_supercharger == '1' }}>
 Importar uma vez por dia o histórico de Superchargers da Tesla (local, kWh e custo; requer o scope <code>vehicle_charging_cmds</code>)</label></p>
+<p><label><input type="checkbox" name="rota_ativa" value="1" {{ 'checked' if rec.rota_ativa == '1' }}>
+<b>Percurso pelas estradas</b>: ao fechar cada viagem, liga as leituras pelas estradas (OSRM) em vez de linhas retas.
+Os pontos lidos não são alterados.</label></p>
+<div class="row"><label style="flex:1">Serviço de rotas (OSRM)<input name="rota_url" value="{{ rec.rota_url }}" placeholder="https://router.project-osrm.org"></label></div>
+<p><label><input type="checkbox" name="rotas_todas" value="1"> Calcular também para as viagens já registadas (ao guardar)</label></p>
+<p class="mutt">O servidor público OSRM é gratuito e sem chave, para uso moderado; recebe as coordenadas das leituras.
+Para não as enviar para fora, pode usar um OSRM próprio (ex.: contentor <code>osrm/osrm-backend</code> com o mapa de Portugal).</p>
 <div>
 </div>
 <p class="mutt">Com 2 min a conduzir, 10 min parado e 30 min a dormir: ~30 leituras por hora de condução + ~48/dia em repouso
@@ -945,7 +963,7 @@ para todos, mesmo que o cliente tenha a permissão.</p>
                   rec={k: c.get_def(k) for k in ("recolha_ativa", "recolha_intervalo_conduzir", "recolha_intervalo_parado",
                                                   "recolha_minutos_parado", "recolha_intervalo_dormir",
                                                   "recolha_limite_diario", "recolha_intervalo_carregar",
-                                                  "recolha_supercharger")},
+                                                  "recolha_supercharger", "rota_ativa", "rota_url")},
                   ativa=c.get_def("status_api_ativa") == "1", pref=c.get_def("status_api_token_prefixo"))
 
 
@@ -1178,6 +1196,23 @@ def completar_inicio(viagem_id):
     return redirect(url_for("viagem", viagem_id=viagem_id))
 
 
+@app.post("/viagens/<int:viagem_id>/rota")
+@login_obrigatorio
+def rota_viagem(viagem_id):
+    import rotas
+    if request.form.get("acao") == "apagar":
+        rotas.apagar(viagem_id)
+        flash("A mostrar só as leituras", "ok")
+    else:
+        try:
+            r = rotas.calcular(viagem_id, forcar=True)
+            flash(f"Percurso pelas estradas calculado: {r[1]} km" if r else
+                  "Não foi possível seguir as estradas (percurso muito diferente do odómetro; ver Logs)", "ok" if r else "warn")
+        except Exception as e:
+            flash(f"Serviço de rotas: {getattr(e, 'mensagem', None) or e}", "err")
+    return redirect(url_for("viagem", viagem_id=viagem_id))
+
+
 @app.post("/viagens/<int:viagem_id>/juntar")
 @login_obrigatorio
 def juntar_viagem(viagem_id):
@@ -1200,7 +1235,7 @@ def viagem(viagem_id):
 <div class="grid" style="margin-bottom:12px">
  <div class="kpi"><small>Distância</small><div>{{ v.km ~ ' km' if v.km is not none else '—' }}</div></div>
  <div class="kpi"><small>Fim</small><div style="font-size:15px">{{ (v.fim or 'a decorrer')[:16].replace('T',' ') }}</div></div>
- <div class="kpi"><small>Bateria</small><div>{{ v.bateria_inicio }} → {{ v.bateria_fim if v.bateria_fim is not none else '?' }} %</div></div>
+ <div class="kpi"><small>Bateria</small><div>{{ v.bateria_inicio if v.bateria_inicio is not none else '?' }} → {{ v.bateria_fim if v.bateria_fim is not none else '?' }} %</div></div>
  <div class="kpi"><small>V. máx.</small><div>{{ v.velocidade_max_kmh or '—' }}</div></div>
 </div>
 {% if v.local_inicio or v.energia_kwh is not none or v.velocidade_media_kmh is not none %}
@@ -1215,7 +1250,7 @@ def viagem(viagem_id):
 <p><a href="{{ url_for('exportar_viagem', viagem_id=v.id, formato='gpx') }}"><button type="button" class="sec">GPX</button></a>
 <a href="{{ url_for('exportar_viagem', viagem_id=v.id, formato='json') }}"><button type="button" class="sec">JSON</button></a>
 <a href="{{ url_for('viagens') }}"><button type="button" class="sec">Voltar</button></a></p>
-<p class="mutt">{{ 'Percurso importado da Tessie.' if v.origem == 'tessie' else 'Percurso aproximado: um ponto por leitura (intervalo "a conduzir" em Definições).' }}
+<p class="mutt">{{ 'Percurso importado da Tessie.' if v.origem == 'tessie' else ('Linha pelas estradas entre as leituras (pontos), calculada com OSRM.' if v.rota else 'Percurso aproximado: um ponto por leitura (intervalo "a conduzir" em Definições).') }}
 {% if v.fechada_por == 'falha' %}<br>Fechada porque o carro deixou de responder (sem rede?); pode continuar na viagem seguinte.{% endif %}</p>
 {% if session.get('perfil') == 'admin' and v.estado != 'aberta' %}
 <form method="post" action="{{ url_for('juntar_viagem', viagem_id=v.id) }}" onsubmit="return confirm('Juntar esta viagem à anterior? Fica uma só viagem, do início da anterior ao fim desta.')">
@@ -1226,11 +1261,20 @@ def viagem(viagem_id):
 <input type="hidden" name="csrf" value="{{ csrf() }}"><button class="sec">Começar no último estacionamento</button>
 <span class="mutt">{{ est.local or ('%.5f, %.5f'|format(est.lat, est.lon)) }} · {{ est.ts[:16].replace('T',' ') }} ({{ est.fonte }}).
 Quando o arranque não foi registado e a viagem começa a meio do caminho.</span></form>{% endif %}{% endif %}
-{% if v.inicio_ref %}<p class="mutt">Início completado com o {{ v.inicio_ref }}; a hora de partida real não é conhecida.</p>{% endif %}</div>
+{% if v.inicio_ref %}<p class="mutt">Início completado com o {{ v.inicio_ref }}; a hora de partida real não é conhecida.</p>{% endif %}
+{% if session.get('perfil') == 'admin' and v.estado != 'aberta' and v.percurso|length >= 2 %}
+<form method="post" action="{{ url_for('rota_viagem', viagem_id=v.id) }}" class="row" style="margin-top:8px;align-items:center">
+<input type="hidden" name="csrf" value="{{ csrf() }}">
+<button class="sec" name="acao" value="calcular">{{ 'Recalcular percurso pelas estradas' if v.rota else 'Seguir as estradas' }}</button>
+{% if v.rota %}<button class="sec" name="acao" value="apagar">Mostrar só as leituras</button>{% endif %}
+<span class="mutt">{% if v.rota %}Percurso pelas estradas ({{ v.rota_km }} km) entre as {{ v.percurso|length }} leituras (pontos).{% else %}Liga as leituras pelas estradas em vez de linhas retas.{% endif %}</span></form>{% endif %}</div>
 <script>
-const pts = {{ v.percurso|map(attribute='lat')|list|tojson }}.map((la, i) => [la, {{ v.percurso|map(attribute='lon')|list|tojson }}[i]]);
+const lidos = {{ v.percurso|map(attribute='lat')|list|tojson }}.map((la, i) => [la, {{ v.percurso|map(attribute='lon')|list|tojson }}[i]]);
+const rota = {{ (v.rota or [])|tojson }};
+const pts = rota.length ? rota : lidos;
 const m = L.map('mapa'); L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
  {maxZoom: 19, attribution: '&copy; OpenStreetMap'}).addTo(m);
+if (rota.length) lidos.forEach(p => L.circleMarker(p, {radius: 3, weight: 1, color: '#3157d5', fillOpacity: .9}).addTo(m).bindTooltip('leitura'));
 if (pts.length) { const l = L.polyline(pts, {color: '#3157d5', weight: 4}).addTo(m); m.fitBounds(l.getBounds(), {padding: [20, 20]});
  L.circleMarker(pts[0], {radius: 7, color: '#1f8a4c'}).addTo(m).bindPopup('Início');
  L.circleMarker(pts[pts.length-1], {radius: 7, color: '#c53030'}).addTo(m).bindPopup('Fim'); }

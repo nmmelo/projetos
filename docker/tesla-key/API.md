@@ -303,6 +303,8 @@ volta a P ou o carro adormece. A distância vem do odómetro; o percurso tem um 
 ou `inferida` (aconteceu entre duas leituras com o carro a dormir: km pelo odómetro, `pontos` = 0, sem percurso).
 `inicio_ref` (quando preenchido): o início foi completado com o último estacionamento conhecido (a hora de partida
 real não é conhecida). `fechada_por`: `parado` ou `falha` (o carro deixou de responder).
+Em `GET /trips/{id}`: `percurso` são os pontos lidos; `rota` (quando existe) é a linha pelas estradas entre eles,
+`[[lat, lon], ...]`, com `rota_km` — use-a para desenhar o mapa.
 
 #### `GET /api/vehicles/{vin}/trips/{id}`
 A viagem (mesmos campos) mais `percurso`:
