@@ -25,6 +25,7 @@ Gestão do gateway pela linha de comandos (chamado pelo `tesla-setup`).
   importar-tessie [--sem-percursos]
                                  importa o histórico da Tessie (pede o token; não o guarda)
   bateria                        saúde da bateria (últimas medições e degradação)
+  viagens-limpar [--sim]         apaga as viagens sem distância (--sim: só conta)
   rotas [ID | --todas]           percurso pelas estradas: de uma viagem, das que não o têm, ou de todas
   backup                         cria um backup do gateway.db
   backups                        lista os backups
@@ -284,6 +285,13 @@ def main(argv):
         tabela([{"dados": k, "n": v} for k, v in r.items() if k != "avisos"], ["dados", "n"])
         for a in r["avisos"][:20]:
             print("aviso:", a)
+    elif cmd == "viagens-limpar":
+        r = c.viagens_vazias()
+        if "--sim" in args or not r["n"]:
+            print(f"{r['n']} viagens sem distância (< {r['km_minimo']} km ou 0 min)"
+                  + (f", de {r['primeira'][:10]} a {r['ultima'][:10]}" if r["n"] else ""))
+        else:
+            print(f"{c.apagar_viagens_vazias()} viagens apagadas (backup criado antes)")
     elif cmd == "rotas":
         import rotas
         if args and args[0].isdigit():

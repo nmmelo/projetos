@@ -831,6 +831,10 @@ def definicoes():
             for k in ("recolha_intervalo_conduzir", "recolha_intervalo_parado", "recolha_minutos_parado",
                       "recolha_intervalo_dormir", "recolha_limite_diario", "recolha_intervalo_carregar"):
                 c.set_def(k, max(1, int(request.form.get(k) or 1)))
+            try:
+                c.set_def("viagem_km_minimo", min(5.0, max(0.0, float((request.form.get("viagem_km_minimo") or "0.3").replace(",", ".")))))
+            except ValueError:
+                pass
             c.log("WARNING", "admin", f"recolha de viagens {'ativa' if c.get_def('recolha_ativa') == '1' else 'desativada'}")
             flash("Recolha de viagens guardada", "ok")
         elif acao == "seccoes":
@@ -896,6 +900,7 @@ de dados pago (cliente <code>recolha</code> em Consumo). Requer o scope <code>ve
 <label>A dormir (s)<input name="recolha_intervalo_dormir" type="number" min="300" value="{{ rec.recolha_intervalo_dormir }}"></label>
 <label>Máx. leituras/dia/veículo<input name="recolha_limite_diario" type="number" min="1" max="200" value="{{ rec.recolha_limite_diario }}"></label>
 <label>A carregar (s)<input name="recolha_intervalo_carregar" type="number" min="60" value="{{ rec.recolha_intervalo_carregar }}"></label>
+<label>Viagem mínima (km)<input name="viagem_km_minimo" type="number" min="0" max="5" step="0.1" value="{{ rec.viagem_km_minimo }}"></label>
 </div>
 <p><label><input type="checkbox" name="recolha_supercharger" value="1" {{ 'checked' if rec.recolha_supercharger == '1' }}>
 Importar uma vez por dia o histórico de Superchargers da Tesla (local, kWh e custo; requer o scope <code>vehicle_charging_cmds</code>)</label></p>
@@ -963,7 +968,7 @@ para todos, mesmo que o cliente tenha a permissão.</p>
                   rec={k: c.get_def(k) for k in ("recolha_ativa", "recolha_intervalo_conduzir", "recolha_intervalo_parado",
                                                   "recolha_minutos_parado", "recolha_intervalo_dormir",
                                                   "recolha_limite_diario", "recolha_intervalo_carregar",
-                                                  "recolha_supercharger", "rota_ativa", "rota_url")},
+                                                  "recolha_supercharger", "rota_ativa", "rota_url", "viagem_km_minimo")},
                   ativa=c.get_def("status_api_ativa") == "1", pref=c.get_def("status_api_token_prefixo"))
 
 
@@ -1166,6 +1171,13 @@ def viagens():
 {% for e in estados %}<tr><td>…{{ e.vin[-6:] }}</td><td>{{ e.estado or '—' }}</td><td>{{ (e.ts or '—')[:19].replace('T',' ') }}</td>
 <td>{{ (e.proxima or '—')[:19].replace('T',' ') }}</td><td>{{ e.hoje }} / {{ limite }}</td><td>{{ e.bateria if e.bateria is not none else '—' }}{{ ' %' if e.bateria is not none }}</td></tr>{% endfor %}
 </table>{% endif %}</div>
+{% if vaz.n %}<div class="card"><p style="margin:0"><span class="b warn">{{ vaz.n }}</span>
+viagens sem distância (menos de {{ vaz.km_minimo }} km ou 0 minutos), de {{ vaz.primeira[:10] }} a {{ vaz.ultima[:10] }}:
+não têm conteúdo (manobras ou leituras sem movimento).</p>
+{% if session.get('perfil') == 'admin' %}<form method="post" action="{{ url_for('limpar_viagens') }}" style="margin-top:8px"
+ onsubmit="return confirm('Apagar {{ vaz.n }} viagens sem distância? É feito um backup antes.')">
+<input type="hidden" name="csrf" value="{{ csrf() }}"><button class="del">Apagar as {{ vaz.n }} viagens sem distância</button>
+<span class="mutt">As novas já não são gravadas (mínimo em Definições → Recolha de viagens).</span></form>{% endif %}</div>{% endif %}
 <div class="card">""" + FILTRO + """
 <div class="grid" style="margin:12px 0">
  <div class="kpi"><small>Viagens</small><div>{{ res.n }}</div></div>
@@ -1182,7 +1194,15 @@ def viagens():
 <td><a href="{{ url_for('viagem', viagem_id=v.id) }}"><button type="button" class="sec">Ver</button></a></td></tr>
 {% else %}<tr><td colspan="7" class="mutt">Sem viagens neste período.</td></tr>{% endfor %}</table></div>""",
                   f=f, lista=lista, res=res, estados=estados, ativa=c.get_def("recolha_ativa") == "1",
-                  limite=c.get_def("recolha_limite_diario"))
+                  limite=c.get_def("recolha_limite_diario"), vaz=c.viagens_vazias())
+
+
+@app.post("/viagens/limpar")
+@login_obrigatorio
+def limpar_viagens():
+    n = c.apagar_viagens_vazias()
+    flash(f"{n} viagens sem distância apagadas (backup criado antes)" if n else "Não há viagens sem distância", "ok")
+    return redirect(url_for("viagens"))
 
 
 @app.post("/viagens/<int:viagem_id>/inicio")

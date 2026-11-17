@@ -80,6 +80,18 @@ def fechar_viagem(v, leitura=None, motivo="parado"):
                        velocidade_max_kmh=?, pontos=?, estado='fechada', fechada_por=? WHERE id=?""",
                     (leitura.get("ts"), leitura.get("lat"), leitura.get("lon"), odo_fim, km,
                      leitura.get("bateria"), vmax, npts, motivo, v["id"]))
+    # manobras (engrenou D/R e voltou a P sem sair do sítio) não são viagens: descarta
+    if motivo == "parado" and v.get("origem", "leituras") == "leituras" and not v.get("inicio_ref"):
+        km_min = float(c.get_def("viagem_km_minimo") or 0.3)
+        with c.db() as con:
+            ext = con.execute("SELECT MIN(lat), MAX(lat), MIN(lon), MAX(lon) FROM pontos WHERE viagem_id=?", (v["id"],)).fetchone()
+        mexeu = ext and ext[0] is not None and ((ext[1] - ext[0]) * 111 > km_min or (ext[3] - ext[2]) * 87 > km_min)
+        if (km is not None and km < km_min) or (km is None and not mexeu):
+            with c.db() as con:
+                con.execute("DELETE FROM pontos WHERE viagem_id=?", (v["id"],))
+                con.execute("DELETE FROM viagens WHERE id=?", (v["id"],))
+            c.log("INFO", "recolha", f"viagem {v['id']} descartada: {km if km is not None else 0} km (manobra)")
+            return
     c.log("INFO", "recolha", f"viagem {v['id']} fechada: {km if km is not None else '?'} km")
     if motivo == "parado":
         import rotas

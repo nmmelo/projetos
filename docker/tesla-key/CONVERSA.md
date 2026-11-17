@@ -481,3 +481,16 @@ viagens antigas; `rota` e `rota_km` na API; CLI `tesla-setup rotas`.
 A Tessie devolve as datas da saúde da bateria como texto, e não como número. As datas passam a ser aceites em
 qualquer formato (segundos, milissegundos, número em texto ou ISO). Cada parte da importação (viagens,
 carregamentos, bateria, paragens) fica isolada: um formato inesperado numa parte gera um aviso e as outras continuam.
+
+---
+
+## 33. Viagens com 0 km ou 0 minutos
+
+**Pergunta:**
+> existem muitas viagens com 0 km ou 0 minutos, podemos renovar esses registos, porque não traz nada.
+
+**Resposta:**
+São leituras em que o carro estava em D/R sem sair do sítio (manobras, ou engrenou e voltou a P). Agora: ao fechar,
+uma viagem com menos do que a "viagem mínima" (0,3 km por omissão, configurável) é descartada; para as antigas, a
+página Viagens mostra quantas há e um botão para as apagar (com pontos e percurso, após backup), e na consola
+`tesla-setup viagens-limpar`. Contam como vazias: menos de 0,3 km, ou 0 minutos com menos de 1 km.

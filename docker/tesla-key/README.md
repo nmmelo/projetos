@@ -87,6 +87,7 @@ tesla-key/
 | `tesla-setup carregamentos [PERIODO VALOR]` | Carregamentos registados |
 | `tesla-setup importar-supercharger` | Importa já o histórico de Superchargers da Tesla |
 | `tesla-setup importar-tessie [--sem-percursos]` | Importa o histórico da Tessie (pede o token, não o guarda) |
+| `tesla-setup viagens-limpar [--sim]` | Apaga as viagens sem distância (`--sim` só conta) |
 | `tesla-setup bateria` | Saúde da bateria (degradação e últimas medições) |
 | `tesla-setup backup` / `backups` / `restaurar NOME` | Backups do `gateway.db` |
 | `tesla-setup exportar TIPO FORMATO [FICHEIRO] [PERIODO VALOR]` | Exportar viagens, pontos, consumo ou logs |
@@ -230,6 +231,7 @@ terem de pedir à Tesla.
 | Origem | Como é detetado | Dados |
 |---|---|---|
 | Viagem `leituras` | Mudança D/R/N ou velocidade numa leitura | Início, fim, km, bateria, percurso |
+| Viagem sem distância | Engrenou D/R e voltou a P sem sair do sítio (manobra): ao fechar, se tiver menos do que a "viagem mínima" (0,3 km, Definições → Recolha de viagens), é descartada. As antigas: aviso e botão **Apagar** na página Viagens, ou `tesla-setup viagens-limpar` (faz backup antes) | — |
 | Viagem com falha de rede | Se o carro deixa de responder a meio de uma viagem, o gateway tenta de novo de 2 em 2 min durante 15 min; se fechar a viagem e o carro voltar a aparecer a conduzir (até 90 min), a viagem é retomada. Em viagens antigas partidas a meio: botão **Juntar à viagem anterior** no detalhe da viagem. Se o arranque não foi registado (a viagem começa a meio do caminho): **Começar no último estacionamento** (fim da viagem anterior ou local do último carregamento; recalcula os km pelo odómetro) | — |
 | Viagem `inferida` | O odómetro subiu ≥ 0,5 km entre duas leituras sem se ver o carro a andar (estava a dormir) | Início/fim aproximados, km, bateria, sem percurso |
 | Carregamento `leituras` | Estado "a carregar" numa leitura (lido a cada 5 min enquanto carrega) | Início, fim, AC/DC, bateria, kWh, potência máx., curva, local |

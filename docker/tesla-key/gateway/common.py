@@ -52,6 +52,7 @@ DEFAULTS = {
     "recolha_limite_diario": "150",        # máx. pedidos de dados por veículo e por dia (Tesla: 200)
     "recolha_intervalo_carregar": "300",
     "recolha_tolerancia_falha": "15",
+    "viagem_km_minimo": "0.3",          # viagens mais curtas (manobras, só engrenou D/R) são descartadas
     "rota_ativa": "1",                  # percurso pelas estradas (OSRM) em vez de retas entre leituras
     "rota_url": "https://router.project-osrm.org",   # minutos sem resposta a meio de uma viagem antes de a fechar   # s entre leituras a carregar
     "recolha_supercharger": "1",           # importar o histórico de Superchargers da Tesla uma vez por dia
@@ -1165,6 +1166,48 @@ def obter_carregamento(cid, vin=None):
             "SELECT ts, bateria, potencia_kw, energia_kwh FROM carregamento_pontos WHERE carregamento_id=? ORDER BY ts",
             (cid,))]
     return {**dict(v), "curva": pts}
+
+
+def _sql_vazias():
+    km_min = float(get_def("viagem_km_minimo") or 0.3)
+    # sem distância (km nulo ou abaixo do mínimo) — inclui as de 0 minutos, que também não têm distância;
+    # as de 0 minutos com distância só entram se tiverem menos de 1 km (registo sem conteúdo útil)
+    return ("estado='fechada' AND (COALESCE(km, 0) < ? OR (fim IS NOT NULL AND fim <= inicio AND COALESCE(km, 0) < 1))",
+            [km_min])
+
+
+def viagens_vazias(vin=None):
+    """Viagens fechadas sem distância (ou de 0 minutos sem conteúdo). Devolve contagem e as datas extremas."""
+    w, a = _sql_vazias()
+    if vin:
+        w += " AND vin=?"
+        a.append(vin)
+    with db() as c:
+        r = dict(c.execute(f"SELECT COUNT(*) n, MIN(inicio) primeira, MAX(inicio) ultima FROM viagens WHERE {w}", a).fetchone())
+    r["km_minimo"] = float(get_def("viagem_km_minimo") or 0.3)
+    return r
+
+
+def apagar_viagens_vazias(vin=None):
+    """Apaga as viagens vazias (com os pontos e o percurso). Faz um backup antes. Devolve o número apagado."""
+    w, a = _sql_vazias()
+    if vin:
+        w += " AND vin=?"
+        a.append(vin)
+    with db() as c:
+        ids = [r[0] for r in c.execute(f"SELECT id FROM viagens WHERE {w}", a)]
+    if not ids:
+        return 0
+    criar_backup("antes-limpeza-viagens")
+    with db() as c:
+        for i in range(0, len(ids), 500):
+            lote = ids[i:i + 500]
+            q = ",".join("?" * len(lote))
+            c.execute(f"DELETE FROM pontos WHERE viagem_id IN ({q})", lote)
+            c.execute(f"DELETE FROM viagem_rota WHERE viagem_id IN ({q})", lote)
+            c.execute(f"DELETE FROM viagens WHERE id IN ({q})", lote)
+    log("INFO", "admin", f"{len(ids)} viagens sem distância apagadas")
+    return len(ids)
 
 
 def ultimo_estacionamento(vin, antes):
