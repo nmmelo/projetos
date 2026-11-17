@@ -46,12 +46,18 @@ services:
       - ${DATA_DIR:-.}/logs:/data/logs             # logs do portal e do nginx
       - ${DATA_DIR:-.}/ssh/authorized_keys:/import/authorized_keys:ro
       - ${DATA_DIR:-.}/hostkeys:/etc/ssh/keys
-      - /var/run/docker.sock:/var/run/docker.sock:ro   # lista de contentores, versões e logs do watchtower
+      # Opcional: socket do Docker (estado a correr/parado, label de versão, logs do watchtower em tempo real).
+      # Sem ele, tudo vem dos relatórios do Watchtower (webhook).
+      # - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - watchtower-net
+      # - web-net            # opcional: saída web do portal noutra rede (ex. a do proxy reverso)
 
-# Rede já existente, partilhada com o contentor watchtower
 networks:
+  # Rede já existente, partilhada com o contentor watchtower
   watchtower-net:
     name: ${WATCHTOWER_NETWORK:-watchtower-net}
     external: true
+  # web-net:
+  #   name: ${WEB_NETWORK:-proxy-net}
+  #   external: true

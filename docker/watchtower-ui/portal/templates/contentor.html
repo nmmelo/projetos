@@ -3,7 +3,9 @@
 <div class="head">
   <div>
     <h1>{{ c.name }}</h1>
-    <div class="sub" style="margin:0">{{ c.image }} · <span class="pill {{ '' if c.state == 'running' else 'warn' }}">{{ c.state }}</span> {{ c.status }}</div>
+    <div class="sub" style="margin:0">{{ c.image }}
+      {% if c.state %} · <span class="pill {{ '' if c.state == 'running' else 'warn' }}">{{ c.state }}</span> {{ c.status or '' }}{% endif %}
+      {% if c.wt_state %} · Watchtower: <span class="pill {{ 'err' if c.wt_state == 'Falhou' else 'mut' }}">{{ c.wt_state }}</span> {{ c.wt_checked|dt }}{% endif %}</div>
   </div>
   {% if user.role == 'admin' and c.state != 'removido' %}
   <form method="post" action="{{ url_for('acao_atualizar') }}">

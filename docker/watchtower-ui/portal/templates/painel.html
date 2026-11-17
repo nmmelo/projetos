@@ -6,8 +6,8 @@
     <div class="sub" style="margin:0">
       {% if wt_error %}<span class="dot err"></span>Sem ligação à API do Watchtower ({{ wt_error }})
       {% else %}<span class="dot ok"></span>Ligado ao Watchtower{% endif %}
-      · última sincronização {{ last_sync|dt }}
-      {% if relatorio %} · último relatório {{ relatorio.ts|dt }}{% endif %}
+      {% if docker_ok %} · última leitura do Docker {{ last_sync|dt }}{% endif %}
+      · último relatório {{ last_report|dt }}
     </div>
   </div>
   {% if user.role == 'admin' %}
@@ -17,12 +17,16 @@
   </form>
   {% endif %}
 </div>
-{% if not docker_ok %}<div class="flash erro">Socket do Docker não montado: a lista de contentores e o histórico não são atualizados.</div>{% endif %}
+{% if not docker_ok and not last_report %}<div class="flash">Ainda não chegou nenhum relatório do Watchtower: a lista de contentores aparece depois da primeira verificação (ou de um "Atualizar todos").</div>{% endif %}
 
 <div class="grid">
   <div class="stat"><div class="l">Contentores</div><div class="v">{{ resumo.total or 0 }}</div></div>
+  {% if docker_ok %}
   <div class="stat"><div class="l">A correr</div><div class="v ok">{{ resumo.ativos or 0 }}</div></div>
   <div class="stat"><div class="l">Parados</div><div class="v {{ 'warn' if resumo.parados }}">{{ resumo.parados or 0 }}</div></div>
+  {% else %}
+  <div class="stat"><div class="l">Com falha na última verificação</div><div class="v {{ 'err' if resumo.falhados }}">{{ resumo.falhados or 0 }}</div></div>
+  {% endif %}
   <div class="stat"><div class="l">Verificações (Watchtower)</div><div class="v">{{ metrics.get('watchtower_scans_total', '–') }}</div></div>
 </div>
 

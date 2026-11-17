@@ -11,28 +11,47 @@ SSH** e guarda tudo numa base de dados **SQLite** na pasta de dados montada (`DA
 | Histórico | Por contentor: data, versão anterior → versão nova (com ID da imagem), origem (Watchtower, Manual (utilizador), Registo inicial) e resultado (OK/Falhou com o erro) |
 | Configuração › Utilizadores | Criar, mudar perfil (administrador / só leitura), ativar/desativar, repor password, apagar |
 | Configuração › Auditoria | Logins, logins falhados e bloqueados, updates pedidos e o resultado, alterações a utilizadores — com utilizador, IP e data |
-| Configuração › Logs | Portal, Watchtower (lidos pelo socket do Docker), nginx (acessos e erros), com filtro |
+| Configuração › Logs | Portal, Watchtower (linhas de cada relatório, ou em tempo real com o socket), nginx (acessos e erros), com filtro |
 | SSH | Utilizador configurável, só chave pública, com sudo |
 
 ## Arquitetura
 
 ```
-browser ──► :8090 ─┐                  ┌─ nginx ─► Gunicorn (portal Flask) ─► SQLite  (DATA_DIR/db)
-ssh     ──► :2224 ─┤  watchtower-ui   │                 │  │                 logs    (DATA_DIR/logs)
-                   │                  └─ sshd           │  └─► docker.sock (leitura: contentores, versões, logs)
-                   │                                    └────► watchtower:8080 (HTTP API: update, métricas)
-watchtower ── relatório no fim de cada verificação ──► watchtower-ui:80/api/webhook/<token>
-         └──────────────────────── rede watchtower-net ───────────────────────┘
+browser ──► :8090 ─┐                  ┌─ nginx ─► Gunicorn (portal Flask) ─► SQLite (DATA_DIR/db), logs (DATA_DIR/logs)
+ssh     ──► :2224 ─┤  watchtower-ui   │                         │
+                   │                  └─ sshd                   └─► watchtower:8080 (HTTP API: update, métricas)
+watchtower ── relatório JSON no fim de cada verificação ──► watchtower-ui:80/api/webhook/<token>
+         └──────────────────────── rede watchtower-net ─────────────────────────┘
 ```
 
-**Como é construído o histórico de versões**
-- O portal lê o Docker a cada `SYNC_INTERVAL` segundos (60). Quando a imagem de um contentor muda, regista uma atualização
-  (versão anterior → nova). Funciona tanto para updates do Watchtower como para updates feitos à mão.
-- A versão é a label `org.opencontainers.image.version` da imagem; se não existir, a tag (ex. `11.4`, `alpine`). O ID curto
-  da imagem fica sempre ao lado.
-- Durante um update pedido no portal (e 90 s depois), as mudanças ficam com origem **Manual (utilizador)**.
-- As falhas chegam pelo relatório (webhook) do Watchtower e ficam no histórico como **Falhou**, com o erro.
-- O primeiro registo de cada contentor é **Registo inicial** (versão instalada quando o portal o encontrou).
+**Sem socket do Docker (omissão).** Tudo vem do Watchtower:
+
+| Dado | Origem |
+|---|---|
+| Lista de contentores | Relatório de cada verificação (todos os contentores verificados) |
+| Histórico de versões | Relatório: estado (Atualizado, Falhou, Sem alterações, Ignorado, Desatualizado), imagem atual → nova, erro |
+| Logs do Watchtower | Linhas de log enviadas com cada relatório (guardadas na base de dados) |
+| Métricas e botões de update | HTTP API do Watchtower |
+
+O histórico é construído assim:
+- O primeiro relatório em que um contentor aparece cria o **Registo inicial** (versão e ID da imagem que estavam instalados).
+- Estado **Atualizado**: regista versão/ID anterior → nova, com origem **Watchtower** ou **Manual (utilizador)** se o update
+  foi pedido no portal.
+- Estado **Falhou**: regista a falha com o erro.
+- Se o ID da imagem mudou entre dois relatórios sem o Watchtower o ter atualizado (ex. `docker compose pull` à mão),
+  regista com origem **Fora do Watchtower**.
+- A versão é a **tag** da imagem (ex. `11.4`, `alpine`); o ID curto da imagem fica sempre ao lado (essencial nas imagens
+  `latest`).
+
+Limitações sem socket: só aparecem os contentores que o Watchtower vigia; a informação é atualizada a cada verificação
+(não em tempo real); não há estado a correr/parado nem a label `org.opencontainers.image.version`.
+
+**Com socket (opcional).** Descomentando o volume `/var/run/docker.sock` no compose, o portal também lê o Docker a cada
+`SYNC_INTERVAL` segundos: estado a correr/parado, versão pela label OCI, logs do watchtower em tempo real e deteção imediata
+de mudanças. Os dois modos juntam-se sem duplicar registos.
+
+**Saída web noutra rede.** O portal fica na rede `watchtower-net` (para falar com o watchtower); para o publicar através de
+outra rede (ex. a de um proxy reverso), descomentar `web-net` no compose (`WEB_NETWORK` no `.env`) e pôr `PROXY_HOPS=2`.
 
 ## Ficheiros
 
@@ -45,7 +64,7 @@ watchtower-ui/
 ├── nginx.conf                  # proxy para o portal + ficheiros estáticos
 ├── portal/
 │   ├── app.py                  # rotas: login, painel, contentores, configuração, webhook
-│   ├── core.py                 # SQLite, Docker (socket), API do Watchtower, sincronização, limpeza
+│   ├── core.py                 # SQLite, relatórios (webhook), API do Watchtower, Docker opcional, limpeza
 │   ├── templates/              # páginas (Jinja)
 │   └── static/style.css
 ├── watchtower-exemplo.yml      # o que acrescentar ao compose do watchtower
@@ -74,14 +93,15 @@ Na pasta `DATA_DIR` (no `.gitignore`):
 | `ADMIN_USER` | `admin` | Primeiro administrador do portal (só no 1.º arranque) |
 | `ADMIN_PASSWORD` | | Password inicial; vazio = gerada e mostrada em `docker logs watchtower-ui` |
 | `LOG_RETENTION_DAYS` | `90` | Dias de auditoria e relatórios guardados (o histórico de versões não é apagado) |
-| `SYNC_INTERVAL` | `60` | Segundos entre leituras do Docker |
+| `SYNC_INTERVAL` | `60` | Segundos entre leituras do Docker (só com socket) |
 | `SESSION_HOURS` | `8` | Duração da sessão |
 | `LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCK_MINUTES` | `5` / `15` | Bloqueio do IP após tentativas falhadas |
 | `PROXY_HOPS` | `1` | `2` se houver outro proxy reverso à frente (para registar o IP real) |
+| `WEB_NETWORK` | `proxy-net` | Rede extra para a saída web (só se `web-net` for descomentada no compose) |
 | `WEBHOOK_TOKEN` | | Token do endpoint dos relatórios do Watchtower |
 | `UI_PORT` / `SSH_PORT` | `8090` / `2224` | Portas no anfitrião |
 | `WATCHTOWER_HOST` / `WATCHTOWER_PORT` | `watchtower` / `8080` | Endereço da HTTP API na rede |
-| `WATCHTOWER_CONTAINER` | `watchtower` | Nome do contentor para ler os logs |
+| `WATCHTOWER_CONTAINER` | `watchtower` | Nome do contentor para ler os logs (só com socket) |
 | `WATCHTOWER_NETWORK` | `watchtower-net` | Rede Docker partilhada |
 | `WATCHTOWER_HTTP_API_TOKEN` | — | Obrigatório; igual ao do watchtower |
 
@@ -96,11 +116,12 @@ Ver `watchtower-exemplo.yml`. Resumo:
 | `WATCHTOWER_HTTP_API_TOKEN` | token | Igual ao do portal |
 | `WATCHTOWER_HTTP_API_PERIODIC_POLLS` | `true` | Mantém as verificações agendadas com a API ativa |
 | `WATCHTOWER_NOTIFICATION_URL` | `generic+http://watchtower-ui/api/webhook/<WEBHOOK_TOKEN>` | Para onde o Watchtower envia o relatório de cada verificação |
-| `WATCHTOWER_NOTIFICATION_REPORT` | `true` | Envia o relatório (verificados, atualizados, falhados) |
+| `WATCHTOWER_NOTIFICATION_REPORT` | `true` | Envia o relatório completo (todos os contentores verificados) |
+| `WATCHTOWER_NOTIFICATIONS_LEVEL` | `info` | Nível das linhas de log incluídas no relatório |
 | `WATCHTOWER_NOTIFICATION_TEMPLATE` | ver exemplo | Põe o relatório em JSON para o portal |
 
-E ligá-lo à rede `watchtower-net`. O relatório é opcional: sem ele o histórico de versões funciona (pela leitura do Docker),
-mas as **falhas** não ficam registadas.
+E ligá-lo à rede `watchtower-net`. Sem socket, o relatório é **obrigatório**: é dele que vêm a lista de contentores, o
+histórico e os logs do Watchtower. A lista aparece depois da primeira verificação (ou de um "Atualizar todos" no portal).
 
 ## Tokens
 
@@ -138,15 +159,15 @@ docker exec -u <SSH_USER> watchtower-ui sqlite3 /data/db/watchtower-ui.db \
 |---|---|
 | "Sem ligação à API do Watchtower" | O watchtower não está na rede, `WATCHTOWER_HOST` errado ou falta `WATCHTOWER_HTTP_API_METRICS=true` |
 | "HTTP 401" no painel | Token diferente entre o portal e o watchtower |
-| "Socket do Docker não montado" | Falta o volume `/var/run/docker.sock` |
-| Lista vazia mas socket montado | Permissões do socket: ver `docker logs watchtower-ui` (linha `docker: socket com GID ...`) |
-| Falhas não aparecem no histórico | Webhook: ver `docker logs watchtower` (erros de notificação) e os logs do portal (`webhook recusado`). Alternativa ao URL: `generic://watchtower-ui/api/webhook/<token>?disabletls=yes` |
+| Lista de contentores vazia | Ainda não houve verificação, ou o relatório não chega: ver `docker logs watchtower` (erros de notificação) e Configuração › Logs › Portal (`webhook recusado` = token errado). Alternativa ao URL: `generic://watchtower-ui/api/webhook/<token>?disabletls=yes` |
+| Relatório chega mas sem contentores | Template não aplicado: ver Configuração › Logs › Portal (`mensagem não estruturada`) e o `WATCHTOWER_NOTIFICATION_TEMPLATE` |
+| Com socket: lista vazia | Permissões do socket: ver `docker logs watchtower-ui` (linha `docker: socket com GID ...`) |
 | SSH recusa a chave | Ver `docker logs watchtower-ui` (linha `ssh: <utilizador> com N chave(s)`) |
 
 ## Segurança
 
 - Portal e SSH só na rede local; para acesso externo, pôr um proxy reverso com HTTPS à frente (e `PROXY_HOPS=2`).
-- O `:ro` no `docker.sock` não torna a API do Docker só de leitura: quem controla o contentor controla o Docker.
-  O portal só faz pedidos de leitura (`GET`), mas o utilizador SSH tem sudo — tratar o acesso SSH como acesso ao anfitrião.
+- Por omissão o portal **não** tem acesso ao socket do Docker. Se o montar: o `:ro` não torna a API só de leitura, e com o
+  sudo do utilizador SSH o acesso SSH passa a equivaler a acesso ao anfitrião.
 - Passwords em hash (Werkzeug), proteção CSRF nos formulários, cookies `HttpOnly`/`SameSite=Lax`.
 - O `.env`, a base de dados, os logs, as chaves e as host keys estão no `.gitignore`.

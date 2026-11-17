@@ -81,7 +81,8 @@ def inject():
     if "csrf" not in session:
         session["csrf"] = secrets.token_hex(16)
     return {"csrf": session["csrf"], "user": g.get("user"), "roles": ROLES,
-            "update_state": core.update_state}
+            "update_state": core.update_state, "docker_ok": core.docker_ok(),
+            "last_report": core.meta_get("last_report")}
 
 
 def login_required(fn):
@@ -199,8 +200,9 @@ def painel():
     metrics, wt_error = core.wt_metrics()
     resumo = core.q("""SELECT COUNT(*) total,
                               SUM(state='running') ativos,
-                              SUM(state NOT IN ('running','removido')) parados
-                       FROM containers WHERE state != 'removido'""", one=True)
+                              SUM(state IS NOT NULL AND state NOT IN ('running','removido')) parados,
+                              SUM(wt_state='Falhou') falhados
+                       FROM containers WHERE IFNULL(state,'') != 'removido'""", one=True)
     recentes = core.q("""SELECT * FROM updates WHERE result != 'Registado'
                          ORDER BY ts DESC, id DESC LIMIT 10""")
     relatorio = core.q("SELECT * FROM reports ORDER BY id DESC LIMIT 1", one=True)
@@ -218,7 +220,7 @@ def contentores():
     if filtro:
         sql += " WHERE name LIKE ? OR image LIKE ?"
         args = (f"%{filtro}%", f"%{filtro}%")
-    sql += " ORDER BY state='removido', name"
+    sql += " ORDER BY IFNULL(state,'')='removido', name"
     return render_template("contentores.html", lista=core.q(sql, args), filtro=filtro,
                            docker_ok=core.docker_ok(), last_sync=core.meta_get("last_sync"))
 
@@ -259,7 +261,10 @@ def acao_atualizar():
 def acao_sincronizar():
     try:
         n = core.sync_containers()
-        flash(f"Lista sincronizada: {n} contentor(es).", "ok")
+        if n is None:
+            flash("Sem socket do Docker: a lista é atualizada pelos relatórios do Watchtower.", "erro")
+        else:
+            flash(f"Lista sincronizada: {n} contentor(es).", "ok")
     except Exception as e:  # noqa: BLE001
         flash(f"Não foi possível ler o Docker: {e}", "erro")
     return redirect(request.form.get("voltar") or url_for("contentores"))
@@ -390,7 +395,7 @@ def logs():
     filtro = request.args.get("q", "").strip()
     try:
         if fonte == "watchtower":
-            texto = core.docker_logs(core.WT_CONTAINER, linhas) if core.docker_ok() else ["(sem acesso ao socket do Docker)"]
+            texto = core.docker_logs(core.WT_CONTAINER, linhas) if core.docker_ok() else core.wt_log_lines(linhas)
         elif fonte == "portal":
             texto = _tail(os.path.join(core.LOG_DIR, "portal.log"), linhas)
         else:

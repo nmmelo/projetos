@@ -51,7 +51,8 @@ CREATE INDEX IF NOT EXISTS login_attempts_ip ON login_attempts(ip, ts);
 CREATE TABLE IF NOT EXISTS containers (
     name TEXT PRIMARY KEY,
     image TEXT, version TEXT, image_id TEXT, digest TEXT,
-    state TEXT, status TEXT, first_seen TEXT, last_seen TEXT, last_update TEXT
+    state TEXT, status TEXT, first_seen TEXT, last_seen TEXT, last_update TEXT,
+    wt_state TEXT, wt_checked TEXT
 );
 CREATE TABLE IF NOT EXISTS updates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,6 +66,10 @@ CREATE TABLE IF NOT EXISTS reports (
     ts TEXT NOT NULL, scanned INTEGER, updated INTEGER, failed INTEGER, raw TEXT
 );
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS wt_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, level TEXT, msg TEXT
+);
+CREATE INDEX IF NOT EXISTS wt_logs_ts ON wt_logs(ts);
 """
 
 
@@ -143,6 +148,10 @@ def init_db(hash_fn):
     try:
         con.execute("PRAGMA journal_mode=WAL")
         con.executescript(SCHEMA)
+        cols = {r[1] for r in con.execute("PRAGMA table_info(containers)")}
+        for col in ("wt_state", "wt_checked"):
+            if col not in cols:
+                con.execute(f"ALTER TABLE containers ADD COLUMN {col} TEXT")
         con.commit()
     finally:
         con.close()
@@ -230,9 +239,9 @@ def manual_source():
 
 
 def sync_containers():
-    """Lê os contentores no Docker e regista as mudanças de imagem (= atualizações)."""
+    """Lê os contentores no Docker e regista as mudanças de imagem (= atualizações). Sem socket devolve None."""
     if not docker_ok():
-        return 0
+        return None
     with _sync_lock:
         lista = docker_get("/containers/json?all=1")
         imgs, vistos, ts = {}, set(), now()
@@ -337,7 +346,24 @@ def wt_update_async(images, user, ip):
 
 
 # ---------------------------------------------------------------- webhook (relatório do Watchtower)
+WT_STATES = {"updated": "Atualizado", "failed": "Falhou", "fresh": "Sem alterações", "skipped": "Ignorado",
+             "stale": "Desatualizado", "scanned": "Verificado"}
+
+
+def _record_seen(name, image, image_id, ts):
+    """Garante o registo do contentor; devolve a linha anterior (ou None se é novo)."""
+    old = q("SELECT * FROM containers WHERE name=?", (name,), one=True)
+    if old is None:
+        version = _tag(image) or short_id(image_id)
+        ex("""INSERT INTO containers(name,image,version,image_id,first_seen,last_seen)
+              VALUES(?,?,?,?,?,?)""", (name, image, version, image_id, ts, ts))
+        ex("""INSERT INTO updates(container,ts,to_version,to_image_id,source,result)
+              VALUES(?,?,?,?,?,?)""", (name, ts, version, image_id, "Registo inicial", "Registado"))
+    return old
+
+
 def handle_report(body):
+    """Relatório JSON do Watchtower (ver watchtower-exemplo.yml): todos os contentores verificados + logs da sessão."""
     text = body.decode(errors="replace").strip()
     data = None
     try:
@@ -351,20 +377,59 @@ def handle_report(body):
         ex("INSERT INTO reports(ts,raw) VALUES(?,?)", (ts, text[:4000]))
         log.info("webhook: mensagem não estruturada recebida (%d bytes)", len(text))
         return
-    updated = [u for u in data.get("updated", []) if u]
-    failed = [f for f in data.get("failed", []) if f]
+    items = [c for c in data.get("containers", []) if c]
+    # formato antigo: só listas updated/failed
+    items += [dict(c, state="updated") for c in data.get("updated", []) if c]
+    items += [dict(c, state="failed") for c in data.get("failed", []) if c]
+    n_upd = n_fail = 0
+    for c in items:
+        name = (c.get("name") or "?").lstrip("/")
+        image = c.get("image") or ""
+        state = (c.get("state") or "").lower()
+        cur_id, new_id = c.get("from") or "", c.get("to") or ""
+        old = _record_seen(name, image, cur_id or new_id, ts)
+        if old is None:
+            old = q("SELECT * FROM containers WHERE name=?", (name,), one=True)
+        version_new = _tag(image) or short_id(new_id)
+        src = manual_source() or "Watchtower"
+        if state == "updated":
+            n_upd += 1
+            if new_id and old["image_id"] != new_id:  # pode já ter sido registado pela leitura do Docker
+                ex("""INSERT INTO updates(container,ts,from_version,from_image_id,to_version,to_image_id,source,result)
+                      VALUES(?,?,?,?,?,?,?,?)""",
+                   (name, ts, old["version"], old["image_id"], version_new, new_id, src, "OK"))
+                ex("UPDATE containers SET image_id=?, version=?, last_update=? WHERE name=?",
+                   (new_id, version_new if not docker_ok() else old["version"], ts, name))
+        elif state == "failed":
+            n_fail += 1
+            ex("""INSERT INTO updates(container,ts,from_version,from_image_id,source,result,detail)
+                  VALUES(?,?,?,?,?,?,?)""",
+               (name, ts, old["version"], old["image_id"], src, "Falhou", (c.get("error") or "")[:1000]))
+        elif cur_id and old["image_id"] and old["image_id"] != cur_id and not docker_ok():
+            # imagem mudou fora do Watchtower (ex. docker compose pull manual)
+            ex("""INSERT INTO updates(container,ts,from_version,from_image_id,to_version,to_image_id,source,result)
+                  VALUES(?,?,?,?,?,?,?,?)""",
+               (name, ts, old["version"], old["image_id"], _tag(image) or short_id(cur_id), cur_id,
+                "Fora do Watchtower", "OK"))
+            ex("UPDATE containers SET image_id=?, version=?, last_update=? WHERE name=?",
+               (cur_id, _tag(image) or short_id(cur_id), ts, name))
+        ex("UPDATE containers SET wt_state=?, wt_checked=?, last_seen=?, image=? WHERE name=?",
+           (WT_STATES.get(state, state or "—"), ts, ts, image or old["image"], name))
+    for e in data.get("entries", []) or []:
+        if e and e.get("msg"):
+            ex("INSERT INTO wt_logs(ts,level,msg) VALUES(?,?,?)",
+               (e.get("time") or ts, (e.get("level") or "").lower(), e["msg"][:2000]))
     ex("INSERT INTO reports(ts,scanned,updated,failed,raw) VALUES(?,?,?,?,?)",
-       (ts, data.get("scanned"), len(updated), len(failed), text[:4000]))
+       (ts, data.get("scanned"), n_upd, n_fail, text[:4000]))
     meta_set("last_report", ts)
-    for f in failed:
-        name = f.get("name", "?").lstrip("/")
-        cur = q("SELECT version,image_id FROM containers WHERE name=?", (name,), one=True)
-        ex("""INSERT INTO updates(container,ts,from_version,from_image_id,source,result,detail)
-              VALUES(?,?,?,?,?,?,?)""",
-           (name, ts, cur["version"] if cur else None, cur["image_id"] if cur else None,
-            manual_source() or "Watchtower", "Falhou", (f.get("error") or "")[:1000]))
-    log.info("webhook: verificados=%s atualizados=%d falhados=%d", data.get("scanned"), len(updated), len(failed))
-    threading.Thread(target=_safe_sync, daemon=True).start()
+    log.info("webhook: verificados=%s atualizados=%d falhados=%d", data.get("scanned"), n_upd, n_fail)
+    if docker_ok():
+        threading.Thread(target=_safe_sync, daemon=True).start()
+
+
+def wt_log_lines(n):
+    rows = q("SELECT ts,level,msg FROM wt_logs ORDER BY id DESC LIMIT ?", (int(n),))
+    return [f"{r['ts']} {r['level'].upper():5} {r['msg']}" for r in reversed(rows)]
 
 
 def _safe_sync():
@@ -380,6 +445,7 @@ def purge():
     cutoff = (datetime.now() - timedelta(days=RETENTION_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
     ex("DELETE FROM audit WHERE ts < ?", (cutoff,))
     ex("DELETE FROM reports WHERE ts < ?", (cutoff,))
+    ex("DELETE FROM wt_logs WHERE ts < ?", (cutoff,))
     ex("DELETE FROM login_attempts WHERE ts < ?", (time.time() - 86400,))
 
 

@@ -110,3 +110,25 @@ O nginx com a página estática passou a portal Python (Flask + Gunicorn atrás 
 | Variáveis | `DATA_DIR`, `SSH_USER`, `SSH_UID`, `ADMIN_USER`, `ADMIN_PASSWORD`, `LOG_RETENTION_DAYS`, `WEBHOOK_TOKEN`, … |
 
 O que acrescentar ao watchtower existente ficou em `watchtower-exemplo.yml`.
+
+---
+
+## 6. Sem socket do Docker
+
+**Pergunta:**
+> Sim este ui vai estar apenas disponível na rede local com o docker, podemos é ter depois a saída web do portal noutra
+> rede. Mas o portal preciso do socket, não pode recebe do outro container watchtower
+
+**Resposta:**
+Pode. O relatório do Watchtower passou a incluir todos os contentores verificados (`.Report.All`: nome, imagem, estado,
+ID atual e novo, erro) e as linhas de log da sessão (`.Entries`). O portal constrói a lista, o histórico e os logs do
+Watchtower só com isso; o socket ficou opcional (comentado no compose).
+
+| | Sem socket (omissão) | Com socket |
+|---|---|---|
+| Lista e histórico | A cada verificação do Watchtower | Também a cada 60 s |
+| Versão | Tag + ID da imagem | Label OCI ou tag + ID |
+| Estado a correr/parado | Não | Sim |
+| Logs do Watchtower | Os enviados nos relatórios | Em tempo real |
+
+Saída web noutra rede: rede extra `web-net` (comentada) no compose e `PROXY_HOPS=2` atrás de um proxy reverso.
