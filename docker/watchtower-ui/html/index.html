@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watchtower</title>
+<style>
+  :root { --bg:#0f1419; --card:#1a2129; --line:#2a333d; --txt:#e6e9ec; --mut:#8a96a3;
+          --acc:#3d8bfd; --ok:#2fb67c; --err:#e5534b; --warn:#d4a72c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--txt); }
+  main { max-width:900px; margin:0 auto; padding:24px 16px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--mut); margin-bottom:24px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:18px; margin-bottom:16px; }
+  .card h2 { font-size:15px; margin:0 0 12px; text-transform:uppercase; letter-spacing:.05em; color:var(--mut); }
+  table { width:100%; border-collapse:collapse; }
+  td, th { padding:8px 6px; border-bottom:1px solid var(--line); text-align:left; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; font-weight:600; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  input { flex:1; min-width:220px; padding:9px 10px; border-radius:6px; border:1px solid var(--line);
+          background:var(--bg); color:var(--txt); font:inherit; }
+  button { padding:9px 16px; border:0; border-radius:6px; background:var(--acc); color:#fff; font:inherit; cursor:pointer; }
+  button.sec { background:var(--line); }
+  button:disabled { opacity:.5; cursor:wait; }
+  .status { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--mut); margin-right:6px; }
+  .status.ok { background:var(--ok); } .status.err { background:var(--err); }
+  #log { font:13px/1.6 ui-monospace,monospace; max-height:260px; overflow:auto; margin:0; }
+  #log .ok { color:var(--ok); } #log .err { color:var(--err); } #log .info { color:var(--warn); }
+  .hint { color:var(--mut); font-size:13px; margin-top:8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Watchtower</h1>
+  <div class="sub"><span id="dot" class="status"></span><span id="conn">A ligar…</span></div>
+
+  <div class="card">
+    <h2>Métricas (última verificação)</h2>
+    <table>
+      <tbody id="metrics">
+        <tr><td>Contentores verificados</td><td class="num" data-m="watchtower_containers_scanned">–</td></tr>
+        <tr><td>Contentores atualizados</td><td class="num" data-m="watchtower_containers_updated">–</td></tr>
+        <tr><td>Contentores com falha</td><td class="num" data-m="watchtower_containers_failed">–</td></tr>
+        <tr><td>Total de verificações</td><td class="num" data-m="watchtower_scans_total">–</td></tr>
+        <tr><td>Verificações ignoradas</td><td class="num" data-m="watchtower_scans_skipped">–</td></tr>
+      </tbody>
+    </table>
+    <div class="hint">Atualizado de 30 em 30 s · <span id="last">–</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Atualizar</h2>
+    <div class="row">
+      <button id="btnAll">Atualizar todos</button>
+      <button id="btnRefresh" class="sec">Recarregar métricas</button>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <input id="images" placeholder="Imagens, separadas por vírgula (ex.: nginx,mariadb)">
+      <button id="btnImg">Atualizar imagens</button>
+    </div>
+    <div class="hint">O pedido fica pendente até o Watchtower terminar (pull + recriar contentores).</div>
+  </div>
+
+  <div class="card">
+    <h2>Registo</h2>
+    <pre id="log"></pre>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+
+function log(msg, cls = '') {
+  const t = new Date().toLocaleTimeString('pt-PT');
+  const line = document.createElement('div');
+  line.className = cls;
+  line.textContent = `[${t}] ${msg}`;
+  $('#log').prepend(line);
+}
+
+function setConn(ok, text) {
+  $('#dot').className = 'status ' + (ok ? 'ok' : 'err');
+  $('#conn').textContent = text;
+}
+
+function parseProm(text) {
+  const out = {};
+  for (const l of text.split('\n')) {
+    if (!l || l.startsWith('#')) continue;
+    const m = l.match(/^([a-zA-Z_:][\w:]*)(\{[^}]*\})?\s+([^\s]+)/);
+    if (m) out[m[1]] = Number(m[3]);
+  }
+  return out;
+}
+
+async function loadMetrics() {
+  try {
+    const r = await fetch('/api/metrics', { cache: 'no-store' });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const m = parseProm(await r.text());
+    document.querySelectorAll('[data-m]').forEach(td => {
+      const v = m[td.dataset.m];
+      td.textContent = v === undefined ? '–' : v;
+    });
+    $('#last').textContent = 'última leitura ' + new Date().toLocaleTimeString('pt-PT');
+    setConn(true, 'Ligado ao Watchtower');
+  } catch (e) {
+    setConn(false, 'Sem ligação à API (' + e.message + ')');
+  }
+}
+
+async function runUpdate(images) {
+  const btns = [$('#btnAll'), $('#btnImg')];
+  btns.forEach(b => b.disabled = true);
+  const qs = images ? '?image=' + encodeURIComponent(images) : '';
+  log(images ? `Pedido de update: ${images}` : 'Pedido de update: todos', 'info');
+  const t0 = performance.now();
+  try {
+    const r = await fetch('/api/update' + qs, { method: 'POST' });
+    const s = ((performance.now() - t0) / 1000).toFixed(1);
+    if (r.ok) log(`Update concluído (${s} s)`, 'ok');
+    else log(`Erro HTTP ${r.status}: ${(await r.text()).trim() || r.statusText}`, 'err');
+  } catch (e) {
+    log('Falha no pedido: ' + e.message, 'err');
+  } finally {
+    btns.forEach(b => b.disabled = false);
+    loadMetrics();
+  }
+}
+
+$('#btnAll').onclick = () => runUpdate('');
+$('#btnImg').onclick = () => {
+  const v = $('#images').value.split(',').map(s => s.trim()).filter(Boolean).join(',');
+  if (!v) return log('Indica pelo menos uma imagem.', 'err');
+  runUpdate(v);
+};
+$('#btnRefresh').onclick = loadMetrics;
+
+loadMetrics();
+setInterval(loadMetrics, 30000);
+</script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+services:
+  watchtower-ui:
+    image: nginx:alpine
+    container_name: watchtower-ui
+    restart: unless-stopped
+    ports:
+      - "${UI_PORT:-8090}:80"
+    environment:
+      TZ: ${TZ:-Europe/Lisbon}
+      WATCHTOWER_HOST: ${WATCHTOWER_HOST:-watchtower}
+      WATCHTOWER_PORT: ${WATCHTOWER_PORT:-8080}
+      WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:?definir no .env}
+    volumes:
+      - ./templates:/etc/nginx/templates:ro
+      - ./html:/usr/share/nginx/html:ro
+    networks:
+      - watchtower-net
+
+# Rede já existente, partilhada com o contentor watchtower
+networks:
+  watchtower-net:
+    name: ${WATCHTOWER_NETWORK:-watchtower-net}
+    external: true
