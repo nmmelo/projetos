@@ -187,3 +187,15 @@ Causa: o valor de `SSH_USER` chegou ao build com um espaço no fim (espaço ou c
 `docker-compose` antigo inclui-o). O ficheiro foi criado como `"<utilizador> "` e o `chmod`, sem aspas, procurou
 `<utilizador>`. Correção: o Dockerfile limpa os espaços de `SSH_USER`/`SSH_UID`, valida-os, usa aspas e guarda o nome em
 `/etc/portal-user` (lido pelo entrypoint); o `.env.example` deixou de ter comentários no fim das linhas.
+
+---
+
+## 11. Erro no arranque: bind mount
+
+**Pergunta:**
+> Cannot start service watchtower-ui: Bind mount failed: '/volume1/docker/watchtower-ui/hostkeys' does not exists
+
+**Resposta:**
+O Docker do Synology não cria as pastas dos bind mounts. Criar antes: `mkdir -p db logs hostkeys ssh`,
+`touch ssh/authorized_keys` e `chown` de `db/` e `logs/` para o `SSH_UID`. Ficou o script `preparar.sh`, que lê `DATA_DIR`
+e `SSH_UID` do `.env` e faz isto.

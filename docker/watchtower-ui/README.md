@@ -61,6 +61,7 @@ watchtower-ui/
 ├── docker-compose.yml          # contentor na rede externa do watchtower
 ├── entrypoint.sh               # pastas de dados, host key, utilizadores SSH, socket do Docker, portal e nginx
 ├── ssh-utilizadores.sh         # utilizadores SSH, chaves e sudo em cada arranque
+├── preparar.sh                 # cria as pastas dos mounts em DATA_DIR (obrigatório no Synology)
 ├── nginx.conf                  # proxy para o portal + ficheiros estáticos
 ├── portal/
 │   ├── app.py                  # rotas: login, painel, contentores, configuração, webhook
@@ -137,7 +138,8 @@ openssl rand -hex 32    # WEBHOOK_TOKEN (no .env do portal e no URL de notifica�
 docker network create watchtower-net                 # se ainda não existir
 cd docker/watchtower-ui
 cp .env.example .env                                 # DATA_DIR, SSH_USER, SSH_UID, ADMIN_*, tokens
-cp ssh/authorized_keys.example ssh/authorized_keys   # (em DATA_DIR) colar a chave pública SSH
+./preparar.sh                                        # cria db/, logs/, hostkeys/, ssh/authorized_keys em DATA_DIR
+# colar a chave pública SSH em DATA_DIR/ssh/authorized_keys
 docker compose up -d --build
 docker logs watchtower-ui                            # password inicial, se ADMIN_PASSWORD estiver vazio
 ```
@@ -204,6 +206,7 @@ docker exec -u <SSH_USER> watchtower-ui sqlite3 /data/db/watchtower-ui.db \
 | Com socket: lista vazia | Permissões do socket: ver `docker logs watchtower-ui` (linha `docker: socket com GID ...`) |
 | Build falha em `chmod: cannot access '/etc/sudoers.d/...'` (versões antigas) | Espaço ou comentário depois do valor de `SSH_USER` no `.env` (o `docker-compose` antigo inclui-o no valor). Ver com `cat -A .env \| grep -E ' \$\|#'`; o Dockerfile atual já limpa os espaços |
 | Portas ou variáveis estranhas com `docker-compose` (v1) | Comentários no fim das linhas do `.env`: pôr os comentários em linhas próprias. De preferência usar `docker compose` (v2) |
+| `Bind mount failed: '.../hostkeys' does not exists` (Synology) | O Docker do Synology não cria as pastas dos mounts: correr `./preparar.sh` |
 | SSH recusa a chave | Ver `docker logs watchtower-ui` (linha `ssh: <utilizador> com N chave(s)`) |
 
 ## Segurança
