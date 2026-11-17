@@ -13,6 +13,7 @@ utilização e um `CONVERSA.md` com o resumo do chat que deu origem ao projeto.
 | Monitor RMAN | [`oracledb`](oracledb) › [`scripts`](oracledb/scripts) › [`rman`](oracledb/scripts/rman) | Monitor pós-backup RMAN (Bash + Python): valida o log, apaga backups antigos quando a partição passa os 90% e envia email por SMTP com password cifrada |
 | Internet na VM por USB | [`linux`](linux) › [`geral`](linux/geral) › [`usb-wifi`](linux/geral/usb-wifi) | VM Ubuntu no VirtualBox com internet por uma pen LTE USB (passthrough), netplan e funções `rede-trabalho` / `rede-casa` para alternar entre a pen e o NAT |
 | Mount is live | [`linux`](linux) › [`geral`](linux/geral) › [`mount-islive`](linux/geral/mount-islive) | Testa de X em X minutos se os mounts do fstab respondem (escrita de `teste.txt` com timeout), refaz o mount e envia email SMTP com a hora da falha e do teste com sucesso. Setup interativo com `.env` e password cifrada |
+| Migração mod_php → php-fpm | [`linux`](linux) › [`geral`](linux/geral) › [`migrate-php-fpm`](linux/geral/migrate-php-fpm) | Script interativo (um a um ou AUTO) que migra os virtualhosts ativos do Apache de mod_php para php-fpm: backup, diretivas `php_*` convertidas para um pool por site, SetHandler em 80/443, `.htaccess` → `.user.ini`, validação com a linha do erro, reload, log e desativação do mod_php |
 | Limpeza de logs Oracle | [`linux`](linux) › [`geral`](linux/geral) › [`limpeza-logs-oracle`](linux/geral/limpeza-logs-oracle) | Assistente com fundo azul (whiptail) para limpar logs sem reiniciar a BD: por caminho e padrão (alert.log, listener.log, `*.trc`, `*.aud`) define tamanho máximo e/ou dias e a ação (rodar com cópia .gz, esvaziar ou apagar). Configuração tipo `.env`, simulação, crontab ou logrotate e histórico de 365 dias com resumo mensal |
 | Contagem de linhas de código | [`outros`](outros) › [`count-code`](outros/count-code) | Script Bash/Python que conta as linhas de código, comentários e em branco de um projeto, por linguagem, pasta e ficheiro, com saída em tabela ou JSON |
 | Estatísticas do GitHub | [`geral`](geral) › [`estatisticas_github`](geral/estatisticas_github) | Profile README do GitHub (repositório `utilizador/utilizador`) com badges, contactos e estatísticas dinâmicas do github-stats-extended; inclui exemplo pronto a usar |
@@ -33,6 +34,7 @@ projetos/
 │   └── geral/                      # Configurações gerais
 │       ├── README.md
 │       ├── limpeza-logs-oracle/    # Limpeza de logs Oracle (alert.log, traces, audit)
+│       ├── migrate-php-fpm/        # Migração do Apache de mod_php para php-fpm
 │       ├── mount-islive/           # Validação e remount automático de mounts
 │       └── usb-wifi/               # Internet na VM por pen LTE USB
 ├── oracledb/                       # Oracle Database

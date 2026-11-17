@@ -1,0 +1,41 @@
+# migrate-php-fpm.conf
+# Copie para migrate-php-fpm.conf (na mesma pasta do script) e altere só o que for preciso.
+# As opções da linha de comando têm prioridade sobre este ficheiro.
+
+# Apache
+#APACHE_DIR="/etc/apache2"
+#SITES_AVAILABLE=""            # vazio = $APACHE_DIR/sites-available
+#SITES_ENABLED=""              # vazio = $APACHE_DIR/sites-enabled
+
+# PHP / php-fpm
+#PHP_ETC="/etc/php"
+#PHP_VER=""                    # vazio = a do mod_php ativo (mods-enabled/phpX.Y.load)
+#POOL_DIR=""                   # vazio = /etc/php/X.Y/fpm/pool.d
+#RUN_DIR="/run/php"            # sockets: $RUN_DIR/phpX.Y-fpm-<nome>.sock
+#PHP_LOG_DIR="/var/log"        # error_log: $PHP_LOG_DIR/<nome>.php.error.log
+
+# Pool
+#FPM_USER="www-data"
+#FPM_GROUP="www-data"
+#PM="dynamic"
+#PM_MAX_CHILDREN=20
+#PM_START_SERVERS=4
+#PM_MIN_SPARE_SERVERS=2
+#PM_MAX_SPARE_SERVERS=6
+#PM_MAX_REQUESTS=500
+#REQUEST_TERMINATE_TIMEOUT=300
+
+# 1 = php_value -> php_admin_value e php_flag -> php_admin_flag (0 = mantém o tipo)
+#CONVERTER_PARA_ADMIN=1
+
+# include_path acrescentado sempre ao pool. {BASE} = /var/<pasta> do DocumentRoot
+# (DocumentRoot /var/portal/internet -> /var/portal); fora de /var/<pasta> usa BASE_PADRAO.
+#INCLUDE_PATH_PADRAO=1
+#INCLUDE_PATH_TEMPLATE='.:/usr/share/php:{BASE}/conn:{BASE}/codelib:{BASE}/internet/000-config:{BASE}/internet/999-error'
+#BASE_PADRAO="/var/www"
+
+# Variáveis de ambiente (SetEnv do vhost e exports do /etc/apache2/envvars) propostas para env[...]
+#ENV_REGEX='^(ORACLE_|TNS_ADMIN|LD_LIBRARY_PATH|NLS_)'
+
+# Log da execução (vazio = <pasta do script>/logs/migrate-php-fpm_<data>.log)
+#LOG_FILE=""
