@@ -449,8 +449,14 @@ def clientes():
     if request.method == "POST":
         acao, nome = request.form.get("acao"), request.form.get("nome", "")
         if acao == "criar":
+            val = request.form.get("validade") or ""
+            if val == "data":
+                val = request.form.get("validade_data") or ""
             mostrar_chave(f"Chave do cliente '{nome}'",
-                          c.criar_cliente(nome, request.form.get("descricao", ""), request.form.get("preset")))
+                          c.criar_cliente(nome, request.form.get("descricao", ""), request.form.get("preset"), val))
+        elif acao == "validade":
+            exp = c.definir_validade(nome, request.form.get("validade", ""))
+            flash(f"Validade da chave de '{nome}': {exp[:10] if exp else 'sem validade'}", "ok")
         elif acao == "regenerar":
             mostrar_chave(f"Nova chave do cliente '{nome}'", c.regenerar_cliente(nome))
         elif acao in ("ativar", "desativar"):
@@ -466,21 +472,38 @@ def clientes():
 <input name="nome" placeholder="nome (ex.: portal)" required pattern="[A-Za-z0-9._-]+">
 <input name="descricao" placeholder="descrição" style="width:280px">
 <select name="preset">{% for n, lst in presets.items() %}<option value="{{ n }}" {{ 'selected' if n==omissao }}>{{ n }} ({{ lst|length }})</option>{% endfor %}</select>
+<select name="validade" title="Validade da chave" onchange="this.form.validade_data.style.display = this.value=='data' ? '' : 'none'">
+<option value="">sem validade</option><option value="30">30 dias</option><option value="90">90 dias</option>
+<option value="180">180 dias</option><option value="365">1 ano</option><option value="data">até à data…</option></select>
+<input type="date" name="validade_data" style="display:none">
 <button>Criar e gerar chave</button></form>
-<p class="mutt">O cliente usa a chave no header <code>X-API-Key</code> em <code>http://tesla-key:8000/api/...</code></p></div>
+<p class="mutt">O cliente usa a chave no header <code>X-API-Key</code> em <code>http://tesla-key:8000/api/...</code>.
+Validade em dias: ao gerar uma nova chave volta a contar a partir desse dia. Uma chave expirada não é apagada: é recusada (401) até gerar uma nova ou alterar a validade.</p></div>
+{% set avisos = lista|selectattr('val', 'in', ['expirada', 'a_expirar'])|list %}
+{% if avisos %}<div class="card">{% for x in avisos %}<p style="margin:4px 0">{% if x.val == 'expirada' %}<span class="b err">expirada</span>
+A chave de <b>{{ x.nome }}</b> expirou em {{ x.expira_em[:10] }}: os pedidos são recusados.{% else %}<span class="b warn">a expirar</span>
+A chave de <b>{{ x.nome }}</b> expira em {{ x.expira_em[:10] }} ({{ x.dias }} dias).{% endif %}</p>{% endfor %}</div>{% endif %}
 <div class="card"><h2>Clientes</h2><table>
-<tr><th>Nome</th><th>Descrição</th><th>Chave</th><th>Estado</th><th>Permissões</th><th>Último uso</th><th>Pedidos</th><th></th></tr>
+<tr><th>Nome</th><th>Descrição</th><th>Chave</th><th>Estado</th><th>Validade</th><th>Permissões</th><th>Último uso</th><th>Pedidos</th><th></th></tr>
 {% for x in lista %}<tr>
-<td><b>{{ x.nome }}</b></td><td>{{ x.descricao }}</td><td><code>{{ x.prefixo }}…</code></td>
+<td><b>{{ x.nome }}</b></td><td>{{ x.descricao }}</td><td style="white-space:nowrap"><code style="word-break:normal">{{ x.prefixo }}…</code></td>
 <td>{% if x.ativo %}<span class="b ok">ativo</span>{% else %}<span class="b mut">inativo</span>{% endif %}</td>
+<td><div style="min-width:11em">{% if x.val == 'sem' %}<span class="mutt">sem validade</span>{% elif x.val == 'expirada' %}<span class="b err">expirou {{ x.expira_em[:10] }}</span>
+{% else %}<span class="b {{ 'warn' if x.val == 'a_expirar' else 'mut' }}">até {{ x.expira_em[:10] }}</span> <small class="mutt" style="white-space:nowrap">{{ x.dias }} dias</small>{% endif %}
+{% if x.validade_dias %}<br><small class="mutt">renova {{ x.validade_dias }} dias</small>{% endif %}
+{% if session.get('perfil') == 'admin' %}<details style="margin-top:4px"><summary class="mutt" style="cursor:pointer">alterar</summary>
+<form method="post" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">
+<input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="validade"><input type="hidden" name="nome" value="{{ x.nome }}">
+<input name="validade" placeholder="dias, AAAA-MM-DD ou nunca" style="width:13em;max-width:100%" required><button class="sec">Guardar</button></form></details>{% endif %}</div></td>
 <td style="max-width:260px">{% for p in (x.permissoes or '').split(',') if p %}<span class="b mut" style="margin:1px">{{ p }}</span>{% else %}<span class="mutt">nenhuma</span>{% endfor %}</td>
 <td>{{ x.ultimo_uso or '—' }}</td><td>{{ x.pedidos }}</td>
 <td style="white-space:nowrap"><a href="{{ url_for('cliente_perm', nome=x.nome) }}"><button type="button">Permissões</button></a>{% for a,l,cl in [('desativar' if x.ativo else 'ativar', 'Desativar' if x.ativo else 'Ativar','sec'),('regenerar','Nova chave','sec'),('apagar','Apagar','del')] %}
 <form class="in" method="post" {% if a=='apagar' or a=='regenerar' %}onsubmit="return confirm('{{ l }} {{ x.nome }}?')"{% endif %}>
 <input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="{{ a }}"><input type="hidden" name="nome" value="{{ x.nome }}">
 <button class="{{ cl }}">{{ l }}</button></form>{% endfor %}</td></tr>
-{% else %}<tr><td colspan="8" class="mutt">Sem clientes.</td></tr>{% endfor %}
-</table></div>""", lista=c.listar_clientes(), presets=c.PRESETS, omissao=c.PERMISSAO_OMISSAO)
+{% else %}<tr><td colspan="9" class="mutt">Sem clientes.</td></tr>{% endfor %}
+</table></div>""", lista=[{**x, "val": c.estado_validade(x["expira_em"])[0], "dias": c.estado_validade(x["expira_em"])[1]}
+                       for x in c.listar_clientes()], presets=c.PRESETS, omissao=c.PERMISSAO_OMISSAO)
 
 
 @app.route("/clientes/<nome>", methods=["GET", "POST"])

@@ -284,6 +284,10 @@ def init_db():
             for d in defs:
                 if d.split()[0] not in existentes:
                     c.execute(f"ALTER TABLE {tab} ADD COLUMN {d}")
+        cols_cli = [r[1] for r in c.execute("PRAGMA table_info(clientes)")]
+        for d in ("expira_em TEXT", "validade_dias INTEGER"):
+            if cols_cli and d.split()[0] not in cols_cli:
+                c.execute(f"ALTER TABLE clientes ADD COLUMN {d}")
         c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_viagens_tessie ON viagens(tessie_id) WHERE tessie_id IS NOT NULL")
         c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_carreg_tessie ON carregamentos(tessie_id) WHERE tessie_id IS NOT NULL")
         cols = [r[1] for r in c.execute("PRAGMA table_info(clientes)")]
@@ -456,18 +460,66 @@ def permissoes_cliente(nome):
     return [p for p in (r["permissoes"] or "").split(",") if p]
 
 
-def criar_cliente(nome, descricao="", permissoes=None):
+def ler_validade(valor):
+    """Converte a validade pedida em (dias, data ISO de expiração).
+    Aceita: vazio/0/"nunca"/"sem" (sem validade), número de dias ("90", "90d"), ou data ("2027-06-30")."""
+    v = (str(valor).strip().lower() if valor is not None else "")
+    if v in ("", "0", "nunca", "sem", "ilimitada", "none"):
+        return None, None
+    m = re.fullmatch(r"(\d{1,5})\s*d?", v)
+    if m:
+        dias = int(m[1])
+        if not 1 <= dias <= 3650:
+            raise ErroGateway(400, "validade: entre 1 e 3650 dias")
+        return dias, (datetime.now(timezone.utc) + timedelta(days=dias)).isoformat(timespec="seconds")
+    try:
+        d = datetime.fromisoformat(v)
+    except ValueError:
+        raise ErroGateway(400, "validade: número de dias (ex.: 90), data AAAA-MM-DD ou 'nunca'")
+    if d.tzinfo is None:
+        d = d.replace(hour=23, minute=59, second=59, tzinfo=timezone.utc) if len(v) == 10 else d.replace(tzinfo=timezone.utc)
+    if d <= datetime.now(timezone.utc):
+        raise ErroGateway(400, "validade: a data tem de ser no futuro")
+    return None, d.isoformat(timespec="seconds")
+
+
+def estado_validade(expira_em):
+    """("sem", None) | ("valida", dias) | ("a_expirar", dias) (≤ 14 dias) | ("expirada", dias negativos)."""
+    if not expira_em:
+        return "sem", None
+    try:
+        falta = datetime.fromisoformat(expira_em) - datetime.now(timezone.utc)
+    except ValueError:
+        return "sem", None
+    dias = falta.days
+    if falta.total_seconds() <= 0:
+        return "expirada", dias
+    return ("a_expirar" if dias < 14 else "valida"), dias
+
+
+def definir_validade(nome, valor):
+    dias, expira = ler_validade(valor)
+    with db() as c:
+        n = c.execute("UPDATE clientes SET expira_em=?, validade_dias=? WHERE nome=?", (expira, dias, nome)).rowcount
+    if not n:
+        raise ErroGateway(404, f"cliente '{nome}' não existe")
+    log("WARNING", "admin", f"validade da chave de {nome}: {expira[:10] if expira else 'sem validade'}")
+    return expira
+
+
+def criar_cliente(nome, descricao="", permissoes=None, validade=None):
     nome = nome.strip()
     if not nome or not all(ch.isalnum() or ch in "-_." for ch in nome):
         raise ErroGateway(400, "nome inválido (letras, números, - _ .)")
     perms = resolver_permissoes(permissoes if permissoes is not None else PERMISSAO_OMISSAO)
+    dias, expira = ler_validade(validade)
     chave, pref = nova_chave("tk")
     try:
         with db() as c:
             c.execute(
-                "INSERT INTO clientes(nome, descricao, chave_hash, prefixo, criado_em, permissoes)"
-                " VALUES (?,?,?,?,?,?)",
-                (nome, descricao, hash_chave(chave), pref, agora_iso(), ",".join(perms)),
+                "INSERT INTO clientes(nome, descricao, chave_hash, prefixo, criado_em, permissoes, expira_em, validade_dias)"
+                " VALUES (?,?,?,?,?,?,?,?)",
+                (nome, descricao, hash_chave(chave), pref, agora_iso(), ",".join(perms), expira, dias),
             )
     except sqlite3.IntegrityError:
         raise ErroGateway(409, f"já existe o cliente '{nome}'")
@@ -476,9 +528,14 @@ def criar_cliente(nome, descricao="", permissoes=None):
 
 
 def regenerar_cliente(nome):
+    """Nova chave. Se a validade foi dada em dias, volta a contar a partir de hoje;
+    se foi dada como data fixa, mantém-se; sem validade continua sem validade."""
     chave, pref = nova_chave("tk")
     with db() as c:
-        n = c.execute("UPDATE clientes SET chave_hash=?, prefixo=? WHERE nome=?",
+        n = c.execute("UPDATE clientes SET chave_hash=?, prefixo=?,"
+                      " expira_em=CASE WHEN validade_dias IS NOT NULL"
+                      "   THEN strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now', '+' || validade_dias || ' days')"
+                      "   ELSE expira_em END WHERE nome=?",
                       (hash_chave(chave), pref, nome)).rowcount
     if not n:
         raise ErroGateway(404, f"cliente '{nome}' não existe")
@@ -505,18 +562,28 @@ def apagar_cliente(nome):
 def listar_clientes():
     with db() as c:
         return [dict(r) for r in c.execute(
-            "SELECT id, nome, descricao, prefixo, ativo, criado_em, ultimo_uso, pedidos, permissoes"
-            " FROM clientes ORDER BY nome")]
+            "SELECT id, nome, descricao, prefixo, ativo, criado_em, ultimo_uso, pedidos, permissoes,"
+            " expira_em, validade_dias FROM clientes ORDER BY nome")]
 
 
-def validar_cliente(chave):
-    """Devolve (nome, permissões) do cliente ativo para a chave, ou (None, [])."""
+def validar_cliente(chave, motivo=None):
+    """Devolve (nome, permissões) do cliente ativo e dentro da validade, ou (None, []).
+    `motivo` (lista), se dada, recebe a razão da recusa: em_falta | invalida | inativo | expirada."""
+    motivo = motivo if motivo is not None else []
     if not chave:
+        motivo.append("em_falta")
         return None, []
     with db() as c:
-        r = c.execute("SELECT nome, ativo, permissoes FROM clientes WHERE chave_hash=?",
+        r = c.execute("SELECT nome, ativo, permissoes, expira_em FROM clientes WHERE chave_hash=?",
                       (hash_chave(chave),)).fetchone()
-        if not r or not r["ativo"]:
+        if not r:
+            motivo.append("invalida")
+            return None, []
+        if not r["ativo"]:
+            motivo.append("inativo")
+            return None, []
+        if estado_validade(r["expira_em"])[0] == "expirada":
+            motivo.append(f"expirada:{r['nome']}:{r['expira_em'][:10]}")
             return None, []
         c.execute("UPDATE clientes SET ultimo_uso=?, pedidos=pedidos+1 WHERE nome=?", (agora_iso(), r["nome"]))
         return r["nome"], [p for p in (r["permissoes"] or "").split(",") if p]

@@ -76,6 +76,7 @@ tesla-key/
 | `tesla-setup utilizador list\|add\|perfil\|password\|on\|off\|rm ...` | Utilizadores do portal (perfis `admin` e `leitura`) |
 | `tesla-setup auditoria [N] [TIPO]` | Auditoria do portal (login, login_falhado, bloqueado, acao, negado) |
 | `tesla-setup cliente add NOME [DESCRIÇÃO] [--perm LISTA]` | Cria um cliente e mostra a chave (só uma vez); sem `--perm` usa o preset `leitura` |
+| `tesla-setup cliente validade NOME DIAS\|AAAA-MM-DD\|nunca` | Validade da chave (expirada = recusada com 401, não apagada) |
 | `tesla-setup cliente list` | Lista os clientes (prefixo, estado, último uso, pedidos, permissões) |
 | `tesla-setup cliente perm NOME [set\|add\|rm LISTA]` | Mostra ou altera as permissões do cliente |
 | `tesla-setup permissoes` | Lista as permissões e os presets |
@@ -273,6 +274,21 @@ Registos que coincidem com os do gateway (±10 min viagens, ±30 min carregament
 viagens e carregamentos "inferidos" cobertos pela Tessie são substituídos. Faz um backup antes (`antes-tessie`) e
 pode repetir-se. O token não é guardado. Depois de cancelar a Tessie, o gateway continua a registar 1 medição de
 saúde da bateria por dia (autonomia atual ÷ bateria × 100, com bateria ≥ 50 %).
+
+### Validade das chaves dos clientes
+
+Cada chave pode ter validade (Clientes → ao criar, ou "alterar" na coluna Validade; consola
+`tesla-setup cliente validade portal 90`). Os clientes criados antes desta opção ficam **sem validade**.
+
+| Validade | Ao gerar nova chave |
+|---|---|
+| Sem validade (omissão) | Continua sem validade |
+| Em dias (ex.: 90) | Volta a contar 90 dias a partir desse dia |
+| Até uma data (ex.: 2027-06-30) | Mantém a data |
+
+Uma chave expirada não é apagada: os pedidos recebem 401 e o motivo fica em Logs → API
+("chave do cliente … expirou em …"). A página Clientes avisa 14 dias antes. O cliente pode consultar
+a validade em `GET /api/me` (`chave_expira_em`, `chave_dias_restantes`).
 
 ### Backups e exportação
 

@@ -182,11 +182,13 @@ Gateway (portal admin, clientes, Status API, logs):
   utilizador list|add|perfil|password|on|off|rm ...
                                 utilizadores do portal (perfis admin e leitura)
   auditoria [N] [TIPO]          auditoria do portal (logins, falhas, bloqueios, ações)
-  cliente add NOME [DESCRIÇÃO] [--perm LISTA]
+  cliente add NOME [DESCRIÇÃO] [--perm LISTA] [--validade DIAS|AAAA-MM-DD]
                                 cria cliente e mostra a chave X-API-Key
                                 (LISTA: preset tudo|leitura|basico|nenhuma ou ex.: carga,imagem)
   cliente list                  lista clientes e permissões
   cliente on|off|rm|chave NOME  ativa, desativa, apaga ou gera nova chave
+  cliente validade NOME DIAS|AAAA-MM-DD|nunca
+                                validade da chave (expirada = recusada, não apagada)
   cliente perm NOME [set|add|rm LISTA]
                                 mostra ou altera as permissões do cliente
   permissoes                    lista as permissões e presets disponíveis

@@ -53,11 +53,19 @@ def autenticar():
         g.cliente = "status-api"
         return
     if p.startswith("/api/"):
-        nome, perms = c.validar_cliente(request.headers.get("X-API-Key", ""))
+        motivo = []
+        nome, perms = c.validar_cliente(request.headers.get("X-API-Key", ""), motivo)
         g.perms = set(perms)
         if not nome:
             pref = (request.headers.get("X-API-Key", "") or "")[:9]
-            abort(401, f"X-API-Key {'em falta' if not pref else 'inválida (' + pref + '…)'} ou cliente inativo; IP {request.remote_addr}")
+            m = motivo[0] if motivo else "invalida"
+            texto = {"em_falta": "X-API-Key em falta", "inativo": f"cliente inativo ({pref}…)",
+                     "invalida": f"X-API-Key inválida ({pref}…)"}.get(m)
+            if m.startswith("expirada:"):
+                _, quem, quando = m.split(":", 2)
+                g.cliente = quem
+                texto = f"chave do cliente '{quem}' expirou em {quando} (gere uma nova ou altere a validade em Clientes)"
+            abort(401, f"{texto}; IP {request.remote_addr}")
         g.cliente = nome
         return
     abort(404, f"caminho inexistente: {p}")
@@ -323,8 +331,13 @@ def me():
     """Nome e permissões do cliente (sempre permitido)."""
     ativas = set(c.funcionalidades_ativas())
     efetivas = [p for p in c.PERMISSOES if p in g.perms and p in ativas]
+    with c.db() as con:
+        r = con.execute("SELECT expira_em FROM clientes WHERE nome=?", (g.cliente,)).fetchone()
+    expira = r["expira_em"] if r else None
     return jsonify({
         "cliente": g.cliente,
+        "chave_expira_em": expira,
+        "chave_dias_restantes": c.estado_validade(expira)[1],
         "permissoes": efetivas,
         "desativadas_no_gateway": [p for p in c.PERMISSOES if p in g.perms and p not in ativas],
         "descricao": {p: c.PERMISSOES[p][0] for p in efetivas},

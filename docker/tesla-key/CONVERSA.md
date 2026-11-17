@@ -494,3 +494,17 @@ São leituras em que o carro estava em D/R sem sair do sítio (manobras, ou engr
 uma viagem com menos do que a "viagem mínima" (0,3 km por omissão, configurável) é descartada; para as antigas, a
 página Viagens mostra quantas há e um botão para as apagar (com pontos e percurso, após backup), e na consola
 `tesla-setup viagens-limpar`. Contam como vazias: menos de 0,3 km, ou 0 minutos com menos de 1 km.
+
+---
+
+## 34. Validade das chaves dos clientes
+
+**Pergunta:**
+> nos token de cliente, podemos tb ter uma validade, para que não sejam eliminados, os que já existem ficam ilimitados.
+
+**Resposta:**
+Colunas `expira_em` e `validade_dias` nos clientes; os existentes ficam sem validade. Validade em dias (renova ao
+gerar nova chave) ou até uma data (mantém-se). Chave expirada: não é apagada, é recusada com 401 e o motivo fica nos
+logs da API. Página Clientes: escolha da validade ao criar, coluna Validade com "alterar", avisos de expiradas e a
+expirar (14 dias). `/api/me` devolve `chave_expira_em` e `chave_dias_restantes`. CLI: `cliente add … --validade`,
+`cliente validade NOME DIAS|AAAA-MM-DD|nunca`.

@@ -8,10 +8,11 @@ Gestão do gateway pela linha de comandos (chamado pelo `tesla-setup`).
   utilizador-password NOME       muda a password
   utilizador-on|off|rm NOME      ativa, desativa, apaga
   auditoria [N] [TIPO]           últimos N registos de auditoria (login, login_falhado, bloqueado, acao...)
-  cliente-add NOME [DESCRIÇÃO] [--perm LISTA]   cria cliente e mostra a chave
+  cliente-add NOME [DESCRIÇÃO] [--perm LISTA] [--validade DIAS|AAAA-MM-DD]   cria cliente e mostra a chave
   cliente-list                   lista clientes e permissões
   cliente-on|off|rm|chave NOME   ativa, desativa, apaga, gera nova chave
   cliente-perm NOME [set|add|rm LISTA]   mostra ou altera as permissões
+  cliente-validade NOME DIAS|AAAA-MM-DD|nunca   validade da chave
   permissoes                     lista as permissões e os presets disponíveis
   status-api on|off|token|info   gere a Status API
   definicao [CHAVE [VALOR]]      lê/altera tempos de cache, secções por omissão, preços, retenção
@@ -120,7 +121,14 @@ def main(argv):
             l["ts"] = l["ts"][:19].replace("T", " ")
         tabela(linhas, ["ts", "tipo", "utilizador", "ip", "detalhe"])
     elif cmd == "cliente-add":
-        perm = None
+        perm = validade = None
+        if "--validade" in args:
+            i = args.index("--validade")
+            if i + 1 >= len(args):
+                print("uso: cliente-add NOME [DESCRIÇÃO] [--perm LISTA] [--validade DIAS|AAAA-MM-DD]")
+                return 1
+            validade = args[i + 1]
+            args = args[:i] + args[i + 2:]
         if "--perm" in args:
             i = args.index("--perm")
             if i + 1 >= len(args):
@@ -131,10 +139,24 @@ def main(argv):
         if not args:
             print("uso: cliente-add NOME [DESCRIÇÃO] [--perm LISTA]")
             return 1
-        mostrar_chave(f"Chave do cliente '{args[0]}'", c.criar_cliente(args[0], " ".join(args[1:]), perm))
+        mostrar_chave(f"Chave do cliente '{args[0]}'", c.criar_cliente(args[0], " ".join(args[1:]), perm, validade))
         print("Permissões:", ", ".join(c.permissoes_cliente(args[0])) or "(nenhuma)")
+        if validade:
+            print("Validade:", next(x["expira_em"] for x in c.listar_clientes() if x["nome"] == args[0])[:10])
     elif cmd == "cliente-list":
-        tabela(c.listar_clientes(), ["nome", "prefixo", "ativo", "ultimo_uso", "pedidos", "permissoes", "descricao"])
+        linhas = []
+        for x in c.listar_clientes():
+            est, dias = c.estado_validade(x["expira_em"])
+            exp = (x["expira_em"] or "")[:10]
+            x["validade"] = ("sem validade" if est == "sem" else f"EXPIROU {exp}" if est == "expirada" else f"{exp} ({dias} d)")
+            linhas.append(x)
+        tabela(linhas, ["nome", "prefixo", "ativo", "validade", "ultimo_uso", "pedidos", "permissoes", "descricao"])
+    elif cmd == "cliente-validade":
+        if len(args) != 2:
+            print("uso: cliente validade NOME DIAS|AAAA-MM-DD|nunca")
+            return 1
+        exp = c.definir_validade(args[0], args[1])
+        print(f"validade de {args[0]}: {exp[:10] if exp else 'sem validade'}")
     elif cmd == "cliente-perm":
         if not args:
             print("uso: cliente-perm NOME [set|add|rm LISTA]")

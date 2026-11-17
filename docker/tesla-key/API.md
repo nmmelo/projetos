@@ -420,6 +420,12 @@ Permissão `bateria`. Filtros como `/trips`.
 As viagens importadas da Tessie (`origem: "tessie"`) e as completadas têm ainda `local_inicio`, `local_fim`,
 `energia_kwh`, `velocidade_media_kmh`, `temp_exterior`, `temp_interior` e `autopilot_km`.
 
+### Validade da chave
+
+`GET /api/me` devolve também `chave_expira_em` (data ISO ou `null` = sem validade) e `chave_dias_restantes`.
+Uma chave expirada recebe **401** em todos os pedidos (como uma chave inválida); peça uma nova ao administrador
+do gateway. Sugestão: o cliente verifica `/api/me` 1×/dia e avisa quando faltarem menos de 14 dias.
+
 ### `GET /api/endpoints`
 Lista de endpoints com método, caminho, permissão, descrição, parâmetros e exemplo (sem chave). O portal admin
 mostra a mesma informação na página **API**.
