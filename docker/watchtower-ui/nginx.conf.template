@@ -1,10 +1,10 @@
-# O nginx:alpine substitui as variáveis ${...} no arranque.
+# O entrypoint.sh gera a configuração do nginx a partir deste template (envsubst) em cada arranque.
 # O token fica só no servidor; o browser nunca o vê.
 server {
-    listen 80;
+    listen 80 default_server;
     server_name _;
 
-    root  /usr/share/nginx/html;
+    root  /var/www/html;
     index index.html;
 
     # DNS interno do Docker: resolve o watchtower em cada pedido,

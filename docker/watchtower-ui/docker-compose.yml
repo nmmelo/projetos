@@ -1,18 +1,33 @@
+# Variáveis em .env (copiar de .env.example) ou, numa stack do Portainer, em "Environment variables"
 services:
   watchtower-ui:
-    image: nginx:alpine
-    container_name: watchtower-ui
+    build:
+      context: .
+      args:
+        SSH_USER: ${SSH_USER:-admin}
+        SSH_UID: ${SSH_UID:-1001}
+    image: watchtower-ui:latest
+    pull_policy: build            # reconstrói sempre a imagem no deploy
+    container_name: ${CONTAINER_NAME:-watchtower-ui}
+    hostname: watchtower-ui
     restart: unless-stopped
-    ports:
-      - "${UI_PORT:-8090}:80"
     environment:
       TZ: ${TZ:-Europe/Lisbon}
       WATCHTOWER_HOST: ${WATCHTOWER_HOST:-watchtower}
       WATCHTOWER_PORT: ${WATCHTOWER_PORT:-8080}
       WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:?definir no .env}
+      SSH_PUBKEY: ${SSH_PUBKEY:-}             # chave(s) pública(s) do utilizador principal (separadas por ";")
+      SSH_EXTRA_USER: ${SSH_EXTRA_USER:-}     # utilizador SSH extra (opcional)
+      SSH_EXTRA_PUBKEY: ${SSH_EXTRA_PUBKEY:-} # chave(s) pública(s) do utilizador extra
+      SSH_EXTRA_SUDO: ${SSH_EXTRA_SUDO:-1}    # 1 = sudo sem password; 0 = sem sudo
+      SSH_EXTRA_UID: ${SSH_EXTRA_UID:-}       # UID do utilizador extra (opcional)
+    ports:
+      - "${UI_PORT:-8090}:80"     # interface web (só rede local)
+      - "${SSH_PORT:-2224}:22"    # SSH (só rede local, não abrir no router)
     volumes:
-      - ./templates:/etc/nginx/templates:ro
-      - ./html:/usr/share/nginx/html:ro
+      # DATA_DIR: "." = pasta do projeto; numa stack do Portainer a partir do Git tem de ser um caminho absoluto
+      - ${DATA_DIR:-.}/ssh/authorized_keys:/import/authorized_keys:ro
+      - ${DATA_DIR:-.}/hostkeys:/etc/ssh/keys
     networks:
       - watchtower-net
 

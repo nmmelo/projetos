@@ -1,0 +1,3 @@
+# Copiar para authorized_keys e colar a(s) chave(s) pública(s) do utilizador SSH_USER, uma por linha.
+# As linhas que não sejam chaves (como estes comentários) são ignoradas.
+# ssh-ed25519 AAAA... utilizador@portatil

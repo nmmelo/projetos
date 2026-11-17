@@ -55,3 +55,24 @@ watchtower, a porta, a rede e o token são configuráveis no `.env`. O nginx usa
 (`127.0.0.11`) para resolver o watchtower em cada pedido, por isso a UI arranca mesmo que o watchtower esteja em
 baixo. No watchtower existente basta ativar as variáveis da HTTP API e ligá-lo à rede
 (`docker network connect watchtower-net watchtower`).
+
+---
+
+## 4. Sudo, utilizador e chave SSH
+
+**Pergunta:**
+> quero que tenha sudo, permita colocar um utilzidor, colocar o ssh_key, o ssh_id,
+
+**Resposta:**
+A imagem passou de `nginx:alpine` para Ubuntu 26.04 com nginx + openssh-server + sudo, no mesmo modelo do
+`tesla-key`:
+
+| Variável | Uso |
+|---|---|
+| `SSH_USER` / `SSH_UID` | Utilizador e UID (build); sudo sem password, sem password de login |
+| `SSH_PUBKEY` + `ssh/authorized_keys` | Chave(s) pública(s), aplicadas em cada arranque |
+| `SSH_EXTRA_*` | Segundo utilizador opcional, com ou sem sudo |
+| `SSH_PORT` | Porta SSH no anfitrião (2224) |
+
+A configuração do nginx é gerada no arranque a partir de `nginx.conf.template` (envsubst) e a host key SSH fica
+persistente em `hostkeys/`.
