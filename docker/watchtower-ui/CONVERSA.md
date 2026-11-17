@@ -156,3 +156,15 @@ Criado `watchtower/docker-compose.yml` (+ `.env.example`): imagem `nickfedor/wat
 relatório JSON para o portal e rede `watchtower-net`, sem portas publicadas. No README ficou a migração do `docker run`:
 ver as opções atuais com `docker inspect`, tabela de equivalências (`--cleanup`, `--schedule`, `--interval`, …),
 `docker rm -f watchtower` e `docker compose up -d`.
+
+---
+
+## 9. Imagem containrrr/watchtower
+
+**Pergunta:**
+> a imagem é containrrr/watchtower
+
+**Resposta:**
+O compose passou a usar `containrrr/watchtower` por omissão (`WATCHTOWER_IMAGE` no `.env`). Essa imagem já não é mantida e
+fala com o Docker pela API 1.25, que o Docker 29 recusa; por isso ficou a variável `DOCKER_API_VERSION` (1.25 por omissão,
+1.44 para Docker 29+). Se mesmo assim falhar, a alternativa é o fork `nickfedor/watchtower`, que aceita as mesmas variáveis.

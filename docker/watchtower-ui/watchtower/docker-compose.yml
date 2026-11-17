@@ -2,7 +2,7 @@
 # Variáveis em .env (copiar de .env.example). Arrancar: docker compose up -d
 services:
   watchtower:
-    image: ${WATCHTOWER_IMAGE:-nickfedor/watchtower:latest}
+    image: ${WATCHTOWER_IMAGE:-containrrr/watchtower:latest}
     container_name: ${CONTAINER_NAME:-watchtower}
     hostname: watchtower
     restart: unless-stopped
@@ -12,6 +12,9 @@ services:
       # - /root/.docker/config.json:/config.json:ro
     environment:
       TZ: ${TZ:-Europe/Lisbon}
+      # Versão da API do Docker usada pelo watchtower. 1.25 = omissão do containrrr (Docker antigo).
+      # Docker 29 ou mais recente exige 1.44 (senão: "client version 1.25 is too old").
+      DOCKER_API_VERSION: ${DOCKER_API_VERSION:-1.25}
 
       # Comportamento
       WATCHTOWER_SCHEDULE: ${WATCHTOWER_SCHEDULE:-0 0 4 * * *}     # cron com segundos: todos os dias às 04:00

@@ -170,6 +170,15 @@ docker inspect watchtower --format '{{range .Mounts}}{{.Source}} -> {{.Destinati
 | `-v ~/.docker/config.json:/config.json` | Descomentar o volume `config.json` |
 | outra notificação (email, Telegram…) | Juntar ao URL separado por espaço: `WATCHTOWER_NOTIFICATION_URL: "generic+http://… telegram://…"` |
 
+**Imagem e versão do Docker.** O compose usa `containrrr/watchtower` (a original, já sem manutenção). Essa imagem usa a
+API 1.25 do Docker, que o Docker 29 já não aceita (`client version 1.25 is too old. Minimum supported API version is 1.44`):
+
+| `docker version --format '{{.Server.APIVersion}}'` | `.env` |
+|---|---|
+| até 1.43 (Docker ≤ 24, ex. Synology) | `DOCKER_API_VERSION=1.25` (omissão) |
+| 1.44 a 1.51 (Docker 25–28) | `1.25` ou `1.44` |
+| 1.52 ou mais (Docker 29+) | `DOCKER_API_VERSION=1.44`; se continuar a falhar, `WATCHTOWER_IMAGE=nickfedor/watchtower:latest` |
+
 **2. Trocar o contentor**
 
 ```bash
