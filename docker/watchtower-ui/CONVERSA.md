@@ -165,6 +165,12 @@ ver as opções atuais com `docker inspect`, tabela de equivalências (`--cleanu
 > a imagem é containrrr/watchtower
 
 **Resposta:**
-O compose passou a usar `containrrr/watchtower` por omissão (`WATCHTOWER_IMAGE` no `.env`). Essa imagem já não é mantida e
-fala com o Docker pela API 1.25, que o Docker 29 recusa; por isso ficou a variável `DOCKER_API_VERSION` (1.25 por omissão,
-1.44 para Docker 29+). Se mesmo assim falhar, a alternativa é o fork `nickfedor/watchtower`, que aceita as mesmas variáveis.
+A `containrrr/watchtower` já não é mantida e fala com o Docker pela API 1.25, que o Docker 29 recusa
+(`client version 1.25 is too old`); seria preciso `DOCKER_API_VERSION=1.44`.
+
+**Pergunta:**
+> então deixa a versão anterior
+
+**Resposta:**
+Mantém-se `nickfedor/watchtower` (fork mantido, aceita as mesmas variáveis). Na migração do `docker run`, só muda a imagem;
+as opções e variáveis passam iguais.
