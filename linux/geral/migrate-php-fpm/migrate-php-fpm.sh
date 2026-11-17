@@ -16,7 +16,7 @@
 
 set -o pipefail
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 SCRIPT_NAME="$(basename "$0")"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TS="$(date +%Y%m%d_%H%M%S)"
@@ -47,6 +47,9 @@ BASE_PADRAO="/var/www"        # {BASE} quando o DocumentRoot não está em /var/
 ENV_REGEX='^(ORACLE_|TNS_ADMIN|LD_LIBRARY_PATH|NLS_)'   # variáveis de ambiente propostas para env[...]
 LOG_FILE=""                   # vazio = <pasta do script>/logs/migrate-php-fpm_<data>.log
 DRY_RUN=0
+VERBOSE=0                     # 1: simulação detalhada + grava todas as decisões no ficheiro env
+ENV_FILE=""                   # vazio = <pasta do script>/migrate-php-fpm.env
+ENV_ACAO=""                   # usar | novo | apagar | ignorar (vazio = pergunta se o ficheiro existir)
 MODO=""
 
 # Comandos (substituíveis por variáveis de ambiente, útil para testes)
@@ -179,6 +182,13 @@ Opções:
   -m, --modo MODO       sem menu: validar | delete | migrar | auto | ini | testar | desativar
       --manter-tipo     php_value fica php_value (por defeito passa a php_admin_value)
       --dry-run         simulação: mostra tudo e não altera nada
+  -v, --verbose         simulação detalhada (não altera nada) e grava todos os
+                        parâmetros e decisões no ficheiro env
+      --env FICHEIRO    ficheiro env            (defeito: <pasta do script>/migrate-php-fpm.env)
+      --usar-env        usa o env existente sem perguntar (valores por defeito / modo AUTO)
+      --novo-env        cria um env novo (o anterior fica em .bak-<data>)
+      --apagar-env      apaga o env existente
+      --sem-env         ignora o env existente
   -h, --help            esta ajuda
 
 As predefinições (pm, user, include_path, ...) podem ser alteradas em:
@@ -187,16 +197,23 @@ EOF
 }
 
 # ------------------------------------------------------------------- opções
+declare -A CLI=()   # opções da linha de comando: têm prioridade sobre o ficheiro env
 while [[ $# -gt 0 ]]; do
     case $1 in
-        -a|--available) SITES_AVAILABLE=$2; shift 2 ;;
-        -e|--enabled)   SITES_ENABLED=$2; shift 2 ;;
-        -p|--php)       PHP_VER=$2; shift 2 ;;
-        -d|--pool-dir)  POOL_DIR=$2; shift 2 ;;
+        -a|--available) CLI[SITES_AVAILABLE]=$2; shift 2 ;;
+        -e|--enabled)   CLI[SITES_ENABLED]=$2; shift 2 ;;
+        -p|--php)       CLI[PHP_VER]=$2; shift 2 ;;
+        -d|--pool-dir)  CLI[POOL_DIR]=$2; shift 2 ;;
         -l|--log)       LOG_FILE=$2; shift 2 ;;
         -m|--modo)      MODO=$2; shift 2 ;;
-        --manter-tipo)  CONVERTER_PARA_ADMIN=0; shift ;;
+        --manter-tipo)  CLI[CONVERTER_PARA_ADMIN]=0; shift ;;
         --dry-run)      DRY_RUN=1; shift ;;
+        -v|--verbose)   VERBOSE=1; DRY_RUN=1; shift ;;
+        --env)          ENV_FILE=$2; shift 2 ;;
+        --usar-env)     ENV_ACAO=usar; shift ;;
+        --novo-env)     ENV_ACAO=novo; shift ;;
+        --apagar-env)   ENV_ACAO=apagar; shift ;;
+        --sem-env)      ENV_ACAO=ignorar; shift ;;
         -h|--help)      uso; exit 0 ;;
         *) echo "Opção desconhecida: $1"; uso; exit 1 ;;
     esac
@@ -208,6 +225,97 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+# ---------------------------------------------------------------- ficheiro env
+# Formato: CHAVE="valor" (uma por linha, # = comentário). O valor é lido tal como está,
+# sem ser executado. Globais: as predefinições abaixo. Por virtualhost: VH_<servername>_*.
+ENV_GLOBAIS=(SITES_AVAILABLE SITES_ENABLED PHP_VER POOL_DIR RUN_DIR PHP_LOG_DIR FPM_USER FPM_GROUP
+             PM PM_MAX_CHILDREN PM_START_SERVERS PM_MIN_SPARE_SERVERS PM_MAX_SPARE_SERVERS PM_MAX_REQUESTS
+             REQUEST_TERMINATE_TIMEOUT CONVERTER_PARA_ADMIN INCLUDE_PATH_PADRAO INCLUDE_PATH_TEMPLATE BASE_PADRAO)
+declare -A ENV_VAL=()
+ENV_USAR=0      # 1: os valores do env são os valores por defeito (e as decisões no modo AUTO)
+ENV_GRAVAR=0    # 1: grava o env no fim (verbose ou env novo)
+ENV_FILE=${ENV_FILE:-$SCRIPT_DIR/migrate-php-fpm.env}
+
+env_ler() {
+    local l k v
+    ENV_VAL=()
+    while IFS= read -r l || [[ -n $l ]]; do
+        [[ $l =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue
+        k=${BASH_REMATCH[1]}; v=${BASH_REMATCH[2]}
+        [[ $v == \"*\" && ${#v} -ge 2 ]] && v=${v:1:${#v}-2}
+        ENV_VAL[$k]=$v
+    done <"$ENV_FILE"
+}
+env_id()  { local s=${1//[^A-Za-z0-9]/_}; echo "$s"; }
+env_get() {   # env_get CHAVE -> ENV_RES (só se o env estiver em uso)
+    (( ENV_USAR )) && [[ -n ${ENV_VAL[$1]+x} ]] || return 1
+    ENV_RES=${ENV_VAL[$1]}
+    (( VERBOSE )) && printf '      %s[env] %s = %s%s\n' "$D" "$1" "$ENV_RES" "$N"
+    return 0
+}
+ENV_SUJO=0
+env_set() { ENV_VAL[$1]=$2; ENV_SUJO=1; log "ENV   $1=$2"; }
+env_info() {   # data e n.º de virtualhosts do ficheiro env
+    local n
+    n=$(grep -c '^VH_.*_MIGRAR=' "$ENV_FILE" 2>/dev/null)
+    echo "gravado em $(date -r "$ENV_FILE" '+%F %T'), ${n:-0} virtualhost(s)"
+}
+env_gravar() {
+    (( ENV_GRAVAR )) || return 0
+    local k vh=() g
+    for g in "${ENV_GLOBAIS[@]}"; do ENV_VAL[$g]=${!g}; done
+    for k in "${!ENV_VAL[@]}"; do [[ $k == VH_* ]] && vh+=("$k"); done
+    {
+        echo "# migrate-php-fpm env — gravado em $(date '+%F %T') ($( ((VERBOSE)) && echo 'modo verbose' || echo 'migração' ))"
+        echo "# Pode ser editado à mão. Apagar este ficheiro (ou --novo-env) para começar do zero."
+        echo "# Valores das ações dos parâmetros: manter | remover | padrao | valor:<novo valor>"
+        echo
+        echo "# ---- globais"
+        for g in "${ENV_GLOBAIS[@]}"; do printf '%s="%s"\n' "$g" "${ENV_VAL[$g]}"; done
+        local ant=""
+        while IFS= read -r k; do
+            [[ -z $k ]] && continue
+            local id=${k#VH_}; id=${id%%__*}
+            local f=${ENV_VAL[VH_${id}__FICHEIRO]}
+            if [[ $id != "$ant" ]]; then echo; echo "# ---- ${ENV_VAL[VH_${id}__SITE]:-$id}${f:+  ($f)}"; ant=$id; fi
+            printf '%s="%s"\n' "$k" "${ENV_VAL[$k]}"
+        done < <(printf '%s\n' "${vh[@]}" | sort)
+    } >"$ENV_FILE.tmp" && mv "$ENV_FILE.tmp" "$ENV_FILE" && chmod 600 "$ENV_FILE"
+    ENV_SUJO=0
+    ok "Ficheiro env gravado: $ENV_FILE"
+}
+
+# Decide o que fazer ao env existente (usar / novo / apagar / ignorar)
+env_inicio() {
+    (( VERBOSE )) && ENV_GRAVAR=1
+    if [[ ! -f $ENV_FILE ]]; then
+        [[ $ENV_ACAO == novo ]] && ENV_GRAVAR=1
+        return 0
+    fi
+    local op=$ENV_ACAO
+    if [[ -z $op ]]; then
+        echo "Existe o ficheiro env $ENV_FILE ($(env_info))."
+        read -r -p "u=usar | n=criar novo | a=apagar | i=ignorar [u]: " op || op=u
+        case "${op,,}" in n) op=novo ;; a) op=apagar ;; i) op=ignorar ;; *) op=usar ;; esac
+    fi
+    case $op in
+        usar)
+            env_ler; ENV_USAR=1
+            local g; for g in "${ENV_GLOBAIS[@]}"; do [[ -n ${ENV_VAL[$g]} ]] && printf -v "$g" '%s' "${ENV_VAL[$g]}"; done
+            ENV_MSG="a usar $ENV_FILE ($(env_info))" ;;
+        novo)
+            mv "$ENV_FILE" "$ENV_FILE.bak-$TS"; ENV_VAL=(); ENV_GRAVAR=1
+            ENV_MSG="novo env (o anterior ficou em $ENV_FILE.bak-$TS)" ;;
+        apagar)
+            rm -f "$ENV_FILE"; ENV_VAL=()
+            ENV_MSG="env apagado" ;;
+        *)  ENV_MSG="env existente ignorado" ;;
+    esac
+}
+ENV_MSG=""
+env_inicio
+for k in "${!CLI[@]}"; do printf -v "$k" '%s' "${CLI[$k]}"; done
+
 SITES_AVAILABLE=${SITES_AVAILABLE:-$APACHE_DIR/sites-available}
 SITES_ENABLED=${SITES_ENABLED:-$APACHE_DIR/sites-enabled}
 SITES_AVAILABLE=${SITES_AVAILABLE%/}
@@ -217,7 +325,8 @@ if [[ -z $LOG_FILE ]]; then
     LOG_FILE="$SCRIPT_DIR/logs/migrate-php-fpm_$TS.log"
 fi
 : >>"$LOG_FILE" || { echo "Não é possível escrever no log $LOG_FILE"; exit 1; }
-log "===== $SCRIPT_NAME $VERSION — início (dry-run=$DRY_RUN) ====="
+log "===== $SCRIPT_NAME $VERSION — início (dry-run=$DRY_RUN verbose=$VERBOSE env=$ENV_FILE) ====="
+[[ -n $ENV_MSG ]] && info "Ficheiro env: $ENV_MSG"
 
 for d in "$SITES_AVAILABLE" "$SITES_ENABLED"; do
     [[ -d $d ]] || { err "Pasta não encontrada: $d"; exit 1; }
@@ -700,21 +809,35 @@ migrar_grupo() {   # ficheiro entrada_enabled chave primeiro(1/0)
         [[ " $blocos " == *" ${E_BLOCK[i]} "* ]] && eidx+=("$i")
     done
 
+    local id; id=$(env_id "$rotulo")
+    local vh="VH_${id}__"
+    env_set "${vh}SITE" "$rotulo"
+    env_set "${vh}FICHEIRO" "$f"
+    local op def
+
+    # ---- migrar este virtualhost?
+    local envmig=""; env_get "${vh}MIGRAR" && envmig=$ENV_RES
+    def=s; [[ -z $dr ]] && (( ${#pidx[@]} == 0 )) && def=n
     if [[ -z $dr ]] && (( ${#pidx[@]} == 0 )); then
         info "Sem DocumentRoot nem diretivas PHP (redirect/proxy?) — não precisa de php-fpm."
-        if (( AUTO )) || ! perguntar_sn "Migrar mesmo assim?" n; then
-            resumo_add "$fb" "$rotulo" "-" "ignorado" "sem DocumentRoot"; return 0
-        fi
     fi
-
-    if (( ! AUTO )); then
-        local op
+    if (( AUTO )); then
+        def=${envmig:-$def}
+        if [[ $def != s ]]; then
+            env_set "${vh}MIGRAR" n
+            resumo_add "$fb" "$rotulo" "-" "ignorado" "$( [[ -z $dr ]] && echo 'sem DocumentRoot' || echo 'env: MIGRAR=n' )"; return 0
+        fi
+        env_set "${vh}MIGRAR" s
+    else
+        def=${envmig:-n}
+        local hint="[s/N/a=abortar]"; [[ $def == s ]] && hint="[S/n/a=abortar]"
         while true; do
-            read -r -p "Existe no sites-enabled o portal ${W}$rotulo${N}. Migrar para php-fpm? [s/N/a=abortar] " op || op=a
-            log "PERGUNTA migrar $rotulo -> ${op:-n}"
+            read -r -p "Existe no sites-enabled o portal ${W}$rotulo${N}. Migrar para php-fpm? $hint " op || op=a
+            op=${op:-$def}
+            log "PERGUNTA migrar $rotulo -> $op"
             case "${op,,}" in
-                s|sim) break ;;
-                ""|n|nao|não) resumo_add "$fb" "$rotulo" "-" "ignorado" "pelo utilizador"; return 0 ;;
+                s|sim) env_set "${vh}MIGRAR" s; break ;;
+                n|nao|não) env_set "${vh}MIGRAR" n; resumo_add "$fb" "$rotulo" "-" "ignorado" "pelo utilizador"; return 0 ;;
                 a) return 2 ;;
             esac
         done
@@ -723,6 +846,9 @@ migrar_grupo() {   # ficheiro entrada_enabled chave primeiro(1/0)
     # ---- nome do pool (único)
     local nome sec=$rotulo k=2
     nome=$(nome_curto "$rotulo")
+    if env_get "${vh}POOL" && [[ $ENV_RES =~ ^[A-Za-z0-9._-]+$ ]]; then
+        if nome_em_uso "$ENV_RES"; then warn "O nome '$ENV_RES' do env já está em uso — a propor outro"; else nome=$ENV_RES; fi
+    fi
     if nome_em_uso "$nome"; then
         warn "O nome '$nome' já está em uso (pool.d ou socket)."
         local base=$nome dom
@@ -739,6 +865,7 @@ migrar_grupo() {   # ficheiro entrada_enabled chave primeiro(1/0)
             nome=$RESPOSTA; break
         done
     fi
+    env_set "${vh}POOL" "$nome"
     grep -qsxF -- "[$sec]" "$POOL_DIR"/*.conf && sec=$nome
     local sock="$RUN_DIR/php$PHP_VER-fpm-$nome.sock"
     local errlog="$PHP_LOG_DIR/$nome.php.error.log"
@@ -755,7 +882,7 @@ migrar_grupo() {   # ficheiro entrada_enabled chave primeiro(1/0)
         pool_set include_path "php_admin_value[include_path] = \"$std_inc\"" "padrão (base $base_inc, do DocumentRoot)"
     fi
 
-    local comentar="" linha op novo
+    local comentar="" linha acao chave
     if (( ${#pidx[@]} )); then
         echo
         info "Diretivas do mod_php a retirar do vhost (dão erro sem o mod_php) e a passar para o pool:"
@@ -769,6 +896,8 @@ migrar_grupo() {   # ficheiro entrada_enabled chave primeiro(1/0)
         comentar+="${P_LINE[i]} "
         linha=$(linha_fpm "${P_DIR[i]}" "${P_NAME[i]}" "${P_VAL[i]}")
         local orig="${P_DIR[i]} ${P_NAME[i]} ${P_VAL[i]}"
+        chave="${vh}P_$(env_id "${P_NAME[i]}")"
+        acao=manter; env_get "$chave" && acao=$ENV_RES
         if (( ! AUTO )); then
             echo
             printf '  %s[linha %s]%s %s\n' "$D" "${P_LINE[i]}" "$N" "$orig"
@@ -778,40 +907,49 @@ migrar_grupo() {   # ficheiro entrada_enabled chave primeiro(1/0)
                 printf '      padrão: php_admin_value[include_path] = "%s"\n' "$std_inc"
                 extra=" | p=usar o padrão"
             fi
+            [[ $acao != manter ]] && printf '      %sno env: %s%s\n' "$Y" "$acao" "$N"
             while true; do
-                read -r -p "      Enter=manter igual | e=editar | r=remover$extra | a=abortar: " op || op=""
+                read -r -p "      Enter=$( [[ $acao == manter ]] && echo 'manter igual' || echo "$acao (env)" ) | m=manter | e=editar | r=remover$extra | a=abortar: " op || op=""
                 case "${op,,}" in
-                    "") pool_set "${P_NAME[i]}" "$linha" "Apache linha ${P_LINE[i]}: $orig"; break ;;
-                    p)  [[ -n $extra ]] && { pool_set include_path "php_admin_value[include_path] = \"$std_inc\"" "padrão"; break; } ;;
-                    e)  perguntar "      Novo valor de ${P_NAME[i]}" "${P_VAL[i]}"; novo=$RESPOSTA
-                        pool_set "${P_NAME[i]}" "$(linha_fpm "${P_DIR[i]}" "${P_NAME[i]}" "$novo")" "Apache linha ${P_LINE[i]} (editado): $orig"; break ;;
-                    r)  [[ ${P_NAME[i]} == include_path ]] && unset 'POOL_LINHA[include_path]'
-                        info "      ${P_NAME[i]} não passa para o pool"; break ;;
+                    "") break ;;
+                    m)  acao=manter; break ;;
+                    p)  [[ -n $extra ]] && { acao=padrao; break; } ;;
+                    e)  local atual=${P_VAL[i]}; [[ $acao == valor:* ]] && atual=${acao#valor:}
+                        perguntar "      Novo valor de ${P_NAME[i]}" "$atual"; acao="valor:$RESPOSTA"; break ;;
+                    r)  acao=remover; break ;;
                     a)  return 2 ;;
                 esac
             done
-            log "PARAM ${P_NAME[i]} -> ${op:-manter}"
-        else
-            pool_set "${P_NAME[i]}" "$linha" "Apache linha ${P_LINE[i]}: $orig"
         fi
+        case $acao in
+            padrao)  [[ -n $std_inc ]] && pool_set include_path "php_admin_value[include_path] = \"$std_inc\"" "padrão" ;;
+            remover) [[ ${P_NAME[i]} == include_path ]] && unset 'POOL_LINHA[include_path]'
+                     info "      ${P_NAME[i]} não passa para o pool" ;;
+            valor:*) pool_set "${P_NAME[i]}" "$(linha_fpm "${P_DIR[i]}" "${P_NAME[i]}" "${acao#valor:}")" "Apache linha ${P_LINE[i]} (editado): $orig" ;;
+            *)       acao=manter; pool_set "${P_NAME[i]}" "$linha" "Apache linha ${P_LINE[i]}: $orig" ;;
+        esac
+        env_set "$chave" "$acao"
+        log "PARAM ${P_NAME[i]} -> $acao"
     done
 
     # ---- variáveis de ambiente (SetEnv do vhost + envvars do Apache)
-    local en_n en_v def
+    local en_n en_v
     local -a cand_n=() cand_v=() cand_o=()
     for i in "${eidx[@]}"; do cand_n+=("${E_NAME[i]}"); cand_v+=("${E_VAL[i]}"); cand_o+=("SetEnv linha ${E_LINE[i]}"); done
     for i in "${!ENVVARS_NOME[@]}"; do cand_n+=("${ENVVARS_NOME[i]}"); cand_v+=("${ENVVARS_VALOR[i]}"); cand_o+=("$APACHE_DIR/envvars"); done
     for i in "${!cand_n[@]}"; do
         en_n=${cand_n[i]}; en_v=${cand_v[i]}; en_v=${en_v%\"}; en_v=${en_v#\"}
         [[ -n ${POOL_LINHA[env:$en_n]+x} ]] && continue
+        chave="${vh}ENV_$(env_id "$en_n")"
         def=n; [[ $en_n =~ $ENV_REGEX ]] && def=s
-        if (( AUTO )); then
-            [[ $def == s ]] && pool_set "env:$en_n" "env[$en_n] = \"$en_v\"" "${cand_o[i]}"
-        else
+        env_get "$chave" && def=$ENV_RES
+        if (( ! AUTO )); then
             echo
             printf '  Variável de ambiente (%s): env[%s] = "%s"\n' "${cand_o[i]}" "$en_n" "$en_v"
-            perguntar_sn "      Colocar no pool?" "$def" && pool_set "env:$en_n" "env[$en_n] = \"$en_v\"" "${cand_o[i]}"
+            if perguntar_sn "      Colocar no pool?" "$def"; then def=s; else def=n; fi
         fi
+        [[ $def == s ]] && pool_set "env:$en_n" "env[$en_n] = \"$en_v\"" "${cand_o[i]}"
+        env_set "$chave" "$def"
     done
 
     # ---- .htaccess com php_value (dão erro 500 sem o mod_php)
@@ -825,9 +963,12 @@ migrar_grupo() {   # ficheiro entrada_enabled chave primeiro(1/0)
             tbl_add "$ht|$(grep -Eic '^[[:space:]]*php_(admin_)?(value|flag)[[:space:]]' "$ht")"
         done
         tbl_show
-        if (( AUTO )) || perguntar_sn "Converter para .user.ini na mesma pasta (o php-fpm lê-o, mantém o efeito por pasta)?" s; then
-            ht_conv=1
+        def=s; env_get "${vh}HTACCESS" && def=$ENV_RES
+        if (( ! AUTO )); then
+            if perguntar_sn "Converter para .user.ini na mesma pasta (o php-fpm lê-o, mantém o efeito por pasta)?" "$def"; then def=s; else def=n; fi
         fi
+        [[ $def == s ]] && ht_conv=1
+        env_set "${vh}HTACCESS" "$def"
     fi
 
     # ---- gerar o novo vhost e o pool (temporários) e mostrar
@@ -888,6 +1029,17 @@ migrar_grupo() {   # ficheiro entrada_enabled chave primeiro(1/0)
     if (( DRY_RUN )); then
         NOMES_USADOS[$nome]=1
         rm -f "$tv" "$tp"
+        echo
+        info "O que seria feito (simulação, nada foi alterado):"
+        tbl_init "Passo|Ação"
+        tbl_add "1. Backup|cp -p $f $f.bak-$TS"
+        tbl_add "2. Vhost|${#pidx[@]} linha(s) php_* comentada(s), SetHandler em ${portas% }"
+        tbl_add "3. Pool|criar $pool_file"
+        tbl_add "4. error_log|touch $errlog; chown $FPM_USER:$FPM_GROUP; chmod 640"
+        (( ht_conv )) && for ht in "${HT_LISTA[@]}"; do tbl_add "5. .htaccess|$ht → $(dirname "$ht")/.user.ini"; done
+        tbl_add "6. Validar|$APACHECTL configtest; $FPM_BIN -t"
+        tbl_add "7. Reload|reload $FPM_SERVICE (socket $sock)"
+        tbl_show
         resumo_add "$fb" "$rotulo" "$nome" "simulado" "nada alterado"
         (( AUTO )) && { _continuar || return 2; }
         return 0
@@ -962,7 +1114,7 @@ _continuar() {
 
 migrar() {
     AUTO=$1
-    titulo "Migração mod_php → php-fpm ($( ((AUTO)) && echo AUTO || echo um a um ))$( ((DRY_RUN)) && echo ' — SIMULAÇÃO')"
+    titulo "Migração mod_php → php-fpm ($( ((AUTO)) && echo AUTO || echo um a um ))$( ((VERBOSE)) && echo ' — VERBOSE (simulação + env)' || { ((DRY_RUN)) && echo ' — SIMULAÇÃO'; } )"
     verificar_requisitos || return 1
     carregar_sites
     if (( ${#EN_LIST[@]} == 0 )); then warn "Não há nada no sites-enabled"; return 0; fi
@@ -991,6 +1143,7 @@ migrar() {
         done
     done
     (( rc == 2 )) && warn "Migração abortada pelo utilizador"
+    env_gravar
 
     mostrar_resumo
     validar_tudo
@@ -1090,9 +1243,37 @@ desativar_mod_php() {
     tbl_show
 }
 
+# ---------------------------------------------------------- 8) env
+menu_env() {
+    titulo "Ficheiro env: $ENV_FILE"
+    if [[ -f $ENV_FILE ]]; then
+        info "Existe: $(env_info) — $( ((ENV_USAR)) && echo 'em uso' || echo 'não está a ser usado' )"
+    else
+        info "Não existe. É criado com -v/--verbose ou com 'n' abaixo."
+    fi
+    local op
+    read -r -p "v=ver | u=usar | n=criar novo | a=apagar | Enter=voltar: " op || op=""
+    case "${op,,}" in
+        v)  [[ -f $ENV_FILE ]] || { warn "Não existe"; return; }
+            tbl_init "Chave|Valor"
+            local l
+            while IFS= read -r l; do [[ $l =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] && tbl_add "${BASH_REMATCH[1]}|${BASH_REMATCH[2]}"; done <"$ENV_FILE"
+            tbl_show ;;
+        u)  [[ -f $ENV_FILE ]] || { warn "Não existe"; return; }
+            ENV_ACAO=usar; env_inicio; ok "$ENV_MSG" ;;
+        n)  [[ -f $ENV_FILE ]] && mv "$ENV_FILE" "$ENV_FILE.bak-$TS" && info "Anterior guardado em $ENV_FILE.bak-$TS"
+            ENV_VAL=(); ENV_USAR=0; ENV_GRAVAR=1
+            ok "Novo env: as decisões da próxima migração (ou verbose) ficam gravadas em $ENV_FILE"
+            log "ENV novo" ;;
+        a)  if [[ -f $ENV_FILE ]] && perguntar_sn "Apagar $ENV_FILE?" n; then
+                rm -f "$ENV_FILE"; ENV_VAL=(); ENV_USAR=0; ok "Ficheiro env apagado"; log "ENV apagado"
+            fi ;;
+    esac
+}
+
 # ---------------------------------------------------------- menu
 cabecalho() {
-    titulo "migrate-php-fpm $VERSION$( ((DRY_RUN)) && echo '  [SIMULAÇÃO]')"
+    titulo "migrate-php-fpm $VERSION$( ((VERBOSE)) && echo '  [VERBOSE — SIMULAÇÃO]' || { ((DRY_RUN)) && echo '  [SIMULAÇÃO]'; } )"
     tbl_init "Item|Valor"
     tbl_add "sites-available|$SITES_AVAILABLE"
     tbl_add "sites-enabled|$SITES_ENABLED"
@@ -1101,6 +1282,8 @@ cabecalho() {
     tbl_add "php-fpm|$(fpm_instalado && echo "instalado ($FPM_SERVICE)" || echo 'NÃO instalado')"
     tbl_add "pool.d|$POOL_DIR"
     tbl_add "Conversão|$( ((CONVERTER_PARA_ADMIN)) && echo 'php_value → php_admin_value' || echo 'mantém o tipo')"
+    tbl_add "Modo|$( ((VERBOSE)) && echo 'verbose (simulação + grava env)' || { ((DRY_RUN)) && echo 'simulação' || echo 'normal'; } )"
+    tbl_add "Ficheiro env|$ENV_FILE ($( [[ -f $ENV_FILE ]] && { ((ENV_USAR)) && echo 'em uso' || echo 'existe, não usado'; } || echo 'não existe' ))"
     tbl_add "Log|$LOG_FILE"
     tbl_show
 }
@@ -1118,6 +1301,7 @@ menu() {
   5) Comparar php.ini e extensões (apache2 vs fpm)
   6) Validar configurações (Apache + php-fpm)
   7) Desativar o mod_php e indicar o que falta para desinstalar
+  8) Ficheiro env (ver / apagar / criar novo)
   0) Sair
 EOF
         read -r -p "Opção: " op || op=0
@@ -1130,6 +1314,7 @@ EOF
             5) comparar_ini ;;
             6) validar_tudo ;;
             7) desativar_mod_php ;;
+            8) menu_env ;;
             0) break ;;
             *) warn "Opção inválida" ;;
         esac
@@ -1138,7 +1323,8 @@ EOF
 }
 
 fim() {
-    if (( ${#RES_FICH[@]} > RES_IMPRESSO )); then mostrar_resumo; else info "Log: $LOG_FILE"; fi
+    (( ENV_SUJO )) && env_gravar
+    if (( ${#RES_FICH[@]} > RES_IMPRESSO )); then mostrar_resumo; elif (( RES_IMPRESSO == 0 )); then info "Log: $LOG_FILE"; fi
     log "===== fim ====="
 }
 trap 'echo; warn "Interrompido"; fim; exit 130' INT

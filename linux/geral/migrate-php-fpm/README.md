@@ -10,6 +10,7 @@ virtualhost a virtualhost, com backup, validação, reload e log de tudo o que �
 | `migrate-php-fpm.sh` | O script |
 | `migrate-php-fpm.conf.example` | Predefinições (copiar para `migrate-php-fpm.conf`) |
 | `logs/` | Criada na 1.ª execução: um log por execução |
+| `migrate-php-fpm.env` | Criado pelo `--verbose`: todos os parâmetros e decisões por virtualhost |
 | `CONVERSA.md` | Resumo do pedido que deu origem ao projeto |
 
 ## Utilização
@@ -18,6 +19,7 @@ virtualhost a virtualhost, com backup, validação, reload e log de tudo o que �
 sudo ./migrate-php-fpm.sh                 # menu
 sudo ./migrate-php-fpm.sh --dry-run       # simulação: mostra tudo, não altera nada
 sudo ./migrate-php-fpm.sh -m auto         # migração AUTO sem passar pelo menu
+sudo ./migrate-php-fpm.sh -v              # verbose: simula e grava as decisões no env
 ```
 
 Sem `sudo`/root o script pára e indica o comando correto.
@@ -32,6 +34,9 @@ Sem `sudo`/root o script pára e indica o comando correto.
 | `-m, --modo MODO` | Sem menu: `validar`, `delete`, `migrar`, `auto`, `ini`, `testar`, `desativar` | menu |
 | `--manter-tipo` | `php_value` fica `php_value[...]` | passa a `php_admin_value[...]` |
 | `--dry-run` | Simulação | — |
+| `-v, --verbose` | Simulação detalhada (não altera nada) e grava todos os parâmetros e decisões no ficheiro env | — |
+| `--env FICHEIRO` | Ficheiro env | `migrate-php-fpm.env` na pasta do script |
+| `--usar-env` / `--novo-env` / `--apagar-env` / `--sem-env` | O que fazer ao env existente sem perguntar | pergunta |
 
 ## Menu
 
@@ -44,6 +49,52 @@ Sem `sudo`/root o script pára e indica o comando correto.
 | 5. php.ini e extensões | Compara `apache2/php.ini` com `fpm/php.ini` e as extensões ativas nos dois `conf.d` |
 | 6. Validar | `apache2ctl configtest` + `php-fpmX.Y -t`, com o ficheiro e a linha do erro |
 | 7. Desativar mod_php | Confirma que não fica nada pendente, `a2dismod phpX.Y`, troca `mpm_prefork` → `mpm_event`, valida, restart e indica o que falta para desinstalar |
+| 8. Ficheiro env | Ver o conteúdo, passar a usar, criar novo (o anterior fica em `.bak-<data>`) ou apagar |
+
+## Verbose e ficheiro env
+
+`-v` / `--verbose` faz o mesmo percurso da migração (um a um ou AUTO) **sem alterar nada**: mostra o diff do vhost,
+o pool, a tabela do que seria feito (backup, pool, error_log, `.htaccess`, validação, reload) e as linhas `[env]` com os
+valores lidos do env. Todas as predefinições e as decisões de cada virtualhost ficam em `migrate-php-fpm.env`:
+
+```ini
+# ---- globais
+PHP_VER="8.4"
+POOL_DIR="/etc/php/8.4/fpm/pool.d"
+PM_MAX_CHILDREN="20"
+...
+# ---- portal.exemplo.pt  (/etc/apache2/sites-available/portal.conf)
+VH_portal_exemplo_pt__MIGRAR="s"
+VH_portal_exemplo_pt__POOL="portal"
+VH_portal_exemplo_pt__P_include_path="manter"
+VH_portal_exemplo_pt__P_memory_limit="valor:512M"
+VH_portal_exemplo_pt__P_upload_max_filesize="remover"
+VH_portal_exemplo_pt__ENV_TNS_ADMIN="s"
+VH_portal_exemplo_pt__HTACCESS="s"
+```
+
+| Chave | Valores |
+|---|---|
+| `MIGRAR` | `s` / `n` |
+| `POOL` | nome do pool (ficheiro, socket e error_log) |
+| `P_<parâmetro>` | `manter`, `remover`, `padrao` (só `include_path`), `valor:<novo valor>` |
+| `ENV_<variável>` | `s` / `n` (colocar `env[...]` no pool) |
+| `HTACCESS` | `s` / `n` (converter para `.user.ini`) |
+
+Na execução seguinte, se o env existir, o script pergunta: `u=usar | n=criar novo | a=apagar | i=ignorar`.
+Com **usar**, os valores do env passam a ser os valores por defeito no modo um a um (Enter aceita-os) e são as
+decisões aplicadas no modo AUTO. As opções da linha de comando têm prioridade sobre o env.
+
+Fluxo típico:
+
+```bash
+sudo ./migrate-php-fpm.sh -m migrar -v      # 1. simula um a um e grava as decisões
+vi migrate-php-fpm.env                      # 2. (opcional) rever / corrigir à mão
+sudo ./migrate-php-fpm.sh -m auto --usar-env   # 3. migra a sério com essas decisões
+```
+
+O ficheiro fica com `chmod 600`; pode apagá-lo a qualquer momento (`rm`, `--apagar-env` ou menu 8) ou pedir um novo
+(`--novo-env`).
 
 ## O que acontece em cada virtualhost
 
@@ -158,4 +209,6 @@ Testado num ambiente simulado (pastas `etc/apache2` e `etc/php` próprias via `m
 `apache2ctl`, `php-fpm8.3`, `a2enmod`/`a2dismod` e serviços substituídos por scripts de teste): migração um a um e AUTO,
 vhost 80+443 com `php_value` dentro de `<Directory>`, `.htaccess` → `.user.ini`, nome de pool repetido,
 erro de sintaxe com indicação da linha e reversão, simulação (`--dry-run`), marcação `.delete`, comparação de `php.ini`,
-desativação do mod_php bloqueada com diretivas pendentes e execução sem root.
+desativação do mod_php bloqueada com diretivas pendentes e execução sem root. Verbose: gravação do env um a um e AUTO,
+migração AUTO real com `--usar-env` (pool, valor editado, parâmetro removido, site ignorado e `env[...]` aplicados como
+gravados), `--novo-env` com backup do anterior e apagar pelo menu 8.

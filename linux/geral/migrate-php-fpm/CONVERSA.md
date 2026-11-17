@@ -64,3 +64,21 @@ Chat de 17 de novembro de 2026.
 
 Extras: `.htaccess` com `php_value` convertidos para `.user.ini`, comparação `php.ini` e extensões apache2 vs fpm,
 `--dry-run`, deteção de vhosts já migrados e aviso de sites sem php-fpm antes de desativar o mod_php.
+
+---
+
+## 2. Verbose e ficheiro env
+
+**Pergunta:**
+> Quero acrescentar a opção verbose, ou seja não faz nada apenas simula, todos os parâmetros ficam registados num
+> ficheiro de env, podemos sempre apagar o ficheiro ou dizer para criar um novo env.
+
+**Resposta:**
+
+| Pedido | Implementação |
+|---|---|
+| Verbose só simula | `-v` / `--verbose` implica `--dry-run`; mostra diff, pool, tabela "o que seria feito" e os valores `[env]` usados |
+| Parâmetros num ficheiro env | `migrate-php-fpm.env` (ou `--env`): predefinições globais + por virtualhost `MIGRAR`, `POOL`, `P_<parâmetro>`, `ENV_<variável>`, `HTACCESS` |
+| Reutilizar | Se o env existir pergunta `usar / criar novo / apagar / ignorar`; com usar, os valores são o defeito no modo um a um e as decisões no AUTO |
+| Apagar ou criar novo | `--apagar-env`, `--novo-env` (o anterior fica em `.bak-<data>`), `--usar-env`, `--sem-env` e menu 8 (ver / usar / novo / apagar) |
+
