@@ -174,3 +174,16 @@ A `containrrr/watchtower` já não é mantida e fala com o Docker pela API 1.25,
 **Resposta:**
 Mantém-se `nickfedor/watchtower` (fork mantido, aceita as mesmas variáveis). Na migração do `docker run`, só muda a imagem;
 as opções e variáveis passam iguais.
+
+---
+
+## 10. Erro no build: sudoers
+
+**Pergunta:**
+> chmod: cannot access '/etc/sudoers.d/<utilizador>': No such file or directory ... failed to build
+
+**Resposta:**
+Causa: o valor de `SSH_USER` chegou ao build com um espaço no fim (espaço ou comentário depois do valor no `.env`; o
+`docker-compose` antigo inclui-o). O ficheiro foi criado como `"<utilizador> "` e o `chmod`, sem aspas, procurou
+`<utilizador>`. Correção: o Dockerfile limpa os espaços de `SSH_USER`/`SSH_UID`, valida-os, usa aspas e guarda o nome em
+`/etc/portal-user` (lido pelo entrypoint); o `.env.example` deixou de ter comentários no fim das linhas.

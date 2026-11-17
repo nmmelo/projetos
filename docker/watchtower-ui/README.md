@@ -202,6 +202,8 @@ docker exec -u <SSH_USER> watchtower-ui sqlite3 /data/db/watchtower-ui.db \
 | Lista de contentores vazia | Ainda não houve verificação, ou o relatório não chega: ver `docker logs watchtower` (erros de notificação) e Configuração › Logs › Portal (`webhook recusado` = token errado). Alternativa ao URL: `generic://watchtower-ui/api/webhook/<token>?disabletls=yes` |
 | Relatório chega mas sem contentores | Template não aplicado: ver Configuração › Logs › Portal (`mensagem não estruturada`) e o `WATCHTOWER_NOTIFICATION_TEMPLATE` |
 | Com socket: lista vazia | Permissões do socket: ver `docker logs watchtower-ui` (linha `docker: socket com GID ...`) |
+| Build falha em `chmod: cannot access '/etc/sudoers.d/...'` (versões antigas) | Espaço ou comentário depois do valor de `SSH_USER` no `.env` (o `docker-compose` antigo inclui-o no valor). Ver com `cat -A .env \| grep -E ' \$\|#'`; o Dockerfile atual já limpa os espaços |
+| Portas ou variáveis estranhas com `docker-compose` (v1) | Comentários no fim das linhas do `.env`: pôr os comentários em linhas próprias. De preferência usar `docker compose` (v2) |
 | SSH recusa a chave | Ver `docker logs watchtower-ui` (linha `ssh: <utilizador> com N chave(s)`) |
 
 ## Segurança

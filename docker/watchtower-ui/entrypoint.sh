@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Nome do utilizador criado na imagem (sem espaços)
+SSH_USER="$(cat /etc/portal-user)"
+export SSH_USER
+
 : "${WATCHTOWER_HTTP_API_TOKEN:?WATCHTOWER_HTTP_API_TOKEN não definido}"
 [ -n "${WEBHOOK_TOKEN:-}" ] || echo "AVISO: WEBHOOK_TOKEN vazio; os relatórios do Watchtower vão ser recusados"
 
