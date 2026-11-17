@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ titulos.get(request.endpoint, ('', 'Watchtower'))[1] }} · Watchtower</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=asset_v) }}">
 </head>
 <body>
 <script>try { if (localStorage.getItem('wtui-mini') === '1') document.body.classList.add('mini'); } catch (e) {}</script>

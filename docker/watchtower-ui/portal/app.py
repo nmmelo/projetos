@@ -52,6 +52,8 @@ LOG_SOURCES = {
 }
 
 app = Flask(__name__)
+# Versão dos ficheiros estáticos (data do style.css): muda o URL a cada versão nova e evita CSS antigo em cache
+ASSET_V = str(int(os.path.getmtime(os.path.join(app.static_folder, "style.css"))))
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=PROXY_HOPS, x_proto=PROXY_HOPS)
 core.init_db(generate_password_hash)
 app.secret_key = core.secret_key()
@@ -104,7 +106,7 @@ def inject():
         session["csrf"] = secrets.token_hex(16)
     u = g.get("user")
     theme = (u["theme"] if u and u["theme"] else None) or request.cookies.get("tema") or DEFAULT_THEME
-    return {"csrf": session["csrf"], "user": u, "roles": ROLES, "titulos": TITLES,
+    return {"csrf": session["csrf"], "user": u, "roles": ROLES, "titulos": TITLES, "asset_v": ASSET_V,
             "theme": theme if theme in THEMES else DEFAULT_THEME,
             "update_state": core.update_state, "docker_ok": core.docker_ok(),
             "last_report": core.meta_get("last_report")}

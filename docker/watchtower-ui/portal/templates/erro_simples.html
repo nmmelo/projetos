@@ -1,4 +1,4 @@
 <!DOCTYPE html>
 <html lang="pt-PT" data-theme="{{ theme }}"><head><meta charset="UTF-8"><title>Erro</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=asset_v) }}"></head>
 <body><main>{% block content %}{% endblock %}</main></body></html>

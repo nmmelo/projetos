@@ -215,3 +215,15 @@ submenus Utilizadores, Auditoria, Logs (administradores), Aparência e Password;
 menu deslizante no telemóvel. Nova página **Aparência** com 6 temas (Escuro, Claro, Oceano, Floresta, Crepúsculo, Alto
 contraste), guardados por utilizador na base de dados e num cookie para o ecrã de login; `DEFAULT_THEME` no `.env`.
 Sem socket, a coluna Estado deixa de aparecer na lista de contentores.
+
+---
+
+## 13. Interface desformatada depois de atualizar
+
+**Pergunta:**
+> tenho a nova interface ui do watchtower todo deformatado, apenas copiei a pasta portal
+
+**Resposta:**
+O browser tinha o `style.css` antigo em cache (o nginx guarda os estáticos 1 h) com as páginas novas. Solução imediata:
+Ctrl+F5. Correção: o link do CSS passou a ter `?v=<data do ficheiro>`, que muda a cada versão. O portal está dentro da
+imagem, por isso depois de copiar a pasta é preciso `docker-compose up -d --build`.
