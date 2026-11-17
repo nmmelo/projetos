@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Painel</h1>
+    <div class="sub" style="margin:0">
+      {% if wt_error %}<span class="dot err"></span>Sem ligação à API do Watchtower ({{ wt_error }})
+      {% else %}<span class="dot ok"></span>Ligado ao Watchtower{% endif %}
+      · última sincronização {{ last_sync|dt }}
+      {% if relatorio %} · último relatório {{ relatorio.ts|dt }}{% endif %}
+    </div>
+  </div>
+  {% if user.role == 'admin' %}
+  <form method="post" action="{{ url_for('acao_atualizar') }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button {% if update_state.running %}disabled{% endif %}>Atualizar todos</button>
+  </form>
+  {% endif %}
+</div>
+{% if not docker_ok %}<div class="flash erro">Socket do Docker não montado: a lista de contentores e o histórico não são atualizados.</div>{% endif %}
+
+<div class="grid">
+  <div class="stat"><div class="l">Contentores</div><div class="v">{{ resumo.total or 0 }}</div></div>
+  <div class="stat"><div class="l">A correr</div><div class="v ok">{{ resumo.ativos or 0 }}</div></div>
+  <div class="stat"><div class="l">Parados</div><div class="v {{ 'warn' if resumo.parados }}">{{ resumo.parados or 0 }}</div></div>
+  <div class="stat"><div class="l">Verificações (Watchtower)</div><div class="v">{{ metrics.get('watchtower_scans_total', '–') }}</div></div>
+</div>
+
+<div class="card">
+  <h2>Última verificação do Watchtower</h2>
+  <table>
+    <tr><td>Contentores verificados</td><td class="num">{{ metrics.get('watchtower_containers_scanned', '–') }}</td></tr>
+    <tr><td>Contentores atualizados</td><td class="num">{{ metrics.get('watchtower_containers_updated', '–') }}</td></tr>
+    <tr><td>Contentores com falha</td><td class="num {{ 'err' if metrics.get('watchtower_containers_failed') }}">{{ metrics.get('watchtower_containers_failed', '–') }}</td></tr>
+    <tr><td>Verificações ignoradas</td><td class="num">{{ metrics.get('watchtower_scans_skipped', '–') }}</td></tr>
+  </table>
+</div>
+
+{% if user.role == 'admin' %}
+<div class="card">
+  <h2>Atualizar imagens</h2>
+  <form method="post" action="{{ url_for('acao_atualizar') }}" class="row">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="imagens" placeholder="nginx,mariadb" style="flex:1;min-width:220px">
+    <button class="sec" {% if update_state.running %}disabled{% endif %}>Atualizar imagens</button>
+  </form>
+  <div class="hint">Imagens separadas por vírgula. O Watchtower faz o pull e recria os contentores que usam essas imagens.</div>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Últimas atualizações</h2>
+  {% if recentes %}
+  <table>
+    <tr><th>Data</th><th>Contentor</th><th>De</th><th>Para</th><th>Origem</th><th>Resultado</th></tr>
+    {% for u in recentes %}
+    <tr>
+      <td>{{ u.ts|dt }}</td>
+      <td><a href="{{ url_for('contentor', nome=u.container) }}">{{ u.container }}</a></td>
+      <td class="mut">{{ u.from_version or '—' }}</td>
+      <td>{{ u.to_version or '—' }}</td>
+      <td>{{ u.source }}</td>
+      <td><span class="pill {{ 'err' if u.result == 'Falhou' }}">{{ u.result }}</span></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="mut">Ainda não há atualizações registadas.</div>{% endif %}
+</div>
+{% endblock %}

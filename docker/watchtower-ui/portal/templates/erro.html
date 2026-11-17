@@ -1,0 +1,2 @@
+{% extends "base.html" if user else "erro_simples.html" %}
+{% block content %}<h1>{{ codigo }}</h1><div class="sub">{{ msg }}</div><a href="{{ url_for('painel') }}">Voltar ao painel</a>{% endblock %}

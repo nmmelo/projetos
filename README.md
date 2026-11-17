@@ -9,7 +9,7 @@ utilização e um `CONVERSA.md` com o resumo do chat que deu origem ao projeto.
 | dev-portal | [`docker`](docker) › [`dev-portal`](docker/dev-portal) | Contentor Ubuntu 26.04 com Ansible, SSH e base para um portal Python: Nginx (reverse proxy) + Gunicorn com reload automático, código na pasta `portal/` do anfitrião, ferramentas de rede e drivers MariaDB |
 | Portal Oracle | [`docker`](docker) › [`portal-oracle`](docker/portal-oracle) | Portal web em Python (Flask + Gunicorn + Nginx, Ubuntu 26.04) para gerir bases de dados Oracle: utilizadores e perfis, shrink de tablespaces, backups da configuração, armazenamento em SQLite, MariaDB ou PostgreSQL, SSH para o VS Code |
 | tesla-key | [`docker`](docker) › [`tesla-key`](docker/tesla-key) | Contentor Ubuntu 26.04 (nginx + SSH) num Synology para alojar a chave pública da Tesla Fleet API em `tesla.<dominio>`, atrás do Proxy Reverso do DSM; inclui os passos de registo na Tesla, OAuth e emparelhamento |
-| watchtower-ui | [`docker`](docker) › [`watchtower-ui`](docker/watchtower-ui) | Contentor Ubuntu 26.04 (nginx + SSH) com interface web para a HTTP API de um Watchtower já existente: atualizar todos os contentores ou só algumas imagens e ver as métricas. Proxy com o token só no servidor, na mesma rede Docker que o watchtower; utilizador SSH configurável com chave pública e sudo |
+| watchtower-ui | [`docker`](docker) › [`watchtower-ui`](docker/watchtower-ui) | Portal web (Ubuntu 26.04, nginx + Flask + SSH) para um Watchtower já existente: login com verificação humana, histórico de versões por contentor (SQLite no mount), atualizar todos ou por imagem, métricas, utilizadores, auditoria e logs; utilizador SSH com chave e sudo |
 | Shrink de tablespaces | [`oracledb`](oracledb) › [`query`](oracledb/query) › [`shrink_tablespace`](oracledb/query/shrink_tablespace) | Script SQL*Plus que verifica se um tablespace (ou todos) pode ser reduzido, reorganiza os segmentos no fim dos datafiles (MOVE/REBUILD ONLINE) e faz o resize. Inclui notas sobre o SYSAUX |
 | Monitor RMAN | [`oracledb`](oracledb) › [`scripts`](oracledb/scripts) › [`rman`](oracledb/scripts/rman) | Monitor pós-backup RMAN (Bash + Python): valida o log, apaga backups antigos quando a partição passa os 90% e envia email por SMTP com password cifrada |
 | Internet na VM por USB | [`linux`](linux) › [`geral`](linux/geral) › [`usb-wifi`](linux/geral/usb-wifi) | VM Ubuntu no VirtualBox com internet por uma pen LTE USB (passthrough), netplan e funções `rede-trabalho` / `rede-casa` para alternar entre a pen e o NAT |
@@ -30,7 +30,7 @@ projetos/
 │   ├── mariadbv1/                  # MariaDB em docker-compose
 │   ├── portal-oracle/              # Portal Oracle (Python)
 │   ├── tesla-key/                  # Chave pública da Tesla Fleet API (nginx + SSH)
-│   └── watchtower-ui/              # Interface web para a HTTP API do Watchtower (nginx + SSH)
+│   └── watchtower-ui/              # Portal do Watchtower (login, histórico, auditoria)
 ├── linux/                          # Linux
 │   ├── README.md
 │   └── geral/                      # Configurações gerais

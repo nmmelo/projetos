@@ -76,3 +76,37 @@ A imagem passou de `nginx:alpine` para Ubuntu 26.04 com nginx + openssh-server +
 
 A configuração do nginx é gerada no arranque a partir de `nginx.conf.template` (envsubst) e a host key SSH fica
 persistente em `hostkeys/`.
+
+---
+
+## 5. Portal com login, base de dados, histórico e configuração
+
+**Pergunta:**
+> Podemos ter login, com fator humano, os dados ficam numa base de dados local, no dos mount, ter variáveis de ambiente
+> como ssh user, local onde vai estar os mount. Deve ter também os logs, e para cada container que existir, vai guardado
+> a informação das atualizações, podendo ver as versões que foram instaladas, quando. Na parte de configuração ter os
+> logs, auditoria, utilizadores.
+
+**Resposta:**
+Foi apresentado o layout (login, contentores com histórico, configuração) e a dúvida sobre "fator humano": verificação
+humana anti-bot, 2FA (TOTP) ou as duas.
+
+**Pergunta:**
+> Apenas a primeira, isto é o que WATCHTOWER_NOTIFICATION_URL
+
+**Resposta:**
+`WATCHTOWER_NOTIFICATION_URL` é o destino das notificações do Watchtower. Aponta para o portal
+(`generic+http://watchtower-ui/api/webhook/<WEBHOOK_TOKEN>`) e, com `WATCHTOWER_NOTIFICATION_REPORT=true` e um template
+JSON, o portal recebe no fim de cada verificação os contentores atualizados e os que falharam.
+
+O nginx com a página estática passou a portal Python (Flask + Gunicorn atrás do nginx):
+
+| Peça | Como |
+|---|---|
+| Login | Utilizador/password + desafio aritmético gerado localmente (SVG), bloqueio do IP após 5 falhas durante 15 min |
+| Base de dados | SQLite em `DATA_DIR/db` |
+| Histórico | Leitura do Docker (socket) a cada 60 s: mudança de imagem = atualização, com versão anterior/nova, origem e data; falhas pelo webhook |
+| Configuração | Utilizadores (admin / só leitura), auditoria, logs (portal, watchtower, nginx) |
+| Variáveis | `DATA_DIR`, `SSH_USER`, `SSH_UID`, `ADMIN_USER`, `ADMIN_PASSWORD`, `LOG_RETENTION_DAYS`, `WEBHOOK_TOKEN`, … |
+
+O que acrescentar ao watchtower existente ficou em `watchtower-exemplo.yml`.

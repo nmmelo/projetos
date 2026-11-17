@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entrar · Watchtower</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="login">
+  <form class="card" method="post" autocomplete="off">
+    <h1>Watchtower</h1>
+    <div class="sub">Iniciar sessão</div>
+    {% if erro %}<div class="flash erro">{{ erro }}</div>{% endif %}
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label for="u">Utilizador</label>
+    <input id="u" name="username" required autofocus value="{{ request.form.get('username','') }}">
+    <label for="p">Password</label>
+    <input id="p" name="password" type="password" required>
+    <label for="c">Verificação humana</label>
+    <div class="captcha">{{ challenge }}<input id="c" name="captcha" inputmode="numeric" required placeholder="Resultado"></div>
+    <button style="width:100%;margin-top:16px">Entrar</button>
+    <div class="hint">{{ max_attempts }} tentativas falhadas bloqueiam o IP durante {{ lock_minutes }} min.</div>
+  </form>
+</div>
+</body>
+</html>

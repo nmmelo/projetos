@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{{ c.name }}</h1>
+    <div class="sub" style="margin:0">{{ c.image }} · <span class="pill {{ '' if c.state == 'running' else 'warn' }}">{{ c.state }}</span> {{ c.status }}</div>
+  </div>
+  {% if user.role == 'admin' and c.state != 'removido' %}
+  <form method="post" action="{{ url_for('acao_atualizar') }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="imagens" value="{{ c.image }}">
+    <input type="hidden" name="voltar" value="{{ request.path }}">
+    <button {% if update_state.running %}disabled{% endif %}>Atualizar</button>
+  </form>
+  {% endif %}
+</div>
+<div class="grid">
+  <div class="stat"><div class="l">Versão atual</div><div class="v" style="font-size:18px">{{ c.version }}</div></div>
+  <div class="stat"><div class="l">Imagem (ID)</div><div class="v mono" style="font-size:14px">{{ c.image_id|sid }}</div></div>
+  <div class="stat"><div class="l">Seguido desde</div><div class="v" style="font-size:16px">{{ c.first_seen|dt }}</div></div>
+  <div class="stat"><div class="l">Última atualização</div><div class="v" style="font-size:16px">{{ c.last_update|dt }}</div></div>
+</div>
+{% if c.digest %}<div class="hint" style="margin:-6px 0 14px">Digest: <span class="mono">{{ c.digest }}</span></div>{% endif %}
+<div class="card">
+  <h2>Histórico de versões</h2>
+  <table>
+    <tr><th>Data</th><th>De</th><th>Para</th><th>Origem</th><th>Resultado</th></tr>
+    {% for u in hist %}
+    <tr>
+      <td>{{ u.ts|dt }}</td>
+      <td class="mut">{% if u.from_version %}{{ u.from_version }} <span class="mono">{{ u.from_image_id|sid }}</span>{% else %}—{% endif %}</td>
+      <td>{% if u.to_version %}{{ u.to_version }} <span class="mono mut">{{ u.to_image_id|sid }}</span>{% else %}—{% endif %}</td>
+      <td>{{ u.source }}</td>
+      <td><span class="pill {{ 'err' if u.result == 'Falhou' else ('mut' if u.result == 'Registado' else '') }}">{{ u.result }}</span>
+        {% if u.detail %}<div class="mono err" style="margin-top:4px">{{ u.detail }}</div>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+<a href="{{ url_for('contentores') }}">← Contentores</a>
+{% endblock %}

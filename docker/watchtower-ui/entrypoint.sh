@@ -1,10 +1,13 @@
 #!/bin/bash
 set -e
 
-: "${WATCHTOWER_HOST:=watchtower}"
-: "${WATCHTOWER_PORT:=8080}"
 : "${WATCHTOWER_HTTP_API_TOKEN:?WATCHTOWER_HTTP_API_TOKEN não definido}"
-export WATCHTOWER_HOST WATCHTOWER_PORT WATCHTOWER_HTTP_API_TOKEN
+[ -n "${WEBHOOK_TOKEN:-}" ] || echo "AVISO: WEBHOOK_TOKEN vazio; os relatórios do Watchtower vão ser recusados"
+
+# Pastas de dados (volume DATA_DIR): base de dados e logs, do utilizador que corre o portal
+mkdir -p /data/db /data/logs
+chown "${SSH_USER}:${SSH_USER}" /data/db /data/logs
+chown -R "${SSH_USER}:${SSH_USER}" /data/db 2>/dev/null || true
 
 # Host keys: guardadas no volume, mas usadas a partir de uma cópia interna
 # (alguns volumes, ex. Synology, forçam permissões 0755 que o sshd rejeita)
@@ -20,10 +23,37 @@ grep -q "^HostKey /etc/ssh/ssh_host_ed25519_key" /etc/ssh/sshd_config || \
 
 /usr/sbin/sshd -t && /usr/sbin/sshd || echo "ERRO: configuração do sshd inválida; SSH indisponível"
 
-# Configuração do nginx a partir do template (só estas variáveis; as do nginx, ex. $uri, ficam intactas)
-envsubst '${WATCHTOWER_HOST} ${WATCHTOWER_PORT} ${WATCHTOWER_HTTP_API_TOKEN}' \
-    < /etc/nginx/watchtower-ui.conf.template > /etc/nginx/sites-available/default
-chmod 600 /etc/nginx/sites-available/default   # contém o token
-nginx -t
+# Acesso (só leitura) ao socket do Docker: o utilizador do portal entra no grupo dono do socket
+if [ -S /var/run/docker.sock ]; then
+    gid=$(stat -c %g /var/run/docker.sock)
+    grp=$(getent group "$gid" | cut -d: -f1)
+    if [ -z "$grp" ]; then groupadd -g "$gid" dockersock; grp=dockersock; fi
+    usermod -aG "$grp" "$SSH_USER"
+    echo "docker: socket com GID $gid ($grp)"
+else
+    echo "AVISO: /var/run/docker.sock não montado; sem lista de contentores nem histórico"
+fi
 
+# Rotação simples dos logs do nginx (10 MB, 1 cópia)
+(
+    while sleep 3600; do
+        for f in /data/logs/nginx-access.log /data/logs/nginx-error.log; do
+            if [ -f "$f" ] && [ "$(stat -c %s "$f")" -gt 10485760 ]; then
+                mv -f "$f" "$f.1" && nginx -s reopen
+            fi
+        done
+    done
+) &
+
+# Portal (Gunicorn) como o utilizador SSH; reinicia sozinho se terminar
+(
+    while true; do
+        runuser -u "${SSH_USER}" -- gunicorn --chdir /opt/portal --bind 127.0.0.1:8000 \
+            --workers 1 --threads 8 --timeout 120 --error-logfile - app:app || true
+        echo "AVISO: portal terminou; a reiniciar em 5 s"
+        sleep 5
+    done
+) &
+
+nginx -t
 exec nginx -g 'daemon off;'

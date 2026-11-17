@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Watchtower{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+{% block head %}{% endblock %}
+</head>
+<body>
+{% set p = request.endpoint %}
+<div class="layout">
+  <nav class="side">
+    <div class="brand">Watchtower</div>
+    <a href="{{ url_for('painel') }}" class="{{ 'on' if p == 'painel' }}">Painel</a>
+    <a href="{{ url_for('contentores') }}" class="{{ 'on' if p in ('contentores','contentor') }}">Contentores</a>
+    {% if user.role == 'admin' %}
+    <div class="sec">Configuração</div>
+    <a href="{{ url_for('utilizadores') }}" class="{{ 'on' if p == 'utilizadores' }}">Utilizadores</a>
+    <a href="{{ url_for('auditoria') }}" class="{{ 'on' if p == 'auditoria' }}">Auditoria</a>
+    <a href="{{ url_for('logs') }}" class="{{ 'on' if p == 'logs' }}">Logs</a>
+    {% endif %}
+    <div class="who">
+      {{ user.username }} · {{ roles[user.role] }}<br>
+      <a href="{{ url_for('minha_password') }}">Mudar password</a>
+      <form method="post" action="{{ url_for('logout') }}" style="margin-top:8px">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="sec small">Sair</button>
+      </form>
+    </div>
+  </nav>
+  <main>
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+    {% endwith %}
+    {% if update_state.running %}
+    <div class="flash"><span class="warn">Update a decorrer</span> desde {{ update_state.since|dt }}
+      ({{ update_state.images or 'todos' }}, pedido por {{ update_state.user }}). A página atualiza sozinha.</div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% if update_state.running %}<script>setTimeout(() => location.reload(), 15000);</script>{% endif %}
+</body>
+</html>

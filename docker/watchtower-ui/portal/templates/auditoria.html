@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="head">
+  <div><h1>Auditoria</h1><div class="sub" style="margin:0">Últimos 500 registos · guardados durante {{ retention }} dias</div></div>
+  <form method="get" class="row"><input name="q" value="{{ filtro }}" placeholder="Utilizador, ação, IP…"><button class="sec">Filtrar</button></form>
+</div>
+<div class="card">
+  <table>
+    <tr><th>Data</th><th>Utilizador</th><th>IP</th><th>Ação</th><th>Detalhe</th></tr>
+    {% for a in lista %}
+    <tr>
+      <td style="white-space:nowrap">{{ a.ts }}</td>
+      <td>{{ a.username or '—' }}</td>
+      <td class="mut">{{ a.ip or '—' }}</td>
+      <td class="{{ 'err' if 'falh' in a.action|lower or 'bloque' in a.action|lower }}">{{ a.action }}</td>
+      <td class="mut">{{ a.detail or '' }}</td>
+    </tr>
+    {% else %}<tr><td colspan="5" class="mut">Sem registos.</td></tr>{% endfor %}
+  </table>
+</div>
+{% endblock %}

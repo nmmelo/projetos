@@ -1,0 +1,25 @@
+# Exemplo: o que acrescentar ao compose do watchtower que já existe.
+# Os valores <...> vêm do .env do watchtower-ui (mesmos tokens).
+services:
+  watchtower:
+    # ... manter image, volumes, schedule, cleanup, etc. que já existem
+    environment:
+      # HTTP API (botões de atualizar e métricas do portal)
+      WATCHTOWER_HTTP_API_UPDATE: "true"
+      WATCHTOWER_HTTP_API_METRICS: "true"
+      WATCHTOWER_HTTP_API_TOKEN: "<WATCHTOWER_HTTP_API_TOKEN>"
+      WATCHTOWER_HTTP_API_PERIODIC_POLLS: "true"   # sem isto deixa de verificar sozinho
+
+      # Relatório de cada verificação enviado ao portal (regista falhas e o resumo)
+      WATCHTOWER_NOTIFICATION_URL: "generic+http://watchtower-ui/api/webhook/<WEBHOOK_TOKEN>"
+      WATCHTOWER_NOTIFICATION_REPORT: "true"
+      WATCHTOWER_NOTIFICATION_TEMPLATE: |-
+        {{- if .Report -}}{"scanned":{{len .Report.Scanned}},"updated":[{}{{range .Report.Updated}},{"name":{{printf "%q" .Name}},"image":{{printf "%q" .ImageName}},"from":{{printf "%q" .CurrentImageID.ShortID}},"to":{{printf "%q" .LatestImageID.ShortID}}}{{end}}],"failed":[{}{{range .Report.Failed}},{"name":{{printf "%q" .Name}},"image":{{printf "%q" .ImageName}},"error":{{printf "%q" .Error}}}{{end}}]}{{- end -}}
+    networks:
+      - watchtower-net
+    # Não é preciso publicar a porta 8080
+
+networks:
+  watchtower-net:
+    name: watchtower-net
+    external: true

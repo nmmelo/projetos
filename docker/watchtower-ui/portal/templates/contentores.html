@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="head">
+  <div><h1>Contentores</h1><div class="sub" style="margin:0">Última sincronização {{ last_sync|dt }}</div></div>
+  <div class="row">
+    <form method="get" class="row"><input name="q" value="{{ filtro }}" placeholder="Filtrar por nome ou imagem"></form>
+    <form method="post" action="{{ url_for('acao_sincronizar') }}">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="voltar" value="{{ request.full_path }}">
+      <button class="sec">Sincronizar</button>
+    </form>
+  </div>
+</div>
+{% if not docker_ok %}<div class="flash erro">Socket do Docker não montado.</div>{% endif %}
+<div class="card">
+  <table>
+    <tr><th>Contentor</th><th>Estado</th><th>Imagem</th><th>Versão atual</th><th>Instalada em</th><th>Última atualização</th>{% if user.role == 'admin' %}<th></th>{% endif %}</tr>
+    {% for c in lista %}
+    <tr>
+      <td><a href="{{ url_for('contentor', nome=c.name) }}">{{ c.name }}</a></td>
+      <td><span class="pill {{ '' if c.state == 'running' else ('mut' if c.state == 'removido' else 'warn') }}">{{ c.state }}</span></td>
+      <td class="mut">{{ c.image }}</td>
+      <td>{{ c.version }} <span class="mono mut">{{ c.image_id|sid }}</span></td>
+      <td>{{ c.first_seen|dt }}</td>
+      <td>{{ c.last_update|dt }}</td>
+      {% if user.role == 'admin' %}
+      <td>{% if c.state != 'removido' %}
+        <form method="post" action="{{ url_for('acao_atualizar') }}" class="inline">
+          <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="imagens" value="{{ c.image }}">
+          <input type="hidden" name="voltar" value="{{ request.full_path }}">
+          <button class="sec small" {% if update_state.running %}disabled{% endif %}>Atualizar</button>
+        </form>{% endif %}
+      </td>
+      {% endif %}
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="mut">Sem contentores registados.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+<div class="hint">"Instalada em" = data em que o portal começou a seguir o contentor. O botão Atualizar pede ao Watchtower o update da imagem (afeta todos os contentores com essa imagem).</div>
+{% endblock %}

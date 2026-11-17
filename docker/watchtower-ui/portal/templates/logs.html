@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="head">
+  <div><h1>Logs</h1><div class="sub" style="margin:0">Mais recentes primeiro</div></div>
+  <form method="get" class="row">
+    <select name="fonte">{% for k, v in fontes.items() %}<option value="{{ k }}" {{ 'selected' if k == fonte }}>{{ v }}</option>{% endfor %}</select>
+    <select name="linhas">{% for n in (100, 300, 1000, 2000) %}<option {{ 'selected' if n == linhas }}>{{ n }}</option>{% endfor %}</select>
+    <input name="q" value="{{ filtro }}" placeholder="Filtrar texto">
+    <button class="sec">Ver</button>
+  </form>
+</div>
+<div class="card">
+  <pre class="log">{% for l in texto %}<span class="{{ 'err' if (' error' in l|lower or 'level=error' in l|lower or 'level=fatal' in l|lower) else ('warn' if ('warn' in l|lower) else '') }}">{{ l }}</span>
+{% else %}<span class="mut">Sem linhas.</span>{% endfor %}</pre>
+</div>
+{% endblock %}

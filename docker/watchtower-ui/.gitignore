@@ -1,3 +1,6 @@
 .env
+db/
+logs/
 hostkeys/
 ssh/authorized_keys
+__pycache__/

@@ -11,23 +11,42 @@ services:
     container_name: ${CONTAINER_NAME:-watchtower-ui}
     hostname: watchtower-ui
     restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"   # imagem local: o Watchtower não a atualiza
     environment:
       TZ: ${TZ:-Europe/Lisbon}
+      # Portal
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      LOG_RETENTION_DAYS: ${LOG_RETENTION_DAYS:-90}
+      SYNC_INTERVAL: ${SYNC_INTERVAL:-60}
+      SESSION_HOURS: ${SESSION_HOURS:-8}
+      LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-5}
+      LOGIN_LOCK_MINUTES: ${LOGIN_LOCK_MINUTES:-15}
+      PROXY_HOPS: ${PROXY_HOPS:-1}
+      WEBHOOK_TOKEN: ${WEBHOOK_TOKEN:-}
+      # Watchtower
       WATCHTOWER_HOST: ${WATCHTOWER_HOST:-watchtower}
       WATCHTOWER_PORT: ${WATCHTOWER_PORT:-8080}
+      WATCHTOWER_CONTAINER: ${WATCHTOWER_CONTAINER:-watchtower}
       WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:?definir no .env}
-      SSH_PUBKEY: ${SSH_PUBKEY:-}             # chave(s) pública(s) do utilizador principal (separadas por ";")
-      SSH_EXTRA_USER: ${SSH_EXTRA_USER:-}     # utilizador SSH extra (opcional)
-      SSH_EXTRA_PUBKEY: ${SSH_EXTRA_PUBKEY:-} # chave(s) pública(s) do utilizador extra
-      SSH_EXTRA_SUDO: ${SSH_EXTRA_SUDO:-1}    # 1 = sudo sem password; 0 = sem sudo
-      SSH_EXTRA_UID: ${SSH_EXTRA_UID:-}       # UID do utilizador extra (opcional)
+      # SSH
+      SSH_PUBKEY: ${SSH_PUBKEY:-}
+      SSH_EXTRA_USER: ${SSH_EXTRA_USER:-}
+      SSH_EXTRA_PUBKEY: ${SSH_EXTRA_PUBKEY:-}
+      SSH_EXTRA_SUDO: ${SSH_EXTRA_SUDO:-1}
+      SSH_EXTRA_UID: ${SSH_EXTRA_UID:-}
     ports:
-      - "${UI_PORT:-8090}:80"     # interface web (só rede local)
+      - "${UI_PORT:-8090}:80"     # portal (só rede local)
       - "${SSH_PORT:-2224}:22"    # SSH (só rede local, não abrir no router)
     volumes:
-      # DATA_DIR: "." = pasta do projeto; numa stack do Portainer a partir do Git tem de ser um caminho absoluto
+      # DATA_DIR: pasta dos dados no anfitrião ("." = pasta do projeto;
+      # numa stack do Portainer a partir do Git tem de ser um caminho absoluto)
+      - ${DATA_DIR:-.}/db:/data/db                 # base de dados SQLite
+      - ${DATA_DIR:-.}/logs:/data/logs             # logs do portal e do nginx
       - ${DATA_DIR:-.}/ssh/authorized_keys:/import/authorized_keys:ro
       - ${DATA_DIR:-.}/hostkeys:/etc/ssh/keys
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # lista de contentores, versões e logs do watchtower
     networks:
       - watchtower-net
 
