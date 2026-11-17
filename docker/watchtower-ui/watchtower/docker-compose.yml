@@ -1,0 +1,43 @@
+# Watchtower em docker compose, ligado ao portal watchtower-ui pela rede watchtower-net.
+# Variáveis em .env (copiar de .env.example). Arrancar: docker compose up -d
+services:
+  watchtower:
+    image: ${WATCHTOWER_IMAGE:-nickfedor/watchtower:latest}
+    container_name: ${CONTAINER_NAME:-watchtower}
+    hostname: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Registos privados (docker login no anfitrião):
+      # - /root/.docker/config.json:/config.json:ro
+    environment:
+      TZ: ${TZ:-Europe/Lisbon}
+
+      # Comportamento
+      WATCHTOWER_SCHEDULE: ${WATCHTOWER_SCHEDULE:-0 0 4 * * *}     # cron com segundos: todos os dias às 04:00
+      WATCHTOWER_CLEANUP: ${WATCHTOWER_CLEANUP:-true}             # apaga as imagens antigas
+      WATCHTOWER_INCLUDE_STOPPED: ${WATCHTOWER_INCLUDE_STOPPED:-false}
+      WATCHTOWER_LABEL_ENABLE: ${WATCHTOWER_LABEL_ENABLE:-false}   # true = só contentores com a label enable=true
+      WATCHTOWER_MONITOR_ONLY: ${WATCHTOWER_MONITOR_ONLY:-false}   # true = só avisa, não atualiza
+
+      # HTTP API (botões de atualizar e métricas do portal)
+      WATCHTOWER_HTTP_API_UPDATE: "true"
+      WATCHTOWER_HTTP_API_METRICS: "true"
+      WATCHTOWER_HTTP_API_TOKEN: ${WATCHTOWER_HTTP_API_TOKEN:?definir no .env}
+      WATCHTOWER_HTTP_API_PERIODIC_POLLS: "true"   # mantém o agendamento com a API ativa
+
+      # Relatório de cada verificação enviado ao portal: todos os contentores verificados (estado, imagem atual
+      # e nova, erro) + linhas de log da sessão. É daqui que o portal tira a lista e o histórico (sem socket).
+      WATCHTOWER_NOTIFICATION_URL: generic+http://${UI_HOST:-watchtower-ui}/api/webhook/${WEBHOOK_TOKEN:?definir no .env}
+      WATCHTOWER_NOTIFICATION_REPORT: "true"
+      WATCHTOWER_NOTIFICATIONS_LEVEL: "info"
+      WATCHTOWER_NOTIFICATION_TEMPLATE: |-
+        {{- if .Report -}}{"scanned":{{len .Report.Scanned}},"containers":[{}{{range .Report.All}},{"name":{{printf "%q" .Name}},"image":{{printf "%q" .ImageName}},"state":{{printf "%q" .State}},"from":{{printf "%q" .CurrentImageID}},"to":{{printf "%q" .LatestImageID}},"error":{{printf "%q" .Error}}}{{end}}],"entries":[{}{{range .Entries}},{"time":"{{.Time.Format "2006-01-02 15:04:05"}}","level":"{{.Level}}","msg":{{printf "%q" .Message}}}{{end}}]}{{- end -}}
+    # A porta 8080 (API) não é publicada: só o portal lhe acede, pela rede watchtower-net
+    networks:
+      - watchtower-net
+
+networks:
+  watchtower-net:
+    name: ${WATCHTOWER_NETWORK:-watchtower-net}
+    external: true

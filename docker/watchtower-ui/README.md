@@ -67,7 +67,7 @@ watchtower-ui/
 │   ├── core.py                 # SQLite, relatórios (webhook), API do Watchtower, Docker opcional, limpeza
 │   ├── templates/              # páginas (Jinja)
 │   └── static/style.css
-├── watchtower-exemplo.yml      # o que acrescentar ao compose do watchtower
+├── watchtower/                 # docker compose do próprio Watchtower (+ .env.example)
 ├── .env.example                # → .env
 └── ssh/authorized_keys.example # → ssh/authorized_keys
 ```
@@ -105,9 +105,10 @@ Na pasta `DATA_DIR` (no `.gitignore`):
 | `WATCHTOWER_NETWORK` | `watchtower-net` | Rede Docker partilhada |
 | `WATCHTOWER_HTTP_API_TOKEN` | — | Obrigatório; igual ao do watchtower |
 
-## No contentor watchtower (já existente)
+## No contentor watchtower
 
-Ver `watchtower-exemplo.yml`. Resumo:
+A pasta `watchtower/` tem um `docker-compose.yml` completo para o Watchtower (ver **Migrar o watchtower de `docker run`
+para compose**, abaixo). Variáveis que o ligam ao portal:
 
 | Variável | Valor | Para quê |
 |---|---|---|
@@ -141,10 +142,49 @@ docker compose up -d --build
 docker logs watchtower-ui                            # password inicial, se ADMIN_PASSWORD estiver vazio
 ```
 
-Depois, no watchtower: acrescentar as variáveis e a rede (`watchtower-exemplo.yml`) e recriá-lo.
+Depois, o watchtower: ver a secção seguinte.
 
 - Portal: `http://<anfitrião>:8090` → mudar a password em **Mudar password**
 - SSH: `ssh -p 2224 <SSH_USER>@<anfitrião>`
+
+## Migrar o watchtower de `docker run` para compose
+
+**1. Ver as opções atuais** (para não perder nada, ex. agendamento, notificações, registos privados):
+
+```bash
+docker inspect watchtower --format 'Imagem: {{.Config.Image}}'
+docker inspect watchtower --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -i watchtower
+docker inspect watchtower --format 'Argumentos: {{join .Args " "}}'
+docker inspect watchtower --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{println}}{{end}}'
+```
+
+| Se o `docker run` tinha | No compose (`watchtower/.env` ou `environment`) |
+|---|---|
+| `--cleanup` | `WATCHTOWER_CLEANUP=true` |
+| `--schedule "0 0 4 * * *"` | `WATCHTOWER_SCHEDULE=0 0 4 * * *` |
+| `--interval 86400` | `WATCHTOWER_POLL_INTERVAL: 86400` (no lugar de `WATCHTOWER_SCHEDULE`; não usar os dois) |
+| `--include-stopped` | `WATCHTOWER_INCLUDE_STOPPED=true` |
+| `--label-enable` | `WATCHTOWER_LABEL_ENABLE=true` |
+| `--monitor-only` | `WATCHTOWER_MONITOR_ONLY=true` |
+| nomes de contentores no fim (ex. `nginx mariadb`) | `command: nginx mariadb` |
+| `-v ~/.docker/config.json:/config.json` | Descomentar o volume `config.json` |
+| outra notificação (email, Telegram…) | Juntar ao URL separado por espaço: `WATCHTOWER_NOTIFICATION_URL: "generic+http://… telegram://…"` |
+
+**2. Trocar o contentor**
+
+```bash
+docker network create watchtower-net                  # se ainda não existir
+cd docker/watchtower-ui/watchtower
+cp .env.example .env                                  # tokens iguais aos do watchtower-ui + opções do passo 1
+docker compose config >/dev/null && echo "compose ok"
+docker rm -f watchtower                               # remove o contentor antigo (as imagens ficam)
+docker compose up -d
+docker logs -f watchtower                             # deve indicar a HTTP API e o agendamento
+```
+
+**3. Testar** no portal: **Atualizar todos** → a lista de contentores aparece quando a verificação terminar.
+
+Para voltar atrás: `docker compose down` e o `docker run` antigo.
 
 ## Verificação
 

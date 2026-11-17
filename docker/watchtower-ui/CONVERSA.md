@@ -109,7 +109,7 @@ O nginx com a página estática passou a portal Python (Flask + Gunicorn atrás 
 | Configuração | Utilizadores (admin / só leitura), auditoria, logs (portal, watchtower, nginx) |
 | Variáveis | `DATA_DIR`, `SSH_USER`, `SSH_UID`, `ADMIN_USER`, `ADMIN_PASSWORD`, `LOG_RETENTION_DAYS`, `WEBHOOK_TOKEN`, … |
 
-O que acrescentar ao watchtower existente ficou em `watchtower-exemplo.yml`.
+O que acrescentar ao watchtower ficou num ficheiro de exemplo (mais tarde substituído por `watchtower/docker-compose.yml`).
 
 ---
 
@@ -132,3 +132,27 @@ Watchtower só com isso; o socket ficou opcional (comentado no compose).
 | Logs do Watchtower | Os enviados nos relatórios | Em tempo real |
 
 Saída web noutra rede: rede extra `web-net` (comentada) no compose e `PROXY_HOPS=2` atrás de um proxy reverso.
+
+---
+
+## 7. Porta na rede local
+
+**Pergunta:**
+> Mas eu quero aceder a parte web da minha rede local na porta x por exemplo 8098
+
+**Resposta:**
+Já está previsto: `UI_PORT=8098` no `.env` (mapeamento `${UI_PORT}:80`) e `http://<IP-do-anfitrião>:8098`. Opcional:
+ligar só à placa da rede local com `"<IP>:${UI_PORT}:80"`. Não abrir a porta no router.
+
+---
+
+## 8. Compose para o Watchtower
+
+**Pergunta:**
+> podes gerar um docker-compose para o watchtower, não tenho o meu com docker-compose, deve ser com docker.
+
+**Resposta:**
+Criado `watchtower/docker-compose.yml` (+ `.env.example`): imagem `nickfedor/watchtower`, agendamento, cleanup, HTTP API,
+relatório JSON para o portal e rede `watchtower-net`, sem portas publicadas. No README ficou a migração do `docker run`:
+ver as opções atuais com `docker inspect`, tabela de equivalências (`--cleanup`, `--schedule`, `--interval`, …),
+`docker rm -f watchtower` e `docker compose up -d`.
