@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-PT" data-theme="{{ theme }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,11 +7,12 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+{% include "_icones.html" %}
 <div class="login">
   <form class="card" method="post" autocomplete="off">
-    <h1>Watchtower</h1>
-    <div class="sub">Iniciar sessão</div>
-    {% if erro %}<div class="flash erro">{{ erro }}</div>{% endif %}
+    <div class="brand"><span class="logo"><svg class="i"><use href="#i-torre"/></svg></span><h1 style="margin:0">Watchtower</h1></div>
+    <div class="sub">Inicie sessão para continuar</div>
+    {% if erro %}<div class="flash erro"><svg class="i"><use href="#i-alerta"/></svg>{{ erro }}</div>{% endif %}
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label for="u">Utilizador</label>
     <input id="u" name="username" required autofocus value="{{ request.form.get('username','') }}">
@@ -19,7 +20,7 @@
     <input id="p" name="password" type="password" required>
     <label for="c">Verificação humana</label>
     <div class="captcha">{{ challenge }}<input id="c" name="captcha" inputmode="numeric" required placeholder="Resultado"></div>
-    <button style="width:100%;margin-top:16px">Entrar</button>
+    <button style="width:100%;justify-content:center;margin-top:18px">Entrar</button>
     <div class="hint">{{ max_attempts }} tentativas falhadas bloqueiam o IP durante {{ lock_minutes }} min.</div>
   </form>
 </div>

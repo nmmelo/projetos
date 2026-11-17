@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS users (
     role TEXT NOT NULL DEFAULT 'leitura',
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
-    last_login TEXT
+    last_login TEXT,
+    theme TEXT
 );
 CREATE TABLE IF NOT EXISTS audit (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -148,10 +149,11 @@ def init_db(hash_fn):
     try:
         con.execute("PRAGMA journal_mode=WAL")
         con.executescript(SCHEMA)
-        cols = {r[1] for r in con.execute("PRAGMA table_info(containers)")}
-        for col in ("wt_state", "wt_checked"):
-            if col not in cols:
-                con.execute(f"ALTER TABLE containers ADD COLUMN {col} TEXT")
+        for table, new_cols in (("containers", ("wt_state", "wt_checked")), ("users", ("theme",))):
+            cols = {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
+            for col in new_cols:
+                if col not in cols:
+                    con.execute(f"ALTER TABLE {table} ADD COLUMN {col} TEXT")
         con.commit()
     finally:
         con.close()

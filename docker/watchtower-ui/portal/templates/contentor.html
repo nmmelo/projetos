@@ -11,20 +11,20 @@
   <form method="post" action="{{ url_for('acao_atualizar') }}">
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="imagens" value="{{ c.image }}">
     <input type="hidden" name="voltar" value="{{ request.path }}">
-    <button {% if update_state.running %}disabled{% endif %}>Atualizar</button>
+    <button {% if update_state.running %}disabled{% endif %}><svg class="i"><use href="#i-atualizar"/></svg>Atualizar</button>
   </form>
   {% endif %}
 </div>
 <div class="grid">
-  <div class="stat"><div class="l">Versão atual</div><div class="v" style="font-size:18px">{{ c.version }}</div></div>
-  <div class="stat"><div class="l">Imagem (ID)</div><div class="v mono" style="font-size:14px">{{ c.image_id|sid }}</div></div>
-  <div class="stat"><div class="l">Seguido desde</div><div class="v" style="font-size:16px">{{ c.first_seen|dt }}</div></div>
-  <div class="stat"><div class="l">Última atualização</div><div class="v" style="font-size:16px">{{ c.last_update|dt }}</div></div>
+  <div class="stat"><div class="ic"><svg class="i"><use href="#i-caixa"/></svg></div><div><div class="l">Versão atual</div><div class="v" style="font-size:18px">{{ c.version }}</div></div></div>
+  <div class="stat"><div class="ic"><svg class="i"><use href="#i-logs"/></svg></div><div><div class="l">Imagem (ID)</div><div class="v mono" style="font-size:14px">{{ c.image_id|sid }}</div></div></div>
+  <div class="stat"><div class="ic"><svg class="i"><use href="#i-relogio"/></svg></div><div><div class="l">Seguido desde</div><div class="v" style="font-size:15px">{{ c.first_seen|dt }}</div></div></div>
+  <div class="stat"><div class="ic ok"><svg class="i"><use href="#i-atualizar"/></svg></div><div><div class="l">Última atualização</div><div class="v" style="font-size:15px">{{ c.last_update|dt }}</div></div></div>
 </div>
 {% if c.digest %}<div class="hint" style="margin:-6px 0 14px">Digest: <span class="mono">{{ c.digest }}</span></div>{% endif %}
 <div class="card">
   <h2>Histórico de versões</h2>
-  <table>
+  <div class="tablewrap"><table class="hover">
     <tr><th>Data</th><th>De</th><th>Para</th><th>Origem</th><th>Resultado</th></tr>
     {% for u in hist %}
     <tr>
@@ -36,7 +36,7 @@
         {% if u.detail %}<div class="mono err" style="margin-top:4px">{{ u.detail }}</div>{% endif %}</td>
     </tr>
     {% endfor %}
-  </table>
+  </table></div>
 </div>
 <a href="{{ url_for('contentores') }}">← Contentores</a>
 {% endblock %}

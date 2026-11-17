@@ -5,7 +5,7 @@
   <form method="get" class="row"><input name="q" value="{{ filtro }}" placeholder="Utilizador, ação, IP…"><button class="sec">Filtrar</button></form>
 </div>
 <div class="card">
-  <table>
+  <div class="tablewrap"><table class="hover">
     <tr><th>Data</th><th>Utilizador</th><th>IP</th><th>Ação</th><th>Detalhe</th></tr>
     {% for a in lista %}
     <tr>
@@ -16,6 +16,6 @@
       <td class="mut">{{ a.detail or '' }}</td>
     </tr>
     {% else %}<tr><td colspan="5" class="mut">Sem registos.</td></tr>{% endfor %}
-  </table>
+  </table></div>
 </div>
 {% endblock %}

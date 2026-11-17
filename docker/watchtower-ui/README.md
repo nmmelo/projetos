@@ -9,6 +9,9 @@ SSH** e guarda tudo numa base de dados **SQLite** na pasta de dados montada (`DA
 | Painel | Estado da ligação ao Watchtower, métricas da última verificação, resumo dos contentores, últimas atualizações, atualizar todos ou só algumas imagens |
 | Contentores | Lista com a versão atual, a imagem, a data em que começou a ser seguido e a última atualização; botão para atualizar cada um |
 | Histórico | Por contentor: data, versão anterior → versão nova (com ID da imagem), origem (Watchtower, Manual (utilizador), Registo inicial) e resultado (OK/Falhou com o erro) |
+| Menu lateral | Ícones, submenu **Configuração** que abre e fecha, botão para encolher o menu (só ícones, fica memorizado no browser), menu deslizante no telemóvel |
+| Configuração › Aparência | 6 temas (Escuro, Claro, Oceano, Floresta, Crepúsculo, Alto contraste), guardados por utilizador |
+| Configuração › Password | Mudar a própria password |
 | Configuração › Utilizadores | Criar, mudar perfil (administrador / só leitura), ativar/desativar, repor password, apagar |
 | Configuração › Auditoria | Logins, logins falhados e bloqueados, updates pedidos e o resultado, alterações a utilizadores — com utilizador, IP e data |
 | Configuração › Logs | Portal, Watchtower (linhas de cada relatório, ou em tempo real com o socket), nginx (acessos e erros), com filtro |
@@ -99,6 +102,7 @@ Na pasta `DATA_DIR` (no `.gitignore`):
 | `LOGIN_MAX_ATTEMPTS` / `LOGIN_LOCK_MINUTES` | `5` / `15` | Bloqueio do IP após tentativas falhadas |
 | `PROXY_HOPS` | `1` | `2` se houver outro proxy reverso à frente (para registar o IP real) |
 | `WEB_NETWORK` | `proxy-net` | Rede extra para a saída web (só se `web-net` for descomentada no compose) |
+| `DEFAULT_THEME` | `escuro` | Tema por omissão (login e utilizadores sem tema escolhido) |
 | `WEBHOOK_TOKEN` | | Token do endpoint dos relatórios do Watchtower |
 | `UI_PORT` / `SSH_PORT` | `8090` / `2224` | Portas no anfitrião |
 | `WATCHTOWER_HOST` / `WATCHTOWER_PORT` | `watchtower` / `8080` | Endereço da HTTP API na rede |

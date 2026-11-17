@@ -4,8 +4,8 @@
   <div>
     <h1>Painel</h1>
     <div class="sub" style="margin:0">
-      {% if wt_error %}<span class="dot err"></span>Sem ligação à API do Watchtower ({{ wt_error }})
-      {% else %}<span class="dot ok"></span>Ligado ao Watchtower{% endif %}
+      {% if wt_error %}<span class="dot err"></span>&nbsp; Sem ligação à API do Watchtower ({{ wt_error }})
+      {% else %}<span class="dot ok"></span>&nbsp; Ligado ao Watchtower{% endif %}
       {% if docker_ok %} · última leitura do Docker {{ last_sync|dt }}{% endif %}
       · último relatório {{ last_report|dt }}
     </div>
@@ -13,31 +13,31 @@
   {% if user.role == 'admin' %}
   <form method="post" action="{{ url_for('acao_atualizar') }}">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <button {% if update_state.running %}disabled{% endif %}>Atualizar todos</button>
+    <button {% if update_state.running %}disabled{% endif %}><svg class="i"><use href="#i-atualizar"/></svg>Atualizar todos</button>
   </form>
   {% endif %}
 </div>
 {% if not docker_ok and not last_report %}<div class="flash">Ainda não chegou nenhum relatório do Watchtower: a lista de contentores aparece depois da primeira verificação (ou de um "Atualizar todos").</div>{% endif %}
 
 <div class="grid">
-  <div class="stat"><div class="l">Contentores</div><div class="v">{{ resumo.total or 0 }}</div></div>
+  <div class="stat"><div class="ic"><svg class="i"><use href="#i-caixa"/></svg></div><div><div class="l">Contentores</div><div class="v">{{ resumo.total or 0 }}</div></div></div>
   {% if docker_ok %}
-  <div class="stat"><div class="l">A correr</div><div class="v ok">{{ resumo.ativos or 0 }}</div></div>
-  <div class="stat"><div class="l">Parados</div><div class="v {{ 'warn' if resumo.parados }}">{{ resumo.parados or 0 }}</div></div>
+  <div class="stat"><div class="ic ok"><svg class="i"><use href="#i-ok"/></svg></div><div><div class="l">A correr</div><div class="v">{{ resumo.ativos or 0 }}</div></div></div>
+  <div class="stat"><div class="ic warn"><svg class="i"><use href="#i-alerta"/></svg></div><div><div class="l">Parados</div><div class="v">{{ resumo.parados or 0 }}</div></div></div>
   {% else %}
-  <div class="stat"><div class="l">Com falha na última verificação</div><div class="v {{ 'err' if resumo.falhados }}">{{ resumo.falhados or 0 }}</div></div>
+  <div class="stat"><div class="ic {{ 'err' if resumo.falhados else 'ok' }}"><svg class="i"><use href="#i-{{ 'alerta' if resumo.falhados else 'ok' }}"/></svg></div><div><div class="l">Com falha na última verificação</div><div class="v">{{ resumo.falhados or 0 }}</div></div></div>
   {% endif %}
-  <div class="stat"><div class="l">Verificações (Watchtower)</div><div class="v">{{ metrics.get('watchtower_scans_total', '–') }}</div></div>
+  <div class="stat"><div class="ic"><svg class="i"><use href="#i-atualizar"/></svg></div><div><div class="l">Verificações do Watchtower</div><div class="v">{{ metrics.get('watchtower_scans_total', '–') }}</div></div></div>
 </div>
 
 <div class="card">
   <h2>Última verificação do Watchtower</h2>
-  <table>
+  <div class="tablewrap"><table class="hover">
     <tr><td>Contentores verificados</td><td class="num">{{ metrics.get('watchtower_containers_scanned', '–') }}</td></tr>
     <tr><td>Contentores atualizados</td><td class="num">{{ metrics.get('watchtower_containers_updated', '–') }}</td></tr>
     <tr><td>Contentores com falha</td><td class="num {{ 'err' if metrics.get('watchtower_containers_failed') }}">{{ metrics.get('watchtower_containers_failed', '–') }}</td></tr>
     <tr><td>Verificações ignoradas</td><td class="num">{{ metrics.get('watchtower_scans_skipped', '–') }}</td></tr>
-  </table>
+  </table></div>
 </div>
 
 {% if user.role == 'admin' %}
@@ -55,7 +55,7 @@
 <div class="card">
   <h2>Últimas atualizações</h2>
   {% if recentes %}
-  <table>
+  <div class="tablewrap"><table class="hover">
     <tr><th>Data</th><th>Contentor</th><th>De</th><th>Para</th><th>Origem</th><th>Resultado</th></tr>
     {% for u in recentes %}
     <tr>
@@ -67,7 +67,7 @@
       <td><span class="pill {{ 'err' if u.result == 'Falhou' }}">{{ u.result }}</span></td>
     </tr>
     {% endfor %}
-  </table>
-  {% else %}<div class="mut">Ainda não há atualizações registadas.</div>{% endif %}
+  </table></div>
+  {% else %}<div class="empty">Ainda não há atualizações registadas.</div>{% endif %}
 </div>
 {% endblock %}

@@ -1,45 +1,93 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-PT" data-theme="{{ theme }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}Watchtower{% endblock %}</title>
+<title>{{ titulos.get(request.endpoint, ('', 'Watchtower'))[1] }} · Watchtower</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-{% block head %}{% endblock %}
 </head>
 <body>
+<script>try { if (localStorage.getItem('wtui-mini') === '1') document.body.classList.add('mini'); } catch (e) {}</script>
+{% include "_icones.html" %}
 {% set p = request.endpoint %}
+{% set cfg_pages = ('aparencia', 'minha_password', 'utilizadores', 'auditoria', 'logs') %}
+{% macro item(endpoint, icon, label, extra=()) -%}
+  <a href="{{ url_for(endpoint) }}" class="nav-item {{ 'on' if p == endpoint or p in extra }}" title="{{ label }}">
+    <svg class="i"><use href="#i-{{ icon }}"/></svg><span class="label">{{ label }}</span></a>
+{%- endmacro %}
 <div class="layout">
-  <nav class="side">
-    <div class="brand">Watchtower</div>
-    <a href="{{ url_for('painel') }}" class="{{ 'on' if p == 'painel' }}">Painel</a>
-    <a href="{{ url_for('contentores') }}" class="{{ 'on' if p in ('contentores','contentor') }}">Contentores</a>
-    {% if user.role == 'admin' %}
-    <div class="sec">Configuração</div>
-    <a href="{{ url_for('utilizadores') }}" class="{{ 'on' if p == 'utilizadores' }}">Utilizadores</a>
-    <a href="{{ url_for('auditoria') }}" class="{{ 'on' if p == 'auditoria' }}">Auditoria</a>
-    <a href="{{ url_for('logs') }}" class="{{ 'on' if p == 'logs' }}">Logs</a>
-    {% endif %}
-    <div class="who">
-      {{ user.username }} · {{ roles[user.role] }}<br>
-      <a href="{{ url_for('minha_password') }}">Mudar password</a>
-      <form method="post" action="{{ url_for('logout') }}" style="margin-top:8px">
+  <aside class="side" id="side">
+    <div class="brand"><span class="logo"><svg class="i"><use href="#i-torre"/></svg></span><span class="label">Watchtower</span></div>
+    <nav>
+      {{ item('painel', 'painel', 'Painel') }}
+      {{ item('contentores', 'caixa', 'Contentores', ('contentor',)) }}
+      <details class="nav-grp" id="grp-cfg" {{ 'open' if p in cfg_pages }}>
+        <summary title="Configuração"><svg class="i"><use href="#i-config"/></svg><span class="label">Configuração</span>
+          <svg class="i chev"><use href="#i-chev"/></svg></summary>
+        <div class="nav-sub">
+          {% if user.role == 'admin' %}
+          {{ item('utilizadores', 'utilizadores', 'Utilizadores') }}
+          {{ item('auditoria', 'escudo', 'Auditoria') }}
+          {{ item('logs', 'logs', 'Logs') }}
+          {% endif %}
+          {{ item('aparencia', 'paleta', 'Aparência') }}
+          {{ item('minha_password', 'chave', 'Password') }}
+        </div>
+      </details>
+    </nav>
+    <div class="foot">
+      <div class="who">
+        <span class="avatar">{{ user.username[:2]|upper }}</span>
+        <span class="txt"><div class="n">{{ user.username }}</div><div class="r">{{ roles[user.role] }}</div></span>
+      </div>
+      <form method="post" action="{{ url_for('logout') }}">
         <input type="hidden" name="csrf" value="{{ csrf }}">
-        <button class="sec small">Sair</button>
+        <button class="sec small" style="width:100%;justify-content:center;margin-top:6px" title="Sair">
+          <svg class="i"><use href="#i-sair"/></svg><span class="label">Sair</span></button>
       </form>
     </div>
-  </nav>
-  <main>
-    {% with msgs = get_flashed_messages(with_categories=true) %}
-      {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
-    {% endwith %}
-    {% if update_state.running %}
-    <div class="flash"><span class="warn">Update a decorrer</span> desde {{ update_state.since|dt }}
-      ({{ update_state.images or 'todos' }}, pedido por {{ update_state.user }}). A página atualiza sozinha.</div>
-    {% endif %}
-    {% block content %}{% endblock %}
-  </main>
+  </aside>
+  <div class="main">
+    <header class="top">
+      <button class="iconbtn only-mobile" id="btn-nav" aria-label="Menu"><svg class="i"><use href="#i-menu"/></svg></button>
+      <button class="iconbtn hide-mobile" id="btn-mini" aria-label="Encolher menu" title="Encolher / expandir menu"><svg class="i"><use href="#i-recolher"/></svg></button>
+      {% set t = titulos.get(p, ('', '')) %}
+      <div class="crumbs">{% if t[0] %}<span>{{ t[0] }}</span><svg class="i" style="width:14px;height:14px"><use href="#i-chev"/></svg>{% endif %}
+        <b>{{ t[1] }}{% if p == 'contentor' %} · {{ request.view_args.nome }}{% endif %}</b></div>
+      <div class="sp"></div>
+      {% if update_state.running %}<span class="status-chip"><svg class="i warn" style="width:14px;height:14px"><use href="#i-atualizar"/></svg>Update a decorrer</span>{% endif %}
+      <span class="status-chip hide-mobile"><svg class="i" style="width:14px;height:14px"><use href="#i-relogio"/></svg>Último relatório {{ last_report|dt }}</span>
+    </header>
+    <div class="content">
+      {% with msgs = get_flashed_messages(with_categories=true) %}
+        {% for cat, m in msgs %}<div class="flash {{ cat }}"><svg class="i"><use href="#i-{{ 'ok' if cat == 'ok' else 'alerta' }}"/></svg>{{ m }}</div>{% endfor %}
+      {% endwith %}
+      {% if update_state.running %}
+      <div class="flash"><svg class="i warn"><use href="#i-atualizar"/></svg><span>Update a decorrer desde {{ update_state.since|dt }}
+        ({{ update_state.images or 'todos' }}, pedido por {{ update_state.user }}). A página atualiza sozinha.</span></div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </div>
+  </div>
 </div>
-{% if update_state.running %}<script>setTimeout(() => location.reload(), 15000);</script>{% endif %}
+<script>
+(function () {
+  var b = document.body;
+  document.getElementById('btn-mini').addEventListener('click', function () {
+    b.classList.toggle('mini');
+    try { localStorage.setItem('wtui-mini', b.classList.contains('mini') ? '1' : '0'); } catch (e) {}
+  });
+  document.getElementById('btn-nav').addEventListener('click', function (e) { e.stopPropagation(); b.classList.toggle('nav-open'); });
+  document.addEventListener('click', function (e) {
+    if (b.classList.contains('nav-open') && !document.getElementById('side').contains(e.target)) b.classList.remove('nav-open');
+  });
+  // com o menu encolhido, abrir Configuração expande o menu
+  var g = document.getElementById('grp-cfg');
+  g.addEventListener('toggle', function () {
+    if (g.open && b.classList.contains('mini')) { b.classList.remove('mini'); try { localStorage.setItem('wtui-mini', '0'); } catch (e) {} }
+  });
+})();
+{% if update_state.running %}setTimeout(function () { location.reload(); }, 15000);{% endif %}
+</script>
 </body>
 </html>

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Aparência</h1>
+<div class="sub">O tema é guardado no seu utilizador e aplicado em todas as sessões.</div>
+<form method="post">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="card">
+    <h2>Tema</h2>
+    <div class="themes">
+      {% for k, t in temas.items() %}
+      <label class="theme">
+        <input type="radio" name="tema" value="{{ k }}" {{ 'checked' if k == theme }}>
+        <div class="pv" style="background:{{ t.bg }}">
+          <div class="s" style="background:{{ t.nav }};border-right:1px solid {{ t.line }}"></div>
+          <div class="m">
+            <div class="b" style="width:55%;background:{{ t.txt }};opacity:.85"></div>
+            <div class="c" style="background:{{ t.card }};border:1px solid {{ t.line }}"></div>
+            <div class="b" style="width:35%;background:{{ t.acc }}"></div>
+          </div>
+        </div>
+        <div class="nm"><span>{{ t.nome }}</span><svg class="i ck"><use href="#i-ok"/></svg></div>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+  <button>Guardar</button>
+</form>
+<script>
+document.querySelectorAll('input[name=tema]').forEach(function (r) {
+  r.addEventListener('change', function () { document.documentElement.setAttribute('data-theme', r.value); });
+});
+</script>
+{% endblock %}

@@ -199,3 +199,19 @@ Causa: o valor de `SSH_USER` chegou ao build com um espaço no fim (espaço ou c
 O Docker do Synology não cria as pastas dos bind mounts. Criar antes: `mkdir -p db logs hostkeys ssh`,
 `touch ssh/authorized_keys` e `chown` de `db/` e `logs/` para o `SSH_UID`. Ficou o script `preparar.sh`, que lê `DATA_DIR`
 e `SSH_UID` do `.env` e faz isto.
+
+---
+
+## 12. Layout, temas e menu dinâmico
+
+**Pergunta:**
+> o layout podia ser melhor do ui, podiamos ter mais temas nas configurações, o menu lateral deve ser dinamico, ou seja ao
+> abrir configurações, aparece os submenus.
+
+**Resposta:**
+Layout refeito: menu lateral com ícones (SVG locais, sem CDN), **Configuração** como grupo que abre e fecha com os
+submenus Utilizadores, Auditoria, Logs (administradores), Aparência e Password; botão para encolher o menu a só ícones
+(memorizado no browser); barra superior com o caminho da página e a hora do último relatório; cartões com ícones;
+menu deslizante no telemóvel. Nova página **Aparência** com 6 temas (Escuro, Claro, Oceano, Floresta, Crepúsculo, Alto
+contraste), guardados por utilizador na base de dados e num cookie para o ecrã de login; `DEFAULT_THEME` no `.env`.
+Sem socket, a coluna Estado deixa de aparecer na lista de contentores.

@@ -22,6 +22,28 @@ SESSION_HOURS = int(os.environ.get("SESSION_HOURS", "8") or 8)
 PROXY_HOPS = int(os.environ.get("PROXY_HOPS", "1") or 1)
 ROLES = {"admin": "Administrador", "leitura": "Só leitura"}
 USER_RE = re.compile(r"^[a-zA-Z0-9._-]{3,32}$")
+DEFAULT_THEME = os.environ.get("DEFAULT_THEME", "escuro")
+# Cores só para as pré-visualizações da página Aparência (o tema em si está no style.css)
+THEMES = {
+    "escuro": {"nome": "Escuro", "bg": "#0f1419", "nav": "#141a21", "card": "#1a2129", "line": "#2a333d", "txt": "#e6e9ec", "acc": "#3d8bfd"},
+    "claro": {"nome": "Claro", "bg": "#f4f6f9", "nav": "#ffffff", "card": "#ffffff", "line": "#e2e7ee", "txt": "#1c2733", "acc": "#2563eb"},
+    "oceano": {"nome": "Oceano", "bg": "#0a1520", "nav": "#0c1a27", "card": "#10202f", "line": "#1d3449", "txt": "#e0ecf5", "acc": "#38bdf8"},
+    "floresta": {"nome": "Floresta", "bg": "#0e1611", "nav": "#111b14", "card": "#152019", "line": "#233528", "txt": "#e3ede6", "acc": "#34d399"},
+    "crepusculo": {"nome": "Crepúsculo", "bg": "#14111d", "nav": "#181423", "card": "#1d1929", "line": "#2e2843", "txt": "#ece8f6", "acc": "#a78bfa"},
+    "contraste": {"nome": "Alto contraste", "bg": "#000000", "nav": "#000000", "card": "#0b0b0b", "line": "#8a8a8a", "txt": "#ffffff", "acc": "#ffd400"},
+}
+if DEFAULT_THEME not in THEMES:
+    DEFAULT_THEME = "escuro"
+TITLES = {
+    "painel": ("", "Painel"),
+    "contentores": ("", "Contentores"),
+    "contentor": ("Contentores", "Histórico"),
+    "utilizadores": ("Configuração", "Utilizadores"),
+    "auditoria": ("Configuração", "Auditoria"),
+    "logs": ("Configuração", "Logs"),
+    "aparencia": ("Configuração", "Aparência"),
+    "minha_password": ("Configuração", "Password"),
+}
 LOG_SOURCES = {
     "portal": "Portal",
     "watchtower": "Watchtower",
@@ -80,7 +102,10 @@ def load_user():
 def inject():
     if "csrf" not in session:
         session["csrf"] = secrets.token_hex(16)
-    return {"csrf": session["csrf"], "user": g.get("user"), "roles": ROLES,
+    u = g.get("user")
+    theme = (u["theme"] if u and u["theme"] else None) or request.cookies.get("tema") or DEFAULT_THEME
+    return {"csrf": session["csrf"], "user": u, "roles": ROLES, "titulos": TITLES,
+            "theme": theme if theme in THEMES else DEFAULT_THEME,
             "update_state": core.update_state, "docker_ok": core.docker_ok(),
             "last_report": core.meta_get("last_report")}
 
@@ -426,6 +451,23 @@ def minha_password():
             flash("Password alterada.", "ok")
             return redirect(url_for("painel"))
     return render_template("password.html")
+
+
+@app.route("/config/aparencia", methods=["GET", "POST"])
+@login_required
+def aparencia():
+    if request.method == "POST":
+        tema = request.form.get("tema", "")
+        if tema not in THEMES:
+            flash("Tema inválido.", "erro")
+            return redirect(url_for("aparencia"))
+        core.ex("UPDATE users SET theme=? WHERE id=?", (tema, g.user["id"]))
+        core.audit(g.user["username"], client_ip(), "Tema alterado", THEMES[tema]["nome"])
+        flash(f"Tema {THEMES[tema]['nome']} guardado.", "ok")
+        resp = redirect(url_for("aparencia"))
+        resp.set_cookie("tema", tema, max_age=365 * 86400, samesite="Lax", httponly=True)  # também no ecrã de login
+        return resp
+    return render_template("aparencia.html", temas=THEMES)
 
 
 # ---------------------------------------------------------------- webhook e saúde
