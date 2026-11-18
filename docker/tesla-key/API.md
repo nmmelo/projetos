@@ -80,6 +80,8 @@ para forçar um pedido novo à Tesla (conta como pedido pago).
 | GET | `/api/vehicles/{vin}/trips` | sim | Viagens registadas pelo gateway, com totais |
 | GET | `/api/vehicles/{vin}/trips/{id}` | sim | Uma viagem com o percurso |
 | GET | `/api/vehicles/{vin}/positions` | sim | Posições registadas (mapa de calor ou percurso) |
+| GET | `/api/vehicles/stats` | sim | Resumo de todas as viaturas (sem pedidos à Tesla) |
+| GET | `/api/vehicles/{vin}/stats` | sim | Resumo de uma viatura |
 | GET | `/api/vehicles/{vin}/charges` | sim | Carregamentos registados pelo gateway, com totais |
 | GET | `/api/vehicles/{vin}/charges/{id}` | sim | Um carregamento com a curva |
 | GET | `/api/vehicles/{vin}/battery-health` | sim | Saúde da bateria ao longo do tempo |
@@ -419,6 +421,30 @@ Permissão `bateria`. Filtros como `/trips`.
 
 As viagens importadas da Tessie (`origem: "tessie"`) e as completadas têm ainda `local_inicio`, `local_fim`,
 `energia_kwh`, `velocidade_media_kmh`, `temp_exterior`, `temp_interior` e `autopilot_km`.
+
+### Resumo por viatura (`/stats`)
+
+Permissão `viagens`. Calculado com o que o gateway guardou (não faz pedidos à Tesla). Sem filtros = todo o
+histórico; aceita `ano`, `mes`, `semana`, `dias`, `de`/`ate`.
+
+#### `GET /api/vehicles/stats` (lista) · `GET /api/vehicles/{vin}/stats` (um objeto)
+```json
+[{ "vin": "...", "nome": "Tesla", "modelo": "Model 3", "ano": 2024,
+   "estado": "asleep", "ultima_leitura": "2026-11-18T21:00:00+00:00", "bateria": 78, "lat": 38.7, "lon": -9.1,
+   "odometro_km": 41120.4,
+   "viagens": 812, "km": 38950.2, "maior_viagem_km": 312.4, "primeira_viagem": "...", "ultima_viagem": "...",
+   "energia_kwh": 6120.5, "energia_estimada_kwh": 2210.0, "consumo_wh_km": 157,
+   "capacidade_kwh": 73.9, "capacidade_origem": "saúde da bateria",
+   "carregamentos": 301, "carregamentos_dc": 40, "carregado_kwh": 6890.1, "custo": 412.35, "moeda": "EUR",
+   "autonomia_max_km": 446.3 }]
+```
+| Campo | Significado |
+|---|---|
+| `odometro_km` | Odómetro do carro (total desde novo), da última leitura |
+| `km`, `viagens` | O que o gateway registou no período (e importou da Tessie) |
+| `energia_kwh` | Energia gasta a conduzir: kWh medidos (Tessie) + estimativa (bateria usada × `capacidade_kwh`) nas restantes; `energia_estimada_kwh` é a parte estimada |
+| `carregado_kwh`, `custo` | Energia carregada e custo faturado (Superchargers/Tessie) |
+| `modelo`, `ano` | Pelo VIN |
 
 ### Validade da chave
 

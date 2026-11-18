@@ -521,3 +521,17 @@ A tabela tinha 9 colunas, permissões uma por linha e quatro botões lado a lado
 descrição, Chave com o estado, Validade, Permissões, Uso com a data e os pedidos, Ações). As permissões aparecem
 resumidas ("leitura · 13 permissões", "ver" abre a lista), a data em formato curto, e os botões em grelha 2×2 que
 passa a uma coluna em ecrãs médios e a cartões no telemóvel.
+
+---
+
+## 36. Menu Viaturas
+
+**Pergunta:**
+> pode aparecer uma aba nova com viaturas, onde temos as viaturas que estão a ser monitorizadas ... para cada viatura aparece os km feitos, kw gastos, nº de viagens
+
+**Resposta:**
+Novo menu **Viaturas**, com um cartão por viatura (nome da app Tesla, modelo e ano pelo VIN): odómetro, km e
+viagens registados, energia gasta (kWh e Wh/km), carregamentos (e DC), energia carregada, custo, bateria e
+autonomia a 100 %, com filtro por período (omissão: tudo). A energia gasta usa os kWh medidos (Tessie) e estima o
+resto pela bateria usada × capacidade (da viatura, configurável; da saúde da bateria; ou 75 kWh). Nova tabela
+`veiculos` (nome/estado da lista da Tesla). API `/api/vehicles/stats` e `/api/vehicles/{vin}/stats` (permissão `viagens`).

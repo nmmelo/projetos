@@ -235,6 +235,13 @@ def init_db():
             bateria INTEGER, potencia_kw REAL, energia_kwh REAL
         );
         CREATE INDEX IF NOT EXISTS idx_carreg_pontos ON carregamento_pontos(carregamento_id);
+        CREATE TABLE IF NOT EXISTS veiculos (
+            vin TEXT PRIMARY KEY,
+            nome TEXT,                             -- display_name na app Tesla
+            estado_tesla TEXT,                     -- online | asleep | offline (na última consulta à lista)
+            capacidade_kwh REAL,                   -- capacidade útil da bateria para estimar o consumo (opcional)
+            atualizado TEXT
+        );
         CREATE TABLE IF NOT EXISTS viagem_rota (
             viagem_id INTEGER PRIMARY KEY,         -- percurso pelas estradas (OSRM) entre os pontos registados
             coordenadas TEXT NOT NULL,             -- JSON [[lat, lon], ...]
@@ -1353,6 +1360,92 @@ def juntar_viagens(vid):
     return a["id"]
 
 
+MODELOS_VIN = {"3": "Model 3", "Y": "Model Y", "S": "Model S", "X": "Model X", "C": "Cybertruck", "R": "Roadster"}
+ANOS_VIN = {c: 2010 + i for i, c in enumerate("ABCDEFGHJKLMNPRSTVWXY")}  # 10.º carácter do VIN (A=2010 … Y=2030)
+
+
+def info_vin(vin):
+    """Modelo e ano de fabrico a partir do VIN (posições 4 e 10)."""
+    vin = (vin or "").upper()
+    return {"modelo": MODELOS_VIN.get(vin[3:4], "Tesla") if len(vin) >= 4 else "Tesla",
+            "ano": ANOS_VIN.get(vin[9:10]) if len(vin) >= 10 else None}
+
+
+def guardar_veiculos(lista):
+    """Guarda nome e estado da lista /vehicles da Tesla."""
+    with db() as c:
+        for x in lista:
+            if x.get("vin"):
+                c.execute("INSERT INTO veiculos(vin, nome, estado_tesla, atualizado) VALUES (?,?,?,?)"
+                          " ON CONFLICT(vin) DO UPDATE SET nome=excluded.nome, estado_tesla=excluded.estado_tesla,"
+                          " atualizado=excluded.atualizado", (x["vin"], x.get("display_name"), x.get("state"), agora_iso()))
+
+
+def definir_capacidade(vin, kwh):
+    kwh = float(kwh) if kwh not in (None, "") else None
+    if kwh is not None and not 10 <= kwh <= 250:
+        raise ErroGateway(400, "capacidade: entre 10 e 250 kWh")
+    with db() as c:
+        c.execute("INSERT INTO veiculos(vin, capacidade_kwh, atualizado) VALUES (?,?,?)"
+                  " ON CONFLICT(vin) DO UPDATE SET capacidade_kwh=excluded.capacidade_kwh", (vin, kwh, agora_iso()))
+
+
+def resumo_viaturas(de="0000", ate="9999", vin=None):
+    """Por viatura: estado atual (última leitura) e totais no período (viagens, km, energia, carregamentos).
+    Energia gasta: kWh medidos (Tessie) quando existem; nas restantes viagens estima-se pela bateria usada
+    × capacidade (a da viatura, a última medida na saúde da bateria, ou 75 kWh)."""
+    with db() as c:
+        vins = [r[0] for r in c.execute(
+            "SELECT vin FROM estado_veiculo UNION SELECT vin FROM veiculos UNION SELECT DISTINCT vin FROM viagens"
+            " UNION SELECT DISTINCT vin FROM carregamentos")]
+        if vin:
+            vins = [v for v in vins if v == vin]
+        out = []
+        for v in sorted(vins):
+            veic = c.execute("SELECT * FROM veiculos WHERE vin=?", (v,)).fetchone()
+            est = c.execute("SELECT * FROM estado_veiculo WHERE vin=?", (v,)).fetchone()
+            cap_med = c.execute("SELECT capacidade_kwh FROM bateria_saude WHERE vin=? AND capacidade_kwh IS NOT NULL"
+                                " ORDER BY ts DESC LIMIT 1", (v,)).fetchone()
+            cap = (veic["capacidade_kwh"] if veic and veic["capacidade_kwh"] else None) or (cap_med[0] if cap_med else None)
+            cap_origem = "viatura" if veic and veic["capacidade_kwh"] else ("saúde da bateria" if cap_med else "valor por omissão")
+            cap = cap or 75.0
+            vg = dict(c.execute(
+                "SELECT COUNT(*) n, COALESCE(SUM(km),0) km, COALESCE(SUM(energia_kwh),0) kwh_medido,"
+                " COALESCE(SUM(CASE WHEN energia_kwh IS NULL THEN MAX(COALESCE(bateria_inicio,0)-COALESCE(bateria_fim,0),0) END),0) pct_sem_medida,"
+                " COALESCE(SUM(CASE WHEN energia_kwh IS NOT NULL THEN km END),0) km_medido,"
+                " MIN(inicio) primeira, MAX(inicio) ultima, MAX(km) maior"
+                " FROM viagens WHERE vin=? AND estado='fechada' AND inicio >= ? AND inicio < ?", (v, de, ate)).fetchone())
+            cg = dict(c.execute(
+                "SELECT COUNT(*) n, COALESCE(SUM(energia_kwh),0) kwh, COALESCE(SUM(custo),0) custo,"
+                " SUM(CASE WHEN tipo='DC' THEN 1 ELSE 0 END) dc, MAX(moeda) moeda"
+                " FROM carregamentos WHERE vin=? AND inicio >= ? AND inicio < ?", (v, de, ate)).fetchone())
+            odo = (est["odo_km"] if est and est["odo_km"] else None) or c.execute(
+                "SELECT MAX(x) FROM (SELECT MAX(odo_fim_km) x FROM viagens WHERE vin=? UNION ALL"
+                " SELECT MAX(odo_km) FROM carregamentos WHERE vin=? UNION ALL SELECT MAX(odo_km) FROM bateria_saude WHERE vin=?)",
+                (v, v, v)).fetchone()[0]
+            kwh_estimado = vg["pct_sem_medida"] / 100 * cap
+            kwh = vg["kwh_medido"] + kwh_estimado
+            saude = c.execute("SELECT autonomia_max_km FROM bateria_saude WHERE vin=? AND autonomia_max_km IS NOT NULL"
+                              " ORDER BY ts DESC LIMIT 1", (v,)).fetchone()
+            out.append({
+                "vin": v, **info_vin(v),
+                "nome": (veic["nome"] if veic and veic["nome"] else None) or info_vin(v)["modelo"],
+                "estado": (est["estado"] if est else None) or (veic["estado_tesla"] if veic else None),
+                "ultima_leitura": est["ts"] if est else None, "bateria": est["bateria"] if est else None,
+                "lat": est["lat"] if est else None, "lon": est["lon"] if est else None,
+                "odometro_km": round(odo, 1) if odo else None,
+                "viagens": vg["n"], "km": round(vg["km"], 1), "maior_viagem_km": round(vg["maior"], 1) if vg["maior"] else None,
+                "primeira_viagem": vg["primeira"], "ultima_viagem": vg["ultima"],
+                "energia_kwh": round(kwh, 1), "energia_estimada_kwh": round(kwh_estimado, 1),
+                "consumo_wh_km": round(kwh * 1000 / vg["km"]) if vg["km"] > 1 else None,
+                "capacidade_kwh": round(cap, 1), "capacidade_origem": cap_origem,
+                "carregamentos": cg["n"], "carregado_kwh": round(cg["kwh"], 1), "carregamentos_dc": cg["dc"] or 0,
+                "custo": round(cg["custo"], 2), "moeda": cg["moeda"],
+                "autonomia_max_km": saude[0] if saude else None,
+            })
+    return out
+
+
 def saude_bateria(vin=None, de="0000", ate="9999", origem=None, limite=5000):
     sql, args = "SELECT * FROM bateria_saude WHERE ts >= ? AND ts < ?", [de, ate]
     if vin:
@@ -1584,6 +1677,10 @@ ENDPOINTS = [
     ("GET", "/api/vehicles/{vin}/idles", "bateria", "Períodos com o carro parado e a energia perdida (clima, sentinela). Importados da Tessie.",
      "ano | mes | semana | dias | de&ate · limite=200",
      '{"paragens": [{"inicio": "...", "fim": "...", "local": "...", "bateria_inicio": 80, "bateria_fim": 77, "energia_kwh": 2.1, "sentinela_pct": 0.9}], "resumo": {"n": 1, "kwh": 2.1}}'),
+    ("GET", "/api/vehicles/stats", "viagens", "Resumo por viatura: odómetro, viagens, km, energia gasta (kWh, Wh/km), carregamentos e custo. Sem pedidos à Tesla.",
+     "ano | mes | semana | dias | de&ate (sem filtro: tudo)",
+     '[{"vin": "...", "nome": "Tesla", "modelo": "Model 3", "odometro_km": 41120.4, "viagens": 812, "km": 38950.2, "energia_kwh": 6120.5, "consumo_wh_km": 157, "carregamentos": 301, "carregado_kwh": 6890.1}]'),
+    ("GET", "/api/vehicles/{vin}/stats", "viagens", "O mesmo resumo para uma viatura.", "como /api/vehicles/stats", '{"vin": "...", "km": 38950.2, ...}'),
     ("POST", "/api/vehicles/{vin}/wake", "acordar", "Acorda o carro (custo extra, gasta bateria).", "",
      '{"response": {"state": "online"}}'),
     ("GET", "/api/recolha", "viagens", "Estado da recolha de viagens: ativa, intervalos e, por veículo, estado, última/próxima leitura e leituras de hoje.", "",

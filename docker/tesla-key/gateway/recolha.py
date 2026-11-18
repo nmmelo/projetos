@@ -430,7 +430,9 @@ def vins():
     r = c.tesla("GET", "vehicles", cliente_consumo="recolha")
     if r.status_code != 200:
         return guardados
-    lista = [x["vin"] for x in r.json().get("response", []) if x.get("vin")]
+    resp = r.json().get("response", []) or []
+    c.guardar_veiculos(resp)
+    lista = [x["vin"] for x in resp if x.get("vin")]
     for v in lista:
         if v not in guardados:
             guardar_estado(v, proxima_leitura=0)

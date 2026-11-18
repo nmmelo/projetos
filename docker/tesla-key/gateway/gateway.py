@@ -245,6 +245,23 @@ def ler_limite(omissao=200, maximo=5000):
         abort(400, "limite inválido")
 
 
+@app.get("/api/vehicles/stats")
+def stats_todas():
+    requer("viagens")
+    de, ate = filtros_periodo()
+    return jsonify(c.resumo_viaturas(de, ate))
+
+
+@app.get("/api/vehicles/<vin>/stats")
+def stats_viatura(vin):
+    requer("viagens")
+    de, ate = filtros_periodo()
+    r = c.resumo_viaturas(de, ate, vin)
+    if not r:
+        abort(404, f"viatura sem dados no gateway: {vin}")
+    return jsonify(r[0])
+
+
 @app.get("/api/vehicles/<vin>/trips")
 def trips(vin):
     requer("viagens")

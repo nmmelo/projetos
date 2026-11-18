@@ -361,6 +361,7 @@ desativada responde 404. Autenticação com `Authorization: Bearer <token>` (tok
 | Estado | Gateway, token Tesla, clientes, consumo do mês, pedidos/warnings/erros 24 h, testar ligação, renovar token |
 | Consumo | Gráficos circulares de onde foram gastos os créditos (por tipo e por cliente) e estimativa do mês por tipo, cliente, endpoint e dia, com limites diários |
 | Viagens | Estado da recolha, viagens com filtros (semana, mês, ano, 30 dias) e totais; detalhe com mapa e GPX/JSON |
+| Viaturas | Um cartão por viatura: odómetro, km e viagens registados, energia gasta (kWh e Wh/km), carregamentos, energia carregada, custo, bateria e autonomia; filtro por período |
 | Carregamentos | Todos os carregamentos (casa/AC, rápidos/DC, Superchargers) com filtros, totais (kWh, custo), detalhe com curva de bateria e potência e local; importar o histórico de Superchargers |
 | Bateria | Saúde da bateria (autonomia a 100 %, capacidade, degradação) e perdas com o carro parado |
 | Mapa | Mapa de calor das posições registadas, com filtros por semana, mês ou ano |

@@ -197,6 +197,7 @@ pre{background:#1d2433;color:#e6e9f0;padding:10px;border-radius:6px;overflow-x:a
 <nav>
 <a href="{{ url_for('painel') }}" class="{{ 'on' if pag=='painel' }}">Estado</a>
 <a href="{{ url_for('consumo') }}" class="{{ 'on' if pag=='consumo' }}">Consumo</a>
+<a href="{{ url_for('viaturas') }}" class="{{ 'on' if pag=='viaturas' }}">Viaturas</a>
 <a href="{{ url_for('viagens') }}" class="{{ 'on' if pag=='viagens' }}">Viagens</a>
 <a href="{{ url_for('carregamentos') }}" class="{{ 'on' if pag=='carregamentos' }}">Carregamentos</a>
 <a href="{{ url_for('bateria') }}" class="{{ 'on' if pag=='bateria' }}">Bateria</a>
@@ -1158,9 +1159,9 @@ FILTRO = """<form method="get" class="row">
 <button>Filtrar</button></form>"""
 
 
-def ler_filtro():
+def ler_filtro(omissao_periodo="mes"):
     agora = datetime.now(timezone.utc)
-    periodo = request.args.get("periodo", "mes")
+    periodo = request.args.get("periodo", omissao_periodo)
     omissao = {"semana": agora.strftime("%G-W%V"), "mes": agora.strftime("%Y-%m"), "ano": str(agora.year),
                "dias": "30", "tudo": ""}
     if periodo not in omissao:
@@ -1175,6 +1176,60 @@ def ler_filtro():
     anos = c.anos_com_dados() or [str(agora.year)]
     return {"periodo": periodo, "valor": valor, "de": de, "ate": ate, "vin": request.args.get("vin") or None,
             "vins": vins, "anos": anos}
+
+
+@app.route("/viaturas", methods=["GET", "POST"])
+@login_obrigatorio
+def viaturas():
+    if request.method == "POST":
+        try:
+            c.definir_capacidade(request.form.get("vin"), (request.form.get("capacidade") or "").replace(",", "."))
+            flash("Capacidade guardada", "ok")
+        except (c.ErroGateway, ValueError) as e:
+            flash(getattr(e, "mensagem", None) or "capacidade inválida", "err")
+        return redirect(request.referrer or url_for("viaturas"))
+    f = ler_filtro("tudo")
+    lista = c.resumo_viaturas(f["de"], f["ate"], f["vin"])
+    tot = {k: round(sum(x[k] or 0 for x in lista), 1) for k in ("viagens", "km", "energia_kwh", "carregamentos", "carregado_kwh", "custo")}
+    return render("Viaturas", "viaturas", """
+<div class="card">""" + FILTRO + """
+{% if lista|length > 1 %}<div class="grid" style="margin-top:12px">
+ <div class="kpi"><small>Viaturas</small><div>{{ lista|length }}</div></div>
+ <div class="kpi"><small>Viagens</small><div>{{ tot.viagens|int }}</div></div>
+ <div class="kpi"><small>Km</small><div>{{ '{:,.0f}'.format(tot.km).replace(',', ' ') }}</div></div>
+ <div class="kpi"><small>Energia gasta</small><div>{{ '{:,.0f}'.format(tot.energia_kwh).replace(',', ' ') }} kWh</div></div>
+</div>{% endif %}</div>
+{% for v in lista %}<div class="card">
+<div style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between">
+ <h2 style="margin:0">{{ v.nome }} <small class="mutt" style="font-weight:400">{{ v.modelo }}{{ ' · ' ~ v.ano if v.ano }}</small></h2>
+ <span class="mutt"><code>…{{ v.vin[-6:] }}</code>
+ {% if v.estado %} · <span class="b {{ 'ok' if v.estado in ('online','a_conduzir','parado','a_carregar') else 'mut' }}">{{ v.estado }}</span>{% endif %}
+ {% if v.ultima_leitura %} · última leitura {{ v.ultima_leitura[:16].replace('T',' ') }}{% endif %}</span>
+</div>
+<div class="grid" style="margin-top:12px">
+ <div class="kpi"><small>Odómetro (total do carro)</small><div>{{ ('{:,.0f} km'.format(v.odometro_km)).replace(',', ' ') if v.odometro_km else '—' }}</div></div>
+ <div class="kpi"><small>Km registados{{ '' if f.periodo == 'tudo' else ' no período' }}</small><div>{{ ('{:,.0f}'.format(v.km)).replace(',', ' ') }} km</div></div>
+ <div class="kpi"><small>Viagens</small><div>{{ v.viagens }}</div></div>
+ <div class="kpi"><small>Energia gasta</small><div>{{ ('{:,.0f}'.format(v.energia_kwh)).replace(',', ' ') }} kWh</div></div>
+ <div class="kpi"><small>Consumo médio</small><div>{{ (v.consumo_wh_km ~ ' Wh/km') if v.consumo_wh_km else '—' }}</div></div>
+ <div class="kpi"><small>Carregamentos</small><div>{{ v.carregamentos }}{% if v.carregamentos_dc %} <small class="mutt">({{ v.carregamentos_dc }} DC)</small>{% endif %}</div></div>
+ <div class="kpi"><small>Energia carregada</small><div>{{ ('{:,.0f}'.format(v.carregado_kwh)).replace(',', ' ') }} kWh</div></div>
+ <div class="kpi"><small>Custo (faturado)</small><div>{{ ('%.2f'|format(v.custo)) ~ ' ' ~ (v.moeda or '€') if v.custo else '—' }}</div></div>
+ <div class="kpi"><small>Bateria agora</small><div>{{ (v.bateria ~ ' %') if v.bateria is not none else '—' }}</div></div>
+ <div class="kpi"><small>Autonomia a 100 %</small><div>{{ ('%.0f km'|format(v.autonomia_max_km)) if v.autonomia_max_km else '—' }}</div></div>
+</div>
+<p class="mutt" style="margin:10px 0 0">
+{% if v.primeira_viagem %}Viagens registadas de {{ v.primeira_viagem[:10] }} a {{ v.ultima_viagem[:10] }}{% if v.maior_viagem_km %}; a maior com {{ v.maior_viagem_km }} km{% endif %}.{% endif %}
+{% if v.energia_estimada_kwh %} Energia: {{ v.energia_estimada_kwh }} kWh estimados pela bateria usada × {{ v.capacidade_kwh }} kWh ({{ v.capacidade_origem }}).{% endif %}
+· <a href="{{ url_for('viagens', vin=v.vin, periodo=f.periodo, valor=f.valor) }}">viagens</a>
+· <a href="{{ url_for('carregamentos', vin=v.vin, periodo=f.periodo, valor=f.valor) }}">carregamentos</a>
+· <a href="{{ url_for('bateria', vin=v.vin, periodo='tudo') }}">bateria</a></p>
+{% if session.get('perfil') == 'admin' %}<details style="margin-top:6px"><summary class="mutt" style="cursor:pointer">capacidade da bateria para a estimativa</summary>
+<form method="post" class="row" style="margin-top:6px;align-items:end"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="vin" value="{{ v.vin }}">
+<label>Capacidade útil (kWh)<input name="capacidade" type="number" step="0.1" min="10" max="250" placeholder="{{ v.capacidade_kwh }}"></label><button class="sec">Guardar</button>
+<span class="mutt">Vazio = usar a da saúde da bateria (Tessie) ou 75 kWh. Ex.: Model 3 LR ≈ 75, SR+ ≈ 55.</span></form></details>{% endif %}
+</div>{% else %}<div class="card"><p class="mutt">Sem viaturas registadas. Ative a recolha de viagens em Definições (ou importe da Tessie).</p></div>{% endfor %}""",
+                  f=f, lista=lista, tot=tot)
 
 
 @app.get("/viagens")
