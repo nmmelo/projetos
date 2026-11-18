@@ -1,7 +1,5 @@
 .env
 secrets
-hostkeys
-semaphore
 workspace
 .git
 *.md

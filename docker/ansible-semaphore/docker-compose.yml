@@ -1,5 +1,5 @@
-# Variáveis em .env (copiar de .env.example) ou, numa stack do Portainer, em "Environment variables".
-# Antes do 1.º arranque: ./preparar.sh (cria as pastas dos mounts em DATA_DIR).
+# Stack do Portainer a partir do Git: as variáveis vão em "Environment variables" (ver .env.example).
+# Não precisa de SSH nem de criar pastas no anfitrião: volumes nomeados criados pelo Docker.
 services:
   ansible:
     build:
@@ -9,7 +9,7 @@ services:
         SSH_UID: ${SSH_UID:-1026}
         SSH_GID: ${SSH_GID:-100}
     image: ansible-ssh:latest
-    pull_policy: build            # reconstrói sempre a imagem no deploy
+    pull_policy: build            # reconstrói a imagem em cada deploy
     container_name: ${ANSIBLE_CONTAINER:-ansible}
     hostname: ansible
     restart: unless-stopped
@@ -17,21 +17,35 @@ services:
       com.centurylinklabs.watchtower.enable: "false"   # imagem local: o Watchtower não a atualiza
     environment:
       TZ: ${TZ:-Europe/Lisbon}
+      # SSH
       SSH_PUBKEY: ${SSH_PUBKEY:-}
       SSH_EXTRA_USER: ${SSH_EXTRA_USER:-}
       SSH_EXTRA_PUBKEY: ${SSH_EXTRA_PUBKEY:-}
       SSH_EXTRA_SUDO: ${SSH_EXTRA_SUDO:-1}
       SSH_EXTRA_UID: ${SSH_EXTRA_UID:-}
-      ANSIBLE_KEY_FILE: ${ANSIBLE_KEY_FILE:-}
+      # Ansible
+      ANSIBLE_KEY_FILE: ${ANSIBLE_KEY_FILE:-id_ansible}
+      ANSIBLE_PRIVATE_KEY_B64: ${ANSIBLE_PRIVATE_KEY_B64:-}
+      ANSIBLE_REMOTE_USER: ${ANSIBLE_REMOTE_USER:-}
+      ANSIBLE_INVENTORY: ${ANSIBLE_INVENTORY:-}
+      ANSIBLE_ROLES_PATH: ${ANSIBLE_ROLES_PATH:-}
+      ANSIBLE_CFG_B64: ${ANSIBLE_CFG_B64:-}
+      ANSIBLE_VAULT_PASSWORD: ${ANSIBLE_VAULT_PASSWORD:-}
+      # Playbooks: clone no 1.º arranque
+      PLAYBOOKS_GIT_URL: ${PLAYBOOKS_GIT_URL:-}
+      PLAYBOOKS_GIT_BRANCH: ${PLAYBOOKS_GIT_BRANCH:-}
+      PLAYBOOKS_GIT_DIR: ${PLAYBOOKS_GIT_DIR:-ansible}
+      PLAYBOOKS_GIT_USER: ${PLAYBOOKS_GIT_USER:-git}
+      PLAYBOOKS_GIT_TOKEN: ${PLAYBOOKS_GIT_TOKEN:-}
     ports:
       - "${SSH_PORT:-2222}:22"    # SSH (só rede local, não abrir no router)
     volumes:
-      # Playbooks, inventário e roles (ansible.cfg: ~/workspace/...)
-      - ${PLAYBOOKS_DIR:-./workspace}:/home/${SSH_USER:-admin}/workspace
-      # ansible.cfg, .vault_pass, chave privada, authorized_keys (só leitura, nunca no Git)
-      - ${DATA_DIR:-.}/secrets:/secrets:ro
-      # Host keys SSH (criadas no 1.º arranque)
-      - ${DATA_DIR:-.}/hostkeys:/etc/ssh/keys
+      # PLAYBOOKS_DIR: vazio = volume "playbooks"; caminho absoluto = pasta no anfitrião
+      # (ex. /volume1/docker/ansible-semaphore/workspace, criada pelo Docker e visível no File Station)
+      - ${PLAYBOOKS_DIR:-playbooks}:/home/${SSH_USER:-admin}/workspace
+      - hostkeys:/etc/ssh/keys
+      # Opcional: ficheiros em vez de variáveis (ver secrets/README.md)
+      # - /volume1/docker/ansible-semaphore/secrets:/secrets:ro
 
   semaphore:
     image: semaphoreui/semaphore:${SEMAPHORE_VERSION:-v2.18.31}
@@ -47,13 +61,20 @@ services:
       # Administrador: só é criado no 1.º arranque (base de dados vazia)
       SEMAPHORE_ADMIN: ${SEMAPHORE_ADMIN:-admin}
       SEMAPHORE_ADMIN_NAME: ${SEMAPHORE_ADMIN_NAME:-Administrador}
-      SEMAPHORE_ADMIN_EMAIL: ${SEMAPHORE_ADMIN_EMAIL:?definir no .env ou no Portainer}
-      SEMAPHORE_ADMIN_PASSWORD: ${SEMAPHORE_ADMIN_PASSWORD:?definir no .env ou no Portainer}
+      SEMAPHORE_ADMIN_EMAIL: ${SEMAPHORE_ADMIN_EMAIL:?definir nas variáveis da stack}
+      SEMAPHORE_ADMIN_PASSWORD: ${SEMAPHORE_ADMIN_PASSWORD:?definir nas variáveis da stack}
       # Cifra as credenciais na base de dados: guardar, nunca mudar depois do 1.º arranque
-      SEMAPHORE_ACCESS_KEY_ENCRYPTION: ${SEMAPHORE_ACCESS_KEY_ENCRYPTION:?definir no .env ou no Portainer}
+      SEMAPHORE_ACCESS_KEY_ENCRYPTION: ${SEMAPHORE_ACCESS_KEY_ENCRYPTION:?definir nas variáveis da stack}
     volumes:
-      - ${DATA_DIR:-.}/semaphore/data:/var/lib/semaphore
-      - ${DATA_DIR:-.}/semaphore/config:/etc/semaphore
-      - ${DATA_DIR:-.}/semaphore/tmp:/tmp/semaphore
-      # Os mesmos playbooks, só leitura: repositório do tipo "local" no Semaphore com o caminho /playbooks
-      - ${PLAYBOOKS_DIR:-./workspace}:/playbooks:ro
+      - semaphore_data:/var/lib/semaphore
+      - semaphore_config:/etc/semaphore
+      - semaphore_tmp:/tmp/semaphore
+      # Os mesmos playbooks, só leitura (repositório "local" no Semaphore: /playbooks/ansible)
+      - ${PLAYBOOKS_DIR:-playbooks}:/playbooks:ro
+
+volumes:
+  playbooks:
+  hostkeys:
+  semaphore_data:
+  semaphore_config:
+  semaphore_tmp:

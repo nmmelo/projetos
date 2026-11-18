@@ -46,3 +46,16 @@ caminho no anfitrião em variáveis; volumes e mounts garantidos (um deles com o
 
 O `ansible.cfg.example` corrige a secção `[privilege_scalation]` → `[privilege_escalation]` (com o nome errado, as
 opções `become` eram ignoradas) e retira opções obsoletas (`sudo_user`, `ask-sudo_pass`, `command_warnings`).
+
+## 4. Tudo pelo Portainer
+
+**Pedido:** fazer tudo no Portainer, sem SSH no anfitrião.
+
+| Antes | Depois |
+|---|---|
+| `preparar.sh` por SSH para criar as pastas | Volumes nomeados criados pelo Docker; `PLAYBOOKS_DIR` opcional (pasta criada pelo Docker) |
+| Ficheiros em `secrets/` | Variáveis da stack: `ANSIBLE_PRIVATE_KEY_B64`, `ANSIBLE_VAULT_PASSWORD`, `ANSIBLE_CFG_B64` (ficheiros continuam opcionais) |
+| `ansible.cfg` obrigatório | Gerado a partir de `ansible.cfg.modelo` e das variáveis `ANSIBLE_*` |
+| Copiar os playbooks à mão | `PLAYBOOKS_GIT_URL` (+ token) clona no 1.º arranque; depois `git pull` na consola do Portainer |
+
+A chave privada vai em base64 porque as variáveis do Portainer são de uma linha.

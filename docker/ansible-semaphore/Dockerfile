@@ -37,6 +37,7 @@ RUN set -e; \
     rm -f /etc/ssh/ssh_host_*
 
 COPY entrypoint.sh /entrypoint.sh
+COPY ansible.cfg.modelo /etc/ansible/ansible.cfg.modelo
 COPY ssh-utilizadores.sh /usr/local/sbin/ssh-utilizadores.sh
 RUN chmod 755 /entrypoint.sh /usr/local/sbin/ssh-utilizadores.sh
 

@@ -1,17 +1,11 @@
-# secrets/
+# secrets/ (opcional)
 
-Esta pasta fica só no anfitrião (em `DATA_DIR/secrets`) e é montada em `/secrets` (só leitura). Nada daqui vai para o
-Git além deste README e do exemplo do `ansible.cfg`.
+Por omissão tudo vem das variáveis da stack do Portainer. Esta pasta só é usada se descomentar o mount `/secrets` no
+`docker-compose.yml`; os ficheiros aqui têm prioridade sobre as variáveis. Nada daqui vai para o Git além deste README.
 
-| Ficheiro | Obrigatório | Para quê |
-|---|---|---|
-| `ansible.cfg` | Sim | Configuração do Ansible (copiar de `ansible.cfg.example`) → `/etc/ansible/ansible.cfg` |
-| `.vault_pass` | Se usar vault | Password do Ansible Vault → `/etc/ansible/.vault_pass` (grupo `ansible`) |
-| `<ANSIBLE_KEY_FILE>` | Sim | Chave privada das ligações aos servidores → `~/.ssh/<nome>` do utilizador principal e do extra |
-| `<ANSIBLE_KEY_FILE>.pub` | Não | Chave pública correspondente (copiada para junto da privada) |
-| `authorized_keys` | Não | Chaves públicas do utilizador principal (alternativa a `SSH_PUBKEY`) |
-
-```bash
-chmod 700 secrets
-chmod 600 secrets/*
-```
+| Ficheiro | Substitui a variável |
+|---|---|
+| `<ANSIBLE_KEY_FILE>` | `ANSIBLE_PRIVATE_KEY_B64` |
+| `ansible.cfg` | `ANSIBLE_CFG_B64` / ansible.cfg gerado |
+| `.vault_pass` | `ANSIBLE_VAULT_PASSWORD` |
+| `authorized_keys` | junta-se a `SSH_PUBKEY` |
