@@ -44,8 +44,9 @@ services:
       # (ex. /volume1/docker/ansible-semaphore/workspace, criada pelo Docker e visível no File Station)
       - ${PLAYBOOKS_DIR:-playbooks}:/home/${SSH_USER:-admin}/workspace
       - hostkeys:/etc/ssh/keys
-      # Opcional: ficheiros em vez de variáveis (ver secrets/README.md)
-      # - /volume1/docker/ansible-semaphore/secrets:/secrets:ro
+      # SECRETS_DIR: vazio = volume vazio (tudo pelas variáveis); caminho absoluto = pasta no anfitrião
+      # com ficheiros carregados pelo File Station (ver secrets/README.md), que têm prioridade sobre as variáveis
+      - ${SECRETS_DIR:-secrets}:/secrets:ro
 
   semaphore:
     image: semaphoreui/semaphore:${SEMAPHORE_VERSION:-v2.18.31}
@@ -74,6 +75,7 @@ services:
 
 volumes:
   playbooks:
+  secrets:
   hostkeys:
   semaphore_data:
   semaphore_config:

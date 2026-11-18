@@ -55,6 +55,7 @@ Docker, visível no File Station) em vez do volume.
 | `SSH_EXTRA_USER` | | Utilizador extra (ex. o de automação nos servidores de destino) |
 | `SSH_EXTRA_PUBKEY` | | Chave(s) pública(s) do extra; vazio = não entra por SSH |
 | `SSH_EXTRA_SUDO` / `SSH_EXTRA_UID` | `1` / | Sudo sem password do extra; UID opcional |
+| `SECRETS_DIR` | volume vazio | Pasta com ficheiros carregados por upload (chave, `.vault_pass`, `ansible.cfg`); prioridade sobre as variáveis |
 | `ANSIBLE_PRIVATE_KEY_B64` | | Chave privada para os servidores, em base64 numa linha (`base64 -w0 <chave>`) |
 | `ANSIBLE_KEY_FILE` | `id_ansible` | Nome da chave em `~/.ssh/` (principal e extra) |
 | `ANSIBLE_REMOTE_USER` | `SSH_EXTRA_USER` | Utilizador nos servidores de destino |
