@@ -14,4 +14,4 @@ do Synology), e têm prioridade sobre as variáveis. Nada daqui vai para o Git a
 | `authorized_keys` | junta-se a `SSH_PUBKEY` |
 
 A pasta é montada só de leitura em `/secrets`; o contentor copia os ficheiros com as permissões certas em cada arranque.
-Restringir o acesso à pasta no DSM (só o administrador).
+Restringir o acesso à pasta no DSM (só o utilizador que gere o NAS).

@@ -4,7 +4,7 @@
 # Utilizador principal (SSH_USER, criado na imagem):
 #   chaves de /secrets/authorized_keys (opcional, no mount dos secrets) + SSH_PUBKEY (variável)
 # Utilizador extra opcional, ex. o utilizador de automação do Ansible:
-#   SSH_EXTRA_USER    nome (ex.: automacao)
+#   SSH_EXTRA_USER    nome (definido nas variáveis da stack)
 #   SSH_EXTRA_PUBKEY  chave(s) pública(s); várias separadas por ";"
 #   SSH_EXTRA_SUDO    1 (omissão) = sudo sem password; 0 = sem sudo
 #   SSH_EXTRA_UID     UID (opcional)

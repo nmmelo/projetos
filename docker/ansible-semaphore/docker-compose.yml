@@ -5,7 +5,7 @@ services:
     build:
       context: .
       args:
-        SSH_USER: ${SSH_USER:-admin}
+        SSH_USER: ${SSH_USER:?definir SSH_USER nas variáveis da stack}
         SSH_UID: ${SSH_UID:-1026}
         SSH_GID: ${SSH_GID:-100}
     image: ansible-ssh:latest
@@ -42,7 +42,7 @@ services:
     volumes:
       # PLAYBOOKS_DIR: vazio = volume "playbooks"; caminho absoluto = pasta no anfitrião
       # (ex. /volume1/docker/ansible-semaphore/workspace, criada pelo Docker e visível no File Station)
-      - ${PLAYBOOKS_DIR:-playbooks}:/home/${SSH_USER:-admin}/workspace
+      - ${PLAYBOOKS_DIR:-playbooks}:/home/${SSH_USER}/workspace
       - hostkeys:/etc/ssh/keys
       # SECRETS_DIR: vazio = volume vazio (tudo pelas variáveis); caminho absoluto = pasta no anfitrião
       # com ficheiros carregados pelo File Station (ver secrets/README.md), que têm prioridade sobre as variáveis
@@ -59,9 +59,9 @@ services:
       SEMAPHORE_DB_DIALECT: sqlite
       SEMAPHORE_DB: /var/lib/semaphore/semaphore.sqlite
       SEMAPHORE_PLAYBOOK_PATH: /tmp/semaphore
-      # Administrador: só é criado no 1.º arranque (base de dados vazia)
-      SEMAPHORE_ADMIN: ${SEMAPHORE_ADMIN:-admin}
-      SEMAPHORE_ADMIN_NAME: ${SEMAPHORE_ADMIN_NAME:-Administrador}
+      # Conta de gestão: só é criada no 1.º arranque (base de dados vazia)
+      SEMAPHORE_ADMIN: ${SEMAPHORE_ADMIN:?definir nas variáveis da stack}
+      SEMAPHORE_ADMIN_NAME: ${SEMAPHORE_ADMIN_NAME:?definir nas variáveis da stack}
       SEMAPHORE_ADMIN_EMAIL: ${SEMAPHORE_ADMIN_EMAIL:?definir nas variáveis da stack}
       SEMAPHORE_ADMIN_PASSWORD: ${SEMAPHORE_ADMIN_PASSWORD:?definir nas variáveis da stack}
       # Cifra as credenciais na base de dados: guardar, nunca mudar depois do 1.º arranque
