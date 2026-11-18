@@ -1,0 +1,59 @@
+# Variáveis em .env (copiar de .env.example) ou, numa stack do Portainer, em "Environment variables".
+# Antes do 1.º arranque: ./preparar.sh (cria as pastas dos mounts em DATA_DIR).
+services:
+  ansible:
+    build:
+      context: .
+      args:
+        SSH_USER: ${SSH_USER:-admin}
+        SSH_UID: ${SSH_UID:-1026}
+        SSH_GID: ${SSH_GID:-100}
+    image: ansible-ssh:latest
+    pull_policy: build            # reconstrói sempre a imagem no deploy
+    container_name: ${ANSIBLE_CONTAINER:-ansible}
+    hostname: ansible
+    restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"   # imagem local: o Watchtower não a atualiza
+    environment:
+      TZ: ${TZ:-Europe/Lisbon}
+      SSH_PUBKEY: ${SSH_PUBKEY:-}
+      SSH_EXTRA_USER: ${SSH_EXTRA_USER:-}
+      SSH_EXTRA_PUBKEY: ${SSH_EXTRA_PUBKEY:-}
+      SSH_EXTRA_SUDO: ${SSH_EXTRA_SUDO:-1}
+      SSH_EXTRA_UID: ${SSH_EXTRA_UID:-}
+      ANSIBLE_KEY_FILE: ${ANSIBLE_KEY_FILE:-}
+    ports:
+      - "${SSH_PORT:-2222}:22"    # SSH (só rede local, não abrir no router)
+    volumes:
+      # Playbooks, inventário e roles (ansible.cfg: ~/workspace/...)
+      - ${PLAYBOOKS_DIR:-./workspace}:/home/${SSH_USER:-admin}/workspace
+      # ansible.cfg, .vault_pass, chave privada, authorized_keys (só leitura, nunca no Git)
+      - ${DATA_DIR:-.}/secrets:/secrets:ro
+      # Host keys SSH (criadas no 1.º arranque)
+      - ${DATA_DIR:-.}/hostkeys:/etc/ssh/keys
+
+  semaphore:
+    image: semaphoreui/semaphore:${SEMAPHORE_VERSION:-v2.18.31}
+    container_name: ${SEMAPHORE_CONTAINER:-semaphore}
+    restart: unless-stopped
+    ports:
+      - "${SEMAPHORE_PORT:-3000}:3000"   # web (só rede local; de fora, por proxy reverso com HTTPS)
+    environment:
+      TZ: ${TZ:-Europe/Lisbon}
+      SEMAPHORE_DB_DIALECT: sqlite
+      SEMAPHORE_DB: /var/lib/semaphore/semaphore.sqlite
+      SEMAPHORE_PLAYBOOK_PATH: /tmp/semaphore
+      # Administrador: só é criado no 1.º arranque (base de dados vazia)
+      SEMAPHORE_ADMIN: ${SEMAPHORE_ADMIN:-admin}
+      SEMAPHORE_ADMIN_NAME: ${SEMAPHORE_ADMIN_NAME:-Administrador}
+      SEMAPHORE_ADMIN_EMAIL: ${SEMAPHORE_ADMIN_EMAIL:?definir no .env ou no Portainer}
+      SEMAPHORE_ADMIN_PASSWORD: ${SEMAPHORE_ADMIN_PASSWORD:?definir no .env ou no Portainer}
+      # Cifra as credenciais na base de dados: guardar, nunca mudar depois do 1.º arranque
+      SEMAPHORE_ACCESS_KEY_ENCRYPTION: ${SEMAPHORE_ACCESS_KEY_ENCRYPTION:?definir no .env ou no Portainer}
+    volumes:
+      - ${DATA_DIR:-.}/semaphore/data:/var/lib/semaphore
+      - ${DATA_DIR:-.}/semaphore/config:/etc/semaphore
+      - ${DATA_DIR:-.}/semaphore/tmp:/tmp/semaphore
+      # Os mesmos playbooks, só leitura: repositório do tipo "local" no Semaphore com o caminho /playbooks
+      - ${PLAYBOOKS_DIR:-./workspace}:/playbooks:ro

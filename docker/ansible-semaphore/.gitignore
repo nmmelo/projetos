@@ -1,0 +1,7 @@
+.env
+secrets/*
+!secrets/README.md
+!secrets/ansible.cfg.example
+hostkeys/
+semaphore/
+workspace/

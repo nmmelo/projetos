@@ -5,6 +5,7 @@ utilização e um `CONVERSA.md` com o resumo do chat que deu origem ao projeto.
 
 | Projeto | Pasta | Descrição |
 |---|---|---|
+| ansible-semaphore | [`docker`](docker) › [`ansible-semaphore`](docker/ansible-semaphore) | Ubuntu 26.04 com Ansible, Git e SSH (utilizador principal e extra, chave privada, `ansible.cfg` e vault fora do Git) + Semaphore UI, numa stack do Portainer a partir do Git com mounts para os playbooks |
 | MariaDB em Docker | [`docker`](docker) › [`mariadbv1`](docker/mariadbv1) | MariaDB 11.4 em docker-compose com utilizador admin restrito a um IP, passwords em hash e pastas `data` e `conf` montadas |
 | dev-portal | [`docker`](docker) › [`dev-portal`](docker/dev-portal) | Contentor Ubuntu 26.04 com Ansible, SSH e base para um portal Python: Nginx (reverse proxy) + Gunicorn com reload automático, código na pasta `portal/` do anfitrião, ferramentas de rede e drivers MariaDB |
 | Portal Oracle | [`docker`](docker) › [`portal-oracle`](docker/portal-oracle) | Portal web em Python (Flask + Gunicorn + Nginx, Ubuntu 26.04) para gerir bases de dados Oracle: utilizadores e perfis, shrink de tablespaces, backups da configuração, armazenamento em SQLite, MariaDB ou PostgreSQL, SSH para o VS Code |
@@ -26,6 +27,7 @@ utilização e um `CONVERSA.md` com o resumo do chat que deu origem ao projeto.
 ```
 projetos/
 ├── docker/
+│   ├── ansible-semaphore/          # Ansible + SSH + Semaphore UI (Portainer)
 │   ├── dev-portal/                 # Ansible + Nginx + Gunicorn (base de portal Python)
 │   ├── mariadbv1/                  # MariaDB em docker-compose
 │   ├── portal-oracle/              # Portal Oracle (Python)
