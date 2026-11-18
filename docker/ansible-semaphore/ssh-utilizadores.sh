@@ -32,7 +32,7 @@ configurar_chaves() {
       | awk '!visto[$0]++' > "$home/.ssh/authorized_keys" || true
     chmod 700 "$home/.ssh"
     chmod 600 "$home/.ssh/authorized_keys"
-    chown -R "$user:$user" "$home/.ssh"
+    chown -R "$user:$(id -gn "$user")" "$home/.ssh"
     local n; n=$(wc -l < "$home/.ssh/authorized_keys")
     [ "$n" -gt 0 ] || aviso "$user não tem nenhuma chave pública válida (não vai conseguir entrar)"
     echo "ssh: $user com $n chave(s)"
