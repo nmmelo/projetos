@@ -508,3 +508,16 @@ gerar nova chave) ou até uma data (mantém-se). Chave expirada: não é apagada
 logs da API. Página Clientes: escolha da validade ao criar, coluna Validade com "alterar", avisos de expiradas e a
 expirar (14 dias). `/api/me` devolve `chave_expira_em` e `chave_dias_restantes`. CLI: `cliente add … --validade`,
 `cliente validade NOME DIAS|AAAA-MM-DD|nunca`.
+
+---
+
+## 35. Tabela de clientes a sair do cartão
+
+**Pergunta:**
+> como podes ver sai da tabela as coisas, quero que seja dinamico
+
+**Resposta:**
+A tabela tinha 9 colunas, permissões uma por linha e quatro botões lado a lado. Passa a 6 colunas (Cliente com a
+descrição, Chave com o estado, Validade, Permissões, Uso com a data e os pedidos, Ações). As permissões aparecem
+resumidas ("leitura · 13 permissões", "ver" abre a lista), a data em formato curto, e os botões em grelha 2×2 que
+passa a uma coluna em ecrãs médios e a cartões no telemóvel.

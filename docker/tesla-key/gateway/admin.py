@@ -130,7 +130,13 @@ th{color:var(--mut);font-weight:500;font-size:12px;text-transform:uppercase}
 input,select{padding:7px 9px;border:1px solid var(--bd);border-radius:var(--rad);font:inherit;background:var(--card);color:var(--txt)}
 button{padding:7px 12px;border:0;border-radius:var(--rad);background:var(--pri);color:var(--pri-txt);font:inherit;cursor:pointer}
 button.sec{background:var(--sec);color:var(--txt)}button.del{background:var(--err);color:#fff}button:disabled{opacity:.5;cursor:not-allowed}
-form.in{display:inline}.fl{padding:10px 14px;border-radius:var(--rad);margin-bottom:12px}
+form.in{display:inline}.acoes{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}.acoes form.in{display:flex}
+.chips{display:flex;flex-wrap:wrap;gap:3px}.chips .b{margin:0}details.perm summary{cursor:pointer;list-style:none}details.perm summary::-webkit-details-marker{display:none}
+.tw{overflow-x:auto}.nw{white-space:nowrap}
+.acoes-p{display:grid;grid-template-columns:auto auto;gap:4px;justify-content:end}.acoes-p button{padding:5px 9px;font-size:13px;width:100%;white-space:nowrap}
+.acoes-p a,.acoes-p form.in{display:block}td.td-acoes{width:1%}
+@media (max-width:1000px){.acoes-p{grid-template-columns:auto}.tw td .nw,.tw td .b{white-space:normal}.tw td code.nw{white-space:nowrap}
+ .tw th,.tw td{padding-left:5px;padding-right:5px}}.fl{padding:10px 14px;border-radius:var(--rad);margin-bottom:12px}
 .fl.ok{border:1px solid var(--ok)}.fl.err{border:1px solid var(--err)}.fl.warn{border:1px solid var(--warn)}
 code{background:var(--code);padding:2px 6px;border-radius:4px;word-break:break-all}.mutt{color:var(--mut)}
 .key{font-family:ui-monospace,monospace;background:#1d2433;color:#7ee2a8;padding:10px;border-radius:6px;word-break:break-all;margin:6px 0}
@@ -162,6 +168,8 @@ pre{background:#1d2433;color:#e6e9f0;padding:10px;border-radius:6px;overflow-x:a
 .entrada form{text-align:left;margin-top:18px}.entrada input{width:100%;margin:6px 0}.entrada button{width:100%;margin-top:10px;padding:11px}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 @media (max-width:760px){
+ .acoes-p{display:flex;flex-wrap:wrap;justify-content:flex-end;width:100%}.acoes-p button{width:auto;padding:10px 12px;font-size:14px}
+ td.td-acoes{width:auto}
  header{flex-wrap:wrap;padding:8px 12px;gap:6px 12px}
  header nav{order:3;width:100%;overflow-x:auto;gap:14px;padding-bottom:4px;white-space:nowrap;scrollbar-width:none}
  main{margin:12px auto;padding:0 8px}.card{padding:12px}
@@ -483,11 +491,11 @@ Validade em dias: ao gerar uma nova chave volta a contar a partir desse dia. Uma
 {% if avisos %}<div class="card">{% for x in avisos %}<p style="margin:4px 0">{% if x.val == 'expirada' %}<span class="b err">expirada</span>
 A chave de <b>{{ x.nome }}</b> expirou em {{ x.expira_em[:10] }}: os pedidos são recusados.{% else %}<span class="b warn">a expirar</span>
 A chave de <b>{{ x.nome }}</b> expira em {{ x.expira_em[:10] }} ({{ x.dias }} dias).{% endif %}</p>{% endfor %}</div>{% endif %}
-<div class="card"><h2>Clientes</h2><table>
-<tr><th>Nome</th><th>Descrição</th><th>Chave</th><th>Estado</th><th>Validade</th><th>Permissões</th><th>Último uso</th><th>Pedidos</th><th></th></tr>
+<div class="card"><h2>Clientes</h2><div class="tw"><table>
+<tr><th>Cliente</th><th>Chave</th><th>Validade</th><th>Permissões</th><th>Uso</th><th></th></tr>
 {% for x in lista %}<tr>
-<td><b>{{ x.nome }}</b></td><td>{{ x.descricao }}</td><td style="white-space:nowrap"><code style="word-break:normal">{{ x.prefixo }}…</code></td>
-<td>{% if x.ativo %}<span class="b ok">ativo</span>{% else %}<span class="b mut">inativo</span>{% endif %}</td>
+<td><div><b>{{ x.nome }}</b>{% if x.descricao %}<br><small class="mutt">{{ x.descricao }}</small>{% endif %}</div></td>
+<td><div><code class="nw" style="word-break:normal">{{ x.prefixo }}…</code><br>{% if x.ativo %}<span class="b ok">ativo</span>{% else %}<span class="b mut">inativo</span>{% endif %}</div></td>
 <td><div style="min-width:11em">{% if x.val == 'sem' %}<span class="mutt">sem validade</span>{% elif x.val == 'expirada' %}<span class="b err">expirou {{ x.expira_em[:10] }}</span>
 {% else %}<span class="b {{ 'warn' if x.val == 'a_expirar' else 'mut' }}">até {{ x.expira_em[:10] }}</span> <small class="mutt" style="white-space:nowrap">{{ x.dias }} dias</small>{% endif %}
 {% if x.validade_dias %}<br><small class="mutt">renova {{ x.validade_dias }} dias</small>{% endif %}
@@ -495,15 +503,18 @@ A chave de <b>{{ x.nome }}</b> expira em {{ x.expira_em[:10] }} ({{ x.dias }} di
 <form method="post" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">
 <input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="validade"><input type="hidden" name="nome" value="{{ x.nome }}">
 <input name="validade" placeholder="dias, AAAA-MM-DD ou nunca" style="width:13em;max-width:100%" required><button class="sec">Guardar</button></form></details>{% endif %}</div></td>
-<td style="max-width:260px">{% for p in (x.permissoes or '').split(',') if p %}<span class="b mut" style="margin:1px">{{ p }}</span>{% else %}<span class="mutt">nenhuma</span>{% endfor %}</td>
-<td>{{ x.ultimo_uso or '—' }}</td><td>{{ x.pedidos }}</td>
-<td style="white-space:nowrap"><a href="{{ url_for('cliente_perm', nome=x.nome) }}"><button type="button">Permissões</button></a>{% for a,l,cl in [('desativar' if x.ativo else 'ativar', 'Desativar' if x.ativo else 'Ativar','sec'),('regenerar','Nova chave','sec'),('apagar','Apagar','del')] %}
+{% set lp = (x.permissoes or '').split(',')|select|list %}{% set pr = presets_inv.get(','.join(lp|sort)) %}
+<td style="min-width:9em">{% if lp %}<details class="perm"><summary><span class="b {{ 'ok' if pr else 'mut' }}">{{ pr ~ ' · ' if pr }}{{ lp|length }} permiss{{ 'ão' if lp|length == 1 else 'ões' }}</span> <small class="mutt">ver</small></summary>
+<div class="chips" style="margin-top:6px">{% for p in lp %}<span class="b mut">{{ p }}</span>{% endfor %}</div></details>{% else %}<span class="mutt">nenhuma</span>{% endif %}</td>
+<td><div><span class="nw">{{ x.ultimo_uso[:16].replace('T', ' ') if x.ultimo_uso else 'nunca usado' }}</span><br><small class="mutt nw">{{ x.pedidos }} pedidos</small></div></td>
+<td class="td-acoes" data-l=""><div class="acoes acoes-p"><a href="{{ url_for('cliente_perm', nome=x.nome) }}"><button type="button">Permissões</button></a>{% for a,l,cl in [('desativar' if x.ativo else 'ativar', 'Desativar' if x.ativo else 'Ativar','sec'),('regenerar','Nova chave','sec'),('apagar','Apagar','del')] %}
 <form class="in" method="post" {% if a=='apagar' or a=='regenerar' %}onsubmit="return confirm('{{ l }} {{ x.nome }}?')"{% endif %}>
 <input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="acao" value="{{ a }}"><input type="hidden" name="nome" value="{{ x.nome }}">
-<button class="{{ cl }}">{{ l }}</button></form>{% endfor %}</td></tr>
-{% else %}<tr><td colspan="9" class="mutt">Sem clientes.</td></tr>{% endfor %}
-</table></div>""", lista=[{**x, "val": c.estado_validade(x["expira_em"])[0], "dias": c.estado_validade(x["expira_em"])[1]}
-                       for x in c.listar_clientes()], presets=c.PRESETS, omissao=c.PERMISSAO_OMISSAO)
+<button class="{{ cl }}">{{ l }}</button></form>{% endfor %}</div></td></tr>
+{% else %}<tr><td colspan="6" class="mutt">Sem clientes.</td></tr>{% endfor %}
+</table></div></div>""", lista=[{**x, "val": c.estado_validade(x["expira_em"])[0], "dias": c.estado_validade(x["expira_em"])[1]}
+                       for x in c.listar_clientes()], presets=c.PRESETS, omissao=c.PERMISSAO_OMISSAO,
+                  presets_inv={",".join(sorted(v)): k for k, v in c.PRESETS.items() if v})
 
 
 @app.route("/clientes/<nome>", methods=["GET", "POST"])
