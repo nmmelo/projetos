@@ -300,3 +300,20 @@ Chat de 19 de novembro de 2026.
 
 **Resposta:** o `docker-compose.yml` vem do repositório e é substituído em cada atualização. As portas passaram para o `.env` (`PORTAL_HTTP_PORT`, `PORTAL_SSH_PORT`), que o script nunca altera; também se mudam com `portal-docker.sh -H <http> -S <ssh>`. Na 1.ª atualização, as portas alteradas à mão num `docker-compose.yml` antigo passam sozinhas para o `.env`. Outras alterações locais vão para um `docker-compose.override.yml`, que o script também preserva.
 
+## 19. Erro das portas no Docker Compose e README
+
+Chat de 19 de novembro de 2026.
+
+**Perguntas:**
+> como posso colocar as chaves no caso do docker, por exemplo as chaves publicas e privada
+
+> ERROR: The Compose file './docker-compose.yml' is invalid because: services.portal.ports contains an invalid type, it should be a number, or an object
+
+> alterar o readme.me para ter estas alterações. retirar qualquer referencia a [...]
+
+**Resposta:**
+
+- **Erro do Compose:** uma porta no `.env` não era só um número (texto do exemplo, aspas, espaços, comentário ou CRLF). O `portal-docker.sh` passa a limpar e validar `PORTAL_HTTP_PORT`/`PORTAL_SSH_PORT` e corre `config -q` antes de arrancar.
+- **Chaves:** públicas em `data/ssh/users/<utilizador>.pub` (ou `data/ssh/authorized_keys` para o `portal`); privada de preferência por *agent forwarding*, ou em `data/home/<utilizador>/.ssh/` com `700`/`600`.
+- **README:** obter o script na 1.ª vez, portas no `.env`, validações, chaves no Docker e os dois erros na tabela de problemas.
+

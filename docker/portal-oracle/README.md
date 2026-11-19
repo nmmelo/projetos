@@ -285,11 +285,17 @@ docker-compose exec -u portal portal python manage.py maintenance on
 Descarrega **só a pasta do portal** do repositório (sem o resto nem o histórico) para a pasta que escolher, e trata do Docker. Só precisa do `git` e do Docker Compose. Serve para a instalação e para as atualizações.
 
 ```bash
-# 1.a vez: obter o script (ou copiá-lo de outra máquina) e instalar
-sudo ./portal-docker.sh -d /opt/oracle-portal -r https://github.com/<conta>/<repositorio>.git
+# 1.a vez: obter o script (só a pasta do portal) e instalar
+git clone --depth 1 --filter=blob:none --sparse https://github.com/<conta>/<repositorio>.git /tmp/p
+git -C /tmp/p sparse-checkout set docker/portal-oracle
+sudo /tmp/p/docker/portal-oracle/portal-docker.sh -d /opt/oracle-portal -r https://github.com/<conta>/<repositorio>.git
+rm -rf /tmp/p
 
 # atualizar para a última versão (a origem ficou guardada em /opt/oracle-portal/.origem)
 sudo /opt/oracle-portal/portal-docker.sh -d /opt/oracle-portal
+
+# mudar as portas (ficam no .env)
+sudo /opt/oracle-portal/portal-docker.sh -d /opt/oracle-portal -H 8090 -S 2223
 ```
 
 | Opção | Descrição |
@@ -308,12 +314,23 @@ sudo /opt/oracle-portal/portal-docker.sh -d /opt/oracle-portal
 |---|---|
 | Código (`app/`, `docker/`, `Dockerfile`, ...) | Substitui pela versão do repositório. **Ficheiros que não vêm do repositório são apagados**: não guarde outros ficheiros na pasta |
 | `data/`, `.env` e `docker-compose.override.yml` | Nunca altera. O `.env` é criado na 1.ª vez a partir do `.env.example` |
-| Docker | 1.ª vez: `up -d --build` e pede a password do `admin`. Seguintes: `up -d --build` (só reconstrói se o `Dockerfile` mudou) e `restart` |
+| `.origem` / `.versao` | Repositório, branch e pasta usados / commit instalado (`-v` mostra-os) |
+| Portas no `.env` | Limpa os valores (aspas, espaços, comentário no fim da linha, CRLF do Windows), deixa uma linha por variável e para com erro se não forem números entre 1 e 65535 |
+| Docker | Valida a configuração (`config -q`) antes de arrancar. 1.ª vez: `up -d --build` e pede a password do `admin`. Seguintes: `up -d --build` (só reconstrói se o `Dockerfile` mudou) e `restart` |
 
 - Repositório privado: no HTTPS use um token do GitHub (só leitura) como password; no SSH registe a chave do servidor no GitHub.
 - **Portas e outras alterações locais:** não altere o `docker-compose.yml` (é substituído em cada atualização). As portas ficam no `.env` (`PORTAL_HTTP_PORT=8080`, `PORTAL_SSH_PORT=2222`; ou `-H`/`-S`); para o resto (volumes, rede, ...) use um `docker-compose.override.yml` na mesma pasta, que o Docker Compose junta sozinho. Se um `docker-compose.yml` antigo tiver as portas alteradas à mão, o script passa-as para o `.env` na 1.ª atualização.
 - Recusa pastas do sistema (`/`, `/opt`, `/usr/...`, homes dos utilizadores).
 - Depois de atualizar, faça **Ctrl+F5** no browser.
+
+**Portas no `.env`** (só o número, uma linha por variável):
+
+```
+PORTAL_HTTP_PORT=8090
+PORTAL_SSH_PORT=2223
+```
+
+Para as aplicar sem o script: `docker-compose config -q && docker-compose up -d` (o `restart` não muda as portas).
 
 ### Manualmente
 
@@ -875,7 +892,7 @@ A imagem só contém o sistema: Ubuntu 26.04, Nginx, SSH, cron, git, Python 3.14
 
 Se o contentor (ou a imagem) for destruído, o código, as configurações e os dados ficam na pasta do anfitrião. Para voltar a pôr tudo a funcionar, basta `docker-compose up -d --build`.
 
-**Atualizar o portal**, por exemplo com git:
+**Atualizar o portal:** com o script, `sudo /opt/oracle-portal/portal-docker.sh -d /opt/oracle-portal` (ver [Com o script `portal-docker.sh`](#com-o-script-portal-dockersh-recomendado)). Se a pasta for um clone git:
 
 ```bash
 cd /opt/oracle-portal && git pull          # no anfitrião, ou dentro do contentor por SSH
@@ -1013,6 +1030,35 @@ No arranque, o contentor faz isto para cada ficheiro `data/ssh/users/<utilizador
 
 Os nomes de utilizador só podem ter minúsculas, números, `_` e `-`. `root` e `portal` são reservados.
 
+### Chaves no Docker: onde ficam
+
+| Chave | Para quê | Onde |
+|---|---|---|
+| Pública de cada pessoa | Entrar por SSH com o seu utilizador (com sudo) | `data/ssh/users/<utilizador>.pub` (várias chaves: uma por linha) |
+| Pública do utilizador `portal` | Entrar por SSH como `portal` (sem sudo) | `data/ssh/authorized_keys` ou `SSH_AUTHORIZED_KEYS` no `.env` |
+| Privada | Usar a partir do contentor (`git pull`, `ssh` para outros servidores) | De preferência não a copiar: use *agent forwarding*. Se for preciso: `data/home/<utilizador>/.ssh/` |
+| Do servidor SSH | Impressão digital fixa ao recriar o contentor | `data/ssh/ssh_host_*` (criadas no 1.º arranque) |
+
+Tudo fica em `data/`, que o `portal-docker.sh` nunca altera. Depois de acrescentar ou remover um `.pub`, recrie o contentor: `docker-compose up -d --force-recreate`.
+
+**Chave privada com *agent forwarding* (recomendado):** a chave fica no seu PC. No `~/.ssh/config` do PC use `ForwardAgent yes` (exemplo abaixo) e carregue a chave com `ssh-add ~/.ssh/id_ed25519`. Dentro do contentor, o `git` e o `ssh` usam-na enquanto estiver ligado.
+
+**Chave privada no contentor** (ex. o cron faz `git pull` sozinho). Use uma chave própria (ex. uma *Deploy key* só de leitura no GitHub), não a pessoal:
+
+```bash
+cd /opt/oracle-portal
+U=<utilizador>
+UID_U=$(cat data/ssh/users/$U.uid)          # uid do utilizador no contentor (criado no arranque)
+sudo install -d -m 700 -o $UID_U -g $UID_U data/home/$U/.ssh
+sudo install -m 600 -o $UID_U -g $UID_U ~/chave_deploy     data/home/$U/.ssh/id_ed25519
+sudo install -m 644 -o $UID_U -g $UID_U ~/chave_deploy.pub data/home/$U/.ssh/id_ed25519.pub
+```
+
+- Criar a chave: `ssh-keygen -t ed25519 -f chave_deploy -N ''`.
+- Para o utilizador `portal`: `data/home/portal/.ssh/` com dono `1000:1000`.
+- Permissões obrigatórias: `700` na pasta `.ssh` e `600` na chave privada. Em partilhas de NAS (Synology, NFS, CIFS) podem não ser possíveis: use o *agent forwarding*.
+- A pasta `data/` passa a ter uma chave privada: proteja os backups.
+
 ### Utilizador de serviço `portal`
 
 É o utilizador que corre o Gunicorn. O acesso SSH com ele é opcional (chave em `data/ssh/authorized_keys` ou em `SSH_AUTHORIZED_KEYS`) e não tem sudo, a não ser que defina `PORTAL_SSH_SUDO=1`. Para trabalhar no dia a dia, use os utilizadores pessoais.
@@ -1102,6 +1148,8 @@ O driver é o **python-oracledb** em modo *thin* (sem Instant Client). Requer Or
 | `Driver Python em falta` no Armazenamento | Recrie a imagem: `docker-compose build --no-cache` |
 | `dubious ownership` no git | Já está tratado para `/srv/portal`. Noutras pastas, use `git config --global --add safe.directory <pasta>` |
 | Páginas sem formatação depois de atualizar (ex. Sistema com texto corrido, filtros desalinhados) | O browser ainda tinha o CSS antigo em cache (o Nginx guarda `/static/` 1 h). A partir desta versão o endereço do CSS muda a cada atualização; para a primeira vez, faça **Ctrl+F5** |
+| `services.portal.ports contains an invalid type, it should be a number, or an object` | Uma porta no `.env` não é só um número (ex. ficou `<porta_http>`, tem aspas, espaços, um comentário no fim ou CRLF). Veja com `grep -n PORT .env \| cat -A`, deixe `PORTAL_HTTP_PORT=8090` e `PORTAL_SSH_PORT=2223` e confirme com `docker-compose config -q`. O `portal-docker.sh` limpa e valida estes valores |
+| O `portal-docker.sh` volta a pôr as portas 8080 e 2222 | As portas foram alteradas no `docker-compose.yml`, que é substituído em cada atualização. Ponha-as no `.env` (`PORTAL_HTTP_PORT`, `PORTAL_SSH_PORT`) ou use `-H`/`-S` |
 | `Internal Server Error` | O erro fica no log do serviço com uma referência que aparece na página: `journalctl -u <nome> \| grep <referência>`. Na versão anterior acontecia em Oracle → Execuções quando havia uma execução em curso (corrigido) |
 | Emails não chegam | SMTP → Logs mostra o diálogo com o servidor e o erro. Confirme o **Envio automático ligado**, a regra ativa e o agente ativo (`systemctl status <nome>-agente`) |
 | Execução em `INTERROMPIDO` | O portal foi reiniciado durante a execução. Confirme em `V$SESSION` se a sessão Oracle continuou |
