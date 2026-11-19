@@ -11,6 +11,9 @@
 # isso as atualizacoes seguintes so precisam da pasta.
 # =============================================================================
 set -euo pipefail
+# servidores com umask restrita (027/077) criariam o codigo so legivel pelo root: o Nginx (www-data)
+# e o Gunicorn (portal) dentro do contentor nao o conseguiriam ler -> 403 Forbidden
+umask 022
 
 SUB_PADRAO="docker/portal-oracle"
 PASTA="/opt/oracle-portal"
@@ -134,6 +137,10 @@ fi
 find "$PASTA" -mindepth 1 -maxdepth 1 ! -name data ! -name .env ! -name .origem ! -name .versao \
     ! -name docker-compose.override.yml ! -name 'docker-compose.override.yaml' -exec rm -rf {} +
 cp -a "$TMP/repo/$SUB/." "$PASTA/"
+# o codigo tem de ser legivel por todos dentro do contentor (www-data e portal); data/ e .env nao
+chmod 755 "$PASTA"
+find "$PASTA" -mindepth 1 -maxdepth 1 ! -name data ! -name .env ! -name .origem \
+    -exec chmod -R u+rwX,go+rX,go-w {} +
 printf 'REPO=%s\nBRANCH=%s\nSUB=%s\n' "$REPO" "$BRANCH" "$SUB" > "$PASTA/.origem"
 chmod 600 "$PASTA/.origem"
 echo "$VERSAO" > "$PASTA/.versao"

@@ -317,3 +317,10 @@ Chat de 19 de novembro de 2026.
 - **Chaves:** públicas em `data/ssh/users/<utilizador>.pub` (ou `data/ssh/authorized_keys` para o `portal`); privada de preferência por *agent forwarding*, ou em `data/home/<utilizador>/.ssh/` com `700`/`600`.
 - **README:** obter o script na 1.ª vez, portas no `.env`, validações, chaves no Docker e os dois erros na tabela de problemas.
 
+## 20. 403 Forbidden no Docker
+
+**Pergunta:**
+> está no ar , mas dá 403 Forbidden
+
+**Resposta:** com uma `umask` restrita no servidor (027/077), o `git clone` do `portal-docker.sh` criava o código só legível pelo root; dentro do contentor, o Nginx (www-data) e o Gunicorn (portal) não o liam. O script passa a usar `umask 022` e a corrigir as permissões do código em cada execução (sem mexer em `data/` nem no `.env`).
+
