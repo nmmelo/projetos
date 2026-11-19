@@ -152,6 +152,18 @@ if [ -z "$(env_get PORTAL_SSH_PORT)" ] && [ -n "$OLD_SSH" ] && [ -z "$P_SSH" ]; 
 # .env de versoes anteriores (sem as portas): acrescenta os valores por omissao, para ficarem visiveis
 [ -n "$(env_get PORTAL_HTTP_PORT)" ] || env_set PORTAL_HTTP_PORT 8080
 [ -n "$(env_get PORTAL_SSH_PORT)" ] || env_set PORTAL_SSH_PORT 2222
+# limpa as portas (CR do Windows, espacos, aspas, comentarios no fim) e valida
+sed -i 's/\r$//' "$PASTA/.env"
+for k in PORTAL_HTTP_PORT PORTAL_SSH_PORT; do
+    v="$(env_get "$k" | sed -E 's/[[:space:]]+#.*$//; s/^[[:space:]"'"'"']+//; s/[[:space:]"'"'"']+$//')"
+    [[ "$v" =~ ^[0-9]+$ ]] && [ "$v" -ge 1 ] && [ "$v" -le 65535 ] \
+        || erro "$k='$(env_get "$k")' no $PASTA/.env não é uma porta (use só o número, ex. $k=$([ "$k" = PORTAL_SSH_PORT ] && echo 2223 || echo 8090))"
+    env_set "$k" "$v"
+done
+# so uma linha por variavel (a ultima vale)
+for k in PORTAL_HTTP_PORT PORTAL_SSH_PORT; do
+    v="$(env_get "$k")"; sed -i "/^$k=/d" "$PASTA/.env"; printf '%s=%s\n' "$k" "$v" >> "$PASTA/.env"
+done
 HTTP="$(env_get PORTAL_HTTP_PORT)"; SSHP="$(env_get PORTAL_SSH_PORT)"
 info "portas: HTTP $HTTP, SSH $SSHP (no .env)"
 
@@ -161,6 +173,7 @@ else info "versão: $VERSAO${ANTES:+ (antes: $ANTES)}"; fi
 [ "$SO_CODIGO" = 1 ] && { info "código atualizado em $PASTA (Docker não foi alterado)"; exit 0; }
 
 cd "$PASTA"
+"${DC[@]}" config -q || erro "o Docker Compose não aceita a configuração: reveja o $PASTA/.env (PORTAL_HTTP_PORT, PORTAL_SSH_PORT) e o docker-compose.override.yml"
 if [ "$PRIMEIRA" = 1 ]; then
     info "a construir e arrancar o contentor"
     "${DC[@]}" up -d --build
