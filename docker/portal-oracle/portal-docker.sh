@@ -181,9 +181,30 @@ else info "versão: $VERSAO${ANTES:+ (antes: $ANTES)}"; fi
 
 cd "$PASTA"
 "${DC[@]}" config -q || erro "o Docker Compose não aceita a configuração: reveja o $PASTA/.env (PORTAL_HTTP_PORT, PORTAL_SSH_PORT) e o docker-compose.override.yml"
+CONT="$(env_get PORTAL_CONTAINER)"; CONT="${CONT:-oracle-portal}"
+# outro contentor com o mesmo nome (ex. outra instalacao noutra pasta) impede o arranque
+OUTRO="$(docker ps -a --filter "name=^/${CONT}\$" --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | head -1)"
+if [ -n "$OUTRO" ] && [ "$(realpath -m "$OUTRO")" != "$PASTA" ]; then
+    erro "já existe um contentor '$CONT' de outra pasta ($OUTRO). Pare-o (cd $OUTRO && ${DC[*]} down) ou dê outro nome a este: PORTAL_CONTAINER=<nome> no $PASTA/.env"
+fi
+
+# espera que o contentor fique a correr; senao mostra o log
+a_correr() {
+    local i st
+    for i in $(seq 1 30); do
+        st="$(docker inspect -f '{{.State.Status}}' "$CONT" 2>/dev/null || true)"
+        [ "$st" = running ] && return 0
+        sleep 1
+    done
+    echo "O contentor '$CONT' não está a correr (estado: ${st:-não existe}). Últimas linhas do log:" >&2
+    "${DC[@]}" logs --tail 40 portal >&2 || true
+    erro "veja o log acima; estado: cd $PASTA && ${DC[*]} ps"
+}
+
 if [ "$PRIMEIRA" = 1 ]; then
-    info "a construir e arrancar o contentor"
+    info "a construir e arrancar o contentor $CONT"
     "${DC[@]}" up -d --build
+    a_correr
     info "password do administrador (admin)"
     "${DC[@]}" exec -u portal portal python manage.py set-admin-password || \
         echo "Defina-a depois com: cd $PASTA && ${DC[*]} exec -u portal portal python manage.py set-admin-password"
@@ -191,6 +212,7 @@ else
     info "a aplicar (reconstrói a imagem só se o Dockerfile mudou) e a reiniciar"
     "${DC[@]}" up -d --build
     "${DC[@]}" restart
+    a_correr
 fi
 H="$(hostname -f 2>/dev/null || hostname)"
 info "pronto: http://$H:$HTTP  (SSH: ssh -p $SSHP <utilizador>@$H) - no browser, faça Ctrl+F5"

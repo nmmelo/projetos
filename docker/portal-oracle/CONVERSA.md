@@ -324,3 +324,10 @@ Chat de 19 de novembro de 2026.
 
 **Resposta:** com uma `umask` restrita no servidor (027/077), o `git clone` do `portal-docker.sh` criava o código só legível pelo root; dentro do contentor, o Nginx (www-data) e o Gunicorn (portal) não o liam. O script passa a usar `umask 022` e a corrigir as permissões do código em cada execução (sem mexer em `data/` nem no `.env`).
 
+## 21. "No container found for portal_1"
+
+**Pergunta:**
+> docker-compose exec -u portal portal python manage.py set-admin-password — ERROR: No container found for portal_1
+
+**Resposta:** o contentor não estava a correr (parou no arranque, ou não foi criado porque já existia outro contentor `oracle-portal`). O nome passou a ser configurável (`PORTAL_CONTAINER` no `.env`), e o `portal-docker.sh` deteta um contentor com o mesmo nome de outra pasta e espera que o contentor fique a correr, mostrando o log se não ficar.
+

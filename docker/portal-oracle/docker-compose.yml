@@ -4,8 +4,8 @@ services:
   portal:
     build: .
     image: oracle-portal:latest
-    container_name: oracle-portal
-    hostname: oracle-portal
+    container_name: ${PORTAL_CONTAINER:-oracle-portal}     # nome no .env (PORTAL_CONTAINER)
+    hostname: ${PORTAL_CONTAINER:-oracle-portal}
     env_file: .env
     # Portas no anfitriao: definir no .env (PORTAL_HTTP_PORT, PORTAL_SSH_PORT), nao aqui.
     # Este ficheiro e substituido pelo portal-docker.sh; alteracoes locais vao para o .env ou
