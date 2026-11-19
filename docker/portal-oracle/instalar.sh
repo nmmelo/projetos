@@ -214,7 +214,7 @@ extrair_pasta_git() {   # extrair_pasta_git URL BRANCH PASTA DESTINO
 }
 
 # Ficheiros so para Docker: numa instalacao em servidor nao servem e sao removidos
-DOCKER_FICHEIROS=(Dockerfile docker-compose.yml .dockerignore docker)
+DOCKER_FICHEIROS=(Dockerfile docker-compose.yml .dockerignore docker portal-docker.sh)
 # Nunca substituidos nem apagados na pasta da instalacao
 PRESERVAR=(data .env .venv "$ESTADO_LEGADO")
 

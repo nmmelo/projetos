@@ -278,3 +278,16 @@ Chat de 19 de novembro de 2026.
 - **Sistema:** cartões ao estilo pedido (mosaicos com barra, estado Saudável/Atenção, serviços numa lista com ▶ ⟳ ■), intervalo de atualização escolhido (pausa a 30 s).
 - **Home:** painel de cartões dos módulos (Oracle, Sistema, SMTP, Notificações, Portal), atualização automática (manual, 10 s, 30 s, 1 min, 5 min) e botão **Editar** (lápis) para esconder, adicionar e arrastar cartões; disposição guardada por utilizador. O mesmo editor no Sistema.
 
+## 17. Instalar e atualizar em Docker numa pasta
+
+Chat de 19 de novembro de 2026.
+
+**Perguntas:**
+> como posso fazer o deploy por docker, como consigo fazer o download da ultima versão
+
+> mas queria fazer para uma pasta
+
+> sim podes por
+
+**Resposta:** novo script `portal-docker.sh`. Descarrega só a pasta `docker/portal-oracle` (sparse checkout, `--depth 1`) para uma pasta temporária e copia-a para a pasta de destino, sem tocar em `data/` nem no `.env`. Na 1.ª vez (`-d PASTA -r URL`) cria o `.env`, arranca o contentor e pede a password do `admin`; depois basta `-d PASTA` (a origem fica em `.origem` e a versão em `.versao`). O `instalar.sh` remove-o nas instalações sem Docker.
+

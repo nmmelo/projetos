@@ -280,6 +280,41 @@ docker-compose exec -u portal portal python manage.py maintenance on
 
 > Para instalar diretamente num servidor, sem Docker, veja [Instalação num servidor (sem Docker)](#instalação-num-servidor-sem-docker).
 
+### Com o script `portal-docker.sh` (recomendado)
+
+Descarrega **só a pasta do portal** do repositório (sem o resto nem o histórico) para a pasta que escolher, e trata do Docker. Só precisa do `git` e do Docker Compose. Serve para a instalação e para as atualizações.
+
+```bash
+# 1.a vez: obter o script (ou copiá-lo de outra máquina) e instalar
+sudo ./portal-docker.sh -d /opt/oracle-portal -r https://github.com/<conta>/<repositorio>.git
+
+# atualizar para a última versão (a origem ficou guardada em /opt/oracle-portal/.origem)
+sudo /opt/oracle-portal/portal-docker.sh -d /opt/oracle-portal
+```
+
+| Opção | Descrição |
+|---|---|
+| `-d PASTA` | Pasta de destino (omissão `/opt/oracle-portal`) |
+| `-r URL` | Repositório (HTTPS ou SSH). Só na 1.ª vez; depois fica em `PASTA/.origem` |
+| `-b BRANCH` | Branch (omissão o guardado, ou `main`) |
+| `-p SUBPASTA` | Pasta do portal no repositório (omissão `docker/portal-oracle`) |
+| `-c` | Só atualiza o código, sem mexer no Docker |
+| `-y` | Não pede confirmação |
+| `-v` | Mostra a versão instalada (`PASTA/.versao`) e a origem |
+| `-h` | Ajuda |
+
+| Na pasta | O que o script faz |
+|---|---|
+| Código (`app/`, `docker/`, `Dockerfile`, ...) | Substitui pela versão do repositório. **Ficheiros que não vêm do repositório são apagados**: não guarde outros ficheiros na pasta |
+| `data/` e `.env` | Nunca altera. O `.env` é criado na 1.ª vez a partir do `.env.example` |
+| Docker | 1.ª vez: `up -d --build` e pede a password do `admin`. Seguintes: `up -d --build` (só reconstrói se o `Dockerfile` mudou) e `restart` |
+
+- Repositório privado: no HTTPS use um token do GitHub (só leitura) como password; no SSH registe a chave do servidor no GitHub.
+- Recusa pastas do sistema (`/`, `/opt`, `/usr/...`, homes dos utilizadores).
+- Depois de atualizar, faça **Ctrl+F5** no browser.
+
+### Manualmente
+
 ```bash
 cd /opt/oracle-portal               # pasta com o código (fica no anfitrião)
 cp .env.example .env
@@ -518,7 +553,7 @@ sudo /tmp/portal-oracle/instalar.sh <nome>          # -> Rever -> origem "Copiar
 | Passo | Porquê |
 |---|---|
 | Substitui cada entrada de código (`app/`, `deploy/`, `manage.py`, ...) em vez de copiar por cima | Não ficam ficheiros antigos (ex. `app/oracle.py`, `app/views/ops.py` de antes dos módulos) |
-| Remove `Dockerfile`, `docker-compose.yml`, `.dockerignore` e `docker/` | Numa instalação em servidor não servem; também são removidos ao reaplicar com o código mantido |
+| Remove `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `docker/` e `portal-docker.sh` | Numa instalação em servidor não servem; também são removidos ao reaplicar com o código mantido |
 | Nunca toca em `data/`, `.env` e `.venv` | Configuração, chaves, SQLite e backups |
 | Corrige as permissões (código do root, `data/` e `.venv` do utilizador de serviço) | O serviço tem de conseguir escrever em `data/` |
 | `pip install -r requirements.txt` | Pacotes novos ou atualizados |
