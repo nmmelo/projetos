@@ -486,6 +486,26 @@ sudo systemctl restart <nome>
 
 A pasta `data/` não é alterada por atualizações. Faça backup dela, sobretudo do `fernet.key` e do `admin.json`.
 
+### Problemas conhecidos
+
+**`[ERROR] Control server error: [Errno 13] Permission denied: '/opt/<nome>/.gunicorn/gunicorn.ctl'`**
+
+A partir da versão 25.1, o Gunicorn cria um *control socket* (para o cliente `gunicornc`) em `$XDG_RUNTIME_DIR/gunicorn.ctl` ou, sem essa variável, em `$HOME/.gunicorn/`. O HOME do utilizador de serviço é a pasta da instalação, que é só de leitura para ele. O portal continua a funcionar, mas o erro aparece nos logs.
+
+O template `deploy/portal.service.tpl` já trata disto: o systemd cria `/run/<nome>` para o serviço (`RuntimeDirectory`) e o `XDG_RUNTIME_DIR` aponta para lá. Numa instalação feita antes desta correção, volte a correr o `instalar.sh` (com a origem Git, ou a partir da pasta com a versão nova). Também pode acrescentar só isto ao serviço:
+
+```bash
+sudo systemctl edit <nome>
+#   [Service]
+#   RuntimeDirectory=<nome>
+#   RuntimeDirectoryMode=0750
+#   Environment=XDG_RUNTIME_DIR=/run/<nome>
+sudo systemctl restart <nome>
+sudo journalctl -u <nome> -n 20          # ja sem o erro
+```
+
+Para usar o `gunicornc` (estado dos workers, reload): `sudo -u <nome> /opt/<nome>/.venv/bin/gunicornc -s /run/<nome>/gunicorn.ctl`.
+
 ---
 
 ## Código no anfitrião (mount) e atualizações (Docker)

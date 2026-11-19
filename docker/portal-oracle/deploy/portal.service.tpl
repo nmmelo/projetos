@@ -18,6 +18,12 @@ Group=@UTILIZADOR@
 WorkingDirectory=@DIR@
 EnvironmentFile=-@DIR@/.env
 Environment=PYTHONUNBUFFERED=1
+# Gunicorn >= 25.1 cria um control socket (gunicornc) em $XDG_RUNTIME_DIR/gunicorn.ctl ou, sem
+# essa variavel, em $HOME/.gunicorn/ - o HOME e a pasta do codigo, so de leitura para o servico.
+# O systemd cria /run/@NOME@ (do utilizador de servico) ao arrancar e apaga-a ao parar.
+RuntimeDirectory=@NOME@
+RuntimeDirectoryMode=0750
+Environment=XDG_RUNTIME_DIR=/run/@NOME@
 ExecStart=@DIR@/.venv/bin/gunicorn -c @DIR@/gunicorn.conf.py --bind @BIND@ wsgi:app
 ExecReload=/bin/kill -s HUP $MAINPID
 SyslogIdentifier=@NOME@

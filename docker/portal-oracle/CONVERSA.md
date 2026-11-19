@@ -160,3 +160,14 @@ Chat de 19 de novembro de 2026.
 | Repor | Botão "Repor por omissão" |
 
 Ficheiros: `app/aparencia.py` (temas e validações), `app/templates/config/appearance.html`, `app/static/favicon.svg`, `app/static/style.css`, rota `/favicon.ico` em `app/views/main.py`. Capturas em `docs/`.
+
+---
+
+## 10. Erro "Control server error: Permission denied" no Gunicorn
+
+Chat de 19 de novembro de 2026.
+
+**Pergunta:**
+> [ERROR] Control server error: [Errno 13] Permission denied: '/opt/dba-portal/.gunicorn/guni
+
+**Resposta:** o Gunicorn 25.1 passou a criar um control socket (`gunicornc`) em `$XDG_RUNTIME_DIR/gunicorn.ctl` ou em `$HOME/.gunicorn/`. Na instalação sem Docker o HOME do utilizador de serviço é a pasta do código, que o `instalar.sh` deixa só de leitura para o serviço. Correção no `deploy/portal.service.tpl`: `RuntimeDirectory=<nome>` e `Environment=XDG_RUNTIME_DIR=/run/<nome>`. Para instalações existentes: voltar a correr o `instalar.sh` ou `systemctl edit <nome>` com essas linhas (ver README, "Problemas conhecidos"). No Docker não acontece (HOME gravável).
