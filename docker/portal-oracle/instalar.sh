@@ -103,7 +103,9 @@ Uso:
   sudo ./instalar.sh                  menu: escolher a instancia (ou criar uma nova)
   sudo ./instalar.sh NOME             instalar ou reconfigurar a instancia NOME
   sudo ./instalar.sh --reaplicar NOME reaplicar a configuracao guardada, sem perguntas (mantem o codigo)
-  sudo ./instalar.sh --atualizar NOME obter o codigo do Git e reaplicar, sem perguntas
+  sudo ./instalar.sh --atualizar NOME [URL [BRANCH [PASTA]]]
+                                      obter o codigo do Git e reaplicar, sem perguntas; sem
+                                      repositorio guardado, usa o URL indicado ou pergunta-o
   sudo ./instalar.sh --mostrar [NOME] mostrar a configuracao guardada
   sudo ./instalar.sh --lista          listar as instancias deste servidor
   sudo ./instalar.sh --verificar [NOME]   diagnostico (portal indisponivel?): servico, Gunicorn,
@@ -454,7 +456,8 @@ verificar() {   # diagnostico de uma instancia (portal indisponivel?)
 MODO=""; NOME_ARG=""
 case "${1:-}" in
     -h|--help|--ajuda) ajuda; exit 0 ;;
-    --desinstalar|--reaplicar|--atualizar|--mostrar|--lista|--listar|--verificar) MODO=${1#--}; NOME_ARG=${2:-} ;;
+    --desinstalar|--reaplicar|--atualizar|--mostrar|--lista|--listar|--verificar) MODO=${1#--}; NOME_ARG=${2:-}
+        [[ $MODO == atualizar ]] && { ARG_GIT_URL=${3:-}; ARG_GIT_BRANCH=${4:-}; ARG_GIT_PASTA=${5:-}; } ;;
     --manutencao)
         MODO=manutencao; NOME_ARG=${2:-}; MANUT_ACAO=${3:-status}
         [[ $MANUT_ACAO =~ ^(on|off|status)$ ]] || { echo "Uso: $0 --manutencao NOME on|off|status" >&2; exit 2; } ;;
@@ -521,13 +524,32 @@ if (( REINSTALAR )); then
         echo
         OPCOES_MENU=("rever|Rever a configuracao (os valores guardados aparecem como omissao)"
                      "reaplicar|Reaplicar sem perguntas, mantendo o codigo instalado")
-        [[ -n ${GIT_URL:-} ]] && OPCOES_MENU+=("atualizar|Atualizar o codigo pelo Git ($GIT_BRANCH) e reaplicar sem perguntas")
+        if [[ -n ${GIT_URL:-} ]]; then
+            OPCOES_MENU+=("atualizar|Atualizar o codigo pelo Git ($GIT_BRANCH) e reaplicar sem perguntas")
+        else
+            OPCOES_MENU+=("atualizar|Atualizar o codigo pelo Git (pergunta o repositorio) e reaplicar")
+        fi
         OPCOES_MENU+=("desinstalar|Desinstalar esta instancia" "sair|Sair sem alterar nada")
         escolher MODO "O que pretende fazer?" rever "${OPCOES_MENU[@]}"
         [[ $MODO == sair ]] && exit 0
         [[ $MODO == desinstalar ]] && desinstalar "$NOME"
     fi
-    [[ $MODO == atualizar && -z ${GIT_URL:-} ]] && erro "a instancia nao tem repositorio Git guardado: use '$0 $NOME' e escolha a origem Git."
+    if [[ $MODO == atualizar ]]; then
+        # Repositorio indicado na linha de comandos, ou ainda nenhum guardado (instalada a partir de
+        # uma pasta): pergunta uma vez; fica guardado para as proximas atualizacoes.
+        [[ -n ${ARG_GIT_URL:-} ]] && GIT_URL=$ARG_GIT_URL
+        [[ -n ${ARG_GIT_BRANCH:-} ]] && GIT_BRANCH=$ARG_GIT_BRANCH
+        [[ -n ${ARG_GIT_PASTA:-} ]] && GIT_PASTA=$ARG_GIT_PASTA
+        if [[ -z ${GIT_URL:-} ]]; then
+            titulo "Repositorio Git"
+            info "A instancia foi instalada a partir de uma pasta: indique de onde obter o codigo."
+            info "So e descarregada a pasta do portal (sparse-checkout). Fica guardado para a proxima vez."
+            perguntar GIT_URL "URL do repositorio (HTTPS ou SSH)" "$REPO_URL_PADRAO" '^.+$'
+            perguntar GIT_BRANCH "Branch" "${GIT_BRANCH:-$REPO_BRANCH_PADRAO}" '^.+$'
+            perguntar GIT_PASTA "Pasta do portal no repositorio" "${GIT_PASTA:-$REPO_PASTA_PADRAO}" '^.+$'
+        fi
+        GIT_BRANCH=${GIT_BRANCH:-$REPO_BRANCH_PADRAO}; GIT_PASTA=${GIT_PASTA:-$REPO_PASTA_PADRAO}
+    fi
     [[ $MODO == reaplicar || $MODO == atualizar ]] && { AUTO=1; titulo "A reaplicar a configuracao guardada (sem perguntas)"; }
 elif [[ $MODO == reaplicar || $MODO == atualizar ]]; then
     erro "a instancia '$NOME_ARG' nao tem configuracao guardada: corra '$0 $NOME_ARG'."

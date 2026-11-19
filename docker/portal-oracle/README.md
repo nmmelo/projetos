@@ -354,7 +354,7 @@ Ao voltar a correr o script, ele mostra as instâncias do servidor e a configura
 | Ver a configuração guardada | `sudo ./instalar.sh --mostrar <nome>` |
 | **Mudar a configuração** (SSL, nome DNS, base de dados, porta, cron) | `sudo ./instalar.sh <nome>` → "Rever". A base de dados pode ficar como está (opção "Manter") |
 | **Reaplicar** sem perguntas (ex.: depois de atualizar o script ou os templates) | `sudo ./instalar.sh --reaplicar <nome>` |
-| **Atualizar o código** pelo Git e reaplicar | `sudo ./instalar.sh --atualizar <nome>` (ver [Atualizar o código](#6-atualizar-o-código-sincronizar-com-o-repositório)) |
+| **Atualizar o código** pelo Git e reaplicar | `sudo ./instalar.sh --atualizar <nome> [URL [branch [pasta]]]`. Se a instância foi instalada a partir de uma pasta (sem repositório guardado), usa o URL indicado ou pergunta-o, e guarda-o para a próxima vez (ver [Atualizar o código](#6-atualizar-o-código-sincronizar-com-o-repositório)) |
 | **Diagnóstico** (portal indisponível?) | `sudo ./instalar.sh --verificar <nome>` |
 | **Modo de manutenção** | `sudo ./instalar.sh --manutencao <nome> on\|off\|status` |
 | **Outra instância** no mesmo servidor | `sudo ./instalar.sh` → "Nova instancia". Use outro nome DNS (ou outra porta HTTP) |
