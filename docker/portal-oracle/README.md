@@ -298,6 +298,7 @@ sudo /opt/oracle-portal/portal-docker.sh -d /opt/oracle-portal
 | `-r URL` | Repositório (HTTPS ou SSH). Só na 1.ª vez; depois fica em `PASTA/.origem` |
 | `-b BRANCH` | Branch (omissão o guardado, ou `main`) |
 | `-p SUBPASTA` | Pasta do portal no repositório (omissão `docker/portal-oracle`) |
+| `-H PORTA` / `-S PORTA` | Porta HTTP / SSH no anfitrião (gravadas no `.env`: `PORTAL_HTTP_PORT`, `PORTAL_SSH_PORT`) |
 | `-c` | Só atualiza o código, sem mexer no Docker |
 | `-y` | Não pede confirmação |
 | `-v` | Mostra a versão instalada (`PASTA/.versao`) e a origem |
@@ -306,10 +307,11 @@ sudo /opt/oracle-portal/portal-docker.sh -d /opt/oracle-portal
 | Na pasta | O que o script faz |
 |---|---|
 | Código (`app/`, `docker/`, `Dockerfile`, ...) | Substitui pela versão do repositório. **Ficheiros que não vêm do repositório são apagados**: não guarde outros ficheiros na pasta |
-| `data/` e `.env` | Nunca altera. O `.env` é criado na 1.ª vez a partir do `.env.example` |
+| `data/`, `.env` e `docker-compose.override.yml` | Nunca altera. O `.env` é criado na 1.ª vez a partir do `.env.example` |
 | Docker | 1.ª vez: `up -d --build` e pede a password do `admin`. Seguintes: `up -d --build` (só reconstrói se o `Dockerfile` mudou) e `restart` |
 
 - Repositório privado: no HTTPS use um token do GitHub (só leitura) como password; no SSH registe a chave do servidor no GitHub.
+- **Portas e outras alterações locais:** não altere o `docker-compose.yml` (é substituído em cada atualização). As portas ficam no `.env` (`PORTAL_HTTP_PORT=8080`, `PORTAL_SSH_PORT=2222`; ou `-H`/`-S`); para o resto (volumes, rede, ...) use um `docker-compose.override.yml` na mesma pasta, que o Docker Compose junta sozinho. Se um `docker-compose.yml` antigo tiver as portas alteradas à mão, o script passa-as para o `.env` na 1.ª atualização.
 - Recusa pastas do sistema (`/`, `/opt`, `/usr/...`, homes dos utilizadores).
 - Depois de atualizar, faça **Ctrl+F5** no browser.
 
@@ -328,8 +330,8 @@ docker-compose exec -u portal portal python manage.py set-admin-password
 
 | Acesso | Endereço |
 |---|---|
-| Portal | `http://<servidor>:8080` (utilizador `admin`) |
-| SSH | `ssh -p 2222 <utilizador>@<servidor>` |
+| Portal | `http://<servidor>:8080` (utilizador `admin`; porta `PORTAL_HTTP_PORT` no `.env`) |
+| SSH | `ssh -p 2222 <utilizador>@<servidor>` (porta `PORTAL_SSH_PORT` no `.env`) |
 
 > **A atualizar a partir da versão anterior?** O serviço passou a chamar-se `portal` (antes era `app`), e já não há um contentor separado para o Nginx. Corra `docker-compose down` antes do `up`. As bases de dados Oracle já configuradas são migradas automaticamente. Um `PORTAL_ADMIN_PASSWORD_HASH` que já esteja no `.env` é usado para criar o `admin.json` no primeiro arranque.
 
@@ -1017,7 +1019,7 @@ Os nomes de utilizador só podem ter minúsculas, números, `_` e `-`. `root` e 
 
 | Item | Valor |
 |---|---|
-| Porta | `2222` |
+| Porta | `2222` (`PORTAL_SSH_PORT` no `.env`) |
 | Autenticação | Só chave pública. A password (`SSH_PASSWORD`) aplica-se apenas ao utilizador `portal` |
 | Código | `/srv/portal` (montado a partir do anfitrião) |
 

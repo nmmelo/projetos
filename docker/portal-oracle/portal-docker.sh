@@ -14,7 +14,7 @@ set -euo pipefail
 
 SUB_PADRAO="docker/portal-oracle"
 PASTA="/opt/oracle-portal"
-REPO="" BRANCH="" SUB="" SO_CODIGO=0 SIM=0
+REPO="" BRANCH="" SUB="" SO_CODIGO=0 SIM=0 P_HTTP="" P_SSH=""
 
 ajuda() {
     cat <<EOF
@@ -27,6 +27,8 @@ Instala (1.ª vez) ou atualiza (seguintes) o portal-oracle em Docker na PASTA.
                depois fica guardado em PASTA/.origem
   -b BRANCH    Branch (por omissão a guardada, ou 'main')
   -p SUBPASTA  Pasta do portal dentro do repositório (por omissão $SUB_PADRAO)
+  -H PORTA     Porta HTTP no anfitrião (guardada no .env, PORTAL_HTTP_PORT; omissão 8080)
+  -S PORTA     Porta SSH no anfitrião (guardada no .env, PORTAL_SSH_PORT; omissão 2222)
   -c           Só atualiza o código (não mexe no Docker)
   -y           Não pede confirmação
   -v           Mostra a versão instalada e a origem, e sai
@@ -36,9 +38,12 @@ Exemplos:
   sudo $(basename "$0") -d /opt/oracle-portal -r https://github.com/<conta>/<repositorio>.git
   sudo $(basename "$0") -d /opt/oracle-portal          # atualizar para a última versão
   sudo $(basename "$0") -d /opt/oracle-portal -b teste # mudar de branch
+  sudo $(basename "$0") -d /opt/oracle-portal -H 8090 -S 2223   # mudar as portas
 
 Na PASTA: o código é substituído pela versão do repositório; data/ (BD, fernet.key,
-backups, homes) e .env ficam como estão. Não guarde outros ficheiros seus na PASTA:
+backups, homes), .env e docker-compose.override.yml ficam como estão. As portas
+e outras alterações locais vão para o .env (ou para o docker-compose.override.yml),
+nunca para o docker-compose.yml. Não guarde outros ficheiros seus na PASTA:
 os que não vêm do repositório são apagados.
 EOF
 }
@@ -47,12 +52,14 @@ erro() { echo "ERRO: $*" >&2; exit 1; }
 info() { echo "== $*"; }
 
 VER=0
-while getopts "d:r:b:p:cyvh" o; do
+while getopts "d:r:b:p:H:S:cyvh" o; do
     case "$o" in
         d) PASTA="$OPTARG" ;;
         r) REPO="$OPTARG" ;;
         b) BRANCH="$OPTARG" ;;
         p) SUB="$OPTARG" ;;
+        H) P_HTTP="$OPTARG" ;;
+        S) P_SSH="$OPTARG" ;;
         c) SO_CODIGO=1 ;;
         y) SIM=1 ;;
         v) VER=1 ;;
@@ -80,6 +87,9 @@ if [ "$VER" = 1 ]; then
     exit 0
 fi
 
+for v in "$P_HTTP" "$P_SSH"; do
+    [ -z "$v" ] || { [[ "$v" =~ ^[0-9]+$ ]] && [ "$v" -ge 1 ] && [ "$v" -le 65535 ]; } || erro "porta inválida: $v"
+done
 [ -n "$REPO" ] || erro "indique o repositório com -r URL (só é preciso na 1.ª vez). Veja --help: $(basename "$0") -h"
 command -v git >/dev/null || erro "falta o git (ex. apt install -y git)"
 case "$PASTA" in
@@ -114,14 +124,36 @@ VERSAO="$(git -C "$TMP/repo" log -1 --format='%h %ad %s' --date=short)"
 ANTES="$(cut -d' ' -f1 "$PASTA/.versao" 2>/dev/null || true)"
 
 mkdir -p "$PASTA"
+# portas alteradas a mao num docker-compose.yml antigo (antes das variaveis no .env): passam para o .env
+OLD_HTTP="" OLD_SSH=""
+if [ -f "$PASTA/docker-compose.yml" ] && ! grep -q 'PORTAL_HTTP_PORT' "$PASTA/docker-compose.yml"; then
+    OLD_HTTP="$(sed -nE 's/^[[:space:]]*-[[:space:]]*"?([0-9.]+:)?([0-9]+):80"?.*/\2/p' "$PASTA/docker-compose.yml" | head -1)"
+    OLD_SSH="$(sed -nE 's/^[[:space:]]*-[[:space:]]*"?([0-9.]+:)?([0-9]+):22"?.*/\2/p' "$PASTA/docker-compose.yml" | head -1)"
+fi
 # substitui o codigo: apaga tudo menos data/, .env, .origem e .versao, e copia a versao nova
-find "$PASTA" -mindepth 1 -maxdepth 1 ! -name data ! -name .env ! -name .origem ! -name .versao -exec rm -rf {} +
+find "$PASTA" -mindepth 1 -maxdepth 1 ! -name data ! -name .env ! -name .origem ! -name .versao \
+    ! -name docker-compose.override.yml ! -name 'docker-compose.override.yaml' -exec rm -rf {} +
 cp -a "$TMP/repo/$SUB/." "$PASTA/"
 printf 'REPO=%s\nBRANCH=%s\nSUB=%s\n' "$REPO" "$BRANCH" "$SUB" > "$PASTA/.origem"
 chmod 600 "$PASTA/.origem"
 echo "$VERSAO" > "$PASTA/.versao"
 mkdir -p "$PASTA/data/ssh/users" "$PASTA/data/home"
 [ -f "$PASTA/.env" ] || { cp "$PASTA/.env.example" "$PASTA/.env"; info ".env criado a partir do .env.example (reveja-o)"; }
+
+# variavel no .env: altera a linha se existir, senao acrescenta
+env_set() {
+    if grep -q "^$1=" "$PASTA/.env"; then sed -i "s|^$1=.*|$1=$2|" "$PASTA/.env"; else printf '%s=%s\n' "$1" "$2" >> "$PASTA/.env"; fi
+}
+env_get() { sed -n "s/^$1=//p" "$PASTA/.env" | tail -1; }
+if [ -z "$(env_get PORTAL_HTTP_PORT)" ] && [ -n "$OLD_HTTP" ] && [ -z "$P_HTTP" ]; then P_HTTP="$OLD_HTTP"; info "porta HTTP $OLD_HTTP do docker-compose.yml antigo passou para o .env"; fi
+if [ -z "$(env_get PORTAL_SSH_PORT)" ] && [ -n "$OLD_SSH" ] && [ -z "$P_SSH" ]; then P_SSH="$OLD_SSH"; info "porta SSH $OLD_SSH do docker-compose.yml antigo passou para o .env"; fi
+[ -z "$P_HTTP" ] || env_set PORTAL_HTTP_PORT "$P_HTTP"
+[ -z "$P_SSH" ] || env_set PORTAL_SSH_PORT "$P_SSH"
+# .env de versoes anteriores (sem as portas): acrescenta os valores por omissao, para ficarem visiveis
+[ -n "$(env_get PORTAL_HTTP_PORT)" ] || env_set PORTAL_HTTP_PORT 8080
+[ -n "$(env_get PORTAL_SSH_PORT)" ] || env_set PORTAL_SSH_PORT 2222
+HTTP="$(env_get PORTAL_HTTP_PORT)"; SSHP="$(env_get PORTAL_SSH_PORT)"
+info "portas: HTTP $HTTP, SSH $SSHP (no .env)"
 
 if [ -n "$ANTES" ] && [ "$ANTES" = "${VERSAO%% *}" ]; then info "já estava na última versão: $VERSAO"
 else info "versão: $VERSAO${ANTES:+ (antes: $ANTES)}"; fi
@@ -140,4 +172,5 @@ else
     "${DC[@]}" up -d --build
     "${DC[@]}" restart
 fi
-info "pronto: http://$(hostname -f 2>/dev/null || hostname):8080  - no browser, faça Ctrl+F5"
+H="$(hostname -f 2>/dev/null || hostname)"
+info "pronto: http://$H:$HTTP  (SSH: ssh -p $SSHP <utilizador>@$H) - no browser, faça Ctrl+F5"

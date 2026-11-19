@@ -7,9 +7,12 @@ services:
     container_name: oracle-portal
     hostname: oracle-portal
     env_file: .env
+    # Portas no anfitriao: definir no .env (PORTAL_HTTP_PORT, PORTAL_SSH_PORT), nao aqui.
+    # Este ficheiro e substituido pelo portal-docker.sh; alteracoes locais vao para o .env ou
+    # para docker-compose.override.yml (que o script nao altera).
     ports:
-      - "8080:80"      # portal web
-      - "2222:22"      # SSH (VS Code Remote-SSH)
+      - "${PORTAL_HTTP_PORT:-8080}:80"      # portal web
+      - "${PORTAL_SSH_PORT:-2222}:22"       # SSH (VS Code Remote-SSH)
     volumes:
       - ./:/srv/portal                 # codigo + data/ no anfitriao
       - ./data/home:/home              # homes dos utilizadores (vscode-server, gitconfig, ...)

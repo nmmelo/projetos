@@ -291,3 +291,12 @@ Chat de 19 de novembro de 2026.
 
 **Resposta:** novo script `portal-docker.sh`. Descarrega só a pasta `docker/portal-oracle` (sparse checkout, `--depth 1`) para uma pasta temporária e copia-a para a pasta de destino, sem tocar em `data/` nem no `.env`. Na 1.ª vez (`-d PASTA -r URL`) cria o `.env`, arranca o contentor e pede a password do `admin`; depois basta `-d PASTA` (a origem fica em `.origem` e a versão em `.versao`). O `instalar.sh` remove-o nas instalações sem Docker.
 
+## 18. Portas HTTP e SSH no Docker
+
+Chat de 19 de novembro de 2026.
+
+**Pergunta:**
+> este script não me permite alterar a porta de http e ssh no docker-compose, eu altero mas depois quando corro o portal-docker.sh, altera sempre para 2222 e 8080
+
+**Resposta:** o `docker-compose.yml` vem do repositório e é substituído em cada atualização. As portas passaram para o `.env` (`PORTAL_HTTP_PORT`, `PORTAL_SSH_PORT`), que o script nunca altera; também se mudam com `portal-docker.sh -H <http> -S <ssh>`. Na 1.ª atualização, as portas alteradas à mão num `docker-compose.yml` antigo passam sozinhas para o `.env`. Outras alterações locais vão para um `docker-compose.override.yml`, que o script também preserva.
+
