@@ -171,3 +171,23 @@ Chat de 19 de novembro de 2026.
 > [ERROR] Control server error: [Errno 13] Permission denied: '/opt/dba-portal/.gunicorn/guni
 
 **Resposta:** o Gunicorn 25.1 passou a criar um control socket (`gunicornc`) em `$XDG_RUNTIME_DIR/gunicorn.ctl` ou em `$HOME/.gunicorn/`. Na instalação sem Docker o HOME do utilizador de serviço é a pasta do código, que o `instalar.sh` deixa só de leitura para o serviço. Correção no `deploy/portal.service.tpl`: `RuntimeDirectory=<nome>` e `Environment=XDG_RUNTIME_DIR=/run/<nome>`. Para instalações existentes: voltar a correr o `instalar.sh` ou `systemctl edit <nome>` com essas linhas (ver README, "Problemas conhecidos"). No Docker não acontece (HOME gravável).
+
+---
+
+## 11. instalar.sh: configuração guardada, menu e ajuda
+
+Chat de 19 de novembro de 2026.
+
+**Pergunta:**
+> mas ao voltar fazer instalar.sh, devia mostrar as configurações já feitas, ou seja devem ser guardadas, podemos também incluir ajuda tipo instalar.sh --help [...]
+
+**Resposta:**
+
+| Antes | Agora |
+|---|---|
+| Respostas em `/opt/<nome>/.instalacao`, só lidas se se escrevesse o mesmo nome | Registo em `/etc/portal-oracle/<nome>.conf`; o script lista as instâncias e propõe a que corresponde à pasta onde corre |
+| Gravadas só no fim (perdiam-se se a instalação falhasse) | Gravadas logo após a confirmação, marcadas como incompleta até ao fim |
+| Não mostrava nada | Mostra a configuração guardada e um menu: rever, reaplicar sem perguntas, atualizar pelo Git, desinstalar, sair |
+| `--ajuda` com o cabeçalho do ficheiro | `--help` completo; novas opções `NOME`, `--lista`, `--mostrar`, `--reaplicar`, `--atualizar` |
+
+O ficheiro antigo `.instalacao` é lido e migrado.

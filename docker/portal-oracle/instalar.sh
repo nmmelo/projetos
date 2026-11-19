@@ -1,21 +1,7 @@
 #!/usr/bin/env bash
 #
 # instalar.sh - instalacao e configuracao do Portal Oracle num servidor (sem Docker).
-#
-#   sudo ./instalar.sh                    instalar, ou reconfigurar/atualizar uma instancia existente
-#   sudo ./instalar.sh --desinstalar      remover uma instancia
-#   ./instalar.sh --ajuda
-#
-# Pergunta tudo o que e preciso e trata do resto, sem ser preciso alterar ficheiros a mao:
-#   - nome da instancia (servico systemd, site do Nginx, pasta e utilizador), ex. portal-oracle, nome-portal
-#   - origem do codigo: a pasta onde esta este script, ou so a pasta do portal num repositorio Git
-#     (clone parcial com sparse-checkout, sem descarregar o repositorio inteiro)
-#   - base de dados do portal: SQLite, MariaDB ou PostgreSQL, local (instala e cria) ou remota
-#     (gera o SQL e o script para correr no servidor remoto, incluindo pg_hba.conf, e testa a ligacao)
-#   - Nginx: nome DNS, portas, HTTP, HTTPS com certificado proprio ou Let's Encrypt
-#   - systemd, password do administrador, backup no cron e firewall
-#
-# Pode ser descarregado sozinho: se nao encontrar o codigo ao lado, oferece-se para o ir buscar ao Git.
+# Ajuda completa: ./instalar.sh --help
 #
 set -Eeuo pipefail
 shopt -u patsub_replacement 2>/dev/null || true   # bash 5.2: "&" na substituicao
@@ -26,7 +12,12 @@ REPO_BRANCH_PADRAO="main"
 REPO_PASTA_PADRAO="docker/portal-oracle"
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-ESTADO_FICHEIRO=".instalacao"            # na pasta de instalacao: respostas anteriores (sem passwords)
+ESTADO_DIR="/etc/portal-oracle"          # registo das instancias: <nome>.conf (respostas, sem passwords)
+ESTADO_LEGADO=".instalacao"              # versoes anteriores guardavam na pasta da instalacao
+AUTO=0                                   # 1 = aceitar os valores guardados sem perguntar (reaplicar)
+ESTADO_VARS=(NOME DIR UTIL GIT_URL GIT_BRANCH GIT_PASTA PORTA_GUNICORN ADMIN_USER BD_TIPO BD_LOCAL BD_HOST
+             BD_PORTA BD_NOME BD_UTIL BD_CLIENTE SERVER_NAME SSL_MODO HTTP_PORT HTTPS_PORT SSL_CERT_ORIG
+             SSL_KEY_ORIG SSL_CADEIA_ORIG LE_EMAIL CRON_HORA ABRIR_FW ESTADO_INST ULTIMA_EXEC)
 
 # ============================================================================ apresentacao
 if [[ -t 1 ]]; then
@@ -44,6 +35,9 @@ trap 'echo "${C_VM}ERRO na linha $LINENO:${C_0} $BASH_COMMAND" >&2' ERR
 # perguntar VAR "texto" "valor por omissao" ["regex de validacao"]
 perguntar() {
     local __v=$1 __t=$2 __d=${3:-} __re=${4:-} __r
+    if (( AUTO )) && { [[ -z $__re ]] || [[ $__d =~ $__re ]]; }; then
+        echo "   $__t: ${__d:--}"; printf -v "$__v" '%s' "$__d"; return 0
+    fi
     while :; do
         if [[ -n $__d ]]; then read -r -p "   $__t [$__d]: " __r; else read -r -p "   $__t: " __r; fi
         __r=${__r:-$__d}
@@ -56,6 +50,9 @@ perguntar() {
 # sim_nao "texto" s|n  -> 0 = sim
 sim_nao() {
     local __r __d=${2:-n}
+    if (( AUTO )); then
+        echo "   $1 $([[ $__d == s ]] && echo sim || echo nao)"; [[ $__d == s ]]; return
+    fi
     while :; do
         read -r -p "   $1 [$([[ $__d == s ]] && echo S/n || echo s/N)]: " __r
         __r=${__r:-$__d}
@@ -71,9 +68,11 @@ escolher() {
     for op in "$@"; do
         chaves+=("${op%%|*}")
         [[ ${op%%|*} == "$__d" ]] && def_n=$i
-        printf "     %d) %s\n" "$i" "${op#*|}"
+        (( AUTO )) || printf "     %d) %s\n" "$i" "${op#*|}"
+        [[ ${op%%|*} == "$__d" ]] && (( AUTO )) && echo "     -> ${op#*|}"
         i=$((i + 1))
     done
+    if (( AUTO )); then printf -v "$__v" '%s' "${chaves[def_n - 1]}"; return 0; fi
     while :; do
         read -r -p "   Opcao [$def_n]: " __r
         __r=${__r:-$def_n}
@@ -96,7 +95,49 @@ ler_password() {   # ler_password VAR "texto"  (pede duas vezes)
 
 gerar_password() { openssl rand -base64 33 | tr -dc 'A-Za-z0-9' | cut -c1-24; }
 
-uso() { sed -n '3,19p' "$0" | sed 's/^# \{0,1\}//'; }
+ajuda() {
+    cat <<'EOF'
+instalar.sh - instalacao e configuracao do Portal Oracle num servidor (sem Docker)
+
+Uso:
+  sudo ./instalar.sh                  menu: escolher a instancia (ou criar uma nova)
+  sudo ./instalar.sh NOME             instalar ou reconfigurar a instancia NOME
+  sudo ./instalar.sh --reaplicar NOME reaplicar a configuracao guardada, sem perguntas (mantem o codigo)
+  sudo ./instalar.sh --atualizar NOME obter o codigo do Git e reaplicar, sem perguntas
+  sudo ./instalar.sh --mostrar [NOME] mostrar a configuracao guardada
+  sudo ./instalar.sh --lista          listar as instancias deste servidor
+  sudo ./instalar.sh --desinstalar [NOME]
+  ./instalar.sh --help                esta ajuda (tambem -h, --ajuda)
+
+O que pergunta (Enter aceita o valor entre [ ]; nada e alterado antes da confirmacao):
+  1. Instancia     nome (ex. portal-oracle, nome-portal), pasta (/opt/<nome>), utilizador de servico
+  2. Codigo        copiar da pasta deste script, obter so a pasta do portal do Git (sparse-checkout),
+                   ou manter o codigo instalado
+  3. Aplicacao     porta interna do Gunicorn, administrador do portal e password
+  4. Base de dados SQLite; MariaDB ou PostgreSQL neste servidor (instala e cria); ou noutro servidor
+                   (gera o SQL e o script a correr la, incluindo pg_hba.conf, e testa a ligacao)
+  5. Nginx         nome DNS, portas, sem HTTPS / certificado proprio / Let's Encrypt
+  6. Extras        backup diario no cron, abrir as portas na firewall (ufw ou firewalld)
+
+Configuracao guardada:
+  As respostas (sem passwords) ficam em /etc/portal-oracle/<nome>.conf, gravadas logo apos a
+  confirmacao. Ao voltar a correr o script, a configuracao e mostrada e pode:
+    - rever as respostas (os valores guardados aparecem como omissao)
+    - reaplicar sem perguntas (ex. depois de atualizar o script ou os templates)
+    - atualizar o codigo pelo Git e reaplicar
+  data/, .env e .venv nunca sao substituidos.
+
+O que cria (exemplo com o nome "nome-portal"):
+  /opt/nome-portal                       codigo (do root), data/ e .venv (do utilizador de servico)
+  /etc/systemd/system/nome-portal.service
+  /etc/nginx/sites-available/nome-portal (RHEL: /etc/nginx/conf.d/nome-portal.conf)
+  /etc/cron.d/nome-portal                backup diario (opcional)
+  /etc/portal-oracle/nome-portal.conf    configuracao guardada
+
+Repositorio por omissao para a opcao Git: variavel REPO_URL_PADRAO no inicio deste script.
+Mais detalhes: README.md, seccao "Instalacao num servidor (sem Docker)".
+EOF
+}
 
 # ============================================================================ utilitarios
 render() {   # render origem destino  (substitui @CHAVE@ pelas variaveis T_CHAVE)
@@ -159,10 +200,107 @@ extrair_pasta_git() {   # extrair_pasta_git URL BRANCH PASTA DESTINO
 copiar_codigo() {   # copiar_codigo ORIGEM  -> $DIR (nunca toca em data/, .env, .venv)
     [[ $(realpath "$1") == $(realpath "$DIR") ]] && return 0
     tar -C "$1" --exclude=./data --exclude=./.env --exclude=./.venv --exclude=./.git \
-        --exclude="./$ESTADO_FICHEIRO" --exclude='__pycache__' -cf - . | tar -C "$DIR" -xf -
+        --exclude="./$ESTADO_LEGADO" --exclude='__pycache__' -cf - . | tar -C "$DIR" -xf -
 }
 
 tem_codigo() { [[ -f $1/wsgi.py && -f $1/manage.py && -d $1/app && -d $1/deploy ]]; }
+
+# ============================================================================ configuracao guardada
+listar_instancias() {   # nomes das instancias registadas (incluindo as de versoes anteriores)
+    {
+        for f in "$ESTADO_DIR"/*.conf; do [[ -f $f ]] && basename "$f" .conf; done
+        for u in /etc/systemd/system/*.service; do
+            [[ -f $u ]] && grep -q '^Description=Portal Oracle' "$u" && basename "$u" .service
+        done
+        true
+    } 2>/dev/null | sort -u
+}
+
+carregar_estado() {   # carregar_estado NOME -> define as variaveis guardadas; 1 se nao houver
+    local nome=$1 f dir v
+    f="$ESTADO_DIR/$nome.conf"
+    if [[ ! -f $f ]]; then
+        dir=$(sed -n 's/^WorkingDirectory=//p' "/etc/systemd/system/$nome.service" 2>/dev/null || true)
+        f="${dir:-/opt/$nome}/$ESTADO_LEGADO"
+    fi
+    [[ -f $f ]] || return 1
+    for v in "${ESTADO_VARS[@]}"; do unset "$v"; done
+    # shellcheck disable=SC1090
+    source "$f"
+    NOME=$nome
+    ESTADO_ORIGEM=$f
+}
+
+gravar_estado() {   # gravar_estado incompleta|concluida
+    local v
+    ESTADO_INST=$1; ULTIMA_EXEC=$(date '+%Y-%m-%d %H:%M')
+    install -d -m 700 "$ESTADO_DIR"
+    {
+        echo "# Portal Oracle - instancia '$NOME'. Gerado pelo instalar.sh (sem passwords)."
+        echo "# Valores por omissao ao voltar a correr: sudo instalar.sh $NOME"
+        for v in "${ESTADO_VARS[@]}"; do printf '%s=%q\n' "$v" "${!v:-}"; done
+    } > "$ESTADO_DIR/$NOME.conf"
+    chmod 600 "$ESTADO_DIR/$NOME.conf"
+    ESTADO_ORIGEM="$ESTADO_DIR/$NOME.conf"
+    rm -f "$DIR/$ESTADO_LEGADO"
+}
+
+calcular_url() {
+    local host=${SERVER_NAME:-_}
+    [[ $host == _ ]] && host=$(hostname -I 2>/dev/null | awk '{print $1}')
+    host=${host%% *}
+    if [[ ${SSL_MODO:-nao} == nao ]]; then
+        URL="http://$host$([[ ${HTTP_PORT:-80} == 80 ]] || echo ":$HTTP_PORT")/"
+    else
+        URL="https://$host$([[ ${HTTPS_PORT:-443} == 443 ]] || echo ":$HTTPS_PORT")/"
+    fi
+}
+
+mostrar_estado() {   # mostra as variaveis carregadas
+    local bd ssl srv
+    case ${BD_TIPO:-sqlite} in
+        sqlite) bd="SQLite (${DIR:-}/data/portal.sqlite3)" ;;
+        *)      bd="$BD_TIPO ${BD_LOCAL:-} - ${BD_UTIL:-}@${BD_HOST:-}:${BD_PORTA:-}/${BD_NOME:-}" ;;
+    esac
+    case ${SSL_MODO:-nao} in
+        proprio)     ssl="certificado proprio: ${SSL_CERT_ORIG:-}${SSL_CADEIA_ORIG:+ (+ cadeia)}" ;;
+        letsencrypt) ssl="Let's Encrypt (${LE_EMAIL:-})" ;;
+        *)           ssl="sem HTTPS" ;;
+    esac
+    srv=$(systemctl is-active "$NOME" 2>/dev/null || true)
+    calcular_url
+    printf "   %-22s %s\n" \
+        "Instancia / servico" "$NOME  ($NOME.service: ${srv:-?})" \
+        "Pasta" "${DIR:-}" \
+        "Utilizador de servico" "${UTIL:-}" \
+        "Codigo (Git)" "$([[ -n ${GIT_URL:-} ]] && echo "$GIT_URL ($GIT_BRANCH) $GIT_PASTA" || echo "-")" \
+        "Gunicorn" "127.0.0.1:${PORTA_GUNICORN:-}" \
+        "Administrador" "${ADMIN_USER:-}" \
+        "Base de dados" "$bd" \
+        "Nginx" "${SERVER_NAME:-}, HTTP ${HTTP_PORT:-80}$([[ ${SSL_MODO:-nao} != nao ]] && echo ", HTTPS ${HTTPS_PORT:-443}")" \
+        "HTTPS" "$ssl" \
+        "Endereco" "$URL" \
+        "Backup cron" "$([[ -n ${CRON_HORA:-} ]] && echo "todos os dias as $CRON_HORA" || echo nao)" \
+        "Firewall" "$([[ ${ABRIR_FW:-0} == 1 ]] && echo "portas abertas pelo script" || echo "nao alterada")" \
+        "Ultima execucao" "${ULTIMA_EXEC:-?}$([[ ${ESTADO_INST:-} == incompleta ]] && echo "  (INCOMPLETA)")" \
+        "Guardado em" "${ESTADO_ORIGEM:-}"
+}
+
+listar() {
+    local n; local -a lista
+    mapfile -t lista < <(listar_instancias)
+    if (( ${#lista[@]} == 0 )); then echo "Nao ha instancias do portal neste servidor."; return 0; fi
+    printf "%-20s %-24s %-9s %-36s %s\n" NOME PASTA SERVICO ENDERECO "ULTIMA EXECUCAO"
+    for n in "${lista[@]}"; do
+        if carregar_estado "$n"; then
+            calcular_url
+            printf "%-20s %-24s %-9s %-36s %s\n" "$n" "${DIR:-?}" "$(systemctl is-active "$n" 2>/dev/null || true)" \
+                "$URL" "${ULTIMA_EXEC:-?}$([[ ${ESTADO_INST:-} == incompleta ]] && echo ' (incompleta)')"
+        else
+            printf "%-20s %-24s %-9s %s\n" "$n" "?" "$(systemctl is-active "$n" 2>/dev/null || true)" "(sem configuracao guardada)"
+        fi
+    done
+}
 
 # ============================================================================ sistema
 detetar_sistema() {
@@ -199,17 +337,19 @@ escolher_python() {
 desinstalar() {
     titulo "Desinstalar uma instancia"
     local nome unit dir util
+    AUTO=0
     perguntar nome "Nome da instancia" "${1:-}" '^[a-z][a-z0-9-]{1,30}$'
     unit="/etc/systemd/system/$nome.service"
     dir=$(sed -n 's/^WorkingDirectory=//p' "$unit" 2>/dev/null || true)
     util=$(sed -n 's/^User=//p' "$unit" 2>/dev/null || true)
+    [[ -z $dir && $NOME == "$nome" ]] && dir=${DIR:-}
     [[ -n $dir ]] || perguntar dir "Pasta de instalacao" "/opt/$nome"
     info "Servico: $unit"
     info "Pasta:   $dir"
     sim_nao "Parar e remover o servico, o site do Nginx e o cron de '$nome'?" n || exit 0
 
     systemctl disable --now "$nome" 2>/dev/null || true
-    rm -f "$unit" "/etc/cron.d/$nome"
+    rm -f "$unit" "/etc/cron.d/$nome" "$ESTADO_DIR/$nome.conf"
     systemctl daemon-reload
     rm -f "/etc/nginx/sites-enabled/$nome" "/etc/nginx/sites-available/$nome" "/etc/nginx/conf.d/$nome.conf"
     if command -v nginx >/dev/null && nginx -t 2>/dev/null; then systemctl reload nginx || true; fi
@@ -229,35 +369,96 @@ desinstalar() {
 }
 
 # ============================================================================ inicio
+MODO=""; NOME_ARG=""
 case "${1:-}" in
-    -h|--ajuda|--help) uso; exit 0 ;;
+    -h|--help|--ajuda) ajuda; exit 0 ;;
+    --desinstalar|--reaplicar|--atualizar|--mostrar|--lista|--listar) MODO=${1#--}; NOME_ARG=${2:-} ;;
+    -*) echo "Opcao desconhecida: $1 (ver $0 --help)" >&2; exit 2 ;;
+    *) NOME_ARG=${1:-} ;;
 esac
-[[ $EUID -eq 0 ]] || erro "corra como root: sudo $0"
+[[ -z $NOME_ARG || $NOME_ARG =~ ^[a-z][a-z0-9-]{1,30}$ ]] || erro "nome de instancia invalido: $NOME_ARG"
+[[ $EUID -eq 0 ]] || erro "corra como root: sudo $0 $*"
 # Se vier por pipe (curl | bash), as perguntas leem do terminal
 if [[ ! -t 0 ]] && { : </dev/tty; } 2>/dev/null; then exec </dev/tty; fi
 detetar_sistema
-[[ ${1:-} == --desinstalar ]] && desinstalar "${2:-}"
-[[ -z ${1:-} ]] || { uso; exit 2; }
+[[ $MODO == lista || $MODO == listar ]] && { listar; exit 0; }
 
-echo "${C_NG}Portal Oracle - instalacao num servidor (sem Docker)${C_0}"
-echo "Enter aceita o valor entre [ ]. Nada e alterado antes da confirmacao final."
+echo "${C_NG}Portal Oracle - instalacao num servidor (sem Docker)${C_0}   (ajuda: $0 --help)"
+
+# ---------------------------------------------------------------------------- escolher a instancia
+mapfile -t INSTANCIAS < <(listar_instancias)
+if [[ -z $NOME_ARG && -n $MODO && ${#INSTANCIAS[@]} -eq 1 ]]; then
+    NOME_ARG=${INSTANCIAS[0]}
+elif [[ -z $NOME_ARG && ${#INSTANCIAS[@]} -gt 0 ]]; then
+    titulo "Instancias neste servidor"
+    OPCOES_INST=(); INST_DEF=""
+    for n in "${INSTANCIAS[@]}"; do
+        if carregar_estado "$n"; then
+            calcular_url
+            OPCOES_INST+=("$n|$n  ($DIR, $URL)")
+            [[ $(realpath -m "$DIR") == "$(realpath "$SCRIPT_DIR")" ]] && INST_DEF=$n
+        else
+            OPCOES_INST+=("$n|$n  (sem configuracao guardada)")
+        fi
+    done
+    [[ -z $INST_DEF && ${#INSTANCIAS[@]} -eq 1 ]] && INST_DEF=${INSTANCIAS[0]}
+    [[ $MODO == desinstalar || $MODO == mostrar ]] || OPCOES_INST+=("+nova|Nova instancia")
+    escolher NOME_ARG "Qual?" "${INST_DEF:-+nova}" "${OPCOES_INST[@]}"
+    [[ $NOME_ARG == +nova ]] && NOME_ARG=""
+fi
+[[ -z $NOME_ARG && ( $MODO == mostrar || $MODO == desinstalar || $MODO == reaplicar || $MODO == atualizar ) ]] \
+    && erro "nao ha instancias registadas (ver: $0 --lista)."
+
+REINSTALAR=0; ESTADO_ORIGEM=""
+if [[ -n $NOME_ARG ]] && carregar_estado "$NOME_ARG"; then
+    REINSTALAR=1
+elif [[ -n $NOME_ARG ]]; then
+    NOME=$NOME_ARG
+    [[ -f /etc/systemd/system/$NOME.service ]] \
+        && aviso "a instancia '$NOME' existe mas nao tem configuracao guardada: as perguntas usam valores por omissao."
+fi
+
+[[ $MODO == mostrar ]] && { titulo "Configuracao guardada"; mostrar_estado; exit 0; }
+[[ $MODO == desinstalar ]] && desinstalar "$NOME_ARG"
+
+if (( REINSTALAR )); then
+    titulo "Configuracao guardada de '$NOME'"
+    mostrar_estado
+    [[ ${ESTADO_INST:-} == incompleta ]] && aviso "a ultima execucao nao chegou ao fim."
+    if [[ -z $MODO ]]; then
+        echo
+        OPCOES_MENU=("rever|Rever a configuracao (os valores guardados aparecem como omissao)"
+                     "reaplicar|Reaplicar sem perguntas, mantendo o codigo instalado")
+        [[ -n ${GIT_URL:-} ]] && OPCOES_MENU+=("atualizar|Atualizar o codigo pelo Git ($GIT_BRANCH) e reaplicar sem perguntas")
+        OPCOES_MENU+=("desinstalar|Desinstalar esta instancia" "sair|Sair sem alterar nada")
+        escolher MODO "O que pretende fazer?" rever "${OPCOES_MENU[@]}"
+        [[ $MODO == sair ]] && exit 0
+        [[ $MODO == desinstalar ]] && desinstalar "$NOME"
+    fi
+    [[ $MODO == atualizar && -z ${GIT_URL:-} ]] && erro "a instancia nao tem repositorio Git guardado: use '$0 $NOME' e escolha a origem Git."
+    [[ $MODO == reaplicar || $MODO == atualizar ]] && { AUTO=1; titulo "A reaplicar a configuracao guardada (sem perguntas)"; }
+elif [[ $MODO == reaplicar || $MODO == atualizar ]]; then
+    erro "a instancia '$NOME_ARG' nao tem configuracao guardada: corra '$0 $NOME_ARG'."
+fi
+(( AUTO )) || echo "Enter aceita o valor entre [ ]. Nada e alterado antes da confirmacao final."
 
 # ---------------------------------------------------------------------------- 1. instancia
 titulo "1. Instancia"
-info "O nome identifica o servico systemd, o site do Nginx, a pasta e o utilizador de servico."
-info "Permite ter varias instancias no mesmo servidor (ex. portal-oracle, nome-portal)."
-perguntar NOME "Nome da instancia" "portal-oracle" '^[a-z][a-z0-9-]{1,30}$'
-
-REINSTALAR=0
-DIR_ANT=$(sed -n 's/^WorkingDirectory=//p' "/etc/systemd/system/$NOME.service" 2>/dev/null || true)
-DIR=${DIR_ANT:-/opt/$NOME}
-if [[ -f $DIR/$ESTADO_FICHEIRO ]]; then
-    # shellcheck disable=SC1090
-    source "$DIR/$ESTADO_FICHEIRO"
-    REINSTALAR=1
-    aviso "a instancia '$NOME' ja existe em $DIR: as respostas anteriores sao usadas como valores por omissao."
-    info "Os dados (data/) e o .env sao mantidos."
+if (( REINSTALAR )); then
+    info "Instancia: $NOME"
+else
+    info "O nome identifica o servico systemd, o site do Nginx, a pasta e o utilizador de servico."
+    info "Permite ter varias instancias no mesmo servidor (ex. portal-oracle, nome-portal)."
+    NOME_DEF=${NOME_ARG:-portal-oracle}
+    [[ -z $NOME_ARG ]] && printf '%s\n' "${INSTANCIAS[@]}" | grep -qx "$NOME_DEF" && NOME_DEF=""
+    perguntar NOME "Nome da instancia" "$NOME_DEF" '^[a-z][a-z0-9-]{1,30}$'
+    if printf '%s\n' "${INSTANCIAS[@]}" | grep -qx "$NOME" && carregar_estado "$NOME"; then
+        REINSTALAR=1; aviso "a instancia '$NOME' ja existe: os valores guardados sao usados como omissao."
+    fi
 fi
+[[ -n ${DIR:-} ]] || DIR=$(sed -n 's/^WorkingDirectory=//p' "/etc/systemd/system/$NOME.service" 2>/dev/null || true)
+DIR=${DIR:-/opt/$NOME}
+(( REINSTALAR )) && info "Os dados (data/), o .env e o .venv sao mantidos."
 
 perguntar DIR "Pasta de instalacao" "$DIR" '^/[A-Za-z0-9._/-]+$'
 DIR=${DIR%/}
@@ -271,7 +472,12 @@ tem_codigo "$SCRIPT_DIR" && [[ $(realpath "$SCRIPT_DIR") != $(realpath -m "$DIR"
 OPCOES_COD+=("git|Obter so a pasta do portal de um repositorio Git (sparse-checkout)")
 tem_codigo "$DIR" && OPCOES_COD+=("manter|Manter o codigo ja instalado em $DIR")
 COD_DEF=${OPCOES_COD[0]%%|*}
-[[ $REINSTALAR == 1 && -n ${GIT_URL:-} ]] && COD_DEF=git
+if [[ $MODO == atualizar ]]; then COD_DEF=git
+elif [[ $MODO == reaplicar ]]; then tem_codigo "$DIR" && COD_DEF=manter
+elif (( REINSTALAR )); then
+    tem_codigo "$DIR" && COD_DEF=manter
+    [[ -n ${GIT_URL:-} ]] && COD_DEF=git
+fi
 escolher COD "Origem do codigo:" "$COD_DEF" "${OPCOES_COD[@]}"
 if [[ $COD == git ]]; then
     perguntar GIT_URL "URL do repositorio (HTTPS ou SSH)" "${GIT_URL:-$REPO_URL_PADRAO}" '^.+$'
@@ -374,6 +580,7 @@ if [[ $SSL_MODO == proprio ]]; then
             break
         fi
         aviso "$problema."
+        (( AUTO )) && { AUTO=0; aviso "o certificado guardado tem um problema: indique os ficheiros."; }
     done
     SSL_CADEIA_ORIG=$SSL_CADEIA
 elif [[ $SSL_MODO == letsencrypt ]]; then
@@ -404,9 +611,9 @@ fi
 FW=""
 if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then FW=ufw
 elif command -v firewall-cmd >/dev/null && firewall-cmd --state >/dev/null 2>&1; then FW=firewalld; fi
-ABRIR_FW=0
+ABRIR_FW_ANT=${ABRIR_FW:-1}; ABRIR_FW=0
 if [[ -n $FW ]]; then
-    sim_nao "Firewall ($FW) ativa: abrir as portas do portal?" s && ABRIR_FW=1
+    sim_nao "Firewall ($FW) ativa: abrir as portas do portal?" "$([[ ${ABRIR_FW_ANT:-1} == 1 ]] && echo s || echo n)" && ABRIR_FW=1
 fi
 
 # ---------------------------------------------------------------------------- resumo
@@ -415,10 +622,7 @@ case $BD_OPCAO in
     sqlite) BD_RESUMO="SQLite ($DIR/data/portal.sqlite3)" ;;
     *)      BD_RESUMO="$BD_TIPO $BD_LOCAL - $BD_UTIL@$BD_HOST:$BD_PORTA/$BD_NOME" ;;
 esac
-case $SSL_MODO in
-    nao) URL="http://$([[ $SERVER_NAME == _ ]] && hostname -I | awk '{print $1}' || echo "$SERVER_NAME")$([[ $HTTP_PORT == 80 ]] || echo ":$HTTP_PORT")/" ;;
-    *)   URL="https://$([[ $SERVER_NAME == _ ]] && hostname -I | awk '{print $1}' || echo "$SERVER_NAME")$([[ $HTTPS_PORT == 443 ]] || echo ":$HTTPS_PORT")/" ;;
-esac
+calcular_url
 titulo "Resumo"
 printf "   %-22s %s\n" \
     "Instancia / servico" "$NOME  ($NOME.service)" \
@@ -433,7 +637,11 @@ printf "   %-22s %s\n" \
     "Backup cron" "$([[ $CRON_BACKUP == 1 ]] && echo "todos os dias as $CRON_HORA" || echo nao)" \
     "Firewall" "$([[ $ABRIR_FW == 1 ]] && echo "abrir portas ($FW)" || echo "nao alterar")"
 echo
+AUTO=0
 sim_nao "Avancar com a instalacao?" s || { echo "Cancelado, nada foi alterado."; exit 0; }
+# Grava ja as respostas: se algo falhar a meio, ficam como valores por omissao na proxima execucao
+gravar_estado incompleta
+info "configuracao guardada em $ESTADO_DIR/$NOME.conf"
 
 # ============================================================================ execucao
 titulo "Pacotes"
@@ -668,15 +876,7 @@ fi
 
 # ---------------------------------------------------------------------------- estado
 [[ ${BD_TIPO_EFETIVO:-} == sqlite ]] && { BD_TIPO=sqlite; BD_LOCAL=local; }
-{
-    echo "# Respostas da ultima execucao do instalar.sh (sem passwords). Usadas como valores por omissao."
-    for v in NOME DIR UTIL GIT_URL GIT_BRANCH GIT_PASTA PORTA_GUNICORN ADMIN_USER BD_TIPO BD_LOCAL BD_HOST \
-             BD_PORTA BD_NOME BD_UTIL BD_CLIENTE SERVER_NAME SSL_MODO HTTP_PORT HTTPS_PORT SSL_CERT_ORIG \
-             SSL_KEY_ORIG SSL_CADEIA_ORIG LE_EMAIL CRON_HORA; do
-        printf '%s=%q\n' "$v" "${!v:-}"
-    done
-} > "$DIR/$ESTADO_FICHEIRO"
-chown root:root "$DIR/$ESTADO_FICHEIRO"; chmod 600 "$DIR/$ESTADO_FICHEIRO"
+gravar_estado concluida
 
 # ---------------------------------------------------------------------------- fim
 titulo "Concluido"
@@ -686,7 +886,8 @@ printf "   %-20s %s\n" \
     "Logs" "journalctl -u $NOME -f  |  /var/log/nginx/$NOME.*.log" \
     "Base de dados" "$(manage show-storage 2>/dev/null || echo '?')" \
     "Nginx" "$NGX_CONF" \
-    "Reconfigurar" "sudo $DIR/instalar.sh" \
+    "Configuracao" "$ESTADO_DIR/$NOME.conf  (ver: sudo $DIR/instalar.sh --mostrar $NOME)" \
+    "Reconfigurar" "sudo $DIR/instalar.sh $NOME" \
     "Remover" "sudo $DIR/instalar.sh --desinstalar $NOME"
 [[ ${BD_LOCAL:-} == remota && ${BD_TIPO:-} != sqlite ]] && info "SQL gerado: $DIR/data/bd/$BD_TIPO.sql"
 [[ ! -f $DIR/data/admin.json ]] && aviso "ainda nao ha administrador: cd $DIR && sudo -u $UTIL .venv/bin/python manage.py set-admin-password"

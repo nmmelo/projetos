@@ -108,6 +108,7 @@ Tudo o que depende do nome é gerado a partir de **um único valor**, o nome da 
 | Site do Nginx | `/etc/nginx/sites-available/nome-portal` (RHEL: `/etc/nginx/conf.d/nome-portal.conf`) |
 | Logs do Nginx | `/var/log/nginx/nome-portal.access.log` / `.error.log` |
 | Cron do backup | `/etc/cron.d/nome-portal` |
+| Configuração guardada (respostas do instalador) | `/etc/portal-oracle/nome-portal.conf` |
 | Base de dados do portal (MariaDB/PostgreSQL) | `nome_portal`, utilizador `nome_portal` |
 | Porta interna do Gunicorn | `127.0.0.1:8000`, ou a primeira livre a seguir |
 
@@ -233,14 +234,47 @@ Com certificado próprio:
 
 Para ver como fazer à mão, consulte o [passo 8 da instalação manual](#8-https-ssl).
 
-#### 5. Reconfigurar, atualizar, várias instâncias e remover
+#### 5. Configuração guardada, reconfigurar, atualizar e remover
 
-| Objetivo | Como |
+As respostas (sem passwords) ficam em **`/etc/portal-oracle/<nome>.conf`** (só root). São gravadas **logo após a confirmação**: se a instalação falhar a meio, não se perdem, e a instância aparece como *incompleta*.
+
+Ao voltar a correr o script, ele mostra as instâncias do servidor e a configuração guardada da escolhida:
+
+```
+== Configuracao guardada de 'dba-portal'
+   Instancia / servico    dba-portal  (dba-portal.service: active)
+   Pasta                  /opt/dba-portal
+   Codigo (Git)           https://github.com/<utilizador>/<repositorio>.git (main) docker/portal-oracle
+   Base de dados          postgresql remota - dba_portal@db.dominio.pt:5432/dba_portal
+   HTTPS                  certificado proprio: /etc/ssl/portal.crt
+   Endereco               https://portal.dominio.pt/
+   Ultima execucao        2026-11-19 14:13
+   ...
+   O que pretende fazer?
+     1) Rever a configuracao (os valores guardados aparecem como omissao)
+     2) Reaplicar sem perguntas, mantendo o codigo instalado
+     3) Atualizar o codigo pelo Git (main) e reaplicar sem perguntas
+     4) Desinstalar esta instancia
+     5) Sair sem alterar nada
+```
+
+| Objetivo | Comando |
 |---|---|
-| **Mudar a configuração** (SSL, nome DNS, base de dados, porta, cron) | `sudo /opt/<nome>/instalar.sh` e indique o mesmo nome. As respostas anteriores aparecem como valores por omissão (ficam em `/opt/<nome>/.instalacao`, sem passwords). A base de dados pode ficar como está (opção "Manter") |
-| **Atualizar o código** | Igual, escolhendo a origem "Git" (ou "Copiar da pasta deste script", a partir de uma pasta com a versão nova). `data/`, `.env` e `.venv` nunca são substituídos |
-| **Outra instância** no mesmo servidor | Correr o script com outro nome. Use outro nome DNS (ou outra porta HTTP) para o Nginx |
-| **Remover** | `sudo /opt/<nome>/instalar.sh --desinstalar <nome>`: remove o serviço, o site do Nginx e o cron. Pergunta se apaga a pasta (antes guarda `data/` em `/root/<nome>-data-<data>.tar.gz`) e o utilizador. A base de dados MariaDB/PostgreSQL não é tocada |
+| Ajuda | `./instalar.sh --help` |
+| Ver as instâncias do servidor | `sudo ./instalar.sh --lista` |
+| Ver a configuração guardada | `sudo ./instalar.sh --mostrar <nome>` |
+| **Mudar a configuração** (SSL, nome DNS, base de dados, porta, cron) | `sudo ./instalar.sh <nome>` → "Rever". A base de dados pode ficar como está (opção "Manter") |
+| **Reaplicar** sem perguntas (ex.: depois de atualizar o script ou os templates) | `sudo ./instalar.sh --reaplicar <nome>` |
+| **Atualizar o código** pelo Git e reaplicar | `sudo ./instalar.sh --atualizar <nome>` |
+| **Outra instância** no mesmo servidor | `sudo ./instalar.sh` → "Nova instancia". Use outro nome DNS (ou outra porta HTTP) |
+| **Remover** | `sudo ./instalar.sh --desinstalar <nome>`: remove o serviço, o site do Nginx, o cron e a configuração guardada. Pergunta se apaga a pasta (antes guarda `data/` em `/root/<nome>-data-<data>.tar.gz`) e o utilizador. A base de dados MariaDB/PostgreSQL não é tocada |
+
+Notas:
+
+- **Nunca são substituídos:** `data/`, `.env` e `.venv`.
+- **Confirmação:** mesmo a reaplicar sem perguntas, o resumo é mostrado e pede confirmação.
+- **Quando volta a perguntar:** se algum valor guardado já não servir (por exemplo, o certificado mudou de sítio ou deixou de ser válido), o script pergunta só esse.
+- **Instalações anteriores:** a configuração guardada em `/opt/<nome>/.instalacao` é lida e passa para `/etc/portal-oracle/` na execução seguinte.
 
 #### Permissões aplicadas
 
@@ -474,7 +508,7 @@ Se tiver definido `PORTAL_FERNET_KEY` no `.env`, o cron não a vê. Nesse caso, 
 | Repor a password do admin | `cd /opt/<nome> && sudo -u <nome> .venv/bin/python manage.py set-admin-password` |
 | Backup manual | `cd /opt/<nome> && sudo -u <nome> .venv/bin/python manage.py backup --note "manual"` |
 | Ver a base de dados do portal | `cd /opt/<nome> && sudo -u <nome> .venv/bin/python manage.py show-storage` |
-| Reconfigurar / atualizar | `sudo /opt/<nome>/instalar.sh` |
+| Reconfigurar / atualizar | `sudo /opt/<nome>/instalar.sh <nome>` (ou `--reaplicar` / `--atualizar <nome>`) |
 
 **Atualizar o portal à mão:** copie os ficheiros novos para a pasta (sem `data/`, `.env` e `.venv`), depois:
 
