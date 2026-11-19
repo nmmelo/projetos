@@ -2,7 +2,7 @@
 import base64
 import os
 
-from flask import (current_app, flash, g, make_response, redirect, render_template, request,
+from flask import (current_app, flash, g, jsonify, make_response, redirect, render_template, request,
                    url_for)
 from werkzeug.security import check_password_hash
 
@@ -72,6 +72,25 @@ def home():
         b = store.list_backups()
         last_backup = b[0] if b else None
     return render_template("home.html", blocos=blocos, last_backup=last_backup)
+
+
+# Sininho: notificacoes do utilizador (regras em SMTP > Notificacoes)
+@bp.route("/notificacoes/api")
+@auth.login_required
+def notif_api():
+    from .. import eventos
+    k = str(g.user.id)
+    itens = [{**i, "created_at": str(i["created_at"] or "")} for i in eventos.listar(k, min(int(request.args.get("n", 15)), 50))]
+    return jsonify(n=eventos.nao_lidas(k), itens=itens)
+
+
+@bp.route("/notificacoes/lida", methods=["POST"])
+@auth.login_required
+def notif_lida():
+    from .. import eventos
+    nid = (request.get_json(silent=True) or {}).get("id")
+    eventos.marcar_lida(str(g.user.id), int(nid) if str(nid).isdigit() else None)
+    return jsonify(ok=True, n=eventos.nao_lidas(str(g.user.id)))
 
 
 # Enderecos anteriores aos modulos (marcadores, links antigos) -> modulo Oracle

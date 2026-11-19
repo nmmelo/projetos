@@ -47,7 +47,21 @@ def test_connection(conn) -> dict:
                    SYS_CONTEXT('USERENV', 'DB_NAME')
             FROM dual""")
         user, con, db = cur.fetchone()
-    return {"user": user, "container": con, "db": db, "version": conn.version}
+    return {"user": user, "container": con, "db": db, "version": conn.version, "hwm": metodo_hwm(conn)}
+
+
+def metodo_hwm(conn) -> str:
+    """Como o shrink vai calcular o HWM com esta ligacao: X$KTFBUE (SYSDBA), vista X_$KTFBUE
+    (GRANT) ou DBA_FREE_SPACE (estimativa) + DBA_EXTENTS."""
+    for tab in ("sys.x$ktfbue", "sys.x_$ktfbue"):
+        try:
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT 1 FROM {tab} WHERE ROWNUM = 1")
+                if cur.fetchone():
+                    return tab.split(".")[1].upper()
+        except oracledb.Error:
+            continue
+    return "DBA_FREE_SPACE"
 
 
 def session_id(conn):

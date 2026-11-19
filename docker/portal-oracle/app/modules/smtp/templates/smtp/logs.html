@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}SMTP · Logs{% endblock %}
+{% block content %}
+{% include "smtp/_tabs.html" %}
+<div class="jx-toolbar">
+  <input type="search" id="q" placeholder="Procurar (destinatário, assunto, regra ou erro)" autocomplete="off">
+  {% if pode %}<form method="post" action="{{ url_for('smtp.limpar') }}" class="inline-form"
+        onsubmit="return confirm('Apagar os registos enviados ou com erro com mais de ' + this.dias.value + ' dias?')">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <select name="dias"><option value="7">mais de 7 dias</option><option value="30" selected>mais de 30 dias</option><option value="90">mais de 90 dias</option></select>
+    <button class="danger small">Limpar</button></form>{% endif %}
+</div>
+<div class="jx-chips" id="chips">
+  {% for k, r in [('', 'Todos'), ('ENVIADO', 'Enviados'), ('ERRO', 'Com erro'), ('PENDENTE', 'Na fila'), ('teste', 'Testes')] %}
+  <button type="button" class="chip {{ 'on' if not k }}" data-f="{{ k }}">{{ r }} <b data-n="{{ k }}">0</b></button>{% endfor %}
+</div>
+<div class="table-wrap">
+<table class="jx">
+  <thead><tr><th class="num">#</th><th>Data</th><th>Tipo / regra</th><th>Para</th><th>Assunto</th><th>Estado</th></tr></thead>
+  <tbody id="rows"><tr><td colspan="6" class="muted">A carregar…</td></tr></tbody>
+</table>
+</div>
+
+<dialog id="dlg" class="jx-dlg">
+  <div class="jx-dlg-head">
+    <div><h2 id="d-t"></h2><div class="muted small" id="d-s"></div></div>
+    <div class="buttons">
+      {% if pode %}<button type="button" class="small primary" id="d-re" hidden>Reenviar</button>{% endif %}
+      <button type="button" class="small" id="d-x" aria-label="Fechar">✕</button>
+    </div>
+  </div>
+  <div class="flash error" id="d-err" hidden></div>
+  <h3 class="dlg-sub">Mensagem</h3>
+  <pre class="jx-out smtp-corpo" id="d-corpo"></pre>
+  <h3 class="dlg-sub">Diálogo com o servidor SMTP</h3>
+  <pre class="out-live jx-out smtp-log" id="d-log"></pre>
+</dialog>
+{% endblock %}
+{% block scripts %}
+<script>
+const $ = id => document.getElementById(id), CSRF = "{{ csrf_token }}";
+const API = "{{ url_for('smtp.api_logs') }}", UM = "{{ url_for('smtp.api_email', eid=0) }}", RE = "{{ url_for('smtp.reenviar', eid=0) }}";
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const COR = {ENVIADO: 's-OK', ERRO: 's-ERRO', PENDENTE: 's-PENDENTE', 'A ENVIAR': 's-EM-CURSO'};
+let todos = [], filtro = '', qT, atual;
+async function carregar() {
+  const q = $('q').value.trim();
+  todos = (await (await fetch(API + (q ? '?q=' + encodeURIComponent(q) : ''))).json()).emails; desenhar();
+}
+const passa = (e, f) => !f || (f === 'teste' ? e.tipo === 'teste' : e.status === f);
+function desenhar() {
+  document.querySelectorAll('[data-n]').forEach(b => b.textContent = todos.filter(e => passa(e, b.dataset.n)).length);
+  const v = todos.filter(e => passa(e, filtro));
+  $('rows').innerHTML = v.length ? v.map(e => `<tr data-id="${e.id}"><td class="num">${e.id}</td><td class="small"><code>${esc(e.created_at)}</code></td>
+    <td>${e.tipo === 'teste' ? '<span class="tag">teste</span>' : esc(e.regra)}</td><td class="small">${esc(e.destinatarios)}</td>
+    <td>${esc(e.assunto)}</td><td><span class="status ${COR[e.status] || ''}">${esc(e.status)}</span>
+    ${e.tentativas > 1 ? `<span class="cnt">${e.tentativas} tentativas</span>` : ''}</td></tr>`).join('')
+    : '<tr><td colspan="6" class="muted">Sem registos.</td></tr>';
+}
+function cor(l) { return /ERRO|[45]\d\d[ -]/.test(l) ? 'l-err' : /AVISO/.test(l) ? 'l-warn' : / ###/.test(l) ? 'l-head' : ''; }
+async function abrir(id) {
+  const e = atual = await (await fetch(UM.replace('/0', '/' + id))).json();
+  $('d-t').textContent = `#${e.id} — ${e.assunto}`;
+  $('d-s').innerHTML = `${esc(e.created_at)} · para ${esc(e.destinatarios)} · <span class="status ${COR[e.status] || ''}">${esc(e.status)}</span>` +
+    (e.enviado_em ? ` · enviado ${esc(e.enviado_em)}` : '') + (e.pedido_por ? ` · por ${esc(e.pedido_por)}` : '');
+  $('d-err').hidden = !e.erro; $('d-err').textContent = e.erro || '';
+  $('d-corpo').textContent = e.corpo || '';
+  const f = document.createDocumentFragment();
+  (e.log || '(ainda sem diálogo: a mensagem não foi enviada)').split('\n').forEach(l => {
+    const s = document.createElement('span'); s.textContent = l + '\n'; const c = cor(l); if (c) s.className = c; f.appendChild(s); });
+  $('d-log').replaceChildren(f);
+  if ($('d-re')) $('d-re').hidden = e.status !== 'ERRO';
+  $('dlg').showModal();
+}
+$('rows').onclick = ev => { const tr = ev.target.closest('tr[data-id]'); if (tr) abrir(+tr.dataset.id); };
+$('d-x').onclick = () => $('dlg').close();
+$('dlg').addEventListener('click', e => { if (e.target === $('dlg')) $('dlg').close(); });
+if ($('d-re')) $('d-re').onclick = async () => { await fetch(RE.replace('/0', '/' + atual.id), {method: 'POST', headers: {'X-CSRF': CSRF}});
+  $('dlg').close(); carregar(); };
+$('q').oninput = () => { clearTimeout(qT); qT = setTimeout(carregar, 350); };
+document.querySelectorAll('#chips .chip').forEach(c => c.onclick = () => {
+  document.querySelectorAll('#chips .chip').forEach(x => x.classList.toggle('on', x === c)); filtro = c.dataset.f; desenhar(); });
+carregar(); setInterval(() => { if (!$('dlg').open && todos.some(e => ['PENDENTE', 'A ENVIAR'].includes(e.status))) carregar(); }, 3000);
+</script>
+{% endblock %}

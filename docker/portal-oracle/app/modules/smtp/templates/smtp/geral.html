@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}SMTP · Geral{% endblock %}
+{% block content %}
+{% include "smtp/_tabs.html" %}
+{% set pode = user.can('smtp.configurar') %}
+<div class="smtp-grid">
+<form method="post" class="card stack" id="fconf">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <div class="modulo-head"><h2>Ligação ao servidor SMTP</h2>
+    <label class="inline"><input type="checkbox" name="smtp_ativo" value="1" {{ 'checked' if s.smtp_ativo == '1' }} {{ 'disabled' if not pode }}>
+      <b>Envio automático ligado</b></label></div>
+  <div class="grid">
+    <label>Servidor <input name="smtp_host" value="{{ s.smtp_host or '' }}" placeholder="smtp.dominio.pt" {{ 'disabled' if not pode }}></label>
+    <label>Porta <input name="smtp_porta" type="number" min="1" max="65535" value="{{ s.smtp_porta or 587 }}" {{ 'disabled' if not pode }}></label>
+    <label>Segurança
+      <select name="smtp_seguranca" id="seg" {{ 'disabled' if not pode }}>
+        {% for k, r in [('starttls', 'STARTTLS (TLS na porta 587 ou 25)'), ('ssl', 'SSL/TLS direto (SMTPS, porta 465)'), ('nenhuma', 'Nenhuma (sem cifra)')] %}
+        <option value="{{ k }}" {{ 'selected' if (s.smtp_seguranca or 'starttls') == k }}>{{ r }}</option>{% endfor %}
+      </select></label>
+    <label class="inline end"><input type="checkbox" name="smtp_verificar" value="1" {{ 'checked' if s.smtp_verificar == '1' }} {{ 'disabled' if not pode }}>
+      <span>Validar o certificado TLS<br><span class="hint">Desligado: aceita CA interna/privada (como no monitor RMAN)</span></span></label>
+    <label class="inline full"><input type="checkbox" name="smtp_auth" id="auth" value="1" {{ 'checked' if s.smtp_utilizador }} {{ 'disabled' if not pode }}>
+      <span>Com autenticação (utilizador e password)</span></label>
+    <label class="auth">Utilizador <input name="smtp_utilizador" value="{{ s.smtp_utilizador or '' }}" autocomplete="off" {{ 'disabled' if not pode }}></label>
+    <label class="auth">Password <input name="smtp_password" type="password" autocomplete="new-password"
+        placeholder="{{ '•••••• (guardada; vazio = manter)' if tem_password else '' }}" {{ 'disabled' if not pode }}></label>
+    <label>Remetente (From) <input name="smtp_remetente" value="{{ s.smtp_remetente or '' }}" placeholder="portal@dominio.pt" {{ 'disabled' if not pode }}></label>
+    <label>Nome do remetente <input name="smtp_remetente_nome" value="{{ s.smtp_remetente_nome or portal_name }}" {{ 'disabled' if not pode }}></label>
+    <label class="full">Destinatários por omissão
+      <input name="smtp_destinatarios" value="{{ s.smtp_destinatarios or '' }}" placeholder="dba@dominio.pt, equipa@dominio.pt" {{ 'disabled' if not pode }}>
+      <span class="hint">Usados nas regras com "destinatários por omissão".</span></label>
+    <label>Prefixo do assunto <input name="smtp_prefixo" value="{{ s.smtp_prefixo if s.smtp_prefixo is not none else '[Portal]' }}" {{ 'disabled' if not pode }}></label>
+    <label>Endereço do portal (ligações nos emails)
+      <input name="smtp_url_portal" value="{{ s.smtp_url_portal or url_sugerido }}" {{ 'disabled' if not pode }}></label>
+    <label>Timeout (s) <input name="smtp_timeout" type="number" min="3" max="300" value="{{ s.smtp_timeout or 20 }}" {{ 'disabled' if not pode }}></label>
+    <label>Validar a ligação a cada (min)
+      <input name="smtp_validar_min" type="number" min="0" max="10080" value="{{ s.smtp_validar_min or 60 }}" {{ 'disabled' if not pode }}>
+      <span class="hint">Feito pelo agente; 0 = nunca. Falhas geram o evento "Ligação SMTP".</span></label>
+    <label class="full">Nome no EHLO (opcional) <input name="smtp_helo" value="{{ s.smtp_helo or '' }}" placeholder="nome do servidor (FQDN)" {{ 'disabled' if not pode }}></label>
+  </div>
+  {% if pode %}<div class="buttons"><button class="primary">Guardar</button></div>{% endif %}
+</form>
+
+<div class="stack">
+  <section class="card">
+    <h2>Estado</h2>
+    <dl class="sys-kv">
+      <dt>Envio automático</dt><dd>{{ 'Ligado' if s.smtp_ativo == '1' else 'Desligado' }}</dd>
+      <dt>Última validação</dt><dd>{% if estado.quando %}<span class="sys-pill {{ 'ok' if estado.ok else 'bad' }}">{{ 'OK' if estado.ok else 'Falhou' }}</span>
+        <code>{{ estado.quando }}</code>{% else %}—{% endif %}</dd>
+      {% if estado.msg %}<dt>Resultado</dt><dd class="small">{{ estado.msg }}</dd>{% endif %}
+      <dt>Na fila</dt><dd><code>{{ pendentes }}</code> pendente(s)</dd>
+      <dt>Agente</dt><dd>{% if agente.ativo %}<span class="sys-pill ok">Ativo</span> envia e valida{% else %}<span class="sys-pill bad">Parado</span> o portal envia{% endif %}</dd>
+    </dl>
+  </section>
+
+  {% if pode %}
+  <section class="card">
+    <h2>Testar</h2>
+    <div class="buttons">
+      <button type="button" class="btn" id="bval">Validar ligação</button>
+      <span class="hint">Liga, STARTTLS e autentica, sem enviar.</span>
+    </div>
+    <div class="teste-linha">
+      <input type="email" id="para" placeholder="destino@dominio.pt" value="{{ user.email or (s.smtp_destinatarios.split(',')[0] if s.smtp_destinatarios else '') }}">
+      <button type="button" class="primary" id="benv">Enviar teste</button>
+    </div>
+    <p class="hint">Guarde primeiro as alterações: o teste usa a configuração guardada.</p>
+    <div class="run-panel teste" id="tpanel" hidden>
+      <div class="run-top"><span class="run-word" aria-hidden="true">{% for c in 'SMTP' %}<span style="--i:{{ loop.index0 }}">{{ c }}</span>{% endfor %}</span>
+        <span class="run-text" id="ttxt">a enviar…</span><span class="run-right"><span class="status" id="tst"></span></span></div>
+      <div class="run-bar"><span id="tbar"></span></div>
+      <pre class="out-live smtp-log" id="tlog"></pre>
+    </div>
+  </section>
+  {% endif %}
+</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const $ = id => document.getElementById(id), CSRF = "{{ csrf_token }}";
+const auth = $('auth');
+function syncAuth() { document.querySelectorAll('label.auth').forEach(l => l.hidden = !auth.checked); }
+if (auth) { auth.addEventListener('change', syncAuth); syncAuth(); }
+const PORTA = {starttls: 587, ssl: 465, nenhuma: 25};
+$('seg') && $('seg').addEventListener('change', e => { const p = document.querySelector('[name=smtp_porta]');
+  if (Object.values(PORTA).includes(+p.value)) p.value = PORTA[e.target.value]; });
+
+function cor(l) { return /ERRO|AVISO|[45]\d\d /.test(l) ? (/ERRO|5\d\d /.test(l) ? 'l-err' : 'l-warn') : /^\S+ ###/.test(l) ? 'l-head' : ''; }
+function mostrar(texto) { const pre = $('tlog'), f = document.createDocumentFragment();
+  (texto || '').split('\n').forEach(l => { const s = document.createElement('span'); s.textContent = l + '\n'; const c = cor(l); if (c) s.className = c; f.appendChild(s); });
+  pre.replaceChildren(f); pre.scrollTop = pre.scrollHeight; }
+function estado(txt, pct, st) {
+  $('tpanel').hidden = false; $('ttxt').textContent = txt; $('tbar').style.width = pct + '%';
+  $('tpanel').className = 'run-panel teste ' + (st ? 'is-done s-' + st : 'is-running');
+  $('tst').textContent = st || 'EM CURSO'; $('tst').className = 'status s-' + (st || 'EM-CURSO');
+}
+const ETAPAS = [['### a ligar', 20], ['### STARTTLS', 40], ['### canal cifrado', 55], ['### autentica', 65], ['### a enviar', 80], ['### mensagem aceite', 100]];
+function progresso(log) { let p = 8; ETAPAS.forEach(([m, v]) => { if ((log || '').includes(m)) p = v; }); return p; }
+
+$('bval') && ($('bval').onclick = async () => {
+  estado('a validar a ligação…', 30); mostrar('');
+  const r = await fetch("{{ url_for('smtp.api_validar') }}", {method: 'POST', headers: {'X-CSRF': CSRF}});
+  const j = await r.json(); mostrar(j.log); estado(j.msg, 100, j.ok ? 'OK' : 'ERRO');
+});
+$('benv') && ($('benv').onclick = async () => {
+  const para = $('para').value.trim(); if (!para) return;
+  $('benv').disabled = true; estado('na fila…', 5); mostrar('');
+  const r = await fetch("{{ url_for('smtp.api_teste') }}", {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF': CSRF},
+                                                          body: JSON.stringify({para})});
+  const j = await r.json();
+  if (!j.ok) { estado(j.error, 100, 'ERRO'); $('benv').disabled = false; return; }
+  const url = "{{ url_for('smtp.api_email', eid=0) }}".replace('/0', '/' + j.id);
+  const t = setInterval(async () => {
+    const e = await (await fetch(url)).json();
+    mostrar(e.log);
+    if (e.status === 'ENVIADO') { estado(`enviado para ${para} (via ${j.via})`, 100, 'OK'); clearInterval(t); $('benv').disabled = false; }
+    else if (e.status === 'ERRO') { estado(e.erro, 100, 'ERRO'); clearInterval(t); $('benv').disabled = false; }
+    else estado(e.status === 'PENDENTE' ? `na fila do ${j.via}…` : 'a enviar…', progresso(e.log));
+  }, 500);
+});
+</script>
+{% endblock %}

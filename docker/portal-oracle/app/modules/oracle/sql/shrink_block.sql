@@ -32,7 +32,9 @@ DECLARE
   v_tmp_left  PLS_INTEGER := 0;       -- segmentos TEMPORARY que ficaram por limpar
   v_tsn       NUMBER;                 -- ts# do tablespace
   v_con       NUMBER := TO_NUMBER(SYS_CONTEXT('USERENV', 'CON_ID'));
-  g_fast      BOOLEAN := FALSE;       -- TRUE = le SYS.X$KTFBUE (rapido); FALSE = DBA_EXTENTS
+  g_fast      BOOLEAN := FALSE;       -- TRUE = le os extents de g_xtab (rapido)
+  g_xtab      VARCHAR2(30) := 'sys.x$ktfbue';  -- SYS: X$KTFBUE; outro utilizador: vista SYS.X_$KTFBUE
+  g_livre     BOOLEAN := FALSE;       -- sem X$: HWM estimado por DBA_FREE_SPACE (rapido, sem SYS)
 
   -- Acompanhamento em direto
   g_pipe     VARCHAR2(128) := '&p_pipe';
@@ -193,13 +195,13 @@ DECLARE
 
   -- Calcula o HWM (ultimo bloco usado) de cada datafile numa unica leitura
   PROCEDURE load_hwm IS
-    l_f t_nlist;
-    l_h t_nlist;
+    l_f t_nlist := t_nlist();   -- inicializadas: no metodo DBA_FREE_SPACE nao ha BULK COLLECT
+    l_h t_nlist := t_nlist();
     i   PLS_INTEGER;
   BEGIN
     IF g_fast THEN
-      EXECUTE IMMEDIATE c_sql_hwm BULK COLLECT INTO l_f, l_h USING v_tsn, g_ts;
-    ELSE
+      EXECUTE IMMEDIATE REPLACE(c_sql_hwm, 'sys.x$ktfbue', g_xtab) BULK COLLECT INTO l_f, l_h USING v_tsn, g_ts;
+    ELSIF NOT g_livre THEN
       SELECT file_id, MAX(block_id + blocks - 1) BULK COLLECT INTO l_f, l_h
         FROM dba_extents WHERE tablespace_name = g_ts GROUP BY file_id;
     END IF;
@@ -207,16 +209,42 @@ DECLARE
     WHILE i IS NOT NULL LOOP g_hwm(i) := c_hdr; i := g_bytes.NEXT(i); END LOOP;
     FOR k IN 1 .. l_f.COUNT LOOP g_hwm(l_f(k)) := l_h(k); END LOOP;
 
+    -- Sem X$ (utilizador sem SYSDBA): o HWM e o inicio do espaco livre contiguo no fim do ficheiro,
+    -- lido em DBA_FREE_SPACE (muito mais rapido que DBA_EXTENTS). Estimativa: os objetos da
+    -- recyclebin contam como livres; se um resize der ORA-03297, recalcula com DBA_EXTENTS.
+    IF g_livre AND NOT g_fast THEN
+      i := g_bytes.FIRST;
+      WHILE i IS NOT NULL LOOP
+        DECLARE
+          l_fim NUMBER;          -- ultimo bloco do ficheiro
+          l_tol NUMBER;          -- blocos no fim que nunca ficam livres (arredondamento da extensao)
+          l_hwm NUMBER;
+        BEGIN
+          SELECT blocks - 1, blocks - NVL(user_blocks, blocks) INTO l_fim, l_tol
+            FROM dba_data_files WHERE file_id = i;
+          l_hwm := l_fim;
+          FOR f IN (SELECT block_id, blocks FROM dba_free_space
+                     WHERE tablespace_name = g_ts AND file_id = i ORDER BY block_id DESC) LOOP
+            EXIT WHEN f.block_id + f.blocks - 1 < l_hwm - CASE WHEN l_hwm = l_fim THEN l_tol ELSE 0 END;
+            l_hwm := f.block_id - 1;
+          END LOOP;
+          g_hwm(i) := GREATEST(l_hwm, c_hdr);
+        END;
+        i := g_bytes.NEXT(i);
+      END LOOP;
+    END IF;
+
     -- Validacao: o HWM nunca pode ser inferior ao espaco ocupado.
     -- Se for (leitura X$ incompleta), descarta e recalcula com DBA_EXTENTS.
-    IF g_fast THEN
+    IF g_fast OR g_livre THEN
       i := g_bytes.FIRST;
       WHILE i IS NOT NULL LOOP
         IF g_hwm(i) < c_hdr + g_used(i) * 0.95 THEN
-          p('-- AVISO: HWM via X$KTFBUE inconsistente no file_id ' || i ||
+          p('-- AVISO: HWM via ' || CASE WHEN g_fast THEN UPPER(g_xtab) ELSE 'DBA_FREE_SPACE' END ||
+            ' inconsistente no file_id ' || i ||
             ' (HWM ' || ROUND(g_hwm(i) * v_bs / 1048576) || ' MB < ocupado ' ||
             ROUND((g_used(i) + c_hdr) * v_bs / 1048576) || ' MB). A recalcular com DBA_EXTENTS...');
-          g_fast := FALSE;
+          g_fast := FALSE; g_livre := FALSE;
           load_hwm;
           RETURN;
         END IF;
@@ -250,6 +278,10 @@ DECLARE
       -- ORA-03297: na 1.a vez recalcula o HWM (pode haver extents que a 1.a leitura nao viu);
       -- depois sobe 10% + 64 MB de cada vez
       IF n = 1 THEN
+        IF g_livre THEN
+          p('   -- HWM estimado por DBA_FREE_SPACE (a recyclebin conta como livre): a recalcular com DBA_EXTENTS');
+          g_livre := FALSE;
+        END IF;
         load_hwm;
         v_mb := GREATEST(v_mb + 16, CEIL((g_hwm(i) + 1) * v_bs / 1048576) + 16);
       ELSE
@@ -290,7 +322,7 @@ DECLARE
     l_m t_nlist;
   BEGIN
     IF g_fast THEN
-      EXECUTE IMMEDIATE c_sql_seg_hwm BULK COLLECT INTO l_f, l_m
+      EXECUTE IMMEDIATE REPLACE(c_sql_seg_hwm, 'sys.x$ktfbue', g_xtab) BULK COLLECT INTO l_f, l_m
         USING o, s, pt, g_ts, v_tsn, g_ts;
     ELSE
       SELECT file_id, MAX(block_id + blocks - 1) BULK COLLECT INTO l_f, l_m
@@ -385,27 +417,31 @@ DECLARE
   PROCEDURE recolher_candidatos IS
   BEGIN
     IF g_fast THEN
-      EXECUTE IMMEDIATE c_sql_cand BULK COLLECT INTO g_seg
+      EXECUTE IMMEDIATE REPLACE(c_sql_cand, 'sys.x$ktfbue', g_xtab) BULK COLLECT INTO g_seg
         USING g_ts, c_hdr, c_hdr, c_margem, g_ts, g_ts, v_tsn;
     ELSE
-      SELECT e.owner, e.segment_name, e.partition_name, e.segment_type,
-             ROUND(SUM(e.bytes) / 1048576, 1)
+      -- sem X$: so os extents acima do alvo de cada ficheiro (menos trabalho para o DBA_EXTENTS);
+      -- o tamanho vem de DBA_SEGMENTS
+      SELECT s.owner, s.segment_name, s.partition_name, s.segment_type, ROUND(s.bytes / 1048576, 1)
         BULK COLLECT INTO g_seg
-        FROM dba_extents e
-        JOIN (SELECT d.file_id,
-                     c_hdr + CEIL(GREATEST(d.blocks - c_hdr - NVL(fs.free_blk, 0), 0) * (1 + c_margem)) tgt
-                FROM dba_data_files d
-                LEFT JOIN (SELECT file_id, SUM(blocks) free_blk
-                             FROM dba_free_space WHERE tablespace_name = g_ts
-                            GROUP BY file_id) fs ON fs.file_id = d.file_id
-               WHERE d.tablespace_name = g_ts) u ON u.file_id = e.file_id
-       WHERE e.tablespace_name = g_ts
-         AND e.segment_type NOT IN ('LOBINDEX', 'TEMPORARY')  -- LOBINDEX move-se com o LOB
-         AND e.segment_name NOT LIKE 'BIN$%'
-       GROUP BY e.owner, e.segment_name, e.partition_name, e.segment_type
-      HAVING MAX(CASE WHEN e.block_id + e.blocks - 1 > u.tgt THEN 1 ELSE 0 END) = 1
-       ORDER BY CASE WHEN e.segment_type LIKE 'INDEX%' THEN 2 ELSE 1 END,
-                MAX(e.block_id) DESC;
+        FROM dba_segments s
+        JOIN (SELECT e.owner, e.segment_name, NVL(e.partition_name, '~') part, MAX(e.block_id) ult
+                FROM dba_extents e
+                JOIN (SELECT d.file_id,
+                             c_hdr + CEIL(GREATEST(d.blocks - c_hdr - NVL(fs.free_blk, 0), 0) * (1 + c_margem)) tgt
+                        FROM dba_data_files d
+                        LEFT JOIN (SELECT file_id, SUM(blocks) free_blk
+                                     FROM dba_free_space WHERE tablespace_name = g_ts
+                                    GROUP BY file_id) fs ON fs.file_id = d.file_id
+                       WHERE d.tablespace_name = g_ts) u ON u.file_id = e.file_id
+               WHERE e.tablespace_name = g_ts
+                 AND e.block_id + e.blocks - 1 > u.tgt
+               GROUP BY e.owner, e.segment_name, NVL(e.partition_name, '~')) a
+          ON a.owner = s.owner AND a.segment_name = s.segment_name AND a.part = NVL(s.partition_name, '~')
+       WHERE s.tablespace_name = g_ts
+         AND s.segment_type NOT IN ('LOBINDEX', 'TEMPORARY')  -- LOBINDEX move-se com o LOB
+         AND s.segment_name NOT LIKE 'BIN$%'
+       ORDER BY CASE WHEN s.segment_type LIKE 'INDEX%' THEN 2 ELSE 1 END, a.ult DESC;
     END IF;
   END;
 
@@ -518,7 +554,7 @@ PROCEDURE processa IS
 BEGIN
   -- ---------- Reiniciar estado ----------
   v_direto := 0; v_potencial := 0; v_rb := 0; v_ok := 0; v_err := 0; v_manual := 0;
-  v_reorg := FALSE; g_fast := FALSE; v_ini := NULL; v_fim := NULL; v_tmp_left := 0;
+  v_reorg := FALSE; g_fast := FALSE; g_livre := FALSE; v_ini := NULL; v_fim := NULL; v_tmp_left := 0;
   g_tgt.DELETE; g_hwm.DELETE; g_used.DELETE; g_bytes.DELETE; g_name.DELETE;
   g_seg := t_seg();
 
@@ -547,16 +583,28 @@ BEGIN
 
   passo(g_ts || ' 1 deteccao X$KTFBUE', 2);
   -- ---------- Metodo de leitura dos extents ----------
-  -- X$KTFBUE (so SYS) e muito mais rapido que DBA_EXTENTS; se nao houver acesso, usa DBA_EXTENTS.
-  DECLARE n NUMBER;
-  BEGIN
-    EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM sys.x$ktfbue WHERE ktfbuesegtsn = :1 AND ROWNUM = 1'
-      INTO n USING v_tsn;
-    IF n = 0 THEN RAISE NO_DATA_FOUND; END IF;  -- sem extents visiveis: usar DBA_EXTENTS
-    g_fast := TRUE;
-  EXCEPTION WHEN OTHERS THEN
-    g_fast := FALSE;
-  END;
+  -- 1. SYS.X$KTFBUE (SYSDBA) ou a vista SYS.X_$KTFBUE (outro utilizador, com GRANT): rapido e exato;
+  -- 2. sem acesso: HWM por DBA_FREE_SPACE (rapido, estimativa) e DBA_EXTENTS so quando preciso.
+  g_fast := FALSE; g_livre := FALSE;
+  FOR k IN 1 .. 2 LOOP
+    g_xtab := CASE k WHEN 1 THEN 'sys.x$ktfbue' ELSE 'sys.x_$ktfbue' END;
+    DECLARE n NUMBER;
+    BEGIN
+      EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM ' || g_xtab || ' WHERE ktfbuesegtsn = :1 AND ROWNUM = 1'
+        INTO n USING v_tsn;
+      IF n > 0 THEN g_fast := TRUE; END IF;   -- sem extents visiveis: nao serve
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
+    EXIT WHEN g_fast;
+  END LOOP;
+  IF NOT g_fast THEN
+    g_livre := TRUE;
+    p('-- AVISO: sem acesso a X$KTFBUE (ligacao sem SYSDBA): HWM estimado por DBA_FREE_SPACE.');
+    p('--        Para o metodo rapido e exato, como SYS (na PDB, se for o caso):');
+    p('--          CREATE OR REPLACE VIEW SYS.X_$KTFBUE AS SELECT * FROM SYS.X$KTFBUE;');
+    p('--          GRANT SELECT ON SYS.X_$KTFBUE TO ' || USER || ';');
+  END IF;
 
   -- ---------- Datafiles: tamanho e ocupado (DBA_FREE_SPACE, rapido) ----------
   FOR f IN (SELECT d.file_id, d.file_name, d.bytes,
@@ -578,7 +626,8 @@ BEGIN
   load_hwm;
 
   p('===== 2b. HWM por datafile (metodo: ' ||
-    CASE WHEN g_fast THEN 'X$KTFBUE' ELSE 'DBA_EXTENTS' END || ') =====');
+    CASE WHEN g_fast THEN UPPER(g_xtab) WHEN g_livre THEN 'DBA_FREE_SPACE, estimativa rapida'
+         ELSE 'DBA_EXTENTS' END || ') =====');
   p(LPAD('FILE_ID', 8) || '  ' || RPAD('FICHEIRO', 60) || LPAD('TAMANHO_MB', 12) ||
     LPAD('OCUPADO_MB', 12) || LPAD('HWM_MB', 10) || LPAD('RECUP_JA_MB', 13) || LPAD('ALVO_MB', 10));
   p(RPAD('-', 127, '-'));

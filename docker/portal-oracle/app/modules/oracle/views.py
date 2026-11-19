@@ -271,8 +271,14 @@ def cfg_db_test(db_id):
         conn = oracle.connect(db, crypto.decrypt(db["password_enc"]))
         info = oracle.test_connection(conn)
         conn.close()
+        rapido = info["hwm"] != "DBA_FREE_SPACE"
         flash(f"{db['name']}: ligação OK — utilizador {info['user']}, contentor {info['container']}, "
-              f"BD {info['db']}, versão {info['version']}", "ok")
+              f"BD {info['db']}, versão {info['version']}. Cálculo do HWM: {info['hwm']}"
+              + (" (rápido e exato)." if rapido else
+                 f" (estimativa rápida; exato só com DBA_EXTENTS, lento). Para o método rápido e exato, "
+                 f"como SYS{' na PDB ' + info['container'] if info['container'] not in ('CDB$ROOT', None) else ''}: "
+                 f"CREATE OR REPLACE VIEW SYS.X_$KTFBUE AS SELECT * FROM SYS.X$KTFBUE; "
+                 f"GRANT SELECT ON SYS.X_$KTFBUE TO {info['user']};"), "ok")
     except Exception as exc:  # noqa: BLE001
         flash(f"{db['name']}: falha na ligação — {exc}", "error")
     return redirect(url_for("oracle.cfg_dbs"))

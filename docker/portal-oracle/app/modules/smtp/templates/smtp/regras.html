@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}SMTP · Regras{% endblock %}
+{% block content %}
+{% include "smtp/_tabs.html" %}
+<div class="head">
+  <p class="muted">Que emails enviar quando acontece algo num módulo. Ex.: uma execução Oracle <b>falha</b> → email para os
+    destinatários por omissão e para quem a lançou.
+    {% if not smtp_ativo %}<br><span class="bad">O envio automático está desligado (SMTP → Geral): as regras não enviam nada.</span>{% endif %}</p>
+  {% if pode %}<a class="btn primary" href="{{ url_for('smtp.regra_form', canal='email') }}">+ Nova regra de email</a>{% endif %}
+</div>
+{% include "smtp/_lista_regras.html" %}
+{% endblock %}

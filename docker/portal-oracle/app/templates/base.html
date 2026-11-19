@@ -25,6 +25,17 @@
   {% endif %}
   {% if user %}
   <div class="who">
+    {% if not pagina_minima %}
+    <div class="bell-wrap">
+      <button type="button" class="bell" id="bell" title="Notificações" aria-label="Notificações">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5-6.7V3.5a2 2 0 1 0-4 0v.8A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>
+        <span class="bell-n" id="belln" hidden>0</span></button>
+      <div class="bell-panel" id="bellp" hidden>
+        <div class="bell-h"><b>Notificações</b><button type="button" class="link small" id="bellall">Marcar todas como lidas</button></div>
+        <div class="bell-list" id="belll"><p class="muted small">A carregar…</p></div>
+      </div>
+    </div>
+    {% endif %}
     <a href="{{ url_for('portal.me') }}" class="{{ 'on' if ep == 'portal.me' }}" title="Minha área">
       <span class="avatar">{{ (user.name or user.username)[:1]|upper }}</span>{{ user.name or user.username }}</a>
     <form method="post" action="{{ url_for('portal.logout') }}">
@@ -44,6 +55,33 @@
   {% block content %}{% endblock %}
 </main>
 {% if footer %}<footer class="rodape">{{ footer }}</footer>{% endif %}
+{% if user and not pagina_minima %}
+<script>
+(() => {
+  const API = "{{ url_for('portal.notif_api') }}", LIDA = "{{ url_for('portal.notif_lida') }}", CSRF = "{{ csrf_token }}";
+  const b = document.getElementById('bell'), n = document.getElementById('belln'), p = document.getElementById('bellp'), l = document.getElementById('belll');
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const quando = t => { const d = (Date.now() - new Date(t.replace(' ', 'T'))) / 1000;
+    return d < 60 ? 'agora' : d < 3600 ? `há ${Math.floor(d / 60)} min` : d < 86400 ? `há ${Math.floor(d / 3600)} h` : t.slice(0, 16); };
+  function conta(k) { n.textContent = k > 99 ? '99+' : k; n.hidden = !k; b.classList.toggle('tem', !!k); }
+  async function carregar() {
+    try { const r = await fetch(API, {cache: 'no-store'}); if (!r.ok) return; const j = await r.json(); conta(j.n);
+      if (!p.hidden) l.innerHTML = j.itens.length ? j.itens.map(i => `<a class="bell-i ${i.lida ? '' : 'nova'}" href="${esc(i.link || '#')}" data-id="${i.id}">
+        <span class="nv nv-${esc(i.nivel)}"></span><span><b>${esc(i.titulo)}</b><small>${esc((i.texto || '').split('\n')[0])}</small>
+        <em>${quando(i.created_at)}</em></span></a>`).join('') : '<p class="muted small">Sem notificações.</p>';
+    } catch (e) {}
+  }
+  async function lida(id) { const r = await fetch(LIDA, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF': CSRF},
+    body: JSON.stringify({id})}); if (r.ok) conta((await r.json()).n); }
+  b.onclick = e => { e.stopPropagation(); p.hidden = !p.hidden; if (!p.hidden) carregar(); };
+  document.addEventListener('click', e => { if (!p.hidden && !p.contains(e.target)) p.hidden = true; });
+  l.addEventListener('click', async e => { const a = e.target.closest('.bell-i'); if (!a) return;
+    e.preventDefault(); await lida(+a.dataset.id); if (a.getAttribute('href') !== '#') location.href = a.getAttribute('href'); else carregar(); });
+  document.getElementById('bellall').onclick = async () => { await lida(null); carregar(); };
+  carregar(); setInterval(() => { if (!document.hidden) carregar(); }, 20000);
+})();
+</script>
+{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

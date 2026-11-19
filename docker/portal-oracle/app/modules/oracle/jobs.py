@@ -101,6 +101,34 @@ def _run(job_id: int, cfg: dict, params: dict):
                 conn.close()
             except Exception:  # noqa: BLE001
                 pass
+        _notificar(job_id)
+
+
+ROTULO = {"sucesso": "terminou com sucesso", "aviso": "terminou com avisos", "erro": "terminou com erros",
+          "falhado": "falhou"}
+
+
+def _notificar(job_id: int) -> None:
+    """Evento 'oracle.execucao' (regras em SMTP > Regras / Notificacoes)."""
+    from ... import eventos
+    j = store.get_job(job_id)
+    if not j or j["resultado"] not in ROTULO:
+        return
+    p = j["params"]
+    titulo = f"Shrink {p.get('modo')} de {p.get('ts')} em {j['db_name']} {ROTULO[j['resultado']]} (#{j['id']})"
+    linhas = [f"Base de dados : {j['db_name']}", f"Tablespace    : {p.get('ts')}", f"Modo          : {p.get('modo')}",
+              f"Estado        : {j['status']} ({j['resultado']})", f"Início / fim  : {j['started_at']} -> {j['finished_at']}",
+              f"Lançado por   : {j['created_by']}"]
+    if j.get("n_erros") or j.get("n_avisos"):
+        linhas.append(f"Linhas        : {j.get('n_erros') or 0} com erro, {j.get('n_avisos') or 0} com aviso")
+    if j.get("error"):
+        linhas.append(f"Erro          : {j['error']}")
+    out = j.get("output") or ""
+    erros = [l for l in out.splitlines() if "-- ERRO" in l or "ORA-" in l][:10]
+    if erros:
+        linhas += ["", "Linhas com erro:"] + [f"  {l.strip()}" for l in erros]
+    eventos.emitir("oracle.execucao", j["resultado"], titulo, "\n".join(linhas),
+                   f"/oracle/execucoes/{j['id']}", autor=j["created_by"])
 
 
 def _parar(stop: threading.Event, monitor) -> None:

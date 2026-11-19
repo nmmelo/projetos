@@ -1,0 +1,35 @@
+{# Tabela de regras (email ou portal). Variaveis: regras, eventos_def, perfis, canal, ativos, pode #}
+{% if not regras %}<p class="muted">Ainda não há regras.</p>{% else %}
+<table>
+  <thead><tr><th>Regra</th><th>Evento</th><th>Quando</th><th>Para</th><th>Estado</th><th></th></tr></thead>
+  <tbody>
+  {% for r in regras %}
+  {% set ev = eventos_def.get(r.evento) %}
+  <tr class="{{ '' if r.ativo else 'inativa' }}">
+    <td><strong>{{ r.nome }}</strong></td>
+    <td>{% if ev %}<span class="tag">{{ ev.modulo }}</span> {{ ev.nome }}{% if ev.chave_modulo not in ativos %} <span class="tag warn">módulo inativo</span>{% endif %}
+        {% else %}<code>{{ r.evento }}</code> <span class="tag warn">módulo não instalado</span>{% endif %}</td>
+    <td>{% for s in r.situacoes %}<span class="res {{ {'sucesso':'r-sucesso','aviso':'r-aviso','erro':'r-erro','falhado':'r-falhado','parado':'r-aviso','falhou':'r-erro','iniciado':'r-sucesso','acima':'r-aviso','recuperou':'r-sucesso'}.get(s, '') }}">{{ ev.situacoes.get(s, s) if ev else s }}</span> {% endfor %}
+        {% if r.parametro %}<span class="cnt">≥ {{ r.parametro }}%</span>{% endif %}</td>
+    <td class="small">
+      {% set d = r.destino %}
+      {% if d.padrao %}<div>destinatários por omissão</div>{% endif %}
+      {% for e in d.emails or [] %}<div>{{ e }}</div>{% endfor %}
+      {% if d.lancador %}<div>quem lançou</div>{% endif %}
+      {% if d.admins %}<div>quem gere o portal</div>{% endif %}
+      {% if d.modulo %}<div>quem tem acesso ao módulo</div>{% endif %}
+      {% for p in d.perfis or [] %}<div>perfil {{ perfis.get(p, '#' ~ p) }}</div>{% endfor %}
+    </td>
+    <td>{% if pode %}<form method="post" action="{{ url_for('smtp.regra_ativar', rid=r.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="small {{ '' if r.ativo else 'primary' }}" title="Ativar / desativar">{{ 'Ativa' if r.ativo else 'Inativa' }}</button></form>
+        {% else %}{{ 'Ativa' if r.ativo else 'Inativa' }}{% endif %}</td>
+    <td class="actions">{% if pode %}
+      <a class="btn small" href="{{ url_for('smtp.regra_form', canal=canal, rid=r.id) }}">Editar</a>
+      <form method="post" action="{{ url_for('smtp.regra_apagar', rid=r.id) }}" onsubmit="return confirm('Apagar a regra {{ r.nome }}?')">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="small danger">Apagar</button></form>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}

@@ -56,7 +56,7 @@ Ao lançar um shrink (ANÁLISE ou EXECUTAR), a página da execução mostra um p
 
 No fim, o output completo vem do `DBMS_OUTPUT`, como antes, e substitui o que chegou em direto. A lista de execuções mostra uma mini barra nas que estão em curso. O output em direto também aparece no **Oracle → Execuções** de quem abrir a página a meio.
 
-> A **percentagem** é por passo: o cálculo do HWM (5 % → 40 %) não tem avanço interno e pode ficar parado durante minutos em tablespaces grandes com ligação Normal (`DBA_EXTENTS`). A ligação SYSDBA é muito mais rápida (`X$KTFBUE`).
+> A **percentagem** é por passo: o cálculo do HWM (5 % → 40 %) não tem avanço interno. Com SYSDBA (`X$KTFBUE`) ou com a vista `SYS.X_$KTFBUE` é rápido; sem elas é estimado por `DBA_FREE_SPACE` (ver "Bases de dados Oracle: privilégios").
 
 ### Situações que o shrink trata automaticamente
 
@@ -101,6 +101,7 @@ O agente é um processo separado do Gunicorn (`python -m app.agente`). Numa inst
 | **Métricas** | A cada 2 s: CPU (de `/proc/stat`), load, RAM, swap, discos, servidor e estado dos serviços (memória, CPU, PID, desde quando), com 3 minutos de histórico para os gráficos. Publicadas na base de dados do portal |
 | **Serviços** | Executa os pedidos de start/stop/restart feitos no módulo Sistema: `sudo -n systemctl <ação> <serviço>`, só para os serviços autorizados em `/etc/sudoers.d/<nome>-agente` (no Docker, `supervisorctl`) |
 | **Sinal de vida** | A cada 2 s. Se o portal não o vir há mais de 15 s, considera o agente parado |
+| **Emails** | Envia a fila de emails (até 3 tentativas), valida a ligação SMTP a cada N minutos e gera os eventos de serviços (parou/falhou/voltou) e de disco acima do limiar |
 
 **A execução para se fizer refresh no browser?** Não: a execução corre no servidor, e o browser só a mostra. Fechar a página, mudar de página ou fazer refresh não a afeta.
 
@@ -137,6 +138,49 @@ Em **Sistema → Painel** (permissão `modulo.sistema`):
 - **Definições** (permissão `sistema.definicoes`): os serviços a mostrar. Por omissão são os do portal (`nginx`, `<nome>`, `<nome>-agente`, e a base de dados se for local). O agente só consegue gerir os que estão no `sudoers`, que o `instalar.sh` cria a partir da pergunta "Serviços geridos pelo módulo Sistema".
 
 ![Módulo Sistema](docs/sistema.png)
+
+---
+
+## Módulo SMTP e notificações
+
+Desativado por omissão: ative-o em **Configuração → Módulos**. Aparece o menu **SMTP** com quatro abas.
+
+| Aba | Conteúdo | Permissão |
+|---|---|---|
+| **Geral** | Servidor, porta, segurança (**Nenhuma**, **STARTTLS** ou **SSL/TLS**), validar o certificado (desligado por omissão: aceita CA interna), autenticação opcional, remetente, destinatários por omissão, prefixo do assunto, endereço do portal (para as ligações nos emails), timeout e validação periódica. Cartão **Estado** e **Testar**: *Validar ligação* (liga, TLS e autentica, sem enviar) e *Enviar teste*, com a barra "SMTP" e o diálogo com o servidor até "mensagem aceite pelo servidor" | `smtp.configurar` |
+| **Regras** | Que emails enviar: evento (por módulo), situações e destinatários | `smtp.regras` |
+| **Notificações** | As mesmas regras para o **sininho** do portal, o histórico das notificações e um botão de teste | `smtp.regras` |
+| **Logs** | Todos os emails (fila, enviados, com erro, testes), pesquisa, janela com a mensagem e o diálogo SMTP, **Reenviar** e limpeza dos antigos | `modulo.smtp` |
+
+**Eventos disponíveis**
+
+| Módulo | Evento | Situações |
+|---|---|---|
+| Oracle | Execução (shrink) terminada | Sucesso, Com avisos, Com erros, Falhada (interrompida, cancelada, erro de ligação) |
+| Sistema | Serviço (detetado pelo agente) | Parou, Falhou, Voltou a correr |
+| Sistema | Disco acima do limiar | Acima do limiar (o limiar, em %, é definido na regra) |
+| SMTP | Ligação SMTP | Falhou, Recuperou |
+
+**Destinatários de uma regra:** destinatários por omissão (Geral), outros emails, quem lançou (ex. a execução), quem gere o portal (administrador e perfis com `config.portal`), quem tem acesso ao módulo, ou perfis escolhidos. Os utilizadores só recebem email se tiverem o email preenchido.
+
+**Regras criadas na instalação** (podem ser alteradas ou apagadas):
+
+| Canal | Regra |
+|---|---|
+| Sininho | Execução Oracle terminada → quem a lançou; serviço parado/com falha, disco acima de 90 % e falha na ligação SMTP → quem gere o portal |
+| Email | Execução Oracle com erros ou falhada → destinatários por omissão e quem a lançou; serviço parado/com falha e disco acima de 90 % → destinatários por omissão |
+
+**Quem envia:** o agente (fila `email_queue`, até 3 tentativas, com 2 e 4 min de intervalo). Sem o agente, o portal envia logo a seguir ao evento. Os emails só saem com **Envio automático ligado** (Geral); o teste envia sempre. As credenciais nunca aparecem no log (`******`).
+
+**Sininho:** no topo do portal, com o número de notificações por ler. Ao clicar, mostra as últimas, com a cor da situação (verde, amarelo, vermelho); clicar numa abre a página relacionada e marca-a como lida. Atualiza a cada 20 s.
+
+| SMTP → Geral (teste) | Sininho |
+|---|---|
+| ![SMTP](docs/smtp-geral.png) | ![Sininho](docs/sininho.png) |
+
+| SMTP → Regras | SMTP → Logs |
+|---|---|
+| ![Regras](docs/smtp-regras.png) | ![Logs](docs/smtp-log.png) |
 
 ---
 
@@ -980,7 +1024,8 @@ Ou, a partir do anfitrião, `docker-compose restart`.
 | Ligação | Necessário | Notas |
 |---|---|---|
 | SYSDBA | Password file (`remote_login_passwordfile = EXCLUSIVE`) | Usa `X$KTFBUE`: o cálculo do HWM é muito mais rápido |
-| Normal | `SELECT ANY DICTIONARY`, `ALTER DATABASE`, `ALTER ANY TABLE`, `ALTER ANY INDEX`, `ALTER SYSTEM` (para cancelar) | Usa `DBA_EXTENTS`, que é mais lento (o passo "2 calculo HWM" com a espera `db file sequential read` pode demorar vários minutos) |
+| Normal | `SELECT ANY DICTIONARY`, `ALTER DATABASE`, `ALTER ANY TABLE`, `ALTER ANY INDEX`, `ALTER SYSTEM` (para cancelar) | Sem a vista abaixo, estima o HWM por `DBA_FREE_SPACE` (rápido) e só usa `DBA_EXTENTS` para os objetos acima do alvo e se o resize falhar com ORA-03297 |
+| HWM rápido com ligação Normal (recomendado) | Como SYS: `CREATE OR REPLACE VIEW SYS.X_$KTFBUE AS SELECT * FROM SYS.X$KTFBUE;` e `GRANT SELECT ON SYS.X_$KTFBUE TO <utilizador>;` | Igual ao script `oracledb/query/shrink_tablespace`. O **Testar ligação** (Oracle → Definições) indica o método usado: `X$KTFBUE`, `X_$KTFBUE` ou `DBA_FREE_SPACE` |
 | Output em direto (opcional) | `GRANT EXECUTE ON SYS.DBMS_PIPE TO <utilizador>` | Sem este privilégio, a barra e o passo atual continuam em direto, mas as linhas do output só aparecem no fim. Com SYSDBA já existe |
 
 O driver é o **python-oracledb** em modo *thin* (sem Instant Client). Requer Oracle 12.1 ou superior e não suporta Native Network Encryption: nesses casos, use o modo *thick*.
@@ -997,4 +1042,6 @@ O driver é o **python-oracledb** em modo *thin* (sem Instant Client). Requer Or
 | `WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED` | Apagou `data/ssh/`. Remova a linha antiga do `~/.ssh/known_hosts` |
 | `Driver Python em falta` no Armazenamento | Recrie a imagem: `docker-compose build --no-cache` |
 | `dubious ownership` no git | Já está tratado para `/srv/portal`. Noutras pastas, use `git config --global --add safe.directory <pasta>` |
+| `Internal Server Error` | O erro fica no log do serviço com uma referência que aparece na página: `journalctl -u <nome> \| grep <referência>`. Na versão anterior acontecia em Oracle → Execuções quando havia uma execução em curso (corrigido) |
+| Emails não chegam | SMTP → Logs mostra o diálogo com o servidor e o erro. Confirme o **Envio automático ligado**, a regra ativa e o agente ativo (`systemctl status <nome>-agente`) |
 | Execução em `INTERROMPIDO` | O portal foi reiniciado durante a execução. Confirme em `V$SESSION` se a sessão Oracle continuou |

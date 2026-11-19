@@ -38,6 +38,9 @@ MODULO = modulos.registar(modulos.Modulo(
         ("oracle.cfg_dbs", "Definições", "oracle.definicoes"),
     ],
     home_template="oracle/_home.html",
+    eventos={"oracle.execucao": {"nome": "Execução Oracle (shrink) terminada",
+                                 "situacoes": {"sucesso": "Sucesso", "aviso": "Com avisos", "erro": "Com erros",
+                                               "falhado": "Falhada (interrompida, cancelada, erro de ligação)"}}},
     home_context=_home_context,
 ))
 

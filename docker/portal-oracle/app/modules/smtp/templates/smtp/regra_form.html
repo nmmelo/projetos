@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}SMTP · {{ 'Editar' if editing else 'Nova' }} regra{% endblock %}
+{% block content %}
+{% include "smtp/_tabs.html" %}
+<section class="card wide">
+  <h2>{{ 'Editar' if editing else 'Nova' }} regra de {{ 'email' if canal == 'email' else 'notificação no portal' }}</h2>
+  <form method="post" class="grid" id="freg">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label class="full">Evento
+      <select name="evento" id="evento" required>
+        <option value="">— escolher —</option>
+        {% set ns = namespace(m='') %}
+        {% for k, e in eventos_def.items() %}
+          {% if e.modulo != ns.m %}{% if ns.m %}</optgroup>{% endif %}<optgroup label="{{ e.modulo }}">{% set ns.m = e.modulo %}{% endif %}
+          <option value="{{ k }}" {{ 'selected' if r.evento == k }}>{{ e.nome }}</option>
+        {% endfor %}{% if ns.m %}</optgroup>{% endif %}
+      </select></label>
+    <fieldset class="full column"><legend>Quando</legend>
+      {% for k, e in eventos_def.items() %}
+      <div class="sit" data-ev="{{ k }}">
+        {% for sk, sr in e.situacoes.items() %}
+        <label class="inline"><input type="checkbox" name="situacoes" value="{{ sk }}" {{ 'checked' if sk in r.situacoes }}> {{ sr }}</label>
+        {% endfor %}
+        {% if e.parametro %}<label class="inline">{{ e.parametro }} <input name="parametro" type="number" min="1" max="100"
+          value="{{ r.parametro or 90 }}" style="width:90px"></label>{% endif %}
+      </div>
+      {% endfor %}
+    </fieldset>
+    <fieldset class="full column"><legend>Para</legend>
+      {% set d = r.destino %}
+      {% if canal == 'email' %}
+      <label class="inline"><input type="checkbox" name="padrao" {{ 'checked' if d.padrao }}> Destinatários por omissão (SMTP → Geral)</label>
+      <label>Outros emails <input name="emails" value="{{ (d.emails or [])|join(', ') }}" placeholder="dba@dominio.pt, ..."></label>
+      {% endif %}
+      <label class="inline"><input type="checkbox" name="lancador" {{ 'checked' if d.lancador }}> Quem lançou (ex. a execução){{ ' — o email do utilizador' if canal == 'email' }}</label>
+      <label class="inline"><input type="checkbox" name="admins" {{ 'checked' if d.admins }}> Quem gere o portal (administrador e perfis com <code>config.portal</code>)</label>
+      <label class="inline"><input type="checkbox" name="modulo" {{ 'checked' if d.modulo }}> Quem tem acesso ao módulo do evento</label>
+      {% if perfis %}<div class="grp">Perfis</div><div class="checks">
+        {% for p in perfis %}<label class="inline"><input type="checkbox" name="perfis" value="{{ p.id }}" {{ 'checked' if p.id in (d.perfis or []) }}> {{ p.name }}</label>{% endfor %}
+      </div>{% endif %}
+      {% if canal == 'email' %}<p class="hint">Os utilizadores só recebem se tiverem email (Minha área / Utilizadores).</p>{% endif %}
+    </fieldset>
+    <label class="full">Nome (opcional) <input name="nome" value="{{ r.nome or '' }}" maxlength="150" placeholder="gerado a partir do evento"></label>
+    <label class="inline full"><input type="checkbox" name="ativo" {{ 'checked' if r.ativo }}> Regra ativa</label>
+    <div class="full buttons"><button class="primary">Guardar</button>
+      <a class="btn" href="{{ url_for('smtp.regras' if canal == 'email' else 'smtp.notificacoes') }}">Cancelar</a></div>
+  </form>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+const ev = document.getElementById('evento');
+function sync() { document.querySelectorAll('.sit').forEach(d => { const on = d.dataset.ev === ev.value;
+  d.hidden = !on; d.querySelectorAll('input').forEach(i => i.disabled = !on); }); }
+ev.addEventListener('change', sync); sync();
+</script>
+{% endblock %}

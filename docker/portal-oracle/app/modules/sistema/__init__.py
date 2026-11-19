@@ -39,6 +39,10 @@ MODULO = modulos.registar(modulos.Modulo(
         ("sistema.definicoes", "Definições", "sistema.definicoes"),
     ],
     home_template="sistema/_home.html",
+    eventos={"sistema.servico": {"nome": "Serviço (detetado pelo agente)",
+                                 "situacoes": {"parado": "Parou", "falhou": "Falhou", "iniciado": "Voltou a correr"}},
+             "sistema.disco": {"nome": "Disco acima do limiar", "situacoes": {"acima": "Acima do limiar"},
+                               "parametro": "Limiar (%)"}},
     home_context=_home_context,
 ))
 

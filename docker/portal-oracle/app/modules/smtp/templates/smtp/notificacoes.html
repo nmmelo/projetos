@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}SMTP · Notificações{% endblock %}
+{% block content %}
+{% include "smtp/_tabs.html" %}
+<div class="head">
+  <p class="muted">Notificações no portal (o <b>sininho</b> 🔔 no topo, com o número das que ainda não leu). Cada regra diz que
+    evento gera uma notificação e para quem. Funcionam mesmo sem servidor SMTP.</p>
+  <div class="buttons">
+    <form method="post" action="{{ url_for('smtp.notificacao_teste') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <button class="btn">Enviar uma de teste para mim</button></form>
+    {% if pode %}<a class="btn primary" href="{{ url_for('smtp.regra_form', canal='portal') }}">+ Nova regra de notificação</a>{% endif %}
+  </div>
+</div>
+{% include "smtp/_lista_regras.html" %}
+
+<h2 style="margin-top:26px">Últimas notificações enviadas</h2>
+{% if historico %}
+<table class="small">
+  <thead><tr><th>Data</th><th>Para</th><th>Notificação</th><th>Lida</th></tr></thead>
+  <tbody>{% for n in historico %}
+    <tr><td><code>{{ n.created_at }}</code></td><td>{{ 'admin' if n.user_key == 'admin' else 'utilizador #' ~ n.user_key }}</td>
+      <td><span class="nv nv-{{ n.nivel }}"></span> <b>{{ n.titulo }}</b></td><td>{{ 'sim' if n.lida else 'não' }}</td></tr>
+  {% endfor %}</tbody>
+</table>
+{% else %}<p class="muted">Ainda não houve notificações.</p>{% endif %}
+{% endblock %}

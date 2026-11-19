@@ -249,3 +249,18 @@ Chat de 19 de novembro de 2026.
 - **Execuções:** tabela dinâmica (pesquisa no servidor, também no output; filtros por resultado com contagens, tablespace, BD e modo; ordenação; páginas), janela com o output, navegação pelas linhas de erro/aviso, apagar uma, as selecionadas ou as falhadas (`oracle.execucoes.apagar`). Novas colunas `runner`, `n_erros`, `n_avisos`.
 - **Agente** (`app/agente.py`, serviço `<nome>-agente`, ou programa `agente` no supervisord): fila de execuções (PENDENTE), sinal de vida, métricas a cada 2 s, ações sobre serviços (`sudo -n systemctl`, com `/etc/sudoers.d/<nome>-agente` limitado aos serviços escolhidos no `instalar.sh`). Testado: o portal foi reiniciado a meio de uma execução e ela terminou no agente.
 - **Módulo Sistema:** cartões ao estilo da imagem (recursos com barras e gráfico, servidor, agente, um por serviço com Start/Restart/Stop, discos, últimas ações), atualizados a cada 2 s, arrastáveis e minimizáveis (disposição guardada no browser). Definições: serviços a mostrar.
+
+## 15. HWM mais rápido, erro 500 nas Execuções, módulo SMTP e sininho
+
+Chat de 19 de novembro de 2026.
+
+**Pergunta:**
+> a execução está a demorar muito, podemos HWM, podemos aplicar as melhorias feitas noutro projeto, neste repositorio, que faz o mesmo, contudo é feito atraves de script e não de portal, [...] oracledb, query, shrink tablespace. eu sai do menu execuções e depois quando volto dá a pagina, Internal Server Error [...] Criar também o modulo de smtp, neste caso será para usar o interno, será com tls, podes ver o projeto do rman no repositorio, onde definimos tudo, se é com TLS, se validamos, com autenticação ou não, neste caso será para avisar por exemplo quando uma execução acabar. [...] no geral o botão teste, com uma barra enviar, e o output do envio a acabar com sucesso. no smtp, ter uma aba geral, notificações, logs e também será responsavel o agente do portal [...] outra aba com regras [...] também ter o simbolo de notificação, que fica no portal, quando houver notificação fica com o numero de notificações ao clicar no icon, abre e mostra as notificações [...]
+
+**Resposta:**
+
+- **HWM:** com ligação Normal o bloco usava `DBA_EXTENTS` (lento). Agora usa, por esta ordem, `X$KTFBUE` (SYSDBA), a vista `SYS.X_$KTFBUE` (como no script) ou uma estimativa por `DBA_FREE_SPACE`, com recurso a `DBA_EXTENTS` só se o resize der ORA-03297. O *Testar ligação* mostra o método e o SQL do grant.
+- **Internal Server Error:** acontecia em Execuções com uma execução em curso (versão anterior à tabela dinâmica). Corrigido; os erros 500 passam a ter página própria e referência no log.
+- **Módulo SMTP** (ativar em Configuração → Módulos): abas Geral (Nenhuma/STARTTLS/SSL, validar certificado, autenticação opcional, teste com barra e diálogo SMTP), Regras (email), Notificações (sininho) e Logs (reenviar). Eventos: execução Oracle, serviço, disco acima do limiar, ligação SMTP. O agente envia a fila e valida a ligação.
+- **Sininho** no topo, com o número de notificações por ler e a lista ao clicar.
+

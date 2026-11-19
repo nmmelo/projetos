@@ -13,7 +13,7 @@ a chave a INSTALADOS (abaixo). Ver README, seccao "Modulos".
 """
 from dataclasses import dataclass, field
 
-INSTALADOS = ("oracle", "sistema")        # pacotes em app/modules/, pela ordem do menu
+INSTALADOS = ("oracle", "sistema", "smtp")  # pacotes em app/modules/, pela ordem do menu
 
 
 @dataclass
@@ -25,6 +25,7 @@ class Modulo:
     abas: list = field(default_factory=list)          # (endpoint, rotulo, permissao ou None)
     home_template: str | None = None                  # incluido na Home
     home_context: object = None                       # funcao(user) -> dict para o home_template
+    eventos: dict = field(default_factory=dict)        # eventos para as regras de email/notificacao
     ativo_por_omissao: bool = True
 
     @property
@@ -86,11 +87,15 @@ def todas_acoes() -> dict:
     return acoes
 
 
+def registar_todos() -> list:
+    """Importa os modulos instalados (regista-os em REGISTO). Usado pelo portal e pelo agente."""
+    import importlib
+    return [importlib.import_module(f"app.modules.{chave}") for chave in INSTALADOS]
+
+
 def carregar(app) -> None:
     """Importa os modulos instalados e regista os seus blueprints."""
-    import importlib
-    for chave in INSTALADOS:
-        pkg = importlib.import_module(f"app.modules.{chave}")
+    for pkg in registar_todos():
         app.register_blueprint(pkg.bp)
 
 
@@ -116,3 +121,14 @@ def visiveis(user) -> list:
     if not user:
         return []
     return [REGISTO[k] for k in INSTALADOS if k in REGISTO and user.can(REGISTO[k].acesso)]
+
+
+def todos_eventos() -> dict:
+    """evento -> definicao (com o nome do modulo), de todos os modulos registados."""
+    out = {}
+    for k in INSTALADOS:
+        m = REGISTO.get(k)
+        if m:
+            for ev, d in m.eventos.items():
+                out[ev] = {**d, "modulo": m.nome, "chave_modulo": m.chave}
+    return out

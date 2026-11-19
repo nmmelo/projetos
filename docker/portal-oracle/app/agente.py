@@ -10,7 +10,9 @@ Faz, em ciclo:
     do portal (definicao 'sistema_metricas'), lidas pelo modulo Sistema;
   - servicos: executa os pedidos de start/stop/restart feitos no modulo Sistema;
   - sinal de vida (definicao 'agente_estado'): o portal so manda execucoes para a fila se o agente
-    tiver dado sinal nos ultimos 15 s.
+    tiver dado sinal nos ultimos 15 s;
+  - email: envia a fila (SMTP > Logs) e valida a ligacao SMTP periodicamente;
+  - eventos: servico que para/falha/volta e disco acima do limiar (regras em SMTP > Regras/Notificacoes).
 """
 import json
 import logging
@@ -20,7 +22,7 @@ import socket
 import threading
 import time
 
-from . import crypto, settings, sistema_info, store
+from . import crypto, eventos, modulos, settings, sistema_info, smtp_envio, store
 
 VERSAO = "1.0"
 CICLO = 1.0                 # segundos entre verificacoes da fila
@@ -39,6 +41,9 @@ class Agente:
         self.hist: list[list] = []          # [ts, cpu, mem]
         self.cpu_antes = sistema_info.cpu_tempos()
         self.cpu_serv: dict[str, tuple] = {}
+        self.estado_serv: dict[str, str] = {}     # ultimo estado visto (para detetar mudancas)
+        self.disco_acima: set = set()             # (ponto, limiar) ja notificados
+        self.prox_validacao = 0.0
 
     # ------------------------------------------------------------------ execucoes
     def fila(self) -> None:
@@ -102,8 +107,50 @@ class Agente:
             s["papel"] = sistema_info.papel(s["unit"])
         a.update(historico=self.hist, servicos=servs, backend=sistema_info.servicos_backend(),
                  origem="agente")
+        self.eventos_sistema(servs, a["discos"])
         store.save_settings({"sistema_metricas": json.dumps(a, separators=(",", ":"))})
         self.publicar_estado()
+
+    # ------------------------------------------------------------------ eventos e email
+    def eventos_sistema(self, servs: list[dict], discos: list[dict]) -> None:
+        for sv in servs:
+            ant, atual = self.estado_serv.get(sv["unit"]), sv.get("estado")
+            self.estado_serv[sv["unit"]] = atual
+            if ant is None or ant == atual or atual in ("activating", "deactivating", "reloading"):
+                continue
+            sit = {"inactive": "parado", "failed": "falhou", "active": "iniciado"}.get(atual)
+            if sit and not (sit == "iniciado" and ant in ("activating",)):
+                eventos.emitir("sistema.servico", sit, f"Serviço {sv['unit']}: "
+                               + {"parado": "parou", "falhou": "falhou", "iniciado": "voltou a correr"}[sit],
+                               f"Servidor: {socket.gethostname()}\nServiço: {sv['unit']} ({sv.get('descricao', '')})\n"
+                               f"Estado: {ant} -> {atual}", "/sistema/painel")
+        limiares = sorted({r["parametro"] for r in eventos.listar_regras()
+                           if r["ativo"] and r["evento"] == "sistema.disco" and r["parametro"]})
+        for d in discos:
+            for lim in limiares:
+                chave = (d["ponto"], lim)
+                if d["pct"] is not None and d["pct"] >= lim and chave not in self.disco_acima:
+                    self.disco_acima.add(chave)
+                    eventos.emitir("sistema.disco", "acima", f"Disco {d['ponto']} a {d['pct']}% (limiar {lim}%)",
+                                   f"Servidor: {socket.gethostname()}\nSistema de ficheiros: {d['ponto']}\n"
+                                   f"Ocupado: {d['pct']}%  -  livre {d['livre'] / 1073741824:.2f} GB de "
+                                   f"{d['total'] / 1073741824:.2f} GB", "/sistema/painel",
+                                   dados={"limiar": lim, "ponto": d["ponto"], "pct": d["pct"]})
+                elif d["pct"] is not None and d["pct"] < lim - 2:
+                    self.disco_acima.discard(chave)          # desceu: volta a avisar se subir outra vez
+
+    def email(self) -> None:
+        smtp_envio.processar_fila()
+        if "smtp" not in modulos.ativos() or not store.get_setting("smtp_host"):
+            return
+        try:
+            minutos = int(store.get_setting("smtp_validar_min") or 60)
+        except ValueError:
+            minutos = 60
+        if minutos > 0 and time.time() >= self.prox_validacao:
+            self.prox_validacao = time.time() + minutos * 60
+            ok, msg = smtp_envio.validar()
+            log.info("validacao SMTP: %s", msg)
 
     def publicar_estado(self) -> None:
         estado = {"heartbeat": time.time(), "pid": os.getpid(), "host": socket.gethostname(),
@@ -114,10 +161,12 @@ class Agente:
     # ------------------------------------------------------------------ ciclo
     def correr(self) -> None:
         store.interrupt_running_jobs("agente")      # execucoes de um agente anterior que morreu
+        smtp_envio.recuperar_presas()
+        eventos.regras_iniciais()
         log.info("agente %s a correr (pid %s, dados em %s)", VERSAO, os.getpid(), store.get().describe())
         prox_metricas = 0.0
         while not self.parar.is_set():
-            for passo in (self.fila, self.acoes):
+            for passo in (self.fila, self.acoes, self.email):
                 try:
                     passo()
                 except Exception:  # noqa: BLE001 - BD momentaneamente indisponivel, etc.
@@ -152,6 +201,7 @@ def main() -> None:
     os.makedirs(settings.DATA_DIR, exist_ok=True)
     crypto.init(settings.DATA_DIR)
     store.get()                                     # cria/atualiza o esquema
+    modulos.registar_todos()                        # eventos e estado ativo/inativo dos modulos
     ag = Agente()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: ag.parar.set())

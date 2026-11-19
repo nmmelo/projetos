@@ -12,10 +12,11 @@ from datetime import datetime, timedelta
 
 from . import aparencia, crypto, modulos, settings
 
-TABLES = ("settings", "oracle_dbs", "profiles", "users", "jobs", "backups", "system_actions")
+TABLES = ("settings", "oracle_dbs", "profiles", "users", "jobs", "backups", "system_actions",
+          "notification_rules", "notifications", "email_queue")
 
 # Definicoes volateis (escritas pelo agente a cada poucos segundos): fora dos backups
-VOLATEIS = ("agente_estado", "sistema_metricas")
+VOLATEIS = ("agente_estado", "sistema_metricas", "smtp_estado", "regras_iniciais")
 
 _SCHEMA = [
     """CREATE TABLE IF NOT EXISTS settings (
@@ -76,6 +77,46 @@ _SCHEMA = [
         runner VARCHAR(10),
         n_erros INTEGER,
         n_avisos INTEGER
+    ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS notification_rules (
+        id {ID},
+        nome VARCHAR(150) NOT NULL,
+        canal VARCHAR(10) NOT NULL,
+        evento VARCHAR(60) NOT NULL,
+        situacoes TEXT,
+        parametro INTEGER,
+        destino TEXT,
+        ativo INTEGER NOT NULL DEFAULT 1,
+        created_at VARCHAR(19),
+        updated_at VARCHAR(19)
+    ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS notifications (
+        id {ID},
+        user_key VARCHAR(64) NOT NULL,
+        created_at VARCHAR(19) NOT NULL,
+        evento VARCHAR(60),
+        nivel VARCHAR(10),
+        titulo VARCHAR(255),
+        texto TEXT,
+        link VARCHAR(255),
+        lida INTEGER NOT NULL DEFAULT 0
+    ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS email_queue (
+        id {ID},
+        created_at VARCHAR(19) NOT NULL,
+        tipo VARCHAR(12) NOT NULL,
+        evento VARCHAR(60),
+        regra VARCHAR(150),
+        destinatarios TEXT,
+        assunto VARCHAR(255),
+        corpo {LONGTEXT},
+        status VARCHAR(12) NOT NULL,
+        tentativas INTEGER NOT NULL DEFAULT 0,
+        proxima VARCHAR(19),
+        enviado_em VARCHAR(19),
+        erro TEXT,
+        log {LONGTEXT},
+        pedido_por VARCHAR(64)
     ){SUFFIX}""",
     """CREATE TABLE IF NOT EXISTS system_actions (
         id {ID},

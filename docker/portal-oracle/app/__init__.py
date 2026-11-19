@@ -45,4 +45,6 @@ def create_app(mark_interrupted: bool = True) -> Flask:
     from .views import bp
     app.register_blueprint(bp)
     modulos.carregar(app)
+    from . import eventos
+    eventos.regras_iniciais()
     return app
