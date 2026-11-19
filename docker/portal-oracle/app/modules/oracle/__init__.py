@@ -17,7 +17,10 @@ def _home_context(user) -> dict:
         "last24": sum(1 for j in jobs if j["started_at"] >= since),
         "errors24": sum(1 for j in jobs if j["started_at"] >= since and j["status"] in ("ERRO", "INTERROMPIDO")),
     }
-    return {"dbs": dbs, "stats": stats, "recent": jobs[:8]}
+    stats["avisos24"] = sum(1 for j in jobs if j["started_at"] >= since and j["status"] == "OK" and j.get("n_avisos"))
+    stats["ok24"] = sum(1 for j in jobs if j["started_at"] >= since and j["status"] == "OK")
+    stats["pendentes"] = sum(1 for j in jobs if j["status"] == "PENDENTE")
+    return {"dbs": dbs, "stats": stats, "recent": jobs[:6], "em_curso": [j for j in jobs if j["status"] == "EM CURSO"][:3]}
 
 
 MODULO = modulos.registar(modulos.Modulo(
@@ -37,7 +40,14 @@ MODULO = modulos.registar(modulos.Modulo(
         ("oracle.jobs_list", "Execuções", None),
         ("oracle.cfg_dbs", "Definições", "oracle.definicoes"),
     ],
-    home_template="oracle/_home.html",
+    cartoes={
+        "oracle.resumo": {"titulo": "Oracle", "icone": "🗄️", "template": "oracle/c_resumo.html",
+                          "link": "oracle.jobs_list", "link_txt": "Ver execuções"},
+        "oracle.bds": {"titulo": "Bases de dados", "icone": "🛢️", "template": "oracle/c_bds.html",
+                       "link": "oracle.index", "link_txt": "Abrir Oracle"},
+        "oracle.execucoes": {"titulo": "Últimas execuções", "icone": "📋", "template": "oracle/c_execucoes.html",
+                             "link": "oracle.jobs_list", "link_txt": "Todas as execuções"},
+    },
     eventos={"oracle.execucao": {"nome": "Execução Oracle (shrink) terminada",
                                  "situacoes": {"sucesso": "Sucesso", "aviso": "Com avisos", "erro": "Com erros",
                                                "falhado": "Falhada (interrompida, cancelada, erro de ligação)"}}},

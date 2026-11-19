@@ -3,23 +3,28 @@
 {% block content %}
 {% include "oracle/_tabs.html" %}
 
-<div class="jx-toolbar">
-  <input type="search" id="q" placeholder="Procurar (tablespace, BD, utilizador ou texto no output, ex. ORA-01652)" autocomplete="off">
-  <select id="fts"><option value="">Todos os tablespaces</option></select>
-  <select id="fdb"><option value="">Todas as BDs</option></select>
-  <select id="fmodo"><option value="">ANÁLISE e EXECUTAR</option><option>ANALISE</option><option>EXECUTAR</option></select>
-</div>
-<div class="jx-chips" id="chips">
-  {% for k, rotulo in [('', 'Todas'), ('sucesso', 'Sucesso'), ('aviso', 'Com avisos'), ('erro', 'Com erros'), ('falhado', 'Falhadas'), ('em curso', 'Em curso')] %}
-  <button type="button" class="chip r-{{ k|replace(' ', '-') or 'todas' }} {{ 'on' if not k }}" data-r="{{ k }}">{{ rotulo }} <b data-n="{{ k }}">0</b></button>
-  {% endfor %}
-</div>
-
-<div class="jx-bulk" id="bulk" {{ '' if can_delete else 'hidden' }}>
-  <span id="selinfo" class="muted small">Nenhuma selecionada</span>
-  <button type="button" class="danger small" id="delsel" disabled>Apagar selecionadas</button>
-  <button type="button" class="danger small" id="delfail">Apagar falhadas</button>
-</div>
+<section class="jx-filtros">
+  <div class="jx-toolbar">
+    <label class="jx-search"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 2a8 8 0 0 1 6.32 12.9l5.39 5.4-1.42 1.4-5.39-5.38A8 8 0 1 1 10 2Zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z"/></svg>
+      <input type="search" id="q" placeholder="Procurar tablespace, BD, utilizador ou texto do output (ex. ORA-01652)" autocomplete="off"></label>
+    <label class="jx-sel"><span>Tablespace</span><select id="fts"><option value="">Todos</option></select></label>
+    <label class="jx-sel"><span>Base de dados</span><select id="fdb"><option value="">Todas</option></select></label>
+    <label class="jx-sel"><span>Modo</span><select id="fmodo"><option value="">Todos</option><option value="ANALISE">Análise</option><option value="EXECUTAR">Executar</option></select></label>
+    <button type="button" class="small link-btn" id="limpar" hidden>Limpar filtros</button>
+  </div>
+  <div class="jx-linha2">
+    <div class="jx-chips" id="chips" role="tablist">
+      {% for k, rotulo in [('', 'Todas'), ('sucesso', 'Sucesso'), ('aviso', 'Com avisos'), ('erro', 'Com erros'), ('falhado', 'Falhadas'), ('em curso', 'Em curso')] %}
+      <button type="button" class="chip r-{{ k|replace(' ', '-') or 'todas' }} {{ 'on' if not k }}" data-r="{{ k }}"><i></i>{{ rotulo }} <b data-n="{{ k }}">0</b></button>
+      {% endfor %}
+    </div>
+    <div class="jx-bulk" id="bulk" {{ '' if can_delete else 'hidden' }}>
+      <span id="selinfo" class="muted small">Nenhuma selecionada</span>
+      <button type="button" class="danger small" id="delsel" disabled>Apagar selecionadas</button>
+      <button type="button" class="danger small" id="delfail">Apagar falhadas</button>
+    </div>
+  </div>
+</section>
 
 <div class="table-wrap">
 <table class="jx" id="tab">
@@ -197,6 +202,11 @@ document.querySelectorAll('th.sortable').forEach(th => th.addEventListener('clic
   const k = th.dataset.s; sortDir = sortK === k ? -sortDir : (k === 'id' || k === 'started_at' || k === 'duracao' ? -1 : 1); sortK = k;
   document.querySelectorAll('th.sortable').forEach(x => x.classList.remove('asc', 'desc'));
   th.classList.add(sortDir > 0 ? 'asc' : 'desc'); filtrar(); }));
+function verLimpar() { $('limpar').hidden = !($('q').value || $('fts').value || $('fdb').value || $('fmodo').value || filtroR); }
+['q', 'fts', 'fdb', 'fmodo'].forEach(id => $(id).addEventListener(id === 'q' ? 'input' : 'change', verLimpar));
+$('chips').addEventListener('click', () => setTimeout(verLimpar));
+$('limpar').onclick = () => { $('q').value = ''; ['fts', 'fdb', 'fmodo'].forEach(id => $(id).value = '');
+  document.querySelector('#chips .chip[data-r=""]').click(); pag = 0; carregar(); verLimpar(); };
 $('prev').onclick = () => { pag--; desenhar(); }; $('next').onclick = () => { pag++; desenhar(); };
 $('rows').addEventListener('click', e => {
   const cb = e.target.closest('input[type=checkbox]');

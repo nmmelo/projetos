@@ -1,0 +1,55 @@
+{# Pecas dos cartoes (Home e Sistema): mosaicos com barra, linhas chave/valor e estado #}
+{% macro cor(pct) %}{{ 'bad' if pct is not none and pct >= 90 else 'warn' if pct is not none and pct >= 75 else 'ok' }}{% endmacro %}
+
+{% macro barra(rotulo, pct, esq='', dir='', link=None) -%}
+{% if link %}<a class="tile" href="{{ link }}">{% else %}<div class="tile">{% endif %}
+  <div class="tile-h"><span>{{ rotulo }}</span><b class="c-{{ cor(pct) }}">{{ '—' if pct is none else '%.1f'|format(pct) ~ '%' }}</b></div>
+  <div class="tile-bar"><span class="b-{{ cor(pct) }}" style="width:{{ pct or 0 }}%"></span></div>
+  {% if esq or dir %}<div class="tile-s"><span>{{ esq }}</span><span>{{ dir }}</span></div>{% endif %}
+{% if link %}</a>{% else %}</div>{% endif %}
+{%- endmacro %}
+
+{% macro numero(rotulo, valor, sub='', classe='', link=None) -%}
+{% if link %}<a class="tile num-tile" href="{{ link }}">{% else %}<div class="tile num-tile">{% endif %}
+  <span class="tile-l">{{ rotulo }}</span><b class="tile-v {{ classe }}">{{ valor }}</b>
+  {% if sub %}<span class="tile-s1">{{ sub|safe }}</span>{% endif %}
+{% if link %}</a>{% else %}</div>{% endif %}
+{%- endmacro %}
+
+{% macro saude(nivel, titulo, sub='') -%}
+<div class="saude s-{{ nivel }}"><span class="saude-i">{{ '✓' if nivel == 'ok' else '!' if nivel == 'warn' else '✕' }}</span>
+  <div><b>{{ titulo }}</b>{% if sub %}<small>{{ sub }}</small>{% endif %}</div></div>
+{%- endmacro %}
+
+{% macro kv(linhas) -%}
+<dl class="kvl">{% for k, v in linhas if v is not none and v != '' %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}</dl>
+{%- endmacro %}
+
+{% macro cartao(id, titulo, icone='', url=None, link_txt='', largo=False) -%}
+<article class="dcard{{ ' largo' if largo }}" data-id="{{ id }}" data-t="{{ titulo }}" data-i="{{ icone }}">
+  <header class="dcard-h"><span class="dcard-i">{{ icone }}</span><h3>{{ titulo }}</h3>
+    <span class="dcard-grip" title="Arraste para mudar a ordem">⋮⋮</span>
+    <button type="button" class="dcard-x" title="Esconder este cartão" aria-label="Esconder">✕</button></header>
+  <div class="dcard-b">{{ caller() }}</div>
+  {% if url %}<a class="dcard-f" href="{{ url }}">{{ link_txt or 'Abrir' }} →</a>{% endif %}
+</article>
+{%- endmacro %}
+
+{# Controlos do painel: atualizacao automatica (intervalo guardado no browser) e Editar #}
+{% macro controlos(refresh=True, extra='', opcoes=((0, 'manual'), (10, '10 s'), (30, '30 s'), (60, '1 min'), (300, '5 min'))) -%}
+<div class="dash-ctl">
+  {{ extra|safe }}
+  {% if refresh %}
+  <span class="muted small" id="upd"></span>
+  <label class="dash-ref" title="Atualização automática">
+    <select id="ref" aria-label="Atualização automática">
+      {% for v, t in opcoes %}<option value="{{ v }}">Atualizar: {{ t }}</option>{% endfor %}
+    </select></label>
+  <button type="button" class="icon-btn" id="agora" title="Atualizar agora" aria-label="Atualizar agora">
+    <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z"/></svg></button>
+  {% endif %}
+  <button type="button" class="icon-btn" id="editar" title="Editar painel: adicionar, esconder e reordenar cartões" aria-label="Editar painel" aria-pressed="false">
+    <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25ZM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83Z"/></svg>
+    <span>Editar</span></button>
+</div>
+{%- endmacro %}

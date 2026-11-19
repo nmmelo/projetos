@@ -1,0 +1,4 @@
+{% from "_cartoes.html" import barra %}{% set gb = 1073741824 %}
+<div class="tiles">
+{% for d in ctx.m.discos or [] %}{{ barra(d.ponto, d.pct, '%.1f GB / %.1f GB'|format(d.usado / gb, d.total / gb), '%.1f GB livres'|format(d.livre / gb)) }}{% endfor %}
+</div>

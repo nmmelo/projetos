@@ -1,0 +1,17 @@
+{% from "_cartoes.html" import numero %}
+{% set st = ctx.stats %}
+<div class="tiles g2">
+  {{ numero('Bases de dados', st.dbs, 'todas' if user.is_admin or user.all_dbs else 'visíveis no perfil') }}
+  {{ numero('Em curso', st.running, (st.pendentes ~ ' na fila do agente') if st.pendentes else 'agora', 'c-accent' if st.running else '',
+            url_for('oracle.jobs_list')) }}
+  {{ numero('Execuções (24 h)', st.last24, (st.ok24 ~ ' com sucesso') if st.last24 else 'nenhuma', '', url_for('oracle.jobs_list')) }}
+  {{ numero('Com erro (24 h)', st.errors24, 'erros ou interrompidas' if st.errors24 else 'sem erros', 'c-bad' if st.errors24 else 'c-ok',
+            url_for('oracle.jobs_list')) }}
+</div>
+{% for j in ctx.em_curso %}
+<a class="tile tile-run" href="{{ url_for('oracle.job_detail', job_id=j.id) }}">
+  <div class="tile-h"><span>#{{ j.id }} {{ j.params.ts }} <small class="muted">{{ j.db_name }}</small></span><b class="c-accent">{{ ((j.progress or 0) / 10)|round|int }}%</b></div>
+  <div class="tile-bar"><span class="b-accent" style="width:{{ (j.progress or 0) / 10 }}%"></span></div>
+  <div class="tile-s"><span>{{ (j.current_action or 'em curso')[:60] }}</span><span>{{ j.created_by }}</span></div>
+</a>
+{% endfor %}

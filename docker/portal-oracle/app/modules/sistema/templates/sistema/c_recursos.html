@@ -1,0 +1,7 @@
+{% from "_cartoes.html" import barra %}
+{% set m = ctx.m %}{% set gb = 1073741824 %}
+<div class="tiles">
+  {{ barra('CPU' ~ (' · ' ~ m.cpus ~ ' CPUs' if m.cpus else ''), m.cpu, 'load ' ~ (m.load or [])|join(' / '), '') }}
+  {% if m.mem %}{{ barra('Memória RAM', m.mem.pct, '%.1f GB / %.1f GB'|format(m.mem.usado / gb, m.mem.total / gb), '%.1f GB livres'|format(m.mem.livre / gb)) }}{% endif %}
+  {% if ctx.raiz %}{{ barra('Disco ' ~ ctx.raiz.ponto, ctx.raiz.pct, '%.1f GB / %.1f GB'|format(ctx.raiz.usado / gb, ctx.raiz.total / gb), '%.1f GB livres'|format(ctx.raiz.livre / gb)) }}{% endif %}
+</div>

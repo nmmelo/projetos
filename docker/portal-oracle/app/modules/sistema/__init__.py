@@ -17,12 +17,23 @@ def metricas_guardadas() -> dict:
 
 
 def _home_context(user) -> dict:
+    import time
+    from ... import settings, sistema_info
     ag = agente_info.estado()
-    m = metricas_guardadas() if ag["ativo"] else {}
+    m = metricas_guardadas()
+    if not ag["ativo"] or time.time() - (m.get("ts") or 0) > 30:
+        # agente parado: leitura direta (sem CPU nem historico)
+        m, _ = sistema_info.amostra(None, [settings.DATA_DIR])
+        units = sistema_info.servicos_configurados(store.get_setting("sistema_servicos"))
+        m["servicos"] = sistema_info.estado_servicos(units)
+        m["origem"] = "portal"
     raiz = next((d for d in m.get("discos", []) if d["ponto"] == "/"), (m.get("discos") or [None])[0])
     servs = m.get("servicos", [])
-    return {"agente": ag, "m": m, "raiz": raiz,
-            "servicos_ok": sum(1 for s in servs if s.get("estado") == "active"), "servicos_total": len(servs)}
+    pressao = [n for n, v in (("CPU", m.get("cpu")), ("memória", (m.get("mem") or {}).get("pct")),
+                              ("disco", (raiz or {}).get("pct"))) if v is not None and v >= 90]
+    parados = [s["unit"] for s in servs if s.get("estado") != "active"]
+    return {"agente": ag, "m": m, "raiz": raiz, "servicos": servs, "pressao": pressao, "parados": parados,
+            "servicos_ok": len(servs) - len(parados), "servicos_total": len(servs)}
 
 
 MODULO = modulos.registar(modulos.Modulo(
@@ -38,7 +49,16 @@ MODULO = modulos.registar(modulos.Modulo(
         ("sistema.painel", "Painel", None),
         ("sistema.definicoes", "Definições", "sistema.definicoes"),
     ],
-    home_template="sistema/_home.html",
+    cartoes={
+        "sistema.recursos": {"titulo": "Monitor de recursos", "icone": "📈", "template": "sistema/c_recursos.html",
+                             "link": "sistema.painel", "link_txt": "Ver o sistema"},
+        "sistema.servidor": {"titulo": "Servidor", "icone": "🖥️", "template": "sistema/c_servidor.html",
+                             "link": "sistema.painel", "link_txt": "Ver o painel"},
+        "sistema.servicos": {"titulo": "Serviços", "icone": "⚙️", "template": "sistema/c_servicos.html",
+                             "link": "sistema.painel", "link_txt": "Gerir serviços"},
+        "sistema.discos": {"titulo": "Sistemas de ficheiros", "icone": "💾", "template": "sistema/c_discos.html",
+                           "link": "sistema.painel", "link_txt": "Ver o sistema", "oculto": True},
+    },
     eventos={"sistema.servico": {"nome": "Serviço (detetado pelo agente)",
                                  "situacoes": {"parado": "Parou", "falhou": "Falhou", "iniciado": "Voltou a correr"}},
              "sistema.disco": {"nome": "Disco acima do limiar", "situacoes": {"acima": "Acima do limiar"},

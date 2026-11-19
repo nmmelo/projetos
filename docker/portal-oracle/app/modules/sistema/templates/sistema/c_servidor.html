@@ -1,0 +1,8 @@
+{% from "_cartoes.html" import saude, kv %}
+{% set m = ctx.m %}
+{% if ctx.parados %}{{ saude('bad', 'Atenção', (ctx.parados|length) ~ ' serviço(s) parado(s): ' ~ ctx.parados|join(', ')) }}
+{% elif ctx.pressao %}{{ saude('warn', 'Sob pressão', ctx.pressao|join(', ') ~ ' acima de 90%') }}
+{% else %}{{ saude('ok', 'Saudável', 'Servidor a funcionar corretamente') }}{% endif %}
+{% macro tempo(s) %}{% if s %}{{ s // 86400 }} dia(s) {{ '%02d:%02d'|format(s % 86400 // 3600, s % 3600 // 60) }}{% else %}—{% endif %}{% endmacro %}
+{{ kv([('Servidor', m.host), ('Sistema', m.os), ('Ligado', tempo(m.uptime)),
+       ('Agente', 'Ativo' if ctx.agente.ativo else 'Parado (leitura direta)')]) }}

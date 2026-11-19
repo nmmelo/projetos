@@ -36,6 +36,22 @@ def pagina_manutencao():
     return resp
 
 
+def _versao_static() -> str:
+    """Muda sempre que um ficheiro de app/static muda: evita CSS/JS antigos na cache do browser (expires do Nginx)."""
+    import hashlib
+    import os
+    d = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+    h = hashlib.md5()
+    for n in sorted(os.listdir(d)):
+        if n.endswith((".css", ".js")):
+            st = os.stat(os.path.join(d, n))
+            h.update(f"{n}{st.st_mtime_ns}{st.st_size}".encode())
+    return h.hexdigest()[:10]
+
+
+STATIC_V = _versao_static()
+
+
 @bp.app_context_processor
 def inject():
     if "csrf" not in session:
@@ -45,7 +61,7 @@ def inject():
     except Exception:  # noqa: BLE001 - BD do portal indisponivel
         look = aparencia.context(aparencia.DEFAULTS)
     user = g.get("user")
-    return {"csrf_token": session["csrf"], "user": user, "ACTIONS": modulos.todas_acoes(),
+    return {"csrf_token": session["csrf"], "user": user, "static_v": STATIC_V, "ACTIONS": modulos.todas_acoes(),
             "modulos_menu": modulos.visiveis(user), "manutencao_ativa": g.get("manutencao", False), **look}
 
 

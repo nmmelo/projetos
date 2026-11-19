@@ -1,0 +1,12 @@
+{% from "_cartoes.html" import saude, numero %}
+{% set e = ctx.estado %}
+{% if not ctx.host %}{{ saude('warn', 'Por configurar', 'Defina o servidor em SMTP → Geral') }}
+{% elif e.ok == false %}{{ saude('bad', 'Ligação com falha', (e.msg or '')[:90]) }}
+{% elif not ctx.ativo %}{{ saude('warn', 'Envio automático desligado', ctx.host ~ ':' ~ ctx.porta) }}
+{% else %}{{ saude('ok', 'Envio automático ligado', ctx.host ~ ':' ~ ctx.porta ~ ' · ' ~ {'starttls': 'STARTTLS', 'ssl': 'SSL/TLS', 'nenhuma': 'sem TLS'}.get(ctx.seg, ctx.seg)) }}{% endif %}
+<div class="tiles g3">
+  {{ numero('Enviados', ctx.cont.get('ENVIADO', 0), 'últimas 24 h') }}
+  {{ numero('Na fila', ctx.cont.get('PENDENTE', 0) + ctx.cont.get('A ENVIAR', 0), 'por enviar', 'c-accent' if ctx.cont.get('PENDENTE') else '') }}
+  {{ numero('Com erro', ctx.cont.get('ERRO', 0), 'últimas 24 h', 'c-bad' if ctx.cont.get('ERRO') else '') }}
+</div>
+{% if e.quando %}<p class="muted small dcard-nota">Última validação: {{ e.quando }}</p>{% endif %}

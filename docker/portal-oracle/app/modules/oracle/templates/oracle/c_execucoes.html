@@ -1,0 +1,13 @@
+{% if ctx.recent %}
+<div class="lista">
+{% for j in ctx.recent %}
+  {% set r = 'falhado' if j.status in ('INTERROMPIDO', 'CANCELADO') else 'erro' if j.status == 'ERRO' or j.n_erros else 'aviso' if j.n_avisos else 'em-curso' if j.status in ('EM CURSO', 'PENDENTE') else 'sucesso' %}
+  <a class="lrow" href="{{ url_for('oracle.job_detail', job_id=j.id) }}">
+    <span class="dot d-{{ r }}"></span>
+    <span class="lrow-t"><b>{{ j.params.ts }} <span class="tag {{ 'warn' if j.params.modo == 'EXECUTAR' }}">{{ j.params.modo }}</span></b>
+      <small>#{{ j.id }} · {{ j.db_name }} · {{ (j.started_at|string)[5:16] }} · {{ j.created_by }}</small></span>
+    <span class="status s-{{ j.status|replace(' ', '-') }}">{{ j.status }}</span>
+  </a>
+{% endfor %}
+</div>
+{% else %}<p class="muted small">Ainda não há execuções.</p>{% endif %}

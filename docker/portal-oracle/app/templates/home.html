@@ -1,23 +1,46 @@
 {% extends "base.html" %}
+{% from "_cartoes.html" import cartao, controlos %}
 {% block title %}Home{% endblock %}
 {% block content %}
-<div class="head">
+<div class="dash-bar">
   <h1>Olá, {{ user.name or user.username }}</h1>
-  {% if user.can('config.portal') %}
-  <a class="stat mini" href="{{ url_for('portal.cfg_backups') }}">
-    <span class="label">Último backup</span>
-    <span class="value small">{{ last_backup.created_at[:16] if last_backup else '—' }}</span>
-  </a>
-  {% endif %}
+  {{ controlos() }}
 </div>
+<div class="dash-tray" id="tray" hidden></div>
 
-{% for b in blocos %}
-  {% with ctx = b.ctx %}{% include b.modulo.home_template %}{% endwith %}
-{% else %}
+{% if cartoes %}
+<div class="dash" id="dash">
+  {% for c in cartoes %}
+    {% call cartao(c.id, c.titulo, c.icone, c.url, c.link_txt, c.largo) %}{{ c.html|safe }}{% endcall %}
+  {% endfor %}
+</div>
+{% endif %}
+{% if not user.modulos %}
   <section class="card">
     <p class="muted">Ainda não tem acesso a nenhum módulo.
     {% if user.can('config.portal') %}Ative os módulos em <a href="{{ url_for('portal.cfg_modules') }}">Configuração → Módulos</a>
     e dê acesso nos <a href="{{ url_for('portal.cfg_profiles') }}">perfis</a>.{% else %}Peça ao administrador do portal.{% endif %}</p>
   </section>
-{% endfor %}
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='painel.js', v=static_v) }}"></script>
+<script>
+(() => {
+  const dash = document.getElementById('dash'); if (!dash) return;
+  new Painel(dash, {chave: 'home', layout: {{ layout|tojson }}, ocultosPadrao: {{ ocultos_padrao|tojson }},
+                    url: "{{ url_for('portal.painel_layout', painel='home') }}", csrf: "{{ csrf_token }}",
+                    editar: document.getElementById('editar'), tray: document.getElementById('tray')});
+  autoAtualizar('home', document.getElementById('ref'), document.getElementById('agora'), document.getElementById('upd'), async () => {
+    const r = await fetch("{{ url_for('portal.home_cartoes') }}", {cache: 'no-store'});
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    for (const [id, html] of Object.entries(d)) {
+      const b = dash.querySelector(`.dcard[data-id="${CSS.escape(id)}"] .dcard-b`);
+      if (b && b.innerHTML !== html) b.innerHTML = html;
+    }
+  }, '30');
+  document.getElementById('upd').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-PT');
+})();
+</script>
 {% endblock %}

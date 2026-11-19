@@ -2,18 +2,24 @@
 {% block title %}SMTP · Logs{% endblock %}
 {% block content %}
 {% include "smtp/_tabs.html" %}
-<div class="jx-toolbar">
-  <input type="search" id="q" placeholder="Procurar (destinatário, assunto, regra ou erro)" autocomplete="off">
-  {% if pode %}<form method="post" action="{{ url_for('smtp.limpar') }}" class="inline-form"
-        onsubmit="return confirm('Apagar os registos enviados ou com erro com mais de ' + this.dias.value + ' dias?')">
-    <input type="hidden" name="csrf" value="{{ csrf_token }}">
-    <select name="dias"><option value="7">mais de 7 dias</option><option value="30" selected>mais de 30 dias</option><option value="90">mais de 90 dias</option></select>
-    <button class="danger small">Limpar</button></form>{% endif %}
-</div>
-<div class="jx-chips" id="chips">
-  {% for k, r in [('', 'Todos'), ('ENVIADO', 'Enviados'), ('ERRO', 'Com erro'), ('PENDENTE', 'Na fila'), ('teste', 'Testes')] %}
-  <button type="button" class="chip {{ 'on' if not k }}" data-f="{{ k }}">{{ r }} <b data-n="{{ k }}">0</b></button>{% endfor %}
-</div>
+<section class="jx-filtros">
+  <div class="jx-toolbar">
+    <label class="jx-search"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 2a8 8 0 0 1 6.32 12.9l5.39 5.4-1.42 1.4-5.39-5.38A8 8 0 1 1 10 2Zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z"/></svg>
+      <input type="search" id="q" placeholder="Procurar destinatário, assunto, regra ou erro" autocomplete="off"></label>
+  </div>
+  <div class="jx-linha2">
+    <div class="jx-chips" id="chips">
+      {% for k, r, c in [('', 'Todos', 'todas'), ('ENVIADO', 'Enviados', 'sucesso'), ('ERRO', 'Com erro', 'erro'), ('PENDENTE', 'Na fila', 'em-curso'), ('teste', 'Testes', 'aviso')] %}
+      <button type="button" class="chip r-{{ c }} {{ 'on' if not k }}" data-f="{{ k }}"><i></i>{{ r }} <b data-n="{{ k }}">0</b></button>{% endfor %}
+    </div>
+    {% if pode %}<form method="post" action="{{ url_for('smtp.limpar') }}" class="inline-form jx-bulk"
+          onsubmit="return confirm('Apagar os registos enviados ou com erro com mais de ' + this.dias.value + ' dias?')">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <span class="muted small">Apagar registos com</span>
+      <select name="dias"><option value="7">mais de 7 dias</option><option value="30" selected>mais de 30 dias</option><option value="90">mais de 90 dias</option></select>
+      <button class="danger small">Limpar</button></form>{% endif %}
+  </div>
+</section>
 <div class="table-wrap">
 <table class="jx">
   <thead><tr><th class="num">#</th><th>Data</th><th>Tipo / regra</th><th>Para</th><th>Assunto</th><th>Estado</th></tr></thead>

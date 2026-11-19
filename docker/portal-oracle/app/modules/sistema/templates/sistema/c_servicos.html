@@ -1,0 +1,10 @@
+{% set EST = {'active': ('Em execução', 'ok'), 'inactive': ('Parado', 'off'), 'failed': ('Falhou', 'bad'), 'activating': ('A iniciar', 'warn')} %}
+{% if ctx.servicos %}
+<div class="lista">
+{% for s in ctx.servicos %}{% set e = EST.get(s.estado, (s.estado, 'off')) %}
+  <div class="lrow"><span class="dot d-{{ e[1] }}"></span>
+    <span class="lrow-t"><b>{{ s.unit }}</b><small>{{ s.descricao or '' }}{% if s.desde and s.estado == 'active' %} · desde {{ s.desde }}{% endif %}</small></span>
+    <span class="sys-pill {{ e[1] }}">{{ e[0] if s.existe != false else 'Não existe' }}</span></div>
+{% endfor %}
+</div>
+{% else %}<p class="muted small">Sem serviços configurados.</p>{% endif %}

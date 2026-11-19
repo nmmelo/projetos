@@ -264,3 +264,17 @@ Chat de 19 de novembro de 2026.
 - **Módulo SMTP** (ativar em Configuração → Módulos): abas Geral (Nenhuma/STARTTLS/SSL, validar certificado, autenticação opcional, teste com barra e diálogo SMTP), Regras (email), Notificações (sininho) e Logs (reenviar). Eventos: execução Oracle, serviço, disco acima do limiar, ligação SMTP. O agente envia a fila e valida a ligação.
 - **Sininho** no topo, com o número de notificações por ler e a lista ao clicar.
 
+## 16. Filtros das Execuções, painel do Sistema e Home com cartões editáveis
+
+Chat de 19 de novembro de 2026.
+
+**Pergunta:**
+> como podemos ver pelas imagens, a parte de filtragem pode ser melhorada no que toca a layout e no sistemas, está um pouco confuso, não se se é o layout, tem que ser melhorado, como na imagem gerada. No home também tem que ser refresh de e em x segundos. Também podemos organizar os cartões, tendo um botão de editar com um icon, podemos adicionar ou remover como na imagem
+
+**Resposta:**
+
+- **Causa do aspeto "sem formatação":** o browser usava o `style.css` antigo (o Nginx guarda `/static/` em cache 1 h). O CSS e o JS passam a ter `?v=<versão>`, que muda em cada atualização.
+- **Execuções:** filtros num só bloco (pesquisa com ícone, listas com rótulo, Limpar filtros) e os resultados num seletor com cor e contagem, com as ações de apagar à direita.
+- **Sistema:** cartões ao estilo pedido (mosaicos com barra, estado Saudável/Atenção, serviços numa lista com ▶ ⟳ ■), intervalo de atualização escolhido (pausa a 30 s).
+- **Home:** painel de cartões dos módulos (Oracle, Sistema, SMTP, Notificações, Portal), atualização automática (manual, 10 s, 30 s, 1 min, 5 min) e botão **Editar** (lápis) para esconder, adicionar e arrastar cartões; disposição guardada por utilizador. O mesmo editor no Sistema.
+

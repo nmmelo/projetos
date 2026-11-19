@@ -10,22 +10,44 @@ Instala-se **num servidor** (script `instalar.sh`, ver [Instalação num servido
 
 | Menu | Conteúdo |
 |---|---|
-| **Home** | Um bloco por módulo a que o utilizador tem acesso (no Oracle: bases de dados visíveis, execuções em curso e nas últimas 24 h, últimas execuções) e o último backup |
+| **Home** | Painel de cartões dos módulos a que o utilizador tem acesso (Oracle, Sistema, SMTP, notificações e o estado do portal), atualizado de x em x segundos; botão **Editar** para adicionar, esconder e reordenar cartões |
 | **Oracle → Tablespaces** | Tamanho, usado e livre, do maior para o mais pequeno (sem SYSTEM, SYSAUX, UNDO e TEMP) |
 | **Oracle → Shrink** | Um tablespace ou TODOS, em ANÁLISE ou EXECUTAR, corre em segundo plano |
 | **Oracle → Execuções** | Tabela dinâmica com filtros (sucesso, avisos, erros, falhadas, em curso; tablespace; BD; modo; texto também no output), janela com o output a saltar para os erros, apagar (uma, selecionadas, falhadas); andamento em direto (barra, passos, tempo, output linha a linha), log e cancelamento |
-| **Sistema** | Servidor onde o portal corre: CPU, RAM, discos, serviços (Nginx, portal, agente, ...) com start/stop/restart, em cartões reorganizáveis, atualizados a cada 2 s pelo agente |
+| **Sistema** | Servidor onde o portal corre: CPU, RAM, discos, serviços (Nginx, portal, agente, ...) com start/stop/restart, em cartões que se podem esconder e reordenar (**Editar**), atualizados a cada 2 s pelo agente |
 | **Oracle → Definições** | Bases de dados Oracle: host, porta, SID ou Service Name, PDB, utilizador, password cifrada, Normal ou SYSDBA |
 | **Configuração** | **Geral**, **Aparência** (título, textos, ícone e tema), **Manutenção** (modo de manutenção com editor HTML), **Módulos** (ativar/desativar), **Armazenamento**, **Utilizadores**, **Perfis** e **Backups** |
 | **Agente do portal** (serviço `<nome>-agente`) | Corre as execuções Oracle (continuam se o portal reiniciar), publica as métricas do servidor e executa as ações sobre serviços |
 | **Minha área** (nome no canto superior direito) | Dados do utilizador, permissões e alteração da password |
+
+### Home: painel de cartões
+
+| Cartão | Módulo | Conteúdo |
+|---|---|---|
+| Oracle | Oracle | Bases de dados, em curso (com barra de cada execução), execuções e erros nas últimas 24 h |
+| Bases de dados | Oracle | As BDs visíveis, com os botões Tablespaces e Shrink |
+| Últimas execuções | Oracle | As 6 últimas, com o estado |
+| Monitor de recursos | Sistema | CPU, memória e disco `/`, com barras |
+| Servidor | Sistema | Saudável / Sob pressão (> 90 %) / Atenção (serviço parado), servidor, sistema, ligado há, agente |
+| Serviços | Sistema | Estado de cada serviço |
+| Sistemas de ficheiros | Sistema | Todos os discos (escondido por omissão) |
+| Email (SMTP) | SMTP | Estado do envio, enviados e com erro nas últimas 24 h, fila, última validação |
+| Notificações | — | As últimas notificações do sininho |
+| Portal | — | Manutenção, agente, último backup, armazenamento, módulos e utilizadores (só para quem tem `config.portal`) |
+
+- **Atualizar:** manual, 10 s, 30 s (omissão), 1 min ou 5 min, mais o botão ↻. A escolha fica no browser; não atualiza com o separador escondido.
+- **Editar** (ícone do lápis): os cartões ficam com ✕ (esconder) e podem ser arrastados; a barra de edição mostra os cartões escondidos com **+** para os voltar a pôr, **Repor** (disposição original) e **Concluir**. A disposição fica guardada por utilizador (na tabela `settings`, `layout.home.<utilizador>`), por isso é a mesma em qualquer browser.
+
+| Home | Editar painel |
+|---|---|
+| ![Home](docs/home.png) | ![Editar](docs/home-editar.png) |
 
 ### Histórico de execuções (Oracle → Execuções)
 
 | Elemento | Descrição |
 |---|---|
 | **Pesquisa** | Tablespace, BD, utilizador ou **texto no output** (ex. `ORA-01652`), feita no servidor |
-| **Filtros** | Botões com contagens: Sucesso, Com avisos, Com erros, Falhadas, Em curso; listas de tablespace, BD e modo |
+| **Filtros** | Num só bloco: pesquisa, listas de tablespace, BD e modo, e por baixo os resultados (Todas, Sucesso, Com avisos, Com erros, Falhadas, Em curso) com as contagens. **Limpar filtros** volta ao início |
 | **Tabela** | Ordena ao clicar no cabeçalho, 50 por página, atualiza sozinha enquanto houver execuções em curso ou na fila |
 | **Janela** (clicar numa linha) | Parâmetros, duração, erro (se a execução falhou) e output com cores. Salta para a 1.ª linha com erro/aviso; ↑/↓ (ou Alt+↑/↓) percorre-as; "Só linhas com erro/aviso" mostra só essas, com o número da linha. Botões Abrir página, Descarregar log e Apagar |
 | **Apagar** | Uma (janela ou página da execução), as selecionadas, ou todas as falhadas. Permissão `oracle.execucoes.apagar`. As que estão em curso ou na fila não se apagam |
@@ -126,15 +148,15 @@ Em **Sistema → Painel** (permissão `modulo.sistema`):
 
 | Cartão | Conteúdo |
 |---|---|
-| **Recursos de hardware** | CPU (utilização, livre, load 1/5/15 min), memória RAM e disco `/`, com barras e gráfico dos últimos minutos |
-| **Servidor** | Nome, sistema, kernel, ligado há, processos, swap |
+| **Monitor de recursos** | CPU (utilização, livre, load 1/5/15 min), memória RAM e disco `/`, com barras e gráfico dos últimos minutos |
+| **Servidor** | Saudável / Sob pressão / Atenção, nome, sistema, kernel, ligado há, processos, swap |
+| **Serviços** | Um por linha (Nginx, portal, agente, ...): estado, PID, memória, CPU, desde quando, e os botões ▶ Start, ⟳ Restart e ■ Stop (permissão `sistema.servicos`). Antes de parar ou reiniciar o próprio portal, o Nginx ou o agente, é mostrado o que acontece |
 | **Agente do portal** | Ativo/parado, versão, PID, desde quando, último sinal, execuções Oracle em curso |
-| **Um por serviço** (Nginx, portal, agente, ...) | Estado, PID, memória, CPU, tarefas, desde quando, arranque automático, e os botões **Start / Restart / Stop** (permissão `sistema.servicos`). Antes de parar ou reiniciar o próprio portal, o Nginx ou o agente, é mostrado o que acontece |
-| **Sistemas de ficheiros** | Cada disco montado, com o livre e o total |
+| **Sistemas de ficheiros** | Cada disco montado, com o usado, o livre e o total |
 | **Últimas ações** | Quem pediu, quando, e o resultado |
 
-- **Atualização:** a cada 2 s, com um indicador "em direto" e um botão Pausa. Não atualiza quando o separador está escondido.
-- **Organizar:** arraste os cartões pelo cabeçalho e use o **–** para minimizar. A disposição fica guardada no browser; **Repor disposição** volta à original.
+- **Atualização:** a cada 2 s por omissão (pausa, 2, 5, 10 ou 30 s), com o indicador "em direto". Não atualiza quando o separador está escondido.
+- **Editar** (ícone do lápis): esconder (✕), voltar a mostrar (+) e arrastar os cartões, como na Home. Guardado por utilizador.
 - **Definições** (permissão `sistema.definicoes`): os serviços a mostrar. Por omissão são os do portal (`nginx`, `<nome>`, `<nome>-agente`, e a base de dados se for local). O agente só consegue gerir os que estão no `sudoers`, que o `instalar.sh` cria a partir da pergunta "Serviços geridos pelo módulo Sistema".
 
 ![Módulo Sistema](docs/sistema.png)
@@ -190,7 +212,7 @@ Em **Configuração → Módulos** cada módulo aparece num cartão com a descri
 
 | Estado | Efeito |
 |---|---|
-| **Ativo** | O menu do módulo aparece a quem tem acesso no perfil (e ao administrador), e o bloco do módulo aparece na Home |
+| **Ativo** | O menu do módulo aparece a quem tem acesso no perfil (e ao administrador), e os cartões do módulo ficam disponíveis na Home |
 | **Inativo** | O menu desaparece para todos, as páginas do módulo respondem 404 e as permissões do módulo deixam de contar. Os dados e os perfis mantêm-se; ao reativar, tudo volta como estava |
 
 O estado fica na tabela `settings` (`module.<chave>` = `1`/`0`), por isso entra nos backups.
@@ -204,10 +226,10 @@ O estado fica na tabela `settings` (`module.<chave>` = `1`/`0`), por isso entra 
 | Ficheiro | Conteúdo |
 |---|---|
 | `app/modulos.py` | Registo: lista `INSTALADOS`, classe `Modulo`, permissões do portal, conversão das permissões antigas |
-| `app/modules/oracle/__init__.py` | Definição `MODULO` (nome, descrição, ações, abas do menu, bloco da Home) e o Blueprint com prefixo `/oracle` |
+| `app/modules/oracle/__init__.py` | Definição `MODULO` (nome, descrição, ações, abas do menu, cartões da Home, eventos) e o Blueprint com prefixo `/oracle` |
 | `app/modules/oracle/views.py` | Rotas: `/oracle/tablespaces`, `/oracle/shrink`, `/oracle/execucoes`, `/oracle/definicoes` |
 | `app/modules/oracle/bd.py`, `jobs.py`, `sql/` | Lógica do módulo (ligação Oracle, shrink em segundo plano, scripts SQL) |
-| `app/modules/oracle/templates/oracle/` | Páginas do módulo, `_tabs.html` (abas) e `_home.html` (bloco da Home) |
+| `app/modules/oracle/templates/oracle/` | Páginas do módulo, `_tabs.html` (abas) e `c_*.html` (conteúdo dos cartões da Home, com as peças de `app/templates/_cartoes.html`) |
 
 **Acrescentar um módulo** (ex. `mysql`):
 
@@ -1042,6 +1064,7 @@ O driver é o **python-oracledb** em modo *thin* (sem Instant Client). Requer Or
 | `WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED` | Apagou `data/ssh/`. Remova a linha antiga do `~/.ssh/known_hosts` |
 | `Driver Python em falta` no Armazenamento | Recrie a imagem: `docker-compose build --no-cache` |
 | `dubious ownership` no git | Já está tratado para `/srv/portal`. Noutras pastas, use `git config --global --add safe.directory <pasta>` |
+| Páginas sem formatação depois de atualizar (ex. Sistema com texto corrido, filtros desalinhados) | O browser ainda tinha o CSS antigo em cache (o Nginx guarda `/static/` 1 h). A partir desta versão o endereço do CSS muda a cada atualização; para a primeira vez, faça **Ctrl+F5** |
 | `Internal Server Error` | O erro fica no log do serviço com uma referência que aparece na página: `journalctl -u <nome> \| grep <referência>`. Na versão anterior acontecia em Oracle → Execuções quando havia uma execução em curso (corrigido) |
 | Emails não chegam | SMTP → Logs mostra o diálogo com o servidor e o erro. Confirme o **Envio automático ligado**, a regra ativa e o agente ativo (`systemctl status <nome>-agente`) |
 | Execução em `INTERROMPIDO` | O portal foi reiniciado durante a execução. Confirme em `V$SESSION` se a sessão Oracle continuou |

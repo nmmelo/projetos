@@ -23,8 +23,10 @@ class Modulo:
     descricao: str
     acoes: dict = field(default_factory=dict)        # "<chave>.<acao>" -> descricao
     abas: list = field(default_factory=list)          # (endpoint, rotulo, permissao ou None)
-    home_template: str | None = None                  # incluido na Home
-    home_context: object = None                       # funcao(user) -> dict para o home_template
+    # Cartoes do modulo na Home: id -> {titulo, icone, template, link (endpoint), link_txt, perm, oculto}
+    # (oculto=True: disponivel em "Editar painel" mas escondido por omissao)
+    cartoes: dict = field(default_factory=dict)
+    home_context: object = None                       # funcao(user) -> dict (ctx) para os templates dos cartoes
     eventos: dict = field(default_factory=dict)        # eventos para as regras de email/notificacao
     ativo_por_omissao: bool = True
 

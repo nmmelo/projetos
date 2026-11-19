@@ -31,7 +31,9 @@ def index():
 @bp.route("/painel")
 @auth.requires(MODULO.acesso)
 def painel():
-    return render_template("sistema/painel.html", pode_servicos=g.user.can("sistema.servicos"))
+    from ... import layouts
+    return render_template("sistema/painel.html", pode_servicos=g.user.can("sistema.servicos"),
+                           layout=layouts.obter("sistema", str(g.user.id)))
 
 
 @bp.route("/api/estado")

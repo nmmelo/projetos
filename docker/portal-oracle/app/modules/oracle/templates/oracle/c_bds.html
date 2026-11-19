@@ -1,0 +1,15 @@
+{% if ctx.dbs %}
+<div class="lista">
+{% for d in ctx.dbs %}
+  <div class="lrow">
+    <span class="lrow-t"><b>{{ d.name }}</b><small>{{ d.host }}{% if d.pdb %} · {{ d.pdb }}{% endif %}{% if d.role == 'SYSDBA' %} · SYSDBA{% endif %}</small></span>
+    <span class="lrow-a">
+      {% if user.can('oracle.tablespaces') %}<a class="btn small" href="{{ url_for('oracle.report', db=d.id) }}">Tablespaces</a>{% endif %}
+      {% if user.can('oracle.shrink.analise') or user.can('oracle.shrink.executar') %}<a class="btn small" href="{{ url_for('oracle.shrink', db=d.id) }}">Shrink</a>{% endif %}
+    </span>
+  </div>
+{% endfor %}
+</div>
+{% else %}
+<p class="muted small">Não tem bases de dados atribuídas{% if user.can('oracle.definicoes') %} — <a href="{{ url_for('oracle.cfg_db_form') }}">adicionar</a>{% endif %}.</p>
+{% endif %}

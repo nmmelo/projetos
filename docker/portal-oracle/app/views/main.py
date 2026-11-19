@@ -2,7 +2,7 @@
 import base64
 import os
 
-from flask import (current_app, flash, g, jsonify, make_response, redirect, render_template, request,
+from flask import (abort, current_app, flash, g, jsonify, make_response, redirect, render_template, request,
                    url_for)
 from werkzeug.security import check_password_hash
 
@@ -63,15 +63,78 @@ def logout():
 @bp.route("/")
 @auth.login_required
 def home():
-    blocos = []
+    from .. import layouts
+    return render_template("home.html", cartoes=_cartoes_home(),
+                           layout=layouts.obter("home", str(g.user.id)), ocultos_padrao=_ocultos_padrao())
+
+
+@bp.route("/home/cartoes")
+@auth.login_required
+def home_cartoes():
+    """Conteudo atualizado dos cartoes (a Home atualiza-os de x em x segundos)."""
+    return jsonify({c["id"]: c["html"] for c in _cartoes_home()})
+
+
+@bp.route("/painel/layout/<painel>", methods=["POST"])
+@auth.login_required
+def painel_layout(painel):
+    from .. import layouts
+    try:
+        layouts.guardar(painel, str(g.user.id), request.get_json(silent=True) or {})
+    except ValueError:
+        abort(404)
+    return jsonify(ok=True)
+
+
+def _definicoes_home() -> list[tuple[dict, dict, object]]:
+    """[(cartao, contexto, modulo)] visiveis para o utilizador, pela ordem por omissao."""
+    from .. import modulos
+    out = []
     for m in g.user.modulos:
-        if m.home_template:
-            blocos.append({"modulo": m, "ctx": m.home_context(g.user) if m.home_context else {}})
-    last_backup = None
+        for cid, c in m.cartoes.items():
+            if not c.get("perm") or g.user.can(c["perm"]):
+                out.append(({"id": cid, **c}, m, m.home_context))
+    out.append(({"id": "portal.notificacoes", "titulo": "Notificações", "icone": "🔔", "template": "home/c_notificacoes.html",
+                 "link": "smtp.notificacoes" if "smtp" in modulos.ativos() and g.user.can("modulo.smtp") else None,
+                 "link_txt": "Regras de notificação"}, None, _ctx_notificacoes))
     if g.user.can("config.portal"):
-        b = store.list_backups()
-        last_backup = b[0] if b else None
-    return render_template("home.html", blocos=blocos, last_backup=last_backup)
+        out.append(({"id": "portal.estado", "titulo": "Portal", "icone": "🧭", "template": "home/c_portal.html",
+                     "link": "portal.config", "link_txt": "Configuração"}, None, _ctx_portal))
+    return out
+
+
+def _ocultos_padrao() -> list[str]:
+    return [c["id"] for c, _m, _f in _definicoes_home() if c.get("oculto")]
+
+
+def _cartoes_home() -> list[dict]:
+    ctxs, out = {}, []
+    for c, m, fn in _definicoes_home():
+        k = m.chave if m else c["id"]
+        try:
+            if k not in ctxs:
+                ctxs[k] = fn(g.user) if fn else {}
+            html = render_template(c["template"], ctx=ctxs[k])
+        except Exception:  # noqa: BLE001 - um cartao com erro nao deve partir a Home
+            current_app.logger.exception("cartao %s", c["id"])
+            html = '<p class="muted small">Não foi possível obter estes dados.</p>'
+        out.append({**c, "html": html, "url": url_for(c["link"]) if c.get("link") else None})
+    return out
+
+
+def _ctx_notificacoes(user) -> dict:
+    from .. import eventos
+    return {"itens": eventos.listar(str(user.id), 6)}
+
+
+def _ctx_portal(user) -> dict:
+    from .. import agente_info, modulos
+    b = store.list_backups()
+    st = store.get()
+    return {"backup": b[0] if b else None, "agente": agente_info.estado(), "manutencao": manutencao.ativa(),
+            "armazenamento": settings.STORAGE_TYPES.get(st.kind, st.kind),
+            "modulos": [modulos.REGISTO[k].nome for k in modulos.ativos() if k in modulos.REGISTO],
+            "utilizadores": len([u for u in store.list_users() if u.get("active")]) + 1}
 
 
 # Sininho: notificacoes do utilizador (regras em SMTP > Notificacoes)

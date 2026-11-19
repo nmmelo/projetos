@@ -1,0 +1,7 @@
+{% from "_cartoes.html" import saude, kv %}
+{% if ctx.manutencao %}{{ saude('warn', 'Em manutenção', 'Só os administradores conseguem entrar') }}
+{% elif not ctx.agente.ativo %}{{ saude('warn', 'Agente parado', 'As execuções correm dentro do portal') }}
+{% else %}{{ saude('ok', 'Portal a funcionar', 'Agente ativo' ~ (' · versão ' ~ ctx.agente.versao if ctx.agente.versao else '')) }}{% endif %}
+{{ kv([('Último backup', (ctx.backup.created_at|string)[:16] if ctx.backup else 'nenhum'),
+       ('Armazenamento', ctx.armazenamento), ('Módulos ativos', ctx.modulos|join(', ')),
+       ('Utilizadores', ctx.utilizadores)]) }}

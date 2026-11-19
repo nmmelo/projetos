@@ -1,0 +1,8 @@
+{% if ctx.itens %}
+<div class="lista">
+{% for n in ctx.itens %}
+  <a class="lrow {{ 'nova' if not n.lida }}" href="{{ n.link or '#' }}"><span class="dot d-{{ {'ok': 'ok', 'aviso': 'warn', 'erro': 'bad'}.get(n.nivel, 'accent') }}"></span>
+    <span class="lrow-t"><b>{{ n.titulo }}</b><small>{{ (n.created_at|string)[5:16] }}{% if n.texto %} · {{ n.texto.split('\n')[0][:70] }}{% endif %}</small></span></a>
+{% endfor %}
+</div>
+{% else %}<p class="muted small">Sem notificações.</p>{% endif %}
