@@ -233,3 +233,19 @@ Chat de 19 de novembro de 2026.
 | Página | Painel ao estilo do "TESLA a carregar…": ORACLE animado, barra com percentagem, passos, tempo decorrido; output com cores e "Acompanhar o fim" |
 
 Privilégio opcional para as linhas em direto: `GRANT EXECUTE ON SYS.DBMS_PIPE TO <utilizador>`.
+
+---
+
+## 14. Execuções com filtros, agente do portal e módulo Sistema
+
+Chat de 19 de novembro de 2026.
+
+**Pergunta:**
+> temos as execuções antigas, deviamos poder ter uma opção de ver a execução, ou seja o output depois de ter acabo, ou apagar por exemplo os que falharam, podemos também fazer filtro por sucesso, falhado, erro, aviso, por tablespace ou palavra, devendo estar numa tabela dinamica e ao clicar num registo, abrir uma janela e mostrar onde falhou. Como este processo pode demorar, gostava de saber se fizer refresh ao browser a execução para, ou continua, senão podemos criar um agente, serviço que faça isso e vá dado informação ao portal, para não para isso. Podemos ter um modulo com o nome de sistema, basicamente vai dar informação sobre o servidor onde está o portal a correr, com o CPU, RAM, DISCO, parecido a imagem em questão, podendo aparecer os serviços como o nginx, o dba-portal, o novo agente que vai ser criado, mostrado os serviços, podendo fazer stop, restart ou start. sendo que o refresh deve ser feito de forma dinamica quase realista. pode ser feito pelo agente, por exemlo o agente do portal que fica responsavel por isso. Podemos organizar os cartões do componentes de sistema.
+
+**Resposta:**
+
+- **Refresh do browser:** não para a execução. O que a parava era reiniciar o portal; com o agente, já não.
+- **Execuções:** tabela dinâmica (pesquisa no servidor, também no output; filtros por resultado com contagens, tablespace, BD e modo; ordenação; páginas), janela com o output, navegação pelas linhas de erro/aviso, apagar uma, as selecionadas ou as falhadas (`oracle.execucoes.apagar`). Novas colunas `runner`, `n_erros`, `n_avisos`.
+- **Agente** (`app/agente.py`, serviço `<nome>-agente`, ou programa `agente` no supervisord): fila de execuções (PENDENTE), sinal de vida, métricas a cada 2 s, ações sobre serviços (`sudo -n systemctl`, com `/etc/sudoers.d/<nome>-agente` limitado aos serviços escolhidos no `instalar.sh`). Testado: o portal foi reiniciado a meio de uma execução e ela terminou no agente.
+- **Módulo Sistema:** cartões ao estilo da imagem (recursos com barras e gráfico, servidor, agente, um por serviço com Start/Restart/Stop, discos, últimas ações), atualizados a cada 2 s, arrastáveis e minimizáveis (disposição guardada no browser). Definições: serviços a mostrar.

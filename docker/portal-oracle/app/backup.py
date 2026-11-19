@@ -35,7 +35,7 @@ def export_data(user: str) -> dict:
         "modulos": True,                 # permissoes ja no formato por modulo (ver app/modulos.py)
         "created_at": store.now(), "created_by": user,
         "key_fingerprint": _key_fingerprint(),
-        "settings": {r["k"]: r["v"] for r in sett},
+        "settings": {r["k"]: r["v"] for r in sett if r["k"] not in store.VOLATEIS},
         "oracle_dbs": [{k: d[k] for k in (*store.DB_FIELDS, "password_enc")} for d in dbs],
         "profiles": [{"name": p["name"], "description": p["description"], "all_dbs": p["all_dbs"],
                       "permissions": p["permissions"],

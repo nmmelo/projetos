@@ -17,7 +17,7 @@ ESTADO_LEGADO=".instalacao"              # versoes anteriores guardavam na pasta
 AUTO=0                                   # 1 = aceitar os valores guardados sem perguntar (reaplicar)
 ESTADO_VARS=(NOME DIR UTIL GIT_URL GIT_BRANCH GIT_PASTA PORTA_GUNICORN ADMIN_USER BD_TIPO BD_LOCAL BD_HOST
              BD_PORTA BD_NOME BD_UTIL BD_CLIENTE SERVER_NAME SSL_MODO HTTP_PORT HTTPS_PORT SSL_CERT_ORIG
-             SSL_KEY_ORIG SSL_CADEIA_ORIG LE_EMAIL CRON_HORA ABRIR_FW ESTADO_INST ULTIMA_EXEC)
+             SSL_KEY_ORIG SSL_CADEIA_ORIG LE_EMAIL CRON_HORA ABRIR_FW SERVICOS ESTADO_INST ULTIMA_EXEC)
 
 # ============================================================================ apresentacao
 if [[ -t 1 ]]; then
@@ -122,7 +122,8 @@ O que pergunta (Enter aceita o valor entre [ ]; nada e alterado antes da confirm
   4. Base de dados SQLite; MariaDB ou PostgreSQL neste servidor (instala e cria); ou noutro servidor
                    (gera o SQL e o script a correr la, incluindo pg_hba.conf, e testa a ligacao)
   5. Nginx         nome DNS, portas, sem HTTPS / certificado proprio / Let's Encrypt
-  6. Extras        backup diario no cron, abrir as portas na firewall (ufw ou firewalld)
+  6. Extras        backup diario no cron, servicos do modulo Sistema (geridos pelo agente),
+                   abrir as portas na firewall (ufw ou firewalld)
 
 Configuracao guardada:
   As respostas (sem passwords) ficam em /etc/portal-oracle/<nome>.conf, gravadas logo apos a
@@ -143,6 +144,8 @@ Atualizar o codigo (sincronizar com o repositorio):
 O que cria (exemplo com o nome "nome-portal"):
   /opt/nome-portal                       codigo (do root), data/ e .venv (do utilizador de servico)
   /etc/systemd/system/nome-portal.service
+  /etc/systemd/system/nome-portal-agente.service   agente: execucoes em fila, metricas, servicos
+  /etc/sudoers.d/nome-portal-agente      servicos que o agente pode iniciar/parar/reiniciar
   /etc/nginx/sites-available/nome-portal (RHEL: /etc/nginx/conf.d/nome-portal.conf)
   /etc/cron.d/nome-portal                backup diario (opcional)
   /etc/portal-oracle/nome-portal.conf    configuracao guardada
@@ -156,7 +159,7 @@ EOF
 render() {   # render origem destino  (substitui @CHAVE@ pelas variaveis T_CHAVE)
     local src=$1 dst=$2 v conteudo
     conteudo=$(<"$src")
-    for v in NOME DIR UTILIZADOR BIND SERVER_NAME HTTP_PORT HTTPS_PORT HTTPS_URL SSL_CERT SSL_KEY \
+    for v in NOME DIR UTILIZADOR BIND SERVICOS SERVER_NAME HTTP_PORT HTTPS_PORT HTTPS_URL SSL_CERT SSL_KEY \
              BD PASSWORD CLIENTE; do
         local nv="T_$v"
         conteudo=${conteudo//@$v@/${!nv:-}}
@@ -319,6 +322,8 @@ mostrar_estado() {   # mostra as variaveis carregadas
         "HTTPS" "$ssl" \
         "Endereco" "$URL" \
         "Backup cron" "$([[ -n ${CRON_HORA:-} ]] && echo "todos os dias as $CRON_HORA" || echo nao)" \
+        "Agente" "$NOME-agente.service: $(systemctl is-active "$NOME-agente" 2>/dev/null || echo '?')" \
+        "Servicos (Sistema)" "${SERVICOS:-nginx $NOME $NOME-agente}" \
         "Firewall" "$([[ ${ABRIR_FW:-0} == 1 ]] && echo "portas abertas pelo script" || echo "nao alterada")" \
         "Ultima execucao" "${ULTIMA_EXEC:-?}$([[ ${ESTADO_INST:-} == incompleta ]] && echo "  (INCOMPLETA)")" \
         "Guardado em" "${ESTADO_ORIGEM:-}"
@@ -386,8 +391,9 @@ desinstalar() {
     info "Pasta:   $dir"
     sim_nao "Parar e remover o servico, o site do Nginx e o cron de '$nome'?" n || exit 0
 
-    systemctl disable --now "$nome" 2>/dev/null || true
-    rm -f "$unit" "/etc/cron.d/$nome" "$ESTADO_DIR/$nome.conf"
+    systemctl disable --now "$nome" "$nome-agente" 2>/dev/null || true
+    rm -f "$unit" "/etc/systemd/system/$nome-agente.service" "/etc/sudoers.d/$nome-agente" \
+          "/etc/cron.d/$nome" "$ESTADO_DIR/$nome.conf"
     systemctl daemon-reload
     rm -f "/etc/nginx/sites-enabled/$nome" "/etc/nginx/sites-available/$nome" "/etc/nginx/conf.d/$nome.conf"
     if command -v nginx >/dev/null && nginx -t 2>/dev/null; then systemctl reload nginx || true; fi
@@ -406,6 +412,27 @@ desinstalar() {
     exit 0
 }
 
+# ============================================================================ sudoers do agente
+instalar_sudoers() {   # o agente (utilizador de servico) pode start/stop/restart dos SERVICOS
+    local f="/etc/sudoers.d/$NOME-agente" tmp sc u a linha=""
+    sc=$(command -v systemctl || echo /usr/bin/systemctl)
+    for u in $SERVICOS; do
+        for a in start stop restart; do linha+="${linha:+, }$sc $a $u"; done
+    done
+    tmp=$(mktemp)
+    {
+        echo "# Portal Oracle '$NOME': o agente ($UTIL) pode iniciar/parar/reiniciar estes servicos."
+        echo "# Gerado pelo instalar.sh (pergunta 'Servicos geridos pelo modulo Sistema'). Nao editar a mao."
+        echo "$UTIL ALL=(root) NOPASSWD: $linha"
+    } > "$tmp"
+    chmod 440 "$tmp"
+    if command -v visudo >/dev/null && ! visudo -cf "$tmp" >/dev/null 2>&1; then
+        rm -f "$tmp"; aviso "regra sudoers invalida: o agente nao vai poder gerir servicos."; return 0
+    fi
+    mv "$tmp" "$f"
+    ok "sudoers: $f ($SERVICOS)"
+}
+
 # ============================================================================ verificar
 verificar() {   # diagnostico de uma instancia (portal indisponivel?)
     local unit="/etc/systemd/system/$NOME.service" cod dono modo f problemas=0
@@ -414,6 +441,9 @@ verificar() {   # diagnostico de uma instancia (portal indisponivel?)
     [[ -f $unit ]] && ok "servico $unit" || falha "falta o servico $unit"
     if systemctl is-active -q "$NOME" 2>/dev/null; then ok "servico ativo"
     else falha "servico parado: $(systemctl is-active "$NOME" 2>/dev/null || true)"; fi
+    if systemctl is-active -q "$NOME-agente" 2>/dev/null; then ok "agente ativo ($NOME-agente)"
+    else falha "agente parado: as execucoes correm no portal (param se o portal reiniciar) e o modulo Sistema nao gere servicos"; fi
+    [[ -f /etc/sudoers.d/$NOME-agente ]] && ok "sudoers do agente" || falha "falta /etc/sudoers.d/$NOME-agente"
     cod=$(curl -s -o /dev/null -m 5 -w '%{http_code}' "http://127.0.0.1:${PORTA_GUNICORN:-8000}/login" || true)
     case $cod in
         200) ok "Gunicorn responde em 127.0.0.1:${PORTA_GUNICORN:-8000}" ;;
@@ -722,6 +752,12 @@ if sim_nao "Backup diario da configuracao (cron)?" "$([[ ${CRON_HORA:-x} == "" ]
 else
     CRON_HORA=""
 fi
+info "Modulo Sistema: servicos mostrados no portal e que o agente pode iniciar/parar/reiniciar."
+SERV_DEF="nginx $NOME $NOME-agente"
+[[ $BD_OPCAO == mariadb-local ]] && SERV_DEF+=" mariadb"
+[[ $BD_OPCAO == postgresql-local ]] && SERV_DEF+=" postgresql"
+perguntar SERVICOS "Servicos geridos pelo modulo Sistema" "${SERVICOS:-$SERV_DEF}" '^[A-Za-z0-9@._: -]+$'
+SERVICOS=$(echo "$SERVICOS" | tr -s ' ')
 FW=""
 if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then FW=ufw
 elif command -v firewall-cmd >/dev/null && firewall-cmd --state >/dev/null 2>&1; then FW=firewalld; fi
@@ -749,6 +785,7 @@ printf "   %-22s %s\n" \
     "Nginx" "$SERVER_NAME, HTTP $HTTP_PORT$([[ $SSL_MODO != nao ]] && echo ", HTTPS $HTTPS_PORT ($SSL_MODO)")" \
     "Endereco" "$URL" \
     "Backup cron" "$([[ $CRON_BACKUP == 1 ]] && echo "todos os dias as $CRON_HORA" || echo nao)" \
+    "Agente / Sistema" "$NOME-agente.service; servicos: $SERVICOS" \
     "Firewall" "$([[ $ABRIR_FW == 1 ]] && echo "abrir portas ($FW)" || echo "nao alterar")"
 echo
 AUTO=0
@@ -894,11 +931,16 @@ fi
 
 # ---------------------------------------------------------------------------- systemd
 titulo "Servico systemd ($NOME.service)"
-T_NOME=$NOME T_DIR=$DIR T_UTILIZADOR=$UTIL T_BIND="127.0.0.1:$PORTA_GUNICORN" \
+T_NOME=$NOME T_DIR=$DIR T_UTILIZADOR=$UTIL T_BIND="127.0.0.1:$PORTA_GUNICORN" T_SERVICOS=$SERVICOS \
     render "$DIR/deploy/portal.service.tpl" "/etc/systemd/system/$NOME.service"
+T_NOME=$NOME T_DIR=$DIR T_UTILIZADOR=$UTIL T_SERVICOS=$SERVICOS \
+    render "$DIR/deploy/agente.service.tpl" "/etc/systemd/system/$NOME-agente.service"
+instalar_sudoers
 systemctl daemon-reload
-systemctl enable -q "$NOME"
+systemctl enable -q "$NOME" "$NOME-agente"
 systemctl restart "$NOME"
+systemctl restart "$NOME-agente"
+ok "agente: $NOME-agente.service (execucoes em fila, metricas, servicos)"
 CODIGO=000
 for _ in $(seq 1 20); do
     CODIGO=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORTA_GUNICORN/login" || true)
@@ -998,6 +1040,7 @@ printf "   %-20s %s\n" \
     "Portal" "$URL  (utilizador $ADMIN_USER)" \
     "Estado / reiniciar" "systemctl status $NOME  |  systemctl restart $NOME" \
     "Logs" "journalctl -u $NOME -f  |  /var/log/nginx/$NOME.*.log" \
+    "Agente" "systemctl status $NOME-agente  |  journalctl -u $NOME-agente -f" \
     "Base de dados" "$(manage show-storage 2>/dev/null || echo '?')" \
     "Nginx" "$NGX_CONF" \
     "Configuracao" "$ESTADO_DIR/$NOME.conf  (ver: sudo $DIR/instalar.sh --mostrar $NOME)" \

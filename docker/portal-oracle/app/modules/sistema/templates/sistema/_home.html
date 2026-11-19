@@ -1,0 +1,24 @@
+{# Bloco do modulo Sistema na Home #}
+<section class="modulo-home">
+<h2 class="modulo-titulo"><a href="{{ url_for('sistema.painel') }}">Sistema</a></h2>
+{% if ctx.m %}
+<div class="cards">
+  <a class="stat" href="{{ url_for('sistema.painel') }}"><span class="label">CPU</span>
+    <span class="value">{{ ctx.m.cpu if ctx.m.cpu is not none else '—' }}<small>%</small></span>
+    <span class="sub">load {{ ctx.m.load|join(' / ') }}</span></a>
+  <a class="stat" href="{{ url_for('sistema.painel') }}"><span class="label">Memória</span>
+    <span class="value">{{ ctx.m.mem.pct }}<small>%</small></span>
+    <span class="sub">{{ (ctx.m.mem.livre / 1073741824)|round(2) }} GB livres</span></a>
+  {% if ctx.raiz %}
+  <a class="stat" href="{{ url_for('sistema.painel') }}"><span class="label">Disco {{ ctx.raiz.ponto }}</span>
+    <span class="value">{{ ctx.raiz.pct }}<small>%</small></span>
+    <span class="sub">{{ (ctx.raiz.livre / 1073741824)|round(1) }} GB livres</span></a>
+  {% endif %}
+  <a class="stat" href="{{ url_for('sistema.painel') }}"><span class="label">Serviços</span>
+    <span class="value {{ 'bad' if ctx.servicos_ok < ctx.servicos_total }}">{{ ctx.servicos_ok }}/{{ ctx.servicos_total }}</span>
+    <span class="sub">em execução</span></a>
+</div>
+{% else %}
+<p class="muted">O agente do portal está parado: sem dados do servidor. <a href="{{ url_for('sistema.painel') }}">Ver o painel</a></p>
+{% endif %}
+</section>

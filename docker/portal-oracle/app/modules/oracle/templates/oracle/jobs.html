@@ -2,28 +2,227 @@
 {% block title %}Oracle · Execuções{% endblock %}
 {% block content %}
 {% include "oracle/_tabs.html" %}
-{% if not jobs %}
-  <p class="muted">Ainda não há execuções nas suas bases de dados.</p>
-{% else %}
-<table>
-  <thead><tr><th class="num">#</th><th>Base de dados</th><th>Tablespace</th><th>Modo</th>
-    <th>Estado</th><th>Passo</th><th>Início</th><th>Fim</th><th>Por</th></tr></thead>
-  <tbody>
-  {% for j in jobs %}
-    <tr>
-      <td class="num"><a href="{{ url_for('oracle.job_detail', job_id=j.id) }}">{{ j.id }}</a></td>
-      <td>{{ j.db_name }}</td>
-      <td>{{ j.params.ts }}</td>
-      <td><span class="tag {{ 'warn' if j.params.modo == 'EXECUTAR' }}">{{ j.params.modo }}</span></td>
-      <td><span class="status s-{{ j.status|replace(' ', '-') }}">{{ j.status }}</span>
-        {%- if j.status == 'EM CURSO' and j.progress is not none %}<span class="minibar" title="{{ (j.progress / 10)|round(1) }}%"><span style="width:{{ j.progress / 10 }}%"></span></span>{% endif %}</td>
-      <td class="small">{{ j.current_action or '' }}</td>
-      <td class="nowrap">{{ j.started_at }}</td>
-      <td class="nowrap">{{ j.finished_at or "" }}</td>
-      <td>{{ j.created_by }}</td>
-    </tr>
+
+<div class="jx-toolbar">
+  <input type="search" id="q" placeholder="Procurar (tablespace, BD, utilizador ou texto no output, ex. ORA-01652)" autocomplete="off">
+  <select id="fts"><option value="">Todos os tablespaces</option></select>
+  <select id="fdb"><option value="">Todas as BDs</option></select>
+  <select id="fmodo"><option value="">ANÁLISE e EXECUTAR</option><option>ANALISE</option><option>EXECUTAR</option></select>
+</div>
+<div class="jx-chips" id="chips">
+  {% for k, rotulo in [('', 'Todas'), ('sucesso', 'Sucesso'), ('aviso', 'Com avisos'), ('erro', 'Com erros'), ('falhado', 'Falhadas'), ('em curso', 'Em curso')] %}
+  <button type="button" class="chip r-{{ k|replace(' ', '-') or 'todas' }} {{ 'on' if not k }}" data-r="{{ k }}">{{ rotulo }} <b data-n="{{ k }}">0</b></button>
   {% endfor %}
-  </tbody>
+</div>
+
+<div class="jx-bulk" id="bulk" {{ '' if can_delete else 'hidden' }}>
+  <span id="selinfo" class="muted small">Nenhuma selecionada</span>
+  <button type="button" class="danger small" id="delsel" disabled>Apagar selecionadas</button>
+  <button type="button" class="danger small" id="delfail">Apagar falhadas</button>
+</div>
+
+<div class="table-wrap">
+<table class="jx" id="tab">
+  <thead><tr>
+    {% if can_delete %}<th class="cb"><input type="checkbox" id="all" title="Selecionar todas as visíveis"></th>{% endif %}
+    <th data-s="id" class="num sortable">#</th>
+    <th data-s="db_name" class="sortable">BD</th>
+    <th data-s="ts" class="sortable">Tablespace</th>
+    <th data-s="modo" class="sortable">Modo</th>
+    <th data-s="resultado" class="sortable">Resultado</th>
+    <th data-s="started_at" class="sortable">Início</th>
+    <th data-s="duracao" class="num sortable">Duração</th>
+    <th data-s="created_by" class="sortable">Por</th>
+  </tr></thead>
+  <tbody id="rows"><tr><td colspan="9" class="muted">A carregar…</td></tr></tbody>
 </table>
-{% endif %}
+</div>
+<div class="jx-pager"><span id="pinfo" class="muted small"></span>
+  <span class="buttons"><button type="button" class="small" id="prev">‹ Anterior</button><button type="button" class="small" id="next">Seguinte ›</button></span></div>
+
+{# Janela de detalhe: output completo, com navegacao pelas linhas de erro #}
+<dialog id="dlg" class="jx-dlg">
+  <div class="jx-dlg-head">
+    <div><h2 id="d-title">Execução</h2><div class="muted small" id="d-sub"></div></div>
+    <div class="buttons">
+      <a class="btn small" id="d-open" href="#">Abrir página</a>
+      <a class="btn small" id="d-log" href="#">Descarregar log</a>
+      {% if can_delete %}<button type="button" class="danger small" id="d-del">Apagar</button>{% endif %}
+      <button type="button" class="small" id="d-close" aria-label="Fechar">✕</button>
+    </div>
+  </div>
+  <div class="jx-dlg-info" id="d-info"></div>
+  <div class="flash error" id="d-err" hidden></div>
+  <div class="jx-nav" id="d-nav" hidden>
+    <span id="d-navtxt"></span>
+    <button type="button" class="small" id="d-up">↑ anterior</button>
+    <button type="button" class="small" id="d-down">↓ seguinte</button>
+    <label class="inline small"><input type="checkbox" id="d-only"> Só linhas com erro/aviso</label>
+  </div>
+  <pre class="out-live jx-out" id="d-out"></pre>
+</dialog>
+{% endblock %}
+{% block scripts %}
+<script>
+const API = "{{ url_for('oracle.api_jobs') }}", DEL = "{{ url_for('oracle.jobs_delete') }}";
+const JOB = "{{ url_for('oracle.api_job', job_id=0) }}", PAGE = "{{ url_for('oracle.job_detail', job_id=0) }}",
+      LOG = "{{ url_for('oracle.job_log', job_id=0) }}";
+const CSRF = "{{ csrf_token }}", CAN_DEL = {{ 'true' if can_delete else 'false' }};
+const ROTULO = {'sucesso': 'Sucesso', 'aviso': 'Com avisos', 'erro': 'Com erros', 'falhado': 'Falhada', 'em curso': 'Em curso'};
+const POR_PAG = 50;
+let todos = [], vis = [], pag = 0, sortK = 'id', sortDir = -1, filtroR = '', sel = new Set(), qTimer = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const dur = t => { if (t == null) return '—'; const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
+  return h ? `${h}h${String(m).padStart(2, '0')}` : m ? `${m}m${String(s).padStart(2, '0')}s` : `${s}s`; };
+
+async function carregar() {
+  const q = $('q').value.trim();
+  const r = await fetch(API + (q ? '?q=' + encodeURIComponent(q) : ''));
+  if (!r.ok) return;
+  todos = (await r.json()).jobs;
+  preencherSelect('fts', [...new Set(todos.map(j => j.ts))].sort());
+  preencherSelect('fdb', [...new Set(todos.map(j => j.db_name))].sort());
+  filtrar();
+}
+function preencherSelect(id, valores) {
+  const s = $(id), atual = s.value, primeiro = s.options[0].outerHTML;
+  s.innerHTML = primeiro + valores.map(v => `<option ${v === atual ? 'selected' : ''}>${esc(v)}</option>`).join('');
+}
+function filtrar() {
+  const ts = $('fts').value, db = $('fdb').value, modo = $('fmodo').value;
+  const base = todos.filter(j => (!ts || j.ts === ts) && (!db || j.db_name === db) && (!modo || j.modo === modo));
+  document.querySelectorAll('[data-n]').forEach(b => {
+    const k = b.dataset.n; b.textContent = k ? base.filter(j => j.resultado === k).length : base.length; });
+  vis = base.filter(j => !filtroR || j.resultado === filtroR);
+  vis.sort((a, b) => { const x = a[sortK] ?? '', y = b[sortK] ?? ''; return (x > y ? 1 : x < y ? -1 : 0) * sortDir; });
+  const nf = todos.filter(j => j.resultado === 'falhado').length;
+  $('delfail').textContent = `Apagar falhadas (${nf})`; $('delfail').disabled = !nf;
+  pag = Math.min(pag, Math.max(0, Math.ceil(vis.length / POR_PAG) - 1));
+  desenhar();
+}
+function desenhar() {
+  const ini = pag * POR_PAG, linhas = vis.slice(ini, ini + POR_PAG);
+  $('rows').innerHTML = linhas.length ? linhas.map(j => `
+    <tr data-id="${j.id}" class="${sel.has(j.id) ? 'sel' : ''}">
+      ${CAN_DEL ? `<td class="cb"><input type="checkbox" data-id="${j.id}" ${sel.has(j.id) ? 'checked' : ''} ${['EM CURSO', 'PENDENTE'].includes(j.status) ? 'disabled' : ''}></td>` : ''}
+      <td class="num">${j.id}</td><td>${esc(j.db_name)}</td><td><strong>${esc(j.ts)}</strong></td>
+      <td><span class="tag ${j.modo === 'EXECUTAR' ? 'warn' : ''}">${esc(j.modo)}</span></td>
+      <td><span class="res r-${j.resultado.replace(' ', '-')}">${ROTULO[j.resultado] || j.resultado}</span>
+        ${j.n_erros ? `<span class="cnt e" title="linhas com erro">${j.n_erros} erro(s)</span>` : ''}
+        ${j.n_avisos ? `<span class="cnt a" title="linhas com aviso">${j.n_avisos} aviso(s)</span>` : ''}
+        ${j.status === 'PENDENTE' ? '<span class="cnt">na fila do agente</span>' : ''}
+        ${j.status === 'EM CURSO' && j.progress != null ? `<span class="minibar"><span style="width:${j.progress / 10}%"></span></span>` : ''}</td>
+      <td class="small">${esc(j.started_at)}</td><td class="num">${dur(j.duracao)}</td><td>${esc(j.created_by)}</td>
+    </tr>`).join('') : `<tr><td colspan="9" class="muted">Nenhuma execução${todos.length ? ' com estes filtros' : ''}.</td></tr>`;
+  const tot = vis.length, np = Math.max(1, Math.ceil(tot / POR_PAG));
+  $('pinfo').textContent = tot ? `${ini + 1}–${Math.min(ini + POR_PAG, tot)} de ${tot}` + (todos.length !== tot ? ` (${todos.length} no total)` : '') : '';
+  $('prev').disabled = pag === 0; $('next').disabled = pag >= np - 1;
+  atualizarSel();
+}
+function atualizarSel() {
+  if (!CAN_DEL) return;
+  $('selinfo').textContent = sel.size ? `${sel.size} selecionada(s)` : 'Nenhuma selecionada';
+  $('delsel').disabled = !sel.size;
+}
+async function apagar(ids, pergunta) {
+  if (!ids.length || !confirm(pergunta)) return;
+  const r = await fetch(DEL, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF': CSRF},
+                              body: JSON.stringify({ids})});
+  if (r.ok) { ids.forEach(i => sel.delete(i)); await carregar(); }
+}
+
+// ---- janela de detalhe
+let linhasMarcadas = [], idxMarca = -1, atual = null;
+function kind(l) {
+  if (/--\s*ERRO|ORA-\d{5}/.test(l)) return 'l-err';
+  if (/--\s*(AVISO|aviso|MANUAL)|IGNORADO/.test(l)) return 'l-warn';
+  if (/^#{4}/.test(l)) return 'l-ts';
+  if (/^={4,}/.test(l)) return 'l-head';
+  if (/^(ALTER|PURGE|DROP)\b/.test(l)) return 'l-cmd';
+  return '';
+}
+async function abrir(id) {
+  const r = await fetch(JOB.replace('/0', '/' + id) + '?full=1');
+  if (!r.ok) return;
+  const j = atual = await r.json();
+  $('d-title').textContent = `Execução #${j.id} — ${j.ts}`;
+  $('d-sub').innerHTML = `${esc(j.db_name)} · <span class="res r-${j.resultado.replace(' ', '-')}">${ROTULO[j.resultado] || j.resultado}</span> · ${esc(j.status)}`;
+  $('d-open').href = PAGE.replace('/0', '/' + id); $('d-log').href = LOG.replace('/0', '/' + id);
+  const p = j.params || {};
+  $('d-info').innerHTML = `<span>Modo <b>${esc(p.modo)}</b></span><span>ONLINE <b>${esc(p.online)}</b></span>
+    <span>Ganho mín. <b>${esc(p.min_ganho)} MB</b></span><span>Margem <b>${esc(p.margem)}%</b></span>
+    <span>Início <b>${esc(j.started_at)}</b></span><span>Duração <b>${dur(j.duracao)}</b></span><span>Por <b>${esc(j.created_by)}</b></span>`;
+  $('d-err').hidden = !j.error; $('d-err').textContent = j.error ? 'Falhou: ' + j.error : '';
+  if ($('d-del')) $('d-del').disabled = ['EM CURSO', 'PENDENTE'].includes(j.status);
+  $('d-only').checked = false;
+  render();
+  $('dlg').showModal();
+  if (linhasMarcadas.length) irPara(0); else $('d-out').scrollTop = 0;
+}
+function render() {
+  const out = $('d-out'), so = $('d-only').checked, frag = document.createDocumentFragment();
+  linhasMarcadas = [];
+  (atual.output || '(sem output)').split('\n').forEach((l, i) => {
+    const k = kind(l);
+    if (so && k !== 'l-err' && k !== 'l-warn') return;
+    const s = document.createElement('span');
+    s.textContent = (so ? String(i + 1).padStart(5) + '  ' : '') + l + '\n';
+    if (k) s.className = k;
+    if (k === 'l-err' || k === 'l-warn') linhasMarcadas.push(s);
+    frag.appendChild(s);
+  });
+  out.replaceChildren(frag);
+  const ne = linhasMarcadas.filter(s => s.className === 'l-err').length, na = linhasMarcadas.length - ne;
+  $('d-nav').hidden = !linhasMarcadas.length;
+  $('d-navtxt').textContent = `${ne} linha(s) com erro, ${na} com aviso`;
+  idxMarca = -1;
+}
+function irPara(i) {
+  if (!linhasMarcadas.length) return;
+  linhasMarcadas.forEach(s => s.classList.remove('foco'));
+  idxMarca = (i + linhasMarcadas.length) % linhasMarcadas.length;
+  const s = linhasMarcadas[idxMarca]; s.classList.add('foco');
+  const out = $('d-out'); out.scrollTop = s.offsetTop - out.offsetTop - out.clientHeight / 3;
+  $('d-navtxt').textContent = `${idxMarca + 1} de ${linhasMarcadas.length} (erros e avisos)`;
+}
+
+// ---- eventos
+$('q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(() => { pag = 0; carregar(); }, 350); });
+['fts', 'fdb', 'fmodo'].forEach(id => $(id).addEventListener('change', () => { pag = 0; filtrar(); }));
+document.querySelectorAll('#chips .chip').forEach(c => c.addEventListener('click', () => {
+  document.querySelectorAll('#chips .chip').forEach(x => x.classList.toggle('on', x === c));
+  filtroR = c.dataset.r; pag = 0; filtrar(); }));
+document.querySelectorAll('th.sortable').forEach(th => th.addEventListener('click', () => {
+  const k = th.dataset.s; sortDir = sortK === k ? -sortDir : (k === 'id' || k === 'started_at' || k === 'duracao' ? -1 : 1); sortK = k;
+  document.querySelectorAll('th.sortable').forEach(x => x.classList.remove('asc', 'desc'));
+  th.classList.add(sortDir > 0 ? 'asc' : 'desc'); filtrar(); }));
+$('prev').onclick = () => { pag--; desenhar(); }; $('next').onclick = () => { pag++; desenhar(); };
+$('rows').addEventListener('click', e => {
+  const cb = e.target.closest('input[type=checkbox]');
+  if (cb) { const id = +cb.dataset.id; cb.checked ? sel.add(id) : sel.delete(id); cb.closest('tr').classList.toggle('sel', cb.checked); atualizarSel(); return; }
+  const tr = e.target.closest('tr[data-id]'); if (tr) abrir(+tr.dataset.id);
+});
+if (CAN_DEL) {
+  $('all').addEventListener('change', e => {
+    const ini = pag * POR_PAG;
+    vis.slice(ini, ini + POR_PAG).filter(j => !['EM CURSO', 'PENDENTE'].includes(j.status))
+       .forEach(j => e.target.checked ? sel.add(j.id) : sel.delete(j.id));
+    desenhar(); });
+  $('delsel').onclick = () => apagar([...sel], `Apagar ${sel.size} execução(ões)? O output e o log deixam de estar disponíveis.`);
+  $('delfail').onclick = () => { const ids = todos.filter(j => j.resultado === 'falhado').map(j => j.id);
+    apagar(ids, `Apagar as ${ids.length} execuções falhadas (interrompidas, canceladas ou que não chegaram ao fim)?`); };
+  $('d-del').onclick = async () => { await apagar([atual.id], `Apagar a execução #${atual.id}?`); $('dlg').close(); };
+}
+$('d-close').onclick = () => $('dlg').close();
+$('dlg').addEventListener('click', e => { if (e.target === $('dlg')) $('dlg').close(); });
+$('d-up').onclick = () => irPara(idxMarca - 1); $('d-down').onclick = () => irPara(idxMarca + 1);
+$('d-only').onchange = () => { render(); };
+document.addEventListener('keydown', e => { if (!$('dlg').open) return;
+  if (e.key === 'ArrowDown' && e.altKey) irPara(idxMarca + 1); if (e.key === 'ArrowUp' && e.altKey) irPara(idxMarca - 1); });
+
+carregar();
+// atualiza sozinha enquanto houver execucoes em curso ou na fila
+setInterval(() => { if (!$('dlg').open && todos.some(j => ['EM CURSO', 'PENDENTE'].includes(j.status))) carregar(); }, 4000);
+</script>
 {% endblock %}

@@ -105,8 +105,39 @@ def shrink():
 @bp.route("/execucoes")
 @auth.login_required
 def jobs_list():
-    rows = [j for j in store.list_jobs() if g.user.can_db(j["db_id"])]
-    return render_template("oracle/jobs.html", jobs=rows)
+    return render_template("oracle/jobs.html", can_delete=g.user.can("oracle.execucoes.apagar"))
+
+
+def _resumo(j: dict) -> dict:
+    p = j["params"]
+    return {"id": j["id"], "db_id": j["db_id"], "db_name": j["db_name"], "ts": p.get("ts"), "modo": p.get("modo"),
+            "status": j["status"], "resultado": j["resultado"], "n_erros": j.get("n_erros") or 0,
+            "n_avisos": j.get("n_avisos") or 0, "started_at": j["started_at"], "finished_at": j["finished_at"],
+            "duracao": _elapsed(j), "created_by": j["created_by"], "progress": j.get("progress"),
+            "runner": j.get("runner") or "portal", "erro": (j.get("error") or "")[:300]}
+
+
+@bp.route("/api/jobs")
+@auth.login_required
+def api_jobs():
+    """Execucoes visiveis para a tabela. q = texto a procurar (tambem no output)."""
+    q = (request.args.get("q") or "").strip()[:100]
+    rows = [_resumo(j) for j in store.search_jobs(q) if g.user.can_db(j["db_id"])]
+    return jsonify(ok=True, jobs=rows, q=q)
+
+
+@bp.route("/execucoes/apagar", methods=["POST"])
+@auth.requires("oracle.execucoes.apagar")
+def jobs_delete():
+    ids = request.form.getlist("ids") or (request.get_json(silent=True) or {}).get("ids", [])
+    visiveis = {j["id"] for j in store.list_jobs(100000) if g.user.can_db(j["db_id"])}
+    ids = [int(i) for i in ids if str(i).isdigit() and int(i) in visiveis]
+    n = store.delete_jobs(ids)
+    if request.is_json:
+        return jsonify(ok=True, apagadas=n)
+    flash(f"{n} execução(ões) apagada(s)." if n else "Nada apagado (execuções em curso não podem ser apagadas).",
+          "ok" if n else "error")
+    return redirect(url_for("oracle.jobs_list"))
 
 
 def _job_or_403(job_id) -> dict:
@@ -130,6 +161,8 @@ def api_job(job_id):
     job = _job_or_403(job_id)
     data = {k: job.get(k) for k in ("status", "current_action", "progress", "finished_at", "error", "output")}
     data["elapsed"] = _elapsed(job)
+    if request.args.get("full"):
+        data.update(_resumo(job), params=job["params"], error=job.get("error"))
     return jsonify(data)
 
 

@@ -13,10 +13,33 @@ Instala-se **num servidor** (script `instalar.sh`, ver [Instalação num servido
 | **Home** | Um bloco por módulo a que o utilizador tem acesso (no Oracle: bases de dados visíveis, execuções em curso e nas últimas 24 h, últimas execuções) e o último backup |
 | **Oracle → Tablespaces** | Tamanho, usado e livre, do maior para o mais pequeno (sem SYSTEM, SYSAUX, UNDO e TEMP) |
 | **Oracle → Shrink** | Um tablespace ou TODOS, em ANÁLISE ou EXECUTAR, corre em segundo plano |
-| **Oracle → Execuções** | Histórico, andamento em direto (barra com percentagem, passos, tempo decorrido e output a aparecer linha a linha), log e cancelamento |
+| **Oracle → Execuções** | Tabela dinâmica com filtros (sucesso, avisos, erros, falhadas, em curso; tablespace; BD; modo; texto também no output), janela com o output a saltar para os erros, apagar (uma, selecionadas, falhadas); andamento em direto (barra, passos, tempo, output linha a linha), log e cancelamento |
+| **Sistema** | Servidor onde o portal corre: CPU, RAM, discos, serviços (Nginx, portal, agente, ...) com start/stop/restart, em cartões reorganizáveis, atualizados a cada 2 s pelo agente |
 | **Oracle → Definições** | Bases de dados Oracle: host, porta, SID ou Service Name, PDB, utilizador, password cifrada, Normal ou SYSDBA |
 | **Configuração** | **Geral**, **Aparência** (título, textos, ícone e tema), **Manutenção** (modo de manutenção com editor HTML), **Módulos** (ativar/desativar), **Armazenamento**, **Utilizadores**, **Perfis** e **Backups** |
+| **Agente do portal** (serviço `<nome>-agente`) | Corre as execuções Oracle (continuam se o portal reiniciar), publica as métricas do servidor e executa as ações sobre serviços |
 | **Minha área** (nome no canto superior direito) | Dados do utilizador, permissões e alteração da password |
+
+### Histórico de execuções (Oracle → Execuções)
+
+| Elemento | Descrição |
+|---|---|
+| **Pesquisa** | Tablespace, BD, utilizador ou **texto no output** (ex. `ORA-01652`), feita no servidor |
+| **Filtros** | Botões com contagens: Sucesso, Com avisos, Com erros, Falhadas, Em curso; listas de tablespace, BD e modo |
+| **Tabela** | Ordena ao clicar no cabeçalho, 50 por página, atualiza sozinha enquanto houver execuções em curso ou na fila |
+| **Janela** (clicar numa linha) | Parâmetros, duração, erro (se a execução falhou) e output com cores. Salta para a 1.ª linha com erro/aviso; ↑/↓ (ou Alt+↑/↓) percorre-as; "Só linhas com erro/aviso" mostra só essas, com o número da linha. Botões Abrir página, Descarregar log e Apagar |
+| **Apagar** | Uma (janela ou página da execução), as selecionadas, ou todas as falhadas. Permissão `oracle.execucoes.apagar`. As que estão em curso ou na fila não se apagam |
+
+| Resultado | Quando |
+|---|---|
+| Sucesso | Terminou sem linhas de erro nem de aviso |
+| Com avisos | Terminou com `-- AVISO`, `-- MANUAL` ou `IGNORADO` no output |
+| Com erros | Terminou, mas com `-- ERRO` ou `ORA-nnnnn` no output (ex. um resize ou MOVE que falhou) |
+| Falhada | Não chegou ao fim: INTERROMPIDO, CANCELADO ou erro de ligação/execução |
+
+| Pesquisa e filtros | Janela com o output |
+|---|---|
+| ![Execuções](docs/execucoes.png) | ![Janela](docs/execucao-janela.png) |
 
 ### Execução em direto
 
@@ -65,6 +88,55 @@ No fim, o output completo vem do `DBMS_OUTPUT`, como antes, e substitui o que ch
 A aba **Armazenamento** só está disponível para o administrador.
 
 > **Perfis de versões anteriores** (antes dos módulos) são convertidos no primeiro arranque: `tablespaces.ver` → `oracle.tablespaces`, `shrink.analise` → `oracle.shrink.analise`, `shrink.executar` → `oracle.shrink.executar`, `config.bds` → `oracle.definicoes`. Os perfis com ações Oracle ou bases de dados atribuídas recebem `modulo.oracle`. O mesmo acontece ao importar um backup antigo. Os endereços antigos (`/report`, `/shrink`, `/jobs`, `/config/databases`) redirecionam para o módulo Oracle.
+
+---
+
+## Agente do portal
+
+O agente é um processo separado do Gunicorn (`python -m app.agente`). Numa instalação em servidor é o serviço `<nome>-agente`, criado pelo `instalar.sh`. No Docker é o programa `agente` do supervisord.
+
+| Função | Detalhe |
+|---|---|
+| **Execuções Oracle** | Com o agente ativo, ao lançar um shrink a execução fica **PENDENTE** ("na fila do agente") e o agente começa-a dentro de 1 s (até 4 em simultâneo) |
+| **Métricas** | A cada 2 s: CPU (de `/proc/stat`), load, RAM, swap, discos, servidor e estado dos serviços (memória, CPU, PID, desde quando), com 3 minutos de histórico para os gráficos. Publicadas na base de dados do portal |
+| **Serviços** | Executa os pedidos de start/stop/restart feitos no módulo Sistema: `sudo -n systemctl <ação> <serviço>`, só para os serviços autorizados em `/etc/sudoers.d/<nome>-agente` (no Docker, `supervisorctl`) |
+| **Sinal de vida** | A cada 2 s. Se o portal não o vir há mais de 15 s, considera o agente parado |
+
+**A execução para se fizer refresh no browser?** Não: a execução corre no servidor, e o browser só a mostra. Fechar a página, mudar de página ou fazer refresh não a afeta.
+
+| Situação | Sem agente (execução no portal) | Com agente |
+|---|---|---|
+| Refresh / fechar o browser | Continua | Continua |
+| Reiniciar ou atualizar o portal (`--atualizar`, `systemctl restart <nome>`) | **Para** (fica INTERROMPIDO; a sessão Oracle pode continuar sozinha) | **Continua** |
+| Reiniciar o agente | — | Para (fica INTERROMPIDO) |
+
+Sem o agente, o portal continua a funcionar como antes: as execuções correm numa thread do Gunicorn e o módulo Sistema lê os dados diretamente (sem gráficos nem ações sobre serviços).
+
+```bash
+sudo systemctl status <nome>-agente
+sudo journalctl -u <nome>-agente -f
+```
+
+---
+
+## Módulo Sistema
+
+Em **Sistema → Painel** (permissão `modulo.sistema`):
+
+| Cartão | Conteúdo |
+|---|---|
+| **Recursos de hardware** | CPU (utilização, livre, load 1/5/15 min), memória RAM e disco `/`, com barras e gráfico dos últimos minutos |
+| **Servidor** | Nome, sistema, kernel, ligado há, processos, swap |
+| **Agente do portal** | Ativo/parado, versão, PID, desde quando, último sinal, execuções Oracle em curso |
+| **Um por serviço** (Nginx, portal, agente, ...) | Estado, PID, memória, CPU, tarefas, desde quando, arranque automático, e os botões **Start / Restart / Stop** (permissão `sistema.servicos`). Antes de parar ou reiniciar o próprio portal, o Nginx ou o agente, é mostrado o que acontece |
+| **Sistemas de ficheiros** | Cada disco montado, com o livre e o total |
+| **Últimas ações** | Quem pediu, quando, e o resultado |
+
+- **Atualização:** a cada 2 s, com um indicador "em direto" e um botão Pausa. Não atualiza quando o separador está escondido.
+- **Organizar:** arraste os cartões pelo cabeçalho e use o **–** para minimizar. A disposição fica guardada no browser; **Repor disposição** volta à original.
+- **Definições** (permissão `sistema.definicoes`): os serviços a mostrar. Por omissão são os do portal (`nginx`, `<nome>`, `<nome>-agente`, e a base de dados se for local). O agente só consegue gerir os que estão no `sudoers`, que o `instalar.sh` cria a partir da pergunta "Serviços geridos pelo módulo Sistema".
+
+![Módulo Sistema](docs/sistema.png)
 
 ---
 
@@ -427,6 +499,7 @@ DIR=/opt/$NOME                   # pasta de instalacao
 UTIL=$NOME                       # utilizador de servico
 BIND=127.0.0.1:8000              # Gunicorn (outra porta se ja houver outra instancia)
 SERVER_NAME=portal.dominio.pt    # nome DNS, ou _ para qualquer nome
+SERVICOS="nginx $NOME $NOME-agente"   # servicos do modulo Sistema (geridos pelo agente)
 ```
 
 | Componente | Valor |
@@ -542,7 +615,7 @@ Os templates são preenchidos com `sed`:
 
 ```bash
 cd $DIR
-preencher() { sed -e "s|@NOME@|$NOME|g" -e "s|@DIR@|$DIR|g" -e "s|@UTILIZADOR@|$UTIL|g" -e "s|@BIND@|$BIND|g" \
+preencher() { sed -e "s|@NOME@|$NOME|g" -e "s|@DIR@|$DIR|g" -e "s|@UTILIZADOR@|$UTIL|g" -e "s|@BIND@|$BIND|g" -e "s|@SERVICOS@|$SERVICOS|g" \
                   -e "s|@SERVER_NAME@|$SERVER_NAME|g" -e "s|@HTTP_PORT@|80|g" -e "s|@HTTPS_PORT@|443|g" \
                   -e "s|@HTTPS_URL@|https://\$host|g" -e "s|@SSL_CERT@|$SSL_CERT|g" -e "s|@SSL_KEY@|$SSL_KEY|g" "$1"; }
 
@@ -564,6 +637,18 @@ O serviço corre o Gunicorn como `$UTIL`, lê o `.env` e reinicia se falhar. O `
 Se o `server_name` for `_` e o servidor só tiver este site, desative o site por omissão: `sudo rm /etc/nginx/sites-enabled/default`. Se já tiver outros sites, use um nome DNS.
 
 O portal fica em `http://<servidor>/`.
+
+**Agente** (opcional, recomendado):
+
+```bash
+cd $DIR
+preencher deploy/agente.service.tpl | sudo tee /etc/systemd/system/$NOME-agente.service >/dev/null
+# o agente (utilizador de servico) pode iniciar/parar/reiniciar so estes servicos
+L=""; for u in $SERVICOS; do for a in start stop restart; do L+="${L:+, }/usr/bin/systemctl $a $u"; done; done
+echo "$UTIL ALL=(root) NOPASSWD: $L" | sudo tee /etc/sudoers.d/$NOME-agente >/dev/null
+sudo chmod 440 /etc/sudoers.d/$NOME-agente && sudo visudo -cf /etc/sudoers.d/$NOME-agente
+sudo systemctl daemon-reload && sudo systemctl enable --now $NOME-agente
+```
 
 #### 8. HTTPS (SSL)
 

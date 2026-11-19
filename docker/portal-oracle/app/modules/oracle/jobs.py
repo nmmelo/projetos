@@ -4,7 +4,7 @@ import threading
 
 import oracledb
 
-from ... import crypto, store
+from ... import agente_info, crypto, store
 from . import bd as oracle
 
 POLL_SECONDS = 2
@@ -76,9 +76,9 @@ def _run(job_id: int, cfg: dict, params: dict):
         lines = oracle.run_shrink(conn, params, pipe)
         _parar(stop, monitor)
         out = "\n".join(lines)
-        has_err = "-- ERRO" in out
-        store.update_job(job_id, status="ERRO" if has_err else "OK", output=out, progress=1000,
-                         finished_at=store.now(), current_action="fim")
+        n_err, n_av = store.contar(out)
+        store.update_job(job_id, status="ERRO" if n_err else "OK", output=out, progress=1000,
+                         finished_at=store.now(), current_action="fim", n_erros=n_err, n_avisos=n_av)
     except Exception as exc:  # noqa: BLE001 - qualquer falha fica registada no job
         _parar(stop, monitor)
         partial = ""
@@ -91,8 +91,9 @@ def _run(job_id: int, cfg: dict, params: dict):
         if not partial and job:
             partial = job.get("output") or ""             # o que chegou em direto
         status = "CANCELADO" if job and job["status"] == "CANCELADO" else "ERRO"
+        n_err, n_av = store.contar(partial)
         store.update_job(job_id, status=status, error=str(exc), output=partial,
-                         finished_at=store.now())
+                         finished_at=store.now(), n_erros=n_err, n_avisos=n_av)
     finally:
         stop.set()
         if conn is not None:
@@ -110,16 +111,36 @@ def _parar(stop: threading.Event, monitor) -> None:
 
 
 def start(db_id: int, params: dict, user: str) -> int:
+    """Com o agente ativo, a execucao fica na fila (PENDENTE) e e o agente que a corre: continua
+    mesmo que o portal seja reiniciado. Sem agente, corre numa thread do portal (como antes)."""
     cfg = store.get_db(db_id)
     if not cfg:
         raise oracle.ValidationError("Base de dados nao encontrada.")
-    job_id = store.create_job(cfg, params, user)
+    if agente_info.ativo():
+        return store.create_job(cfg, params, user, status="PENDENTE", runner="agente")
+    job_id = store.create_job(cfg, params, user, runner="portal")
     threading.Thread(target=_run, args=(job_id, cfg, params), daemon=True).start()
     return job_id
 
 
+def executar(job_id: int) -> bool:
+    """Usado pelo agente: fica com a execucao PENDENTE e corre-a (bloqueia ate terminar)."""
+    if not store.claim_job(job_id):
+        return False
+    job = store.get_job(job_id)
+    cfg = store.get_db(job["db_id"]) if job else None
+    if not cfg:
+        store.update_job(job_id, status="ERRO", error="Base de dados ja nao existe.", finished_at=store.now())
+        return True
+    _run(job_id, cfg, job["params"])
+    return True
+
+
 def cancel(job_id: int) -> None:
     job = store.get_job(job_id)
+    if job and job["status"] == "PENDENTE":
+        store.update_job(job_id, status="CANCELADO", finished_at=store.now(), current_action="cancelada na fila")
+        return
     if not job or job["status"] != "EM CURSO":
         raise oracle.ValidationError("A execucao ja terminou.")
     if not job["ora_sid"]:

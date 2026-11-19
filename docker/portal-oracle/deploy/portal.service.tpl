@@ -6,6 +6,7 @@
 #   @DIR@         pasta de instalacao
 #   @UTILIZADOR@  utilizador de servico
 #   @BIND@        endereco do Gunicorn, ex. 127.0.0.1:8000
+#   @SERVICOS@    servicos do modulo Sistema, ex. "nginx @NOME@ @NOME@-agente"
 [Unit]
 Description=Portal Oracle - @NOME@ (Gunicorn)
 After=network-online.target
@@ -18,6 +19,9 @@ Group=@UTILIZADOR@
 WorkingDirectory=@DIR@
 EnvironmentFile=-@DIR@/.env
 Environment=PYTHONUNBUFFERED=1
+# Nome da instancia e servicos do modulo Sistema (iguais aos do agente)
+Environment=PORTAL_INSTANCIA=@NOME@
+Environment="PORTAL_SERVICOS=@SERVICOS@"
 # Gunicorn >= 25.1 cria um control socket (gunicornc) em $XDG_RUNTIME_DIR/gunicorn.ctl ou, sem
 # essa variavel, em $HOME/.gunicorn/ - o HOME e a pasta do codigo, so de leitura para o servico.
 # O systemd cria /run/@NOME@ (do utilizador de servico) ao arrancar e apaga-a ao parar.

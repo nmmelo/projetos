@@ -28,6 +28,7 @@ MODULO = modulos.registar(modulos.Modulo(
         "oracle.tablespaces": "Ver tablespaces (tamanho, usado, livre)",
         "oracle.shrink.analise": "Shrink — modo ANÁLISE",
         "oracle.shrink.executar": "Shrink — modo EXECUTAR (e cancelar execuções)",
+        "oracle.execucoes.apagar": "Apagar execuções terminadas (do histórico)",
         "oracle.definicoes": "Definições: gerir as bases de dados Oracle",
     },
     abas=[

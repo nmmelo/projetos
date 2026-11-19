@@ -1,0 +1,7 @@
+<h1>Sistema</h1>
+{% set ep = request.endpoint or '' %}
+<nav class="tabs">
+  {% for endpoint, rotulo in sistema_abas() %}
+  <a href="{{ url_for(endpoint) }}" class="{{ 'on' if ep == endpoint }}">{{ rotulo }}</a>
+  {% endfor %}
+</nav>

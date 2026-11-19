@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Sistema · Definições{% endblock %}
+{% block content %}
+{% include "sistema/_tabs.html" %}
+<section class="card wide">
+  <h2>Serviços mostrados no painel</h2>
+  <p class="muted">Um por linha (ou separados por espaços). Vazio = os do portal:
+    {% for u in padrao %}<code>{{ u }}</code>{{ ', ' if not loop.last }}{% endfor %}.
+    Gestor de serviços: <strong>{{ {'systemd': 'systemd (systemctl)', 'supervisor': 'supervisord (Docker)'}.get(backend, 'nenhum acessível') }}</strong>{% if instancia %}, instância <code>{{ instancia }}</code>{% endif %}.</p>
+  <form method="post" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <textarea name="servicos" rows="8" class="mono-area" placeholder="nginx&#10;{{ padrao[1] if padrao|length > 1 else 'portal' }}&#10;cron&#10;ssh&#10;postgresql">{{ atual|replace(' ', '\n') }}</textarea>
+    <p class="hint">Iniciar, parar e reiniciar é feito pelo agente. Numa instalação em servidor, o agente corre com o utilizador de
+      serviço e só pode gerir os serviços autorizados em <code>/etc/sudoers.d/{{ instancia or '&lt;nome&gt;' }}-agente</code>
+      (criado pelo <code>instalar.sh</code>, pergunta "Serviços geridos pelo módulo Sistema"). Se acrescentar aqui um serviço,
+      volte a correr <code>sudo instalar.sh {{ instancia or '&lt;nome&gt;' }}</code> e acrescente-o também lá.</p>
+    <div class="buttons"><button class="primary">Guardar</button></div>
+  </form>
+</section>
+<section class="card wide" style="margin-top:16px">
+  <h2>Em uso</h2>
+  <p>{% for u in units %}<span class="tag">{{ u }}</span> {% endfor %}</p>
+</section>
+{% endblock %}

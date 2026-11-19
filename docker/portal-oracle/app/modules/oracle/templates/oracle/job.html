@@ -2,11 +2,17 @@
 {% block title %}Oracle · Execução #{{ job.id }}{% endblock %}
 {% block content %}
 {% include "oracle/_tabs.html" %}
-{% set running = job.status == 'EM CURSO' %}
+{% set running = job.status in ('EM CURSO', 'PENDENTE') %}
 <div class="head">
   <h2>Execução #{{ job.id }} — {{ job.db_name }}</h2>
   <div class="buttons">
     <a class="btn" href="{{ url_for('oracle.job_log', job_id=job.id) }}">Descarregar log</a>
+    {% if not running and user.can('oracle.execucoes.apagar') %}
+    <form method="post" action="{{ url_for('oracle.jobs_delete') }}" onsubmit="return confirm('Apagar a execução #{{ job.id }}?')">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="ids" value="{{ job.id }}">
+      <button class="danger">Apagar</button>
+    </form>
+    {% endif %}
     {% if running and can_cancel %}
     <form method="post" action="{{ url_for('oracle.job_cancel', job_id=job.id) }}"
           onsubmit="return confirm('Cancelar a execução? A sessão Oracle será terminada (KILL SESSION).')">
@@ -21,7 +27,7 @@
          data-progress="{{ job.progress if job.progress is not none else '' }}">
   <div class="run-top">
     <span class="run-word" aria-hidden="true">{% for c in 'ORACLE' %}<span style="--i:{{ loop.index0 }}">{{ c }}</span>{% endfor %}</span>
-    <span class="run-text" id="runtext">{% if running %}{{ 'a analisar' if job.params.modo == 'ANALISE' else 'a executar' }} {{ job.params.ts }}…{% else %}{{ 'Análise' if job.params.modo == 'ANALISE' else 'Execução' }} de {{ job.params.ts }} {{ {'OK': 'concluída', 'ERRO': 'terminou com erros', 'CANCELADO': 'cancelada', 'INTERROMPIDO': 'interrompida'}.get(job.status, '') }}{% endif %}</span>
+    <span class="run-text" id="runtext">{% if job.status == 'PENDENTE' %}na fila do agente: {{ job.params.ts }} começa dentro de segundos…{% elif running %}{{ 'a analisar' if job.params.modo == 'ANALISE' else 'a executar' }} {{ job.params.ts }}…{% else %}{{ 'Análise' if job.params.modo == 'ANALISE' else 'Execução' }} de {{ job.params.ts }} {{ {'OK': 'concluída', 'ERRO': 'terminou com erros', 'CANCELADO': 'cancelada', 'INTERROMPIDO': 'interrompida'}.get(job.status, '') }}{% endif %}</span>
     <span class="run-right">
       <span class="status s-{{ job.status|replace(' ', '-') }}" id="status">{{ job.status }}</span>
       <span class="run-pct" id="pct"></span>
@@ -62,7 +68,7 @@
 <script>
 const out = document.getElementById('out'), bar = document.getElementById('bar'), fill = document.getElementById('barfill');
 const pctEl = document.getElementById('pct'), elEl = document.getElementById('elapsed');
-let elapsed = {{ elapsed }}, running = {{ 'true' if job.status == 'EM CURSO' else 'false' }}, lastText = null;
+let elapsed = {{ elapsed }}, running = {{ 'true' if job.status in ('EM CURSO', 'PENDENTE') else 'false' }}, lastText = null;
 
 // Cor de cada linha do output (como os simbolos do Tesla): erros, avisos, titulos e comandos
 function kind(l) {
@@ -119,6 +125,9 @@ if (running) {
     setSteps(j.current_action); setProgress(j.progress); renderOut(j.output || '');
     const s = document.getElementById('status');
     s.textContent = j.status; s.className = 'status s-' + j.status.replace(' ', '-');
+    if (j.status === 'PENDENTE') return;
+    const rt = document.getElementById('runtext');
+    if (rt.textContent.startsWith('na fila')) rt.textContent = "{{ 'a analisar' if job.params.modo == 'ANALISE' else 'a executar' }} {{ job.params.ts }}…";
     if (j.status !== 'EM CURSO') { clearInterval(timer); setTimeout(() => location.reload(), 800); }
   }, 2000);
 }

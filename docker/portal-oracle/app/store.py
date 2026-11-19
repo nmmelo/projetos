@@ -12,7 +12,10 @@ from datetime import datetime, timedelta
 
 from . import aparencia, crypto, modulos, settings
 
-TABLES = ("settings", "oracle_dbs", "profiles", "users", "jobs", "backups")
+TABLES = ("settings", "oracle_dbs", "profiles", "users", "jobs", "backups", "system_actions")
+
+# Definicoes volateis (escritas pelo agente a cada poucos segundos): fora dos backups
+VOLATEIS = ("agente_estado", "sistema_metricas")
 
 _SCHEMA = [
     """CREATE TABLE IF NOT EXISTS settings (
@@ -69,7 +72,20 @@ _SCHEMA = [
         ora_serial INTEGER,
         output {LONGTEXT},
         error TEXT,
-        created_by VARCHAR(64)
+        created_by VARCHAR(64),
+        runner VARCHAR(10),
+        n_erros INTEGER,
+        n_avisos INTEGER
+    ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS system_actions (
+        id {ID},
+        unit VARCHAR(100) NOT NULL,
+        action VARCHAR(20) NOT NULL,
+        status VARCHAR(20) NOT NULL,
+        requested_by VARCHAR(64),
+        requested_at VARCHAR(19) NOT NULL,
+        finished_at VARCHAR(19),
+        result TEXT
     ){SUFFIX}""",
     """CREATE TABLE IF NOT EXISTS backups (
         id {ID},
@@ -200,6 +216,9 @@ class Store:
             self._migrate_v1()
         self._migrate_modulos()
         self._add_column("jobs", "progress", "INTEGER")
+        self._add_column("jobs", "runner", "VARCHAR(10)")
+        self._add_column("jobs", "n_erros", "INTEGER")
+        self._add_column("jobs", "n_avisos", "INTEGER")
 
     def _add_column(self, table: str, col: str, ddl: str) -> None:
         """Acrescenta uma coluna a uma tabela ja existente (versoes anteriores do portal)."""
@@ -418,10 +437,14 @@ def delete_user(uid) -> None:
 
 
 # ------------------------------------------------------------------ execucoes
-def create_job(db: dict, params: dict, user: str) -> int:
+JOB_RESUMO = ("id, db_id, db_name, params, status, started_at, finished_at, current_action, progress, "
+              "created_by, runner, n_erros, n_avisos, error")
+
+
+def create_job(db: dict, params: dict, user: str, status: str = "EM CURSO", runner: str = "portal") -> int:
     with tx() as t:
         return t.insert("jobs", {"db_id": db["id"], "db_name": db["name"], "params": json.dumps(params),
-                                 "status": "EM CURSO", "started_at": now(), "created_by": user})
+                                 "status": status, "started_at": now(), "created_by": user, "runner": runner})
 
 
 def update_job(job_id: int, **fields) -> None:
@@ -433,7 +456,34 @@ def update_job(job_id: int, **fields) -> None:
 def _job(row):
     if row:
         row["params"] = json.loads(row["params"])
+        row["resultado"] = resultado(row)
     return row
+
+
+def resultado(j: dict) -> str:
+    """sucesso | aviso | erro | falhado | em curso (para os filtros das execucoes)."""
+    st = j.get("status")
+    if st in ("EM CURSO", "PENDENTE"):
+        return "em curso"
+    if st in ("INTERROMPIDO", "CANCELADO") or (st == "ERRO" and j.get("error")):
+        return "falhado"
+    if st == "ERRO" or (j.get("n_erros") or 0) > 0:
+        return "erro"
+    if (j.get("n_avisos") or 0) > 0:
+        return "aviso"
+    return "sucesso"
+
+
+def contar(output: str) -> tuple[int, int]:
+    """(linhas com erro, linhas com aviso) do output de uma execucao."""
+    import re
+    erros = avisos = 0
+    for linha in (output or "").splitlines():
+        if re.search(r"--\s*ERRO|ORA-\d{5}", linha):
+            erros += 1
+        elif re.search(r"--\s*(AVISO|aviso|MANUAL)|IGNORADO", linha):
+            avisos += 1
+    return erros, avisos
 
 
 def get_job(job_id) -> dict | None:
@@ -443,14 +493,93 @@ def get_job(job_id) -> dict | None:
 
 def list_jobs(limit: int = 200) -> list[dict]:
     with tx() as t:
-        rows = t.all("""SELECT id, db_id, db_name, params, status, started_at, finished_at,
-                               current_action, created_by FROM jobs ORDER BY id DESC LIMIT ?""", (int(limit),))
+        rows = t.all(f"SELECT {JOB_RESUMO} FROM jobs ORDER BY id DESC LIMIT ?", (int(limit),))
     return [_job(r) for r in rows]
 
 
-def interrupt_running_jobs() -> None:
+def search_jobs(texto: str = "", limit: int = 1000) -> list[dict]:
+    """Execucoes (sem o output), opcionalmente so as que tem `texto` no output, parametros,
+    BD, utilizador ou erro. Preenche as contagens de erros/avisos que faltem (execucoes antigas)."""
+    sql = f"SELECT {JOB_RESUMO} FROM jobs"
+    args: tuple = ()
+    if texto:
+        like = f"%{texto.lower()}%"
+        sql += (" WHERE LOWER(COALESCE(output, '')) LIKE ? OR LOWER(params) LIKE ? OR LOWER(db_name) LIKE ?"
+                " OR LOWER(COALESCE(created_by, '')) LIKE ? OR LOWER(COALESCE(error, '')) LIKE ?")
+        args = (like,) * 5
     with tx() as t:
-        t.run("UPDATE jobs SET status = 'INTERROMPIDO', finished_at = ? WHERE status = 'EM CURSO'", (now(),))
+        rows = t.all(sql + " ORDER BY id DESC LIMIT ?", (*args, int(limit)))
+        falta = [r["id"] for r in rows if r["n_erros"] is None and r["status"] not in ("EM CURSO", "PENDENTE")]
+        for jid in falta[:200]:
+            out = t.val("SELECT output FROM jobs WHERE id = ?", (jid,)) or ""
+            e, a = contar(out)
+            t.run("UPDATE jobs SET n_erros = ?, n_avisos = ? WHERE id = ?", (e, a, jid))
+            for r in rows:
+                if r["id"] == jid:
+                    r["n_erros"], r["n_avisos"] = e, a
+    return [_job(r) for r in rows]
+
+
+def delete_jobs(ids) -> int:
+    """Apaga execucoes terminadas (nunca as que estao em curso ou na fila)."""
+    ids = [int(i) for i in ids]
+    if not ids:
+        return 0
+    marks = ", ".join("?" * len(ids))
+    with tx() as t:
+        return t.run(f"DELETE FROM jobs WHERE id IN ({marks}) AND status NOT IN ('EM CURSO', 'PENDENTE')", ids)
+
+
+def interrupt_running_jobs(runner: str = "portal") -> None:
+    """Ao arrancar: as execucoes deste processo que ficaram 'EM CURSO' morreram com ele.
+    (as do agente so sao marcadas pelo agente, e vice-versa)"""
+    with tx() as t:
+        if runner == "portal":
+            t.run("""UPDATE jobs SET status = 'INTERROMPIDO', finished_at = ?
+                     WHERE status = 'EM CURSO' AND (runner = 'portal' OR runner IS NULL)""", (now(),))
+        else:
+            t.run("UPDATE jobs SET status = 'INTERROMPIDO', finished_at = ? WHERE status = 'EM CURSO' AND runner = ?",
+                  (now(), runner))
+
+
+def pending_jobs() -> list[int]:
+    with tx() as t:
+        return [r["id"] for r in t.all("SELECT id FROM jobs WHERE status = 'PENDENTE' ORDER BY id")]
+
+
+def claim_job(job_id: int) -> bool:
+    """O agente fica com a execucao (so uma vez, mesmo com varios agentes)."""
+    with tx() as t:
+        return t.run("UPDATE jobs SET status = 'EM CURSO', started_at = ? WHERE id = ? AND status = 'PENDENTE'",
+                     (now(), job_id)) == 1
+
+
+# ------------------------------------------------------------------ acoes sobre servicos (agente)
+def add_action(unit: str, action: str, user: str) -> int:
+    with tx() as t:
+        return t.insert("system_actions", {"unit": unit, "action": action, "status": "PENDENTE",
+                                           "requested_by": user, "requested_at": now()})
+
+
+def get_action(aid) -> dict | None:
+    with tx() as t:
+        return t.one("SELECT * FROM system_actions WHERE id = ?", (aid,))
+
+
+def pending_actions() -> list[dict]:
+    with tx() as t:
+        return t.all("SELECT * FROM system_actions WHERE status = 'PENDENTE' ORDER BY id")
+
+
+def list_actions(limit: int = 20) -> list[dict]:
+    with tx() as t:
+        return t.all("SELECT * FROM system_actions ORDER BY id DESC LIMIT ?", (int(limit),))
+
+
+def finish_action(aid: int, status: str, result: str) -> None:
+    with tx() as t:
+        t.run("UPDATE system_actions SET status = ?, result = ?, finished_at = ? WHERE id = ?",
+              (status, (result or "")[:4000], now(), aid))
 
 
 # ------------------------------------------------------------------ registo de backups
