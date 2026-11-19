@@ -1,21 +1,21 @@
-# /etc/nginx/sites-available/oracle-portal
-# Proxy para o Gunicorn (127.0.0.1:8000). Para HTTPS, ver README (certbot).
+# Nginx - Portal Oracle "@NOME@" so com HTTP. Gerado a partir de deploy/nginx-http.conf.tpl
+# Debian/Ubuntu: /etc/nginx/sites-available/@NOME@   RHEL: /etc/nginx/conf.d/@NOME@.conf
 server {
-    listen 80;
-    server_name _;                     # ou: portal.dominio.pt
+    listen @HTTP_PORT@;
+    server_name @SERVER_NAME@;
 
     client_max_body_size 20m;          # upload de backups
 
-    access_log /var/log/nginx/oracle-portal.access.log;
-    error_log  /var/log/nginx/oracle-portal.error.log;
+    access_log /var/log/nginx/@NOME@.access.log;
+    error_log  /var/log/nginx/@NOME@.error.log;
 
     location /static/ {
-        alias /opt/oracle-portal/app/static/;
+        alias @DIR@/app/static/;
         expires 1h;
     }
 
     location / {
-        proxy_pass         http://127.0.0.1:8000;
+        proxy_pass         http://@BIND@;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;

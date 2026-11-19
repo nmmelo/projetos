@@ -4,9 +4,13 @@
   python manage.py backup [--note TEXTO] [--prune]      backup da configuracao (para o cron)
   python manage.py gen-fernet-key                       gera uma chave para PORTAL_FERNET_KEY
   python manage.py hash-password                        gera um hash (para PORTAL_ADMIN_PASSWORD_HASH)
+  python manage.py set-storage --type T [--host H ...]  define a BD do portal (testa e cria as tabelas)
+                                                        password em PORTAL_DB_PASSWORD (ou pedida)
+  python manage.py show-storage                         mostra a BD do portal em uso
 """
 import argparse
 import getpass
+import os
 import sys
 
 
@@ -31,7 +35,45 @@ def main():
     b.add_argument("--prune", action="store_true", help="mantem so os N ultimos backups do cron (Configuracao > Portal > Geral)")
     sub.add_parser("gen-fernet-key")
     sub.add_parser("hash-password")
+    s = sub.add_parser("set-storage", help="define a base de dados do portal")
+    s.add_argument("--type", required=True, choices=["sqlite", "mariadb", "postgresql"])
+    s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--port", type=int, default=None)
+    s.add_argument("--database", default="portal")
+    s.add_argument("--user", default="portal")
+    s.add_argument("--test-only", action="store_true", help="so testa a ligacao e cria as tabelas, nao grava")
+    sub.add_parser("show-storage")
     args = ap.parse_args()
+
+    if args.cmd in ("set-storage", "show-storage"):
+        from app import crypto, settings, store
+        os.makedirs(settings.DATA_DIR, exist_ok=True)
+        crypto.init(settings.DATA_DIR)
+        if args.cmd == "show-storage":
+            print(store.Store(settings.storage_config()).describe())
+            return
+        if args.type == "sqlite":
+            cfg = dict(settings.DEFAULT_STORAGE)
+        else:
+            pwd = os.environ.get("PORTAL_DB_PASSWORD")
+            if pwd is None:
+                pwd = getpass.getpass(f"Password de {args.user}@{args.host}: ")
+            cfg = {"type": args.type, "host": args.host,
+                   "port": args.port or settings.DEFAULT_PORTS[args.type],
+                   "database": args.database, "user": args.user,
+                   "password_enc": crypto.encrypt(pwd)}
+        target = store.Store(cfg)
+        try:
+            target.init_schema()                 # testa a ligacao e cria as tabelas
+        except ImportError as exc:
+            sys.exit(f"Driver Python em falta: {exc}")
+        except Exception as exc:  # noqa: BLE001
+            sys.exit(f"Falha na ligacao a {target.describe()}: {exc}")
+        print(f"Ligacao OK, tabelas criadas/verificadas: {target.describe()}")
+        if not args.test_only:
+            settings.save_storage_config(cfg)
+            print(f"Gravado em {settings.path('portal.json')}")
+        return
 
     if args.cmd == "gen-fernet-key":
         from cryptography.fernet import Fernet

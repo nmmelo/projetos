@@ -114,3 +114,29 @@ base de dados entre backticks por causa do hífen:
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP
    ON `portal-oracle`.* TO 'portal_oracle'@'172.%';
 ```
+
+---
+
+## 8. Script de instalação num servidor (sem Docker)
+
+Chat de 19 de novembro de 2026.
+
+**Pergunta:**
+> no projeto portal-oracle, pode por vezes ser necessário ter outro nome, por exemplo nome-portal, nesse sentido na opção de instalação num servidor (não docker), podemos ter um script que faça a instalação e configuração inicial, para não ser necessário alterar todas as referencias nos ficheiros, na qual diz logo qual a base de dados, se é local ou remote, se for remote, por exemplo dá os scripts ou indica onde está o sql para correr no postgres ou mysql para criar tudo o que for necessário, no caso do postgres o pg_hba.conf para permitir acesso remoto, qual o nginx se queremos SSL, na qual indicamos onde está o certificado, podemos manter os passos todos no README.MD na mesma para acrescentar a parte de ativar o SSL e o que é preciso de fazer, pode ser uma opção, para quem não percebe. [...] Podemos também aproveitar o projeto do extrair uma pasta do git, para não estar a fazer o download inteiro do repositorio projeto.
+
+**Resposta:**
+
+| Ficheiro | O que faz |
+|---|---|
+| `instalar.sh` | Instalação interativa: nome da instância (pasta, utilizador, serviço, site do Nginx e cron derivados do nome), código local ou só a pasta do portal no Git (sparse-checkout), base de dados SQLite/MariaDB/PostgreSQL local ou remota, Nginx com HTTP, certificado próprio ou Let's Encrypt, systemd, administrador, cron e firewall. Reconfigurar e `--desinstalar` |
+| `deploy/*.tpl` | Templates do serviço systemd e do Nginx (HTTP e HTTPS) com marcadores `@NOME@`, `@DIR@`, ... (substituem os ficheiros com o nome fixo) |
+| `deploy/bd/preparar-postgresql.sh` | No servidor PostgreSQL: utilizador e base de dados, linha no `pg_hba.conf`, `listen_addresses`, reload/restart e firewall só para o IP do portal |
+| `deploy/bd/preparar-mariadb.sh` | No servidor MariaDB: base de dados, utilizador `'<util>'@'<IP>'` com GRANT, `bind-address` e firewall |
+| `deploy/bd/*.sql` | SQL para quem prefere fazer à mão, com os passos de rede em comentário |
+| `manage.py set-storage` / `show-storage` | Definir e testar a base de dados do portal pela linha de comandos |
+
+Outras decisões:
+
+- O código instalado passa a ser do `root` (só leitura para o utilizador de serviço), porque o root volta a correr o `instalar.sh` e os templates; `data/` e `.venv` ficam do utilizador de serviço.
+- O `extrair_pasta_git.sh` passou a aceitar argumentos (`-r -b -p -d`), e a mesma lógica está embutida no `instalar.sh`, que pode ser descarregado sozinho.
+- O README mantém o passo a passo manual, agora com variáveis (`NOME`, `DIR`, ...) e com o HTTPS explicado (validar certificado e chave, juntar a cadeia, template HTTPS, cookies seguros, testes).

@@ -25,8 +25,25 @@ Funciona com URLs HTTPS e SSH (GitHub, GitLab, Gitea, etc.).
 
 ```bash
 chmod +x extrair_pasta_git.sh
-./extrair_pasta_git.sh
+./extrair_pasta_git.sh                     # interativo
 ```
+
+Sem perguntas, com argumentos (o que faltar é perguntado):
+
+```bash
+./extrair_pasta_git.sh -r https://github.com/<utilizador>/<repositorio>.git -b main \
+                       -p docker/portal-oracle -d /tmp/portal-oracle
+```
+
+| Argumento | Descrição |
+|---|---|
+| `-r URL` | URL do repositório |
+| `-b BRANCH` | Branch (por omissão `main`) |
+| `-p PASTA` | Pasta dentro do repositório |
+| `-d DESTINO` | Diretório de destino (por omissão `.`) |
+| `-h` | Ajuda |
+
+> A mesma lógica está embutida no `instalar.sh` do [Portal Oracle](../../../docker/portal-oracle), para obter só a pasta do portal sem descarregar o repositório inteiro.
 
 ## Dados pedidos
 

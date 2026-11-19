@@ -57,7 +57,7 @@ A aba **Armazenamento** só está disponível para o administrador.
 cd /opt/oracle-portal               # pasta com o código (fica no anfitrião)
 cp .env.example .env
 mkdir -p data/ssh/users data/home
-cp ~/.ssh/id_ed25519.pub data/ssh/users/nmmelo.pub        # utilizador SSH pessoal (com sudo)
+cp ~/.ssh/id_ed25519.pub data/ssh/users/<utilizador>.pub        # utilizador SSH pessoal (com sudo)
 
 docker-compose build
 docker-compose up -d
@@ -67,7 +67,7 @@ docker-compose exec -u portal portal python manage.py set-admin-password
 | Acesso | Endereço |
 |---|---|
 | Portal | `http://<servidor>:8080` (utilizador `admin`) |
-| SSH | `ssh -p 2222 nmmelo@<servidor>` |
+| SSH | `ssh -p 2222 <utilizador>@<servidor>` |
 
 > **A atualizar a partir da versão anterior?** O serviço passou a chamar-se `portal` (antes era `app`), e já não há um contentor separado para o Nginx. Corra `docker-compose down` antes do `up`. As bases de dados Oracle já configuradas são migradas automaticamente. Um `PORTAL_ADMIN_PASSWORD_HASH` que já esteja no `.env` é usado para criar o `admin.json` no primeiro arranque.
 
@@ -81,31 +81,210 @@ docker-compose exec -u portal portal python manage.py set-admin-password
 | `portal.sqlite3` | Dados do portal, quando se usa SQLite |
 | `backups/` | Ficheiros de backup da configuração |
 | `ssh/` | Chaves do servidor SSH, `authorized_keys` do `portal` e `users/` (utilizadores pessoais) |
-| `home/` | Homes dos utilizadores (`home/portal`, `home/nmmelo`, ...): `.vscode-server`, `.gitconfig`, histórico |
+| `home/` | Homes dos utilizadores (`home/portal`, `home/<utilizador>`, ...): `.vscode-server`, `.gitconfig`, histórico |
 
 ---
 
 ## Instalação num servidor (sem Docker)
 
-Procedimento para **Ubuntu 26.04 LTS** (funciona também em 24.04/22.04 e Debian 12). O portal corre com o Gunicorn como serviço **systemd**, atrás do **Nginx**.
+O portal corre com o Gunicorn como serviço **systemd**, atrás do **Nginx**. Testado para **Ubuntu 26.04 LTS** (funciona também em 24.04/22.04, Debian 12 e RHEL/Rocky/Alma 9).
 
-| Componente | Caminho / valor |
+Há duas formas de instalar:
+
+| Forma | Para quem |
 |---|---|
-| Código | `/opt/oracle-portal` |
-| Dados | `/opt/oracle-portal/data` (`admin.json`, `fernet.key`, SQLite, backups) |
-| Ambiente Python | `/opt/oracle-portal/.venv` |
-| Utilizador de serviço | `portal` (sem login) |
-| Gunicorn | `127.0.0.1:8000`, só local |
-| Nginx | porta 80/443, faz de proxy para o Gunicorn |
+| [**Script `instalar.sh`**](#instalação-com-o-script-instalarsh-recomendado) (recomendado) | Pergunta tudo e faz tudo: nome da instância, base de dados, Nginx, SSL, systemd, cron e firewall. Não é preciso alterar nenhum ficheiro |
+| [**Passo a passo manual**](#instalação-manual-passo-a-passo) | Para perceber o que é feito, ou para adaptar a um caso especial |
 
-### 1. Pacotes
+### Nome da instância
+
+Tudo o que depende do nome é gerado a partir de **um único valor**, o nome da instância (por omissão `portal-oracle`). Assim pode chamar-lhe, por exemplo, `nome-portal`, ou ter várias instâncias no mesmo servidor:
+
+| Item | Valor gerado (exemplo com `nome-portal`) |
+|---|---|
+| Pasta | `/opt/nome-portal` |
+| Utilizador de serviço (sem login) | `nome-portal` |
+| Serviço systemd | `nome-portal.service` |
+| Site do Nginx | `/etc/nginx/sites-available/nome-portal` (RHEL: `/etc/nginx/conf.d/nome-portal.conf`) |
+| Logs do Nginx | `/var/log/nginx/nome-portal.access.log` / `.error.log` |
+| Cron do backup | `/etc/cron.d/nome-portal` |
+| Base de dados do portal (MariaDB/PostgreSQL) | `nome_portal`, utilizador `nome_portal` |
+| Porta interna do Gunicorn | `127.0.0.1:8000`, ou a primeira livre a seguir |
+
+Os ficheiros em `deploy/` são **templates** com marcadores (`@NOME@`, `@DIR@`, `@UTILIZADOR@`, ...), que o script preenche:
+
+| Template | Gera |
+|---|---|
+| `deploy/portal.service.tpl` | `/etc/systemd/system/<nome>.service` |
+| `deploy/nginx-http.conf.tpl` | Site do Nginx só com HTTP |
+| `deploy/nginx-https.conf.tpl` | Site do Nginx com HTTPS (e HTTP a redirecionar para HTTPS) |
+| `deploy/bd/postgresql.sql`, `deploy/bd/mariadb.sql` | SQL para criar a base de dados do portal, com os passos de acesso remoto em comentário |
+| `deploy/bd/preparar-postgresql.sh`, `deploy/bd/preparar-mariadb.sh` | Scripts para correr **no servidor da base de dados** (não são templates) |
+
+---
+
+### Instalação com o script `instalar.sh` (recomendado)
+
+#### 1. Obter o código
+
+Não é preciso descarregar o repositório inteiro. Escolha uma das opções:
+
+**a) Só o script.** O `instalar.sh` não encontra o código ao lado e oferece-se para ir buscar **só a pasta do portal** ao Git (clone parcial com `sparse-checkout`, a mesma lógica do [`extrair_pasta_git`](../../linux/geral/extrair_pasta_git)):
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/<utilizador>/<repositorio>/main/docker/portal-oracle/instalar.sh
+sudo bash instalar.sh
+#   Origem do codigo: 1) Obter so a pasta do portal de um repositorio Git
+#   URL do repositorio: https://github.com/<utilizador>/<repositorio>.git
+#   Branch [main]:
+#   Pasta do portal no repositorio [docker/portal-oracle]:
+```
+
+Para não ter de escrever o URL de cada vez, preencha `REPO_URL_PADRAO` no início do `instalar.sh`.
+
+**b) Só a pasta do portal, com o `extrair_pasta_git`:**
+
+```bash
+./extrair_pasta_git.sh -r https://github.com/<utilizador>/<repositorio>.git -p docker/portal-oracle -d /tmp/portal-oracle
+sudo /tmp/portal-oracle/instalar.sh
+```
+
+**c) Já tem a pasta** (zip, cópia, clone): `sudo ./instalar.sh` dentro dela. O código é copiado para a pasta de instalação.
+
+#### 2. Correr o script
+
+```bash
+sudo ./instalar.sh
+```
+
+O **Enter** aceita o valor entre `[ ]`. **Nada é alterado antes da confirmação final**, onde é mostrado um resumo.
+
+| Passo | Perguntas |
+|---|---|
+| 1. Instância | Nome (ex. `nome-portal`), pasta (`/opt/<nome>`), utilizador de serviço (`<nome>`) |
+| 2. Código | Copiar desta pasta, obter do Git (só a pasta do portal) ou manter o que já está instalado |
+| 3. Aplicação | Porta interna do Gunicorn, nome do administrador, se define a password agora |
+| 4. Base de dados | SQLite, MariaDB ou PostgreSQL, local ou remota (ver abaixo) |
+| 5. Nginx e HTTPS | Nome DNS, sem HTTPS / certificado próprio / Let's Encrypt, portas |
+| 6. Extras | Backup diário no cron (hora), abrir as portas na firewall (ufw ou firewalld, se ativa) |
+
+Depois instala os pacotes, cria o utilizador, copia o código, cria o ambiente Python, prepara a base de dados, define a password do administrador, gera e ativa o serviço systemd, gera e testa o site do Nginx (`nginx -t`; se falhar, repõe o anterior), configura o cron e a firewall e mostra o endereço do portal.
+
+#### 3. Base de dados do portal
+
+| Opção | O que o script faz |
+|---|---|
+| **SQLite** | Nada a preparar: ficheiro `data/portal.sqlite3` |
+| **MariaDB neste servidor** | Instala o `mariadb-server` (se não existir), cria a base de dados e o utilizador (password aleatória ou à escolha), liga e cria as tabelas |
+| **PostgreSQL neste servidor** | Instala o `postgresql` (se não existir), cria a base de dados e o utilizador, acrescenta a linha ao `pg_hba.conf`, liga e cria as tabelas |
+| **MariaDB / PostgreSQL noutro servidor** | Gera o SQL e diz o que correr no servidor remoto (abaixo). Depois testa a ligação até funcionar, ou continua com SQLite para mudar mais tarde |
+
+**Base de dados remota.** O script deteta o IP deste servidor visto pelo servidor da base de dados e mostra algo como:
+
+```
+   Preparar o servidor db.dominio.pt (como root, no servidor postgresql):
+
+     scp /opt/nome-portal/deploy/bd/preparar-postgresql.sh <utilizador>@db.dominio.pt:/tmp/
+     sudo PORTAL_DB_PASSWORD=Xy...  bash /tmp/preparar-postgresql.sh \
+          --bd nome_portal --utilizador nome_portal --cliente 10.0.0.5
+
+   So SQL, para fazer a mao: /opt/nome-portal/data/bd/postgresql.sql
+
+   Enter = testar a ligacao | i = instrucoes | s = continuar com SQLite e mudar depois:
+```
+
+O que os scripts de preparação fazem no servidor da base de dados (podem correr mais do que uma vez):
+
+| Passo | `preparar-postgresql.sh` | `preparar-mariadb.sh` |
+|---|---|---|
+| Base de dados e utilizador | `CREATE ROLE ... LOGIN PASSWORD`, `CREATE DATABASE ... OWNER` (se já existir, só atualiza a password) | `CREATE DATABASE ... utf8mb4`, `CREATE USER '<util>'@'<IP>'`, `GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP` |
+| Autorizar o IP do portal | Acrescenta ao **`pg_hba.conf`** (o caminho vem de `SHOW hba_file`), antes das outras regras, com cópia de segurança:<br>`host  nome_portal  nome_portal  10.0.0.5/32  scram-sha-256`<br>(usa `md5` se `password_encryption` for `md5`) | O utilizador é criado para esse IP |
+| Escutar na rede | Se `listen_addresses` for `localhost`, pergunta se faz `ALTER SYSTEM SET listen_addresses = '*'` e reinicia | Se `bind-address` for `127.0.0.1`, pergunta se cria `99-acesso-remoto.cnf` com `bind-address = 0.0.0.0` e reinicia |
+| Aplicar | `pg_reload_conf()` (ou reinício, se mudou o `listen_addresses`) | — |
+| Firewall | Se ufw/firewalld estiver ativo, pergunta se abre a 5432 **só para o IP do portal** | Idem, porta 3306 |
+
+Opções úteis: `--sem-rede` (não mexe em `listen_addresses`/`bind-address`), `--sem-firewall`, `-y` (sem confirmações), `--ajuda`. Se o root do MariaDB tiver password: `sudo MYSQL_PWD='...' ./preparar-mariadb.sh ...`.
+
+Para preparar à mão, use o SQL gerado em `data/bd/<tipo>.sql` (com a password já preenchida, só legível pelo dono) ou os modelos `deploy/bd/postgresql.sql` e `deploy/bd/mariadb.sql`.
+
+Mais tarde, a base de dados também pode ser mudada no portal, em **Configuração → Portal → Armazenamento** (copia os dados), ou pela linha de comandos:
+
+```bash
+cd /opt/<nome>
+sudo -u <nome> PORTAL_DB_PASSWORD='...' .venv/bin/python manage.py set-storage \
+     --type postgresql --host db.dominio.pt --port 5432 --database nome_portal --user nome_portal
+sudo -u <nome> .venv/bin/python manage.py show-storage
+```
+
+O `set-storage` testa a ligação e cria as tabelas antes de gravar; se falhar, nada é alterado. Não copia dados (para isso use o portal).
+
+#### 4. HTTPS (SSL)
+
+| Opção | O que é preciso | O que o script faz |
+|---|---|---|
+| **Sem HTTPS** | — | Site só com HTTP. `PORTAL_COOKIE_SECURE=0` |
+| **Certificado próprio** | Certificado e chave em PEM, chave **sem password**, e a cadeia (intermédios) se não estiver no certificado | Valida os ficheiros (formato, chave corresponde ao certificado, validade, nomes), gera o site com HTTPS e o HTTP a redirecionar para HTTPS. `PORTAL_COOKIE_SECURE=1` |
+| **Let's Encrypt** | Nome DNS público a apontar para o servidor, porta 80 acessível da Internet | Instala o `certbot`, pede o certificado e configura o redirecionamento. A renovação é automática. Se falhar, o portal fica em HTTP |
+
+Com certificado próprio:
+
+- se indicar a **cadeia**, o script junta certificado e cadeia em `/etc/nginx/ssl/<nome>/fullchain.pem` e copia a chave para `privkey.pem` (só root). **Ao renovar o certificado, volte a correr o script** (ou repita a junção à mão);
+- sem cadeia, o Nginx usa os ficheiros no sítio onde estão: ao renovar, basta substituí-los e fazer `sudo systemctl reload nginx`.
+
+Para ver como fazer à mão, consulte o [passo 8 da instalação manual](#8-https-ssl).
+
+#### 5. Reconfigurar, atualizar, várias instâncias e remover
+
+| Objetivo | Como |
+|---|---|
+| **Mudar a configuração** (SSL, nome DNS, base de dados, porta, cron) | `sudo /opt/<nome>/instalar.sh` e indique o mesmo nome. As respostas anteriores aparecem como valores por omissão (ficam em `/opt/<nome>/.instalacao`, sem passwords). A base de dados pode ficar como está (opção "Manter") |
+| **Atualizar o código** | Igual, escolhendo a origem "Git" (ou "Copiar da pasta deste script", a partir de uma pasta com a versão nova). `data/`, `.env` e `.venv` nunca são substituídos |
+| **Outra instância** no mesmo servidor | Correr o script com outro nome. Use outro nome DNS (ou outra porta HTTP) para o Nginx |
+| **Remover** | `sudo /opt/<nome>/instalar.sh --desinstalar <nome>`: remove o serviço, o site do Nginx e o cron. Pergunta se apaga a pasta (antes guarda `data/` em `/root/<nome>-data-<data>.tar.gz`) e o utilizador. A base de dados MariaDB/PostgreSQL não é tocada |
+
+#### Permissões aplicadas
+
+| Caminho | Dono | Porquê |
+|---|---|---|
+| Código (`app/`, `deploy/`, `*.py`, `instalar.sh`) | `root:<utilizador>`, só leitura para o grupo | O root volta a correr o `instalar.sh` e os templates: o serviço não os pode alterar |
+| `.env` | `root:<utilizador>`, `640` | Lido pelo systemd |
+| `data/` | `<utilizador>`, `700` | Chaves, passwords cifradas, SQLite, backups |
+| `.venv/` | `<utilizador>` | Pacotes Python |
+| `app/static/` | legível por todos | Servido diretamente pelo Nginx |
+
+Para editar o código diretamente no servidor, use `sudo` (ou volte a correr o script com a origem Git).
+
+---
+
+### Instalação manual (passo a passo)
+
+É o que o `instalar.sh` faz. Comece por definir as variáveis, que são usadas em todos os passos (o nome pode ser qualquer um, por exemplo `nome-portal`):
+
+```bash
+NOME=portal-oracle               # nome da instancia
+DIR=/opt/$NOME                   # pasta de instalacao
+UTIL=$NOME                       # utilizador de servico
+BIND=127.0.0.1:8000              # Gunicorn (outra porta se ja houver outra instancia)
+SERVER_NAME=portal.dominio.pt    # nome DNS, ou _ para qualquer nome
+```
+
+| Componente | Valor |
+|---|---|
+| Código | `$DIR` |
+| Dados | `$DIR/data` (`admin.json`, `fernet.key`, SQLite, backups) |
+| Ambiente Python | `$DIR/.venv` |
+| Utilizador de serviço | `$UTIL` (sem login) |
+| Gunicorn | `$BIND`, só local |
+| Nginx | Porta 80/443, faz de proxy para o Gunicorn |
+
+#### 1. Pacotes
 
 > **Ubuntu 26.04:** o `sudo` é o sudo-rs, compatível com os comandos abaixo. O SSH é o OpenSSH 10.2, que já não aceita chaves DSA nem assinaturas `ssh-rsa` com SHA-1: use chaves ed25519.
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip nginx git curl
-# opcional, para testar a BD do portal à mão:
+sudo apt install -y python3 python3-venv python3-pip nginx git curl openssl
+# opcional, para testar a BD do portal a mao:
 sudo apt install -y mariadb-client      # se usar MariaDB
 sudo apt install -y postgresql-client   # se usar PostgreSQL
 ```
@@ -115,44 +294,47 @@ sudo apt install -y postgresql-client   # se usar PostgreSQL
 | `python3`, `python3-venv`, `python3-pip` | Correr o portal num ambiente Python isolado (`.venv`). O Ubuntu 26.04 traz Python 3.14 e, por causa do PEP 668, não deixa instalar pacotes com `pip` fora de um venv |
 | `nginx` | Servidor web e proxy para o Gunicorn |
 | `git` | Obter e atualizar o código |
+| `openssl` | Validar certificados |
 
 Não precisa do Oracle Instant Client: o `python-oracledb` em modo *thin* é Python puro. Os drivers de MariaDB (`pymysql`) e PostgreSQL (`psycopg[binary]`) também são instalados pelo `pip`, sem bibliotecas do sistema.
 
-> **RHEL / Rocky / Alma:** `sudo dnf install -y python3.12 nginx git`. Os ficheiros do Nginx vão para `/etc/nginx/conf.d/` e o utilizador do Nginx é `nginx`. Com SELinux ativo, corra também `sudo setsebool -P httpd_can_network_connect 1`.
+> **RHEL / Rocky / Alma:** `sudo dnf install -y python3.12 nginx git openssl`. Os ficheiros do Nginx vão para `/etc/nginx/conf.d/` e o utilizador do Nginx é `nginx`. Com SELinux ativo, corra também `sudo setsebool -P httpd_can_network_connect 1`.
 
-### 2. Utilizador e código
+#### 2. Utilizador e código
 
 ```bash
-sudo useradd --system --home-dir /opt/oracle-portal --shell /usr/sbin/nologin portal
-sudo mkdir -p /opt/oracle-portal
-sudo unzip oracle-portal.zip -d /tmp && sudo cp -rT /tmp/oracle-portal /opt/oracle-portal
-#   ou: sudo git clone <repositorio> /opt/oracle-portal
-sudo mkdir -p /opt/oracle-portal/data/backups
-sudo chown -R portal:portal /opt/oracle-portal
+sudo useradd --system --user-group --home-dir $DIR --no-create-home --shell /usr/sbin/nologin $UTIL
+sudo mkdir -p $DIR
+# copiar o conteudo da pasta do portal, por exemplo so a pasta, com o extrair_pasta_git:
+#   ./extrair_pasta_git.sh -r <url do repositorio> -p docker/portal-oracle -d /tmp/portal
+sudo cp -rT /tmp/portal $DIR
+sudo mkdir -p $DIR/data/backups $DIR/.venv
 
-# o Nginx precisa de ler app/static; data/ fica so para o portal
-sudo chmod 755 /opt/oracle-portal /opt/oracle-portal/app
-sudo chmod -R o+rX /opt/oracle-portal/app/static
-sudo chmod 700 /opt/oracle-portal/data
+# codigo do root (so leitura para o servico); data/ e .venv do utilizador de servico
+sudo chown -R root:$UTIL $DIR
+sudo chmod -R u=rwX,g=rX,o= $DIR
+sudo chown -R $UTIL:$UTIL $DIR/data $DIR/.venv
+sudo chmod 700 $DIR/data
+# o Nginx precisa de ler app/static
+sudo chmod 755 $DIR $DIR/app
+sudo chmod -R o+rX $DIR/app/static
 ```
 
-Para que outros administradores do servidor possam editar o código, acrescente-os ao grupo: `sudo usermod -aG portal nmmelo`.
-
-### 3. Ambiente Python e pacotes
+#### 3. Ambiente Python e pacotes
 
 ```bash
-cd /opt/oracle-portal
-sudo -u portal python3 -m venv .venv
-sudo -u portal .venv/bin/pip install --upgrade pip
-sudo -u portal .venv/bin/pip install -r requirements.txt
+cd $DIR
+sudo -u $UTIL python3 -m venv .venv
+sudo -u $UTIL .venv/bin/pip install --upgrade pip
+sudo -u $UTIL .venv/bin/pip install -r requirements.txt
 ```
 
-### 4. Configuração (`.env`)
+#### 4. Configuração (`.env`)
 
 ```bash
-sudo -u portal cp .env.example .env
-sudo chmod 600 .env
-sudo -u portal nano .env
+sudo cp .env.example .env
+sudo chown root:$UTIL .env && sudo chmod 640 .env
+sudo nano .env
 ```
 
 Sem Docker, só estas variáveis contam (as `SSH_*` são ignoradas):
@@ -163,56 +345,109 @@ Sem Docker, só estas variáveis contam (as `SSH_*` são ignoradas):
 | `PORTAL_COOKIE_SECURE` | `1` se usar HTTPS, `0` caso contrário |
 | `TZ` | `Europe/Lisbon` |
 
-### 5. Password do administrador
+#### 5. Base de dados do portal
+
+Por omissão é SQLite e não é preciso fazer nada. Para MariaDB ou PostgreSQL:
+
+1. No servidor da base de dados, corra o script de preparação (ou o SQL de `deploy/bd/`, substituindo os marcadores):
+   ```bash
+   sudo PORTAL_DB_PASSWORD='...' ./preparar-postgresql.sh --bd nome_portal --utilizador nome_portal --cliente <IP deste servidor>
+   # local: --cliente 127.0.0.1 --sem-rede      (MariaDB local: --cliente localhost,127.0.0.1)
+   ```
+2. Neste servidor, aponte o portal para ela:
+   ```bash
+   cd $DIR
+   sudo -u $UTIL PORTAL_DB_PASSWORD='...' .venv/bin/python manage.py set-storage \
+        --type postgresql --host <servidor> --database nome_portal --user nome_portal
+   ```
+
+Os passos do `pg_hba.conf`, do `listen_addresses` e do `bind-address` estão explicados [acima](#3-base-de-dados-do-portal) e em comentário nos ficheiros `deploy/bd/*.sql`.
+
+#### 6. Password do administrador
 
 ```bash
-cd /opt/oracle-portal
-sudo -u portal .venv/bin/python manage.py set-admin-password
+cd $DIR
+sudo -u $UTIL .venv/bin/python manage.py set-admin-password
 #   Administrador: admin
 #   Nova password: ********
-#   Gravado em /opt/oracle-portal/data/admin.json
+#   Gravado em /opt/<nome>/data/admin.json
 ```
 
-Para usar outro nome: `manage.py set-admin-password --user nuno`. O mesmo comando serve para repor a password se a esquecer.
+Para usar outro nome: `manage.py set-admin-password --user <nome>`. O mesmo comando serve para repor a password se a esquecer.
 
-### 6. Serviço systemd (Gunicorn)
+#### 7. Serviço systemd e Nginx (HTTP)
+
+Os templates são preenchidos com `sed`:
 
 ```bash
-sudo cp deploy/oracle-portal.service /etc/systemd/system/
+cd $DIR
+preencher() { sed -e "s|@NOME@|$NOME|g" -e "s|@DIR@|$DIR|g" -e "s|@UTILIZADOR@|$UTIL|g" -e "s|@BIND@|$BIND|g" \
+                  -e "s|@SERVER_NAME@|$SERVER_NAME|g" -e "s|@HTTP_PORT@|80|g" -e "s|@HTTPS_PORT@|443|g" \
+                  -e "s|@HTTPS_URL@|https://\$host|g" -e "s|@SSL_CERT@|$SSL_CERT|g" -e "s|@SSL_KEY@|$SSL_KEY|g" "$1"; }
+
+# systemd
+preencher deploy/portal.service.tpl | sudo tee /etc/systemd/system/$NOME.service >/dev/null
 sudo systemctl daemon-reload
-sudo systemctl enable --now oracle-portal
-sudo systemctl status oracle-portal          # deve estar "active (running)"
-curl -sI http://127.0.0.1:8000/login | head -1   # HTTP/1.1 200 OK
-```
+sudo systemctl enable --now $NOME
+sudo systemctl status $NOME                    # deve estar "active (running)"
+curl -sI http://$BIND/login | head -1          # HTTP/1.1 200 OK
 
-O ficheiro `deploy/oracle-portal.service` corre o Gunicorn como `portal`, lê o `.env` e reinicia o serviço se ele falhar.
-
-### 7. Nginx
-
-```bash
-sudo cp deploy/nginx-oracle-portal.conf /etc/nginx/sites-available/oracle-portal
-sudo ln -sf /etc/nginx/sites-available/oracle-portal /etc/nginx/sites-enabled/oracle-portal
-sudo rm -f /etc/nginx/sites-enabled/default
+# Nginx (RHEL: /etc/nginx/conf.d/$NOME.conf, sem o ln)
+preencher deploy/nginx-http.conf.tpl | sudo tee /etc/nginx/sites-available/$NOME >/dev/null
+sudo ln -sf /etc/nginx/sites-available/$NOME /etc/nginx/sites-enabled/$NOME
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Se o servidor já tiver outros sites no Nginx, não apague o `default`. Em vez disso, mude o `server_name _;` para o nome DNS do portal (por exemplo `portal.dominio.pt`).
+O serviço corre o Gunicorn como `$UTIL`, lê o `.env` e reinicia se falhar. O `--bind` no serviço sobrepõe-se ao do `gunicorn.conf.py` (usado no Docker).
 
-O portal fica em `http://<servidor>/` (utilizador `admin`).
+Se o `server_name` for `_` e o servidor só tiver este site, desative o site por omissão: `sudo rm /etc/nginx/sites-enabled/default`. Se já tiver outros sites, use um nome DNS.
 
-### 8. HTTPS (recomendado)
+O portal fica em `http://<servidor>/`.
 
-**Com Let's Encrypt** (servidor acessível da Internet com nome DNS):
+#### 8. HTTPS (SSL)
+
+**a) Com certificado próprio** (interno ou comprado):
+
+1. Confirme os ficheiros:
+   ```bash
+   openssl x509 -in certificado.crt -noout -subject -enddate -ext subjectAltName   # nomes e validade
+   openssl x509 -in certificado.crt -noout -pubkey | sha256sum                     # estes dois valores
+   openssl pkey -in chave.key -pubout | sha256sum                                  # tem de ser iguais
+   ```
+   A chave não pode ter password (o Nginx não a consegue pedir). Para a retirar: `openssl pkey -in chave.key -out chave-sem-pw.key`.
+2. Junte o certificado e a cadeia (intermédios) num só ficheiro e proteja a chave:
+   ```bash
+   sudo mkdir -p /etc/nginx/ssl/$NOME && sudo chmod 700 /etc/nginx/ssl/$NOME
+   cat certificado.crt cadeia.crt | sudo tee /etc/nginx/ssl/$NOME/fullchain.pem >/dev/null
+   sudo install -m 600 chave.key /etc/nginx/ssl/$NOME/privkey.pem
+   SSL_CERT=/etc/nginx/ssl/$NOME/fullchain.pem
+   SSL_KEY=/etc/nginx/ssl/$NOME/privkey.pem
+   ```
+3. Troque o site pelo template com HTTPS (o HTTP passa a redirecionar para HTTPS):
+   ```bash
+   cd $DIR
+   preencher deploy/nginx-https.conf.tpl | sudo tee /etc/nginx/sites-available/$NOME >/dev/null
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+4. Ponha `PORTAL_COOKIE_SECURE=1` no `.env` e `sudo systemctl restart $NOME`.
+5. Abra a porta 443 (`sudo ufw allow 443/tcp`) e teste:
+   ```bash
+   curl -sI https://$SERVER_NAME/login | head -1
+   openssl s_client -connect $SERVER_NAME:443 -servername $SERVER_NAME </dev/null 2>/dev/null | grep -E "Verify return|subject="
+   ```
+
+**b) Com Let's Encrypt** (nome DNS público e porta 80 acessível da Internet), a partir do site HTTP do passo 7:
+
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d portal.dominio.pt
+sudo certbot --nginx -d $SERVER_NAME --redirect
 ```
 
-**Com certificado interno:** acrescente ao ficheiro do Nginx um bloco `listen 443 ssl;` com `ssl_certificate` e `ssl_certificate_key`.
+Depois, `PORTAL_COOKIE_SECURE=1` no `.env` e `sudo systemctl restart $NOME`. O certbot renova o certificado automaticamente.
 
-Em ambos os casos, ponha `PORTAL_COOKIE_SECURE=1` no `.env` e corra `sudo systemctl restart oracle-portal`.
+> Com `PORTAL_COOKIE_SECURE=1` o login só funciona por HTTPS: se o HTTPS não estiver a funcionar, volte a pôr `0`.
 
-### 9. Firewall
+#### 9. Firewall
 
 ```bash
 sudo ufw allow 'Nginx Full'          # 80 e 443
@@ -221,34 +456,32 @@ sudo ufw allow OpenSSH
 
 O servidor tem também de chegar às bases de dados Oracle (porta 1521, ou a do listener) e, se for o caso, à base de dados do portal (3306 MariaDB, 5432 PostgreSQL).
 
-### 10. Backup automático (cron)
+#### 10. Backup automático (cron)
 
 ```bash
-sudo crontab -u portal -e
-```
-```cron
-0 2 * * * cd /opt/oracle-portal && .venv/bin/python manage.py backup --prune >> data/cron.log 2>&1
+echo "0 2 * * * $UTIL cd $DIR && .venv/bin/python manage.py backup --prune >> data/cron.log 2>&1" | sudo tee /etc/cron.d/$NOME
 ```
 
-Se tiver definido `PORTAL_FERNET_KEY` no `.env`, o cron não a vê. Nesse caso, use antes:
-`0 2 * * * cd /opt/oracle-portal && export $(grep -E '^PORTAL_FERNET_KEY=.' .env) && .venv/bin/python manage.py backup --prune >> data/cron.log 2>&1`
+Se tiver definido `PORTAL_FERNET_KEY` no `.env`, o cron não a vê. Nesse caso, no comando acima, antes do `.venv/bin/python`, acrescente `export $(grep -E '^PORTAL_FERNET_KEY=.' .env) &&` (o `.env` tem de ser legível pelo utilizador de serviço, o que já acontece com `640 root:$UTIL`).
 
 ### Operação
 
 | Objetivo | Comando |
 |---|---|
-| Estado / reiniciar | `sudo systemctl status oracle-portal` / `sudo systemctl restart oracle-portal` |
-| Logs do portal | `sudo journalctl -u oracle-portal -f` |
-| Logs do Nginx | `sudo tail -f /var/log/nginx/oracle-portal.*.log` |
-| Repor a password do admin | `cd /opt/oracle-portal && sudo -u portal .venv/bin/python manage.py set-admin-password` |
-| Backup manual | `cd /opt/oracle-portal && sudo -u portal .venv/bin/python manage.py backup --note "manual"` |
+| Estado / reiniciar | `sudo systemctl status <nome>` / `sudo systemctl restart <nome>` |
+| Logs do portal | `sudo journalctl -u <nome> -f` |
+| Logs do Nginx | `sudo tail -f /var/log/nginx/<nome>.*.log` |
+| Repor a password do admin | `cd /opt/<nome> && sudo -u <nome> .venv/bin/python manage.py set-admin-password` |
+| Backup manual | `cd /opt/<nome> && sudo -u <nome> .venv/bin/python manage.py backup --note "manual"` |
+| Ver a base de dados do portal | `cd /opt/<nome> && sudo -u <nome> .venv/bin/python manage.py show-storage` |
+| Reconfigurar / atualizar | `sudo /opt/<nome>/instalar.sh` |
 
-**Atualizar o portal:**
+**Atualizar o portal à mão:** copie os ficheiros novos para a pasta (sem `data/`, `.env` e `.venv`), depois:
+
 ```bash
-cd /opt/oracle-portal
-sudo -u portal git pull                                   # ou copiar os ficheiros novos
-sudo -u portal .venv/bin/pip install -r requirements.txt  # se o requirements.txt mudou
-sudo systemctl restart oracle-portal
+cd /opt/<nome>
+sudo -u <nome> .venv/bin/pip install -r requirements.txt  # se o requirements.txt mudou
+sudo systemctl restart <nome>
 ```
 
 A pasta `data/` não é alterada por atualizações. Faça backup dela, sobretudo do `fernet.key` e do `admin.json`.
@@ -354,12 +587,12 @@ Cada pessoa tem o seu utilizador. Para o criar, ponha a chave pública num fiche
 
 ```bash
 # no anfitrião, na pasta do portal
-cp nmmelo_id_ed25519.pub   data/ssh/users/nmmelo.pub
-cp adminssc_id_ed25519.pub data/ssh/users/adminssc.pub
+cp utilizador1_id_ed25519.pub data/ssh/users/utilizador1.pub
+cp utilizador2_id_ed25519.pub data/ssh/users/utilizador2.pub
 docker-compose up -d --force-recreate
 docker-compose logs portal | grep "Utilizador SSH"
-#  Utilizador SSH: adminssc (uid 1001, sudo)
-#  Utilizador SSH: nmmelo (uid 1002, sudo)
+#  Utilizador SSH: utilizador1 (uid 1001, sudo)
+#  Utilizador SSH: utilizador2 (uid 1002, sudo)
 ```
 
 No arranque, o contentor faz isto para cada ficheiro `data/ssh/users/<utilizador>.pub`:
@@ -403,7 +636,7 @@ As sessões SSH usam `umask 002`, por isso os ficheiros novos ficam editáveis p
 Host oracle-portal
     HostName <servidor>
     Port 2222
-    User nmmelo
+    User <utilizador>
     IdentityFile ~/.ssh/id_ed25519
     ForwardAgent yes        # usar a sua chave no git push/pull
 ```
@@ -413,7 +646,7 @@ Host oracle-portal
 **Git** (dentro do contentor):
 
 ```bash
-git config --global user.name "Nuno"
+git config --global user.name "<nome>"
 git config --global user.email "..."
 cd /srv/portal && git init && git remote add origin git@...:portal.git    # na 1.a vez
 git pull / git push
