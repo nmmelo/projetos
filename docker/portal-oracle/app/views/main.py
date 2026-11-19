@@ -1,8 +1,12 @@
 """Login, Home e Minha area."""
-from flask import flash, g, redirect, render_template, request, url_for
+import base64
+import os
+
+from flask import (current_app, flash, g, make_response, redirect, render_template, request,
+                   url_for)
 from werkzeug.security import check_password_hash
 
-from .. import auth, settings, store
+from .. import aparencia, auth, settings, store
 from . import bp
 
 
@@ -18,6 +22,34 @@ def login():
             return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else url_for("portal.home"))
         flash("Utilizador ou password inválidos.", "error")
     return render_template("login.html", no_admin=settings.admin() is None)
+
+
+@bp.route("/favicon.ico")
+def favicon():
+    """Icone configurado em Configuracao > Portal > Aparencia, ou o de omissao (static/favicon.svg).
+    Publico (aparece no login). O URL leva ?v=<versao>, por isso pode ficar em cache."""
+    cache = 86400 if request.args.get("v") else 3600
+    try:
+        data, kind = store.get_setting("favicon_data"), store.get_setting("favicon_type")
+    except Exception:  # noqa: BLE001 - BD do portal indisponivel
+        data = kind = ""
+    if data and kind:
+        resp = make_response(base64.b64decode(data))
+        resp.headers["Content-Type"] = kind
+    else:   # icone por omissao, na cor de destaque do tema
+        try:
+            theme = store.get_setting("theme")
+        except Exception:  # noqa: BLE001
+            theme = aparencia.DEFAULT_THEME
+        with open(os.path.join(current_app.static_folder, "favicon.svg"), encoding="utf-8") as fh:
+            svg = fh.read().replace("#1f5fbf", aparencia.accent(theme))
+        resp = make_response(svg)
+        resp.headers["Content-Type"] = "image/svg+xml"
+    resp.headers["Cache-Control"] = f"public, max-age={cache}"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    # um SVG aberto diretamente no browser nao pode correr scripts
+    resp.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'"
+    return resp
 
 
 @bp.route("/logout", methods=["POST"])

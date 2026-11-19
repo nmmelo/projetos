@@ -1,14 +1,16 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-PT" data-tema="{{ theme }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{% endblock %} · {{ portal_name }}</title>
+  <link rel="icon" href="{{ url_for('portal.favicon', v=favicon_ver) }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <header class="top">
-  <a class="brand" href="{{ url_for('portal.home') }}">{{ portal_name }}</a>
+  <a class="brand" href="{{ url_for('portal.home') }}">
+    {%- if show_icon %}<img src="{{ url_for('portal.favicon', v=favicon_ver) }}" alt="">{% endif %}{{ portal_name }}</a>
   {% if user %}
   {% set ep = request.endpoint or '' %}
   <nav>
@@ -39,6 +41,7 @@
   {% endwith %}
   {% block content %}{% endblock %}
 </main>
+{% if footer %}<footer class="rodape">{{ footer }}</footer>{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

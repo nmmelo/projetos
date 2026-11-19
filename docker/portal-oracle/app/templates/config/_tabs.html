@@ -6,6 +6,7 @@
 {% if tab == 'portal' %}
 <nav class="subtabs">
   <a href="{{ url_for('portal.cfg_general') }}" class="{{ 'on' if sub == 'general' }}">Geral</a>
+  <a href="{{ url_for('portal.cfg_appearance') }}" class="{{ 'on' if sub == 'appearance' }}">Aparência</a>
   {% if user.is_admin %}<a href="{{ url_for('portal.cfg_storage') }}" class="{{ 'on' if sub == 'storage' }}">Armazenamento</a>{% endif %}
   <a href="{{ url_for('portal.cfg_users') }}" class="{{ 'on' if sub == 'users' }}">Utilizadores</a>
   <a href="{{ url_for('portal.cfg_profiles') }}" class="{{ 'on' if sub == 'profiles' }}">Perfis</a>

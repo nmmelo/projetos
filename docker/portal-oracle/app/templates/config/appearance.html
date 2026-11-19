@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Aparência{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<form method="post" enctype="multipart/form-data" class="stack wide-form">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+
+  <section class="card">
+    <h2>Textos</h2>
+    <div class="grid2">
+      <label class="full">Título do portal
+        <input name="portal_name" value="{{ s.portal_name }}" maxlength="{{ limits.portal_name }}" required>
+        <span class="hint">No cabeçalho, no login e no separador do browser.</span></label>
+      <label class="full">Texto no login
+        <input name="login_subtitle" value="{{ s.login_subtitle }}" maxlength="{{ limits.login_subtitle }}"
+               placeholder="ex. Equipa de bases de dados — acesso restrito">
+        <span class="hint">Opcional. Aparece por baixo do título, na página de entrada.</span></label>
+      <label class="full">Rodapé
+        <input name="footer" value="{{ s.footer }}" maxlength="{{ limits.footer }}"
+               placeholder="ex. © {ano} Empresa · Suporte: extensão 1234">
+        <span class="hint">Opcional. Aparece em todas as páginas, incluindo o login. <code>{ano}</code> é substituído pelo ano atual.</span></label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Ícone (favicon)</h2>
+    <div class="icon-row">
+      <img class="icon-preview" src="{{ url_for('portal.favicon', v=favicon_ver) }}" alt="Ícone atual">
+      <div class="stack-tight">
+        <span>{{ "Ícone personalizado" if custom_icon else "Ícone por omissão" }}</span>
+        <label>Novo ícone
+          <input type="file" name="favicon" accept=".png,.ico,.svg,image/png,image/x-icon,image/svg+xml">
+          <span class="hint">PNG, ICO ou SVG, até {{ favicon_max }} KB. Recomendado: quadrado, 32×32 ou 64×64 px (ou SVG).</span></label>
+        {% if custom_icon %}
+        <label class="inline"><input type="checkbox" name="favicon_remove" value="1"> Voltar ao ícone por omissão</label>
+        {% endif %}
+        <label class="inline"><input type="checkbox" name="show_icon" value="1" {{ 'checked' if s.show_icon == '1' }}>
+          Mostrar o ícone ao lado do título (cabeçalho e login)</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Tema</h2>
+    <div class="themes">
+      {% for key, t in themes.items() %}
+      {% set c = t.preview %}
+      <label class="theme-opt">
+        <input type="radio" name="theme" value="{{ key }}" {{ 'checked' if s.theme == key or (s.theme not in themes and loop.first) }}>
+        <span class="theme-mock" style="background:{{ c[1] }}">
+          <span class="mock-top" style="background:{{ c[0] }}"><i style="background:{{ c[3] }}"></i></span>
+          <span class="mock-card" style="background:{{ c[2] }}">
+            <b style="background:{{ c[4] }}"></b><b class="short" style="background:{{ c[4] }}"></b>
+            <em style="background:{{ c[3] }}"></em>
+          </span>
+        </span>
+        <span class="theme-name">{{ t.label }}</span>
+        <span class="hint">{{ t.desc }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <p class="hint">O tema aplica-se a todos os utilizadores.</p>
+  </section>
+
+  <div class="buttons">
+    <button class="primary">Guardar</button>
+    <button class="danger" name="action" value="reset" formnovalidate
+            onclick="return confirm('Repor o título, os textos, o ícone e o tema por omissão?')">Repor por omissão</button>
+  </div>
+</form>
+{% endblock %}

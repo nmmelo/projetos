@@ -3,7 +3,7 @@ import secrets
 
 from flask import Blueprint, abort, g, render_template, request, session
 
-from .. import auth, store
+from .. import aparencia, auth, store
 
 bp = Blueprint("portal", __name__)
 
@@ -22,11 +22,10 @@ def inject():
     if "csrf" not in session:
         session["csrf"] = secrets.token_hex(16)
     try:
-        portal_name = store.get_settings()["portal_name"]
+        look = aparencia.context(store.get_settings())
     except Exception:  # noqa: BLE001 - BD do portal indisponivel
-        portal_name = store.DEFAULT_SETTINGS["portal_name"]
-    return {"csrf_token": session["csrf"], "user": g.get("user"), "portal_name": portal_name,
-            "ACTIONS": auth.ACTIONS}
+        look = aparencia.context(aparencia.DEFAULTS)
+    return {"csrf_token": session["csrf"], "user": g.get("user"), "ACTIONS": auth.ACTIONS, **look}
 
 
 @bp.app_errorhandler(403)

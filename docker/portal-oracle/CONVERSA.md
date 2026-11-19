@@ -140,3 +140,23 @@ Outras decisões:
 - O código instalado passa a ser do `root` (só leitura para o utilizador de serviço), porque o root volta a correr o `instalar.sh` e os templates; `data/` e `.venv` ficam do utilizador de serviço.
 - O `extrair_pasta_git.sh` passou a aceitar argumentos (`-r -b -p -d`), e a mesma lógica está embutida no `instalar.sh`, que pode ser descarregado sozinho.
 - O README mantém o passo a passo manual, agora com variáveis (`NOME`, `DIR`, ...) e com o HTTPS explicado (validar certificado e chave, juntar a cadeia, template HTTPS, cookies seguros, testes).
+
+---
+
+## 9. Aparência configurável: título, rodapé, ícone e tema
+
+Chat de 19 de novembro de 2026.
+
+**Pergunta:**
+> quero que seja possivel alterar o nome que aparece no login ou no portal, neste momento é Oracle · Gestão de espaço, ter na configuração uma zona portal, onde podemos alterar o titulo, rodape, faicon, o tema, podemos ter 2 ou 3 temas diferentes.
+
+**Resposta:** nova aba **Configuração → Portal → Aparência** (o título saiu da aba Geral):
+
+| O quê | Como ficou |
+|---|---|
+| Título, texto no login, rodapé | Campos de texto; `{ano}` no rodapé é trocado pelo ano atual |
+| Favicon | Upload PNG/ICO/SVG até 32 KB, guardado na tabela `settings` (entra nos backups), servido em `/favicon.ico`. Tipo verificado pelo conteúdo; SVG com scripts recusado e servido com CSP. Ícone por omissão na cor do tema |
+| Temas | Claro, Escuro e Oracle. O CSS passou a ter todas as cores em variáveis; cada tema é um bloco `html[data-tema="..."]` |
+| Repor | Botão "Repor por omissão" |
+
+Ficheiros: `app/aparencia.py` (temas e validações), `app/templates/config/appearance.html`, `app/static/favicon.svg`, `app/static/style.css`, rota `/favicon.ico` em `app/views/main.py`. Capturas em `docs/`.

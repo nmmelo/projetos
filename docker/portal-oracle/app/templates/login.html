@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Entrar{% endblock %}
 {% block content %}
-<section class="card narrow">
+<section class="card narrow login">
+  {% if show_icon %}<img class="login-icon" src="{{ url_for('portal.favicon', v=favicon_ver) }}" alt="">{% endif %}
   <h1>{{ portal_name }}</h1>
+  {% if login_subtitle %}<p class="muted login-sub">{{ login_subtitle }}</p>{% endif %}
   {% if no_admin %}
   <div class="flash error">
     O administrador ainda não foi configurado. No contentor, corra

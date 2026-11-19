@@ -1,10 +1,10 @@
-"""Configuracao: abas 'Bases de dados' e 'Portal' (Geral, Armazenamento, Utilizadores, Perfis, Backups)."""
+"""Configuracao: abas 'Bases de dados' e 'Portal' (Geral, Aparencia, Armazenamento, Utilizadores, Perfis, Backups)."""
 import os
 import re
 
 from flask import abort, flash, g, redirect, render_template, request, send_file, url_for
 
-from .. import auth, backup, crypto, oracle, settings, store
+from .. import aparencia, auth, backup, crypto, oracle, settings, store
 from . import bp
 
 USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
@@ -101,18 +101,50 @@ def cfg_db_test(db_id):
 def cfg_general():
     if request.method == "POST":
         try:
-            name = request.form.get("portal_name", "").strip()[:80] or store.DEFAULT_SETTINGS["portal_name"]
             minutes = int(request.form.get("session_minutes", "480"))
             keep = int(request.form.get("backup_keep", "30"))
             if not 5 <= minutes <= 10080 or not 1 <= keep <= 1000:
                 raise ValueError("Valores fora dos limites.")
-            store.save_settings({"portal_name": name, "session_minutes": minutes, "backup_keep": keep})
+            store.save_settings({"session_minutes": minutes, "backup_keep": keep})
             flash("Configuração guardada.", "ok")
             return redirect(url_for("portal.cfg_general"))
         except ValueError as exc:
             flash(f"Erro: {exc}", "error")
     return render_template("config/general.html", s=store.get_settings(), tab="portal", sub="general",
                            storage=store.get().describe())
+
+
+# ====================================================================== Portal: Aparencia
+@bp.route("/config/portal/appearance", methods=["GET", "POST"])
+@auth.requires("config.portal")
+def cfg_appearance():
+    if request.method == "POST":
+        try:
+            if request.form.get("action") == "reset":
+                store.save_settings(aparencia.DEFAULTS)
+                flash("Aparência reposta: título, textos, ícone e tema por omissão.", "ok")
+                return redirect(url_for("portal.cfg_appearance"))
+            theme = request.form.get("theme", aparencia.DEFAULT_THEME)
+            if theme not in aparencia.THEMES:
+                raise ValueError("Tema inválido.")
+            values = {k: aparencia.clean_text(k, request.form.get(k, "")) for k in aparencia.LIMITS}
+            values["portal_name"] = values["portal_name"] or aparencia.DEFAULTS["portal_name"]
+            values["theme"] = theme
+            values["show_icon"] = "1" if request.form.get("show_icon") else "0"
+            upload = request.files.get("favicon")
+            if upload and upload.filename:
+                values.update(aparencia.favicon_settings(upload.read(aparencia.FAVICON_MAX + 1)))
+            elif request.form.get("favicon_remove"):
+                values.update({"favicon_data": "", "favicon_type": "", "favicon_ver": ""})
+            store.save_settings(values)
+            flash("Aparência guardada.", "ok")
+            return redirect(url_for("portal.cfg_appearance"))
+        except ValueError as exc:
+            flash(f"Erro: {exc}", "error")
+    s = store.get_settings()
+    return render_template("config/appearance.html", s=s, themes=aparencia.THEMES,
+                           limits=aparencia.LIMITS, favicon_max=aparencia.FAVICON_MAX // 1024,
+                           custom_icon=bool(s.get("favicon_ver")), tab="portal", sub="appearance")
 
 
 # ====================================================================== Portal: Armazenamento

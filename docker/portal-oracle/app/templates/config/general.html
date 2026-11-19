@@ -6,8 +6,6 @@
   <h2>Geral</h2>
   <form method="post" class="grid">
     <input type="hidden" name="csrf" value="{{ csrf_token }}">
-    <label class="full">Nome do portal
-      <input name="portal_name" value="{{ s.portal_name }}" maxlength="80"></label>
     <label>Duração da sessão (minutos)
       <input name="session_minutes" type="number" min="5" max="10080" value="{{ s.session_minutes }}">
       <span class="hint">Sem atividade durante este tempo, o utilizador tem de voltar a entrar.</span></label>
@@ -23,6 +21,7 @@
   <table class="kv">
     <tr><th>Dados do portal</th><td>{{ storage }}
       {% if user.is_admin %} — <a href="{{ url_for('portal.cfg_storage') }}">alterar</a>{% endif %}</td></tr>
+    <tr><th>Título e tema</th><td>{{ portal_name }} — <a href="{{ url_for('portal.cfg_appearance') }}">alterar em Aparência</a></td></tr>
     <tr><th>Administrador</th><td>utilizador local em <code>data/admin.json</code> (não fica na base de dados)</td></tr>
   </table>
 </section>

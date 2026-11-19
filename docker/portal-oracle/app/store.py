@@ -10,7 +10,7 @@ import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
-from . import crypto, settings
+from . import aparencia, crypto, settings
 
 TABLES = ("settings", "oracle_dbs", "profiles", "users", "jobs", "backups")
 
@@ -253,14 +253,25 @@ def tx():
 
 
 # ------------------------------------------------------------------ settings (chave/valor)
-DEFAULT_SETTINGS = {"portal_name": "Oracle · Gestão de espaço", "session_minutes": "480",
-                    "backup_keep": "30"}
+DEFAULT_SETTINGS = {**aparencia.DEFAULTS, "session_minutes": "480", "backup_keep": "30"}
 
 
-def get_settings() -> dict:
+def get_settings(blobs: bool = False) -> dict:
+    """Definicoes do portal. Sem blobs=True nao le o favicon (lido em cada pagina)."""
     with tx() as t:
-        rows = t.all("SELECT k, v FROM settings")
-    return {**DEFAULT_SETTINGS, **{r["k"]: r["v"] for r in rows}}
+        if blobs:
+            rows = t.all("SELECT k, v FROM settings")
+        else:
+            marks = ", ".join("?" * len(aparencia.BLOB_KEYS))
+            rows = t.all(f"SELECT k, v FROM settings WHERE k NOT IN ({marks})", aparencia.BLOB_KEYS)
+    return {**{k: v for k, v in DEFAULT_SETTINGS.items() if blobs or k not in aparencia.BLOB_KEYS},
+            **{r["k"]: r["v"] for r in rows}}
+
+
+def get_setting(key: str) -> str:
+    with tx() as t:
+        val = t.val("SELECT v FROM settings WHERE k = ?", (key,))
+    return DEFAULT_SETTINGS.get(key, "") if val is None else val
 
 
 def save_settings(values: dict) -> None:

@@ -15,7 +15,7 @@ Corre num **contentor único em Ubuntu 26.04 LTS** com Nginx, Gunicorn, **OpenSS
 | **Shrink** | Um tablespace ou TODOS, em ANÁLISE ou EXECUTAR, corre em segundo plano |
 | **Execuções** | Histórico, passo em curso, log e cancelamento |
 | **Configuração → Bases de dados** | Bases de dados Oracle: host, porta, SID ou Service Name, PDB, utilizador, password cifrada, Normal ou SYSDBA |
-| **Configuração → Portal** | **Geral**, **Armazenamento**, **Utilizadores**, **Perfis** e **Backups** |
+| **Configuração → Portal** | **Geral**, **Aparência** (título, textos, ícone e tema), **Armazenamento**, **Utilizadores**, **Perfis** e **Backups** |
 | **Minha área** (nome no canto superior direito) | Dados do utilizador e alteração da password |
 
 ### Situações que o shrink trata automaticamente
@@ -513,6 +513,37 @@ Só é preciso refazer a imagem (`docker-compose build`) para mudar o sistema ba
 
 ---
 
+## Aparência: título, rodapé, ícone e tema
+
+Em **Configuração → Portal → Aparência** (permissão `config.portal`):
+
+| Campo | Onde aparece | Notas |
+|---|---|---|
+| **Título do portal** | Cabeçalho, login e separador do browser | Por omissão `Oracle · Gestão de espaço`. Até 80 caracteres |
+| **Texto no login** | Por baixo do título, na página de entrada | Opcional, ex. `Equipa de bases de dados — acesso restrito` |
+| **Rodapé** | Fundo de todas as páginas, incluindo o login | Opcional. `{ano}` é trocado pelo ano atual, ex. `© {ano} Empresa · Suporte: extensão 1234` |
+| **Ícone (favicon)** | Separador do browser e, se escolher, ao lado do título | PNG, ICO ou SVG até 32 KB (o tipo é verificado pelo conteúdo). SVG com scripts ou eventos é recusado. Sem ícone próprio, é usado um ícone de base de dados na cor do tema |
+| **Tema** | Todo o portal, para todos os utilizadores | **Claro** (azul, por omissão), **Escuro** e **Oracle** (vermelho e grafite) |
+
+O botão **Repor por omissão** volta ao título, textos, ícone e tema originais.
+
+![Configuração → Portal → Aparência](docs/aparencia.png)
+
+| Tema Escuro | Tema Oracle |
+|---|---|
+| ![Tema Escuro](docs/tema-escuro.png) | ![Tema Oracle](docs/tema-oracle.png) |
+
+**Onde fica guardado.** Na tabela `settings` da base de dados do portal (o ícone em base64), por isso:
+
+- entra nos **backups da configuração** e é reposto ao importar;
+- vale para todos os workers do Gunicorn e é mantido ao mudar de SQLite para MariaDB/PostgreSQL (com "Copiar os dados atuais").
+
+O ícone é servido em `/favicon.ico` (rota pública, para aparecer no login), com cache. O URL muda quando o ícone ou o tema mudam, por isso o browser mostra logo o novo.
+
+**Acrescentar um tema:** um bloco `html[data-tema="<nome>"] { ... }` com as variáveis de cor em `app/static/style.css` (copie o de um tema existente) e uma entrada em `THEMES`, no ficheiro `app/aparencia.py` (nome, descrição e cores da pré-visualização). Aparece automaticamente na página Aparência.
+
+---
+
 ## Armazenamento: SQLite, MariaDB ou PostgreSQL
 
 Escolhe-se em **Configuração → Portal → Armazenamento** (só o administrador):
@@ -562,7 +593,7 @@ Em **Configuração → Portal → Backups**:
 | **Descarregar** | Faz download do ficheiro |
 | **Remover** | Apaga o **ficheiro e o registo** |
 
-- O backup inclui as definições, as bases de dados Oracle (passwords cifradas), os perfis e os utilizadores (hashes).
+- O backup inclui as definições (incluindo a aparência: título, textos, ícone e tema), as bases de dados Oracle (passwords cifradas), os perfis e os utilizadores (hashes).
 - Não inclui o histórico de execuções, o administrador local nem a configuração de armazenamento.
 - Antes de qualquer importação, é criado um backup automático (origem `pre-import`).
 - Se o backup tiver sido feito com outra `fernet.key`, o portal avisa: as passwords Oracle terão de ser introduzidas outra vez.
