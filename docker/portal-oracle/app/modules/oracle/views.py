@@ -121,14 +121,28 @@ def _job_or_403(job_id) -> dict:
 def job_detail(job_id):
     job = _job_or_403(job_id)
     can_cancel = g.user.can("oracle.shrink.executar") or job["created_by"] == g.user.username
-    return render_template("oracle/job.html", job=job, can_cancel=can_cancel)
+    return render_template("oracle/job.html", job=job, can_cancel=can_cancel, elapsed=_elapsed(job))
 
 
 @bp.route("/api/jobs/<int:job_id>")
 @auth.login_required
 def api_job(job_id):
     job = _job_or_403(job_id)
-    return jsonify({k: job[k] for k in ("status", "current_action", "finished_at", "error", "output")})
+    data = {k: job.get(k) for k in ("status", "current_action", "progress", "finished_at", "error", "output")}
+    data["elapsed"] = _elapsed(job)
+    return jsonify(data)
+
+
+def _elapsed(job) -> int:
+    """Segundos desde o inicio (ate ao fim, se ja terminou), calculados no servidor."""
+    from datetime import datetime
+    fmt = "%Y-%m-%d %H:%M:%S"
+    try:
+        ini = datetime.strptime(job["started_at"], fmt)
+        fim = datetime.strptime(job["finished_at"] or store.now(), fmt)
+        return max(0, int((fim - ini).total_seconds()))
+    except (TypeError, ValueError):
+        return 0
 
 
 @bp.route("/execucoes/<int:job_id>/log")

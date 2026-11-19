@@ -1,5 +1,9 @@
 -- Bloco PL/SQL do shrink_tablespace.sql, executado pelo portal via python-oracledb.
 -- Os marcadores &p_* sao substituidos pelo portal com valores ja validados.
+-- Acompanhamento em direto (lido pelo portal numa segunda ligacao):
+--   * progresso: V$SESSION_LONGOPS (OPNAME = 'SHRINK_TS', SOFAR/TOTALWORK em permilagem)
+--   * linhas do output: DBMS_PIPE '&p_pipe' (se o utilizador tiver EXECUTE em DBMS_PIPE; senao,
+--     so a barra de progresso e o passo atual sao em direto e o output aparece no fim)
 DECLARE
   c_sel     CONSTANT VARCHAR2(128) := UPPER(TRIM('&p_ts'));
   c_todos   CONSTANT BOOLEAN       := c_sel IN ('TODOS', 'ALL', '*');
@@ -29,6 +33,14 @@ DECLARE
   v_tsn       NUMBER;                 -- ts# do tablespace
   v_con       NUMBER := TO_NUMBER(SYS_CONTEXT('USERENV', 'CON_ID'));
   g_fast      BOOLEAN := FALSE;       -- TRUE = le SYS.X$KTFBUE (rapido); FALSE = DBA_EXTENTS
+
+  -- Acompanhamento em direto
+  g_pipe     VARCHAR2(128) := '&p_pipe';
+  g_pipe_ok  BOOLEAN       := g_pipe IS NOT NULL;
+  g_rindex   BINARY_INTEGER := DBMS_APPLICATION_INFO.SET_SESSION_LONGOPS_NOHINT;
+  g_slno     BINARY_INTEGER;
+  g_base     NUMBER := 0;     -- permilagem ja feita (tablespaces anteriores)
+  g_fatia    NUMBER := 1000;  -- permilagem deste tablespace (1000 / n.o de tablespaces)
 
   TYPE t_num   IS TABLE OF NUMBER        INDEX BY PLS_INTEGER;
   TYPE t_txt   IS TABLE OF VARCHAR2(600) INDEX BY PLS_INTEGER;
@@ -104,12 +116,33 @@ DECLARE
   END;
 
   -- ---------------------------------------------------------------------------
-  PROCEDURE p(m VARCHAR2) IS BEGIN DBMS_OUTPUT.PUT_LINE(m); END;
+  -- Escreve uma linha do output: DBMS_OUTPUT (output final) e, se possivel, DBMS_PIPE (em direto).
+  -- DBMS_PIPE e chamado de forma dinamica: sem o privilegio, o bloco compila na mesma.
+  PROCEDURE p(m VARCHAR2) IS
+  BEGIN
+    DBMS_OUTPUT.PUT_LINE(m);
+    IF g_pipe_ok THEN
+      BEGIN
+        EXECUTE IMMEDIATE 'DECLARE r INTEGER; BEGIN DBMS_PIPE.RESET_BUFFER; ' ||
+                          'DBMS_PIPE.PACK_MESSAGE(:1); r := DBMS_PIPE.SEND_MESSAGE(:2, 0, 4194304); END;'
+          USING NVL(SUBSTR(m, 1, 4000), ' '), g_pipe;
+      EXCEPTION WHEN OTHERS THEN
+        g_pipe_ok := FALSE;
+      END;
+    END IF;
+  END;
 
-  -- Passo atual visivel noutra sessao: V$SESSION.ACTION (onde MODULE = 'SHRINK_TS')
-  PROCEDURE passo(a VARCHAR2) IS
+  -- Passo atual visivel noutra sessao: V$SESSION.ACTION (MODULE = 'SHRINK_TS') e, com pct
+  -- (0-100 dentro do tablespace atual), a percentagem em V$SESSION_LONGOPS.
+  PROCEDURE passo(a VARCHAR2, pct NUMBER DEFAULT NULL) IS
   BEGIN
     DBMS_APPLICATION_INFO.SET_MODULE('SHRINK_TS', SUBSTR(a, 1, 64));
+    IF pct IS NOT NULL THEN
+      DBMS_APPLICATION_INFO.SET_SESSION_LONGOPS(
+        rindex => g_rindex, slno => g_slno, op_name => 'SHRINK_TS',
+        sofar => LEAST(ROUND(g_base + g_fatia * pct / 100), 1000), totalwork => 1000,
+        target_desc => SUBSTR(a, 1, 32), units => 'permil');
+    END IF;
   END;
 
   FUNCTION q(n VARCHAR2) RETURN VARCHAR2 IS BEGIN RETURN '"' || n || '"'; END;
@@ -472,7 +505,9 @@ DECLARE
     p('');
     p('--- Comandos de reorganizacao (passagem ' || p_pass || ')');
     FOR i IN 1 .. g_seg.COUNT LOOP
-      passo(g_ts || ' 5 reorg p' || p_pass || ' ' || i || '/' || g_seg.COUNT || ' ' || g_seg(i).seg);
+      passo(g_ts || ' 5 reorg p' || p_pass || ' ' || i || '/' || g_seg.COUNT || ' ' || g_seg(i).seg,
+            CASE WHEN p_pass = 1 THEN 52 + 30 * i / GREATEST(g_seg.COUNT, 1)
+                 ELSE 82 + 6 * i / GREATEST(g_seg.COUNT, 1) END);
       reorg(g_seg(i));
     END LOOP;
     p('');
@@ -510,7 +545,7 @@ BEGIN
   SELECT SUM(bytes) INTO v_ini FROM dba_data_files WHERE tablespace_name = g_ts;
   SELECT ts# INTO v_tsn FROM v$tablespace WHERE name = g_ts;
 
-  passo(g_ts || ' 1 deteccao X$KTFBUE');
+  passo(g_ts || ' 1 deteccao X$KTFBUE', 2);
   -- ---------- Metodo de leitura dos extents ----------
   -- X$KTFBUE (so SYS) e muito mais rapido que DBA_EXTENTS; se nao houver acesso, usa DBA_EXTENTS.
   DECLARE n NUMBER;
@@ -539,7 +574,7 @@ BEGIN
 
   -- ---------- HWM e ganhos ----------
   v_t0 := DBMS_UTILITY.GET_TIME;
-  passo(g_ts || ' 2 calculo HWM');
+  passo(g_ts || ' 2 calculo HWM', 5);
   load_hwm;
 
   p('===== 2b. HWM por datafile (metodo: ' ||
@@ -564,7 +599,7 @@ BEGIN
   p('-- calculado em ' || ROUND((DBMS_UTILITY.GET_TIME - v_t0) / 100) || ' s');
   p('');
 
-  passo(g_ts || ' 3 recyclebin');
+  passo(g_ts || ' 3 recyclebin', 40);
   SELECT COUNT(*) INTO v_rb FROM dba_recyclebin WHERE ts_name = g_ts;
 
   p('===== 3. Diagnostico =====');
@@ -589,6 +624,7 @@ BEGIN
   END IF;
 
   -- ---------- Shrink direto ----------
+  passo(g_ts || ' 4 shrink direto', 44);
   p('===== 4. Shrink direto (resize ate ao HWM) =====');
   -- restos de MOVE/REBUILD anteriores (TEMPORARY) podem estar acima do HWM e bloquear o resize
   IF n_temp > 0 THEN
@@ -610,7 +646,7 @@ BEGIN
   ELSE
     v_reorg := TRUE;
     p('===== 5. Reorganizacao: segmentos acima do alvo nos datafiles =====');
-    passo(g_ts || ' 5 lista de segmentos');
+    passo(g_ts || ' 5 lista de segmentos', 48);
     recolher_candidatos;
     listar_e_mover(1);
 
@@ -622,7 +658,7 @@ BEGIN
       FOR v_pass IN 2 .. c_passes LOOP
         EXIT WHEN NOT hwm_alto;
         p('===== 5b. HWM continua acima do alvo: passagem ' || v_pass || ' =====');
-        passo(g_ts || ' 5 lista de segmentos p' || v_pass);
+        passo(g_ts || ' 5 lista de segmentos p' || v_pass, 82);
         recolher_candidatos;
         EXIT WHEN g_seg.COUNT = 0;
         listar_e_mover(v_pass);
@@ -636,7 +672,7 @@ BEGIN
     END IF;
 
     -- ---------- Indices UNUSABLE ----------
-    passo(g_ts || ' 6 indices UNUSABLE');
+    passo(g_ts || ' 6 indices UNUSABLE', 90);
     p('===== 6. Indices UNUSABLE =====');
     IF NOT c_exec THEN
       p('-- (em EXECUTAR esta verificacao e feita apos a reorganizacao; abaixo, os atuais)');
@@ -657,7 +693,7 @@ BEGIN
     p('');
 
     -- ---------- Shrink final ----------
-    passo(g_ts || ' 7 shrink final');
+    passo(g_ts || ' 7 shrink final', 94);
     p('===== 7. Shrink final (apos reorganizacao) =====');
     IF c_exec THEN
       resize_hwm(TRUE);
@@ -680,7 +716,7 @@ BEGIN
   END IF;
 
   -- ---------- Resumo ----------
-  passo(g_ts || ' fim');
+  passo(g_ts || ' fim', 100);
   SELECT SUM(bytes) INTO v_fim FROM dba_data_files WHERE tablespace_name = g_ts;
   p('===== Resumo ' || g_ts || ' =====');
   p(RPAD('Modo', 42) || ': ' || CASE WHEN c_exec THEN 'EXECUTAR' ELSE 'ANALISE' END);
@@ -722,15 +758,20 @@ BEGIN
     -- Todos os tablespaces permanentes, exceto SYSTEM/SYSAUX (UNDO e TEMP nao sao PERMANENT).
     -- Os que tem menos espaco livre do que o ganho minimo sao ignorados (o ganho nunca
     -- pode ser superior ao espaco livre), poupando o calculo do HWM.
-    passo('0 lista de tablespaces');
+    passo('0 lista de tablespaces', 0);
+    SELECT COUNT(*) INTO v_livre FROM dba_tablespaces
+     WHERE contents = 'PERMANENT' AND tablespace_name NOT IN ('SYSTEM', 'SYSAUX');
+    g_fatia := 1000 / GREATEST(v_livre, 1);
+    g_base  := -g_fatia;
     FOR r_ts IN (SELECT t.tablespace_name, t.status
                    FROM dba_tablespaces t
                   WHERE t.contents = 'PERMANENT'
                     AND t.tablespace_name NOT IN ('SYSTEM', 'SYSAUX')
                   ORDER BY t.tablespace_name) LOOP
       -- espaco livre calculado um tablespace de cada vez (progresso visivel em V$SESSION)
+      g_base := g_base + g_fatia;
       IF r_ts.status = 'ONLINE' THEN
-        passo(r_ts.tablespace_name || ' 0 espaco livre');
+        passo(r_ts.tablespace_name || ' 0 espaco livre', 0);
         SELECT ROUND(NVL(SUM(bytes), 0) / 1048576) INTO v_livre
           FROM dba_free_space WHERE tablespace_name = r_ts.tablespace_name;
       END IF;
@@ -762,7 +803,8 @@ BEGIN
   END IF;
 
   -- ---------- Resumo global ----------
-  passo('fim');
+  g_base := 0; g_fatia := 1000;
+  passo('fim', 100);
   p('');
   p('=============================================================================');
   p('===== RESUMO GLOBAL (' || CASE WHEN c_exec THEN 'EXECUTAR' ELSE 'ANALISE - ganho estimado' END ||

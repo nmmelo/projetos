@@ -15,7 +15,8 @@
       <td>{{ j.db_name }}</td>
       <td>{{ j.params.ts }}</td>
       <td><span class="tag {{ 'warn' if j.params.modo == 'EXECUTAR' }}">{{ j.params.modo }}</span></td>
-      <td><span class="status s-{{ j.status|replace(' ', '-') }}">{{ j.status }}</span></td>
+      <td><span class="status s-{{ j.status|replace(' ', '-') }}">{{ j.status }}</span>
+        {%- if j.status == 'EM CURSO' and j.progress is not none %}<span class="minibar" title="{{ (j.progress / 10)|round(1) }}%"><span style="width:{{ j.progress / 10 }}%"></span></span>{% endif %}</td>
       <td class="small">{{ j.current_action or '' }}</td>
       <td class="nowrap">{{ j.started_at }}</td>
       <td class="nowrap">{{ j.finished_at or "" }}</td>

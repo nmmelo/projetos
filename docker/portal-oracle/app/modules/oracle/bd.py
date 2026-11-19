@@ -67,6 +67,59 @@ def current_action(conn, sid, serial):
     return f"{row[0] or '-'} ({row[1]})" if row else None
 
 
+def current_progress(conn, sid, serial):
+    """Permilagem (0-1000) registada pelo bloco em V$SESSION_LONGOPS, ou None."""
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT sofar, totalwork FROM v$session_longops
+             WHERE sid = :1 AND serial# = :2 AND opname = 'SHRINK_TS'
+             ORDER BY last_update_time DESC FETCH FIRST 1 ROWS ONLY""", [sid, serial])
+        row = cur.fetchone()
+    if not row or not row[1]:
+        return None
+    return max(0, min(1000, round(1000 * row[0] / row[1])))
+
+
+_PIPE_READ = """
+DECLARE
+  s  INTEGER;
+  l  VARCHAR2(4000);
+  b  VARCHAR2(32767);
+BEGIN
+  LOOP
+    EXIT WHEN NVL(LENGTH(b), 0) > 28000;            -- o resto fica para a proxima leitura
+    s := DBMS_PIPE.RECEIVE_MESSAGE(:pipe, 0);
+    EXIT WHEN s <> 0;                               -- 1 = vazio (timeout 0)
+    WHILE DBMS_PIPE.NEXT_ITEM_TYPE <> 0 LOOP
+      DBMS_PIPE.UNPACK_MESSAGE(l);
+      b := b || l || CHR(10);
+    END LOOP;
+  END LOOP;
+  :buf := b;
+END;"""
+
+
+def read_pipe(conn, pipe: str) -> list[str]:
+    """Linhas enviadas pelo bloco desde a ultima leitura (DBMS_PIPE). Erro se nao houver privilegio."""
+    lines = []
+    with conn.cursor() as cur:
+        while True:
+            buf = cur.var(str, 32767)
+            cur.execute(_PIPE_READ, pipe=pipe, buf=buf)
+            text = buf.getvalue() or ""
+            if not text:
+                break
+            lines.extend(text.rstrip("\n").split("\n"))
+            if len(text) <= 28000:
+                break
+    return lines
+
+
+def purge_pipe(conn, pipe: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute("BEGIN DBMS_PIPE.PURGE(:1); END;", [pipe])
+
+
 def kill_session(conn, sid, serial) -> None:
     with conn.cursor() as cur:
         cur.execute(f"ALTER SYSTEM KILL SESSION '{int(sid)},{int(serial)}' IMMEDIATE")
@@ -154,7 +207,7 @@ def validate_shrink_params(form) -> dict:
             "min_ganho": min_ganho, "margem": margem}
 
 
-def build_block(p: dict) -> str:
+def build_block(p: dict, pipe: str = "") -> str:
     """Substitui os marcadores &p_* do bloco PL/SQL (valores ja validados: sem aspas nem codigo)."""
     with open(os.path.join(SQL_DIR, "shrink_block.sql")) as fh:
         block = fh.read()
@@ -162,7 +215,7 @@ def build_block(p: dict) -> str:
     block = block.rstrip().removesuffix("/").rstrip()  # sem o "/" do SQL*Plus, se existir
     for key, val in (("&p_min_ganho", p["min_ganho"]), ("&p_margem", p["margem"]),
                      ("&p_modo", p["modo"]), ("&p_online", p["online"]),
-                     ("&p_purge", p["purge"]), ("&p_ts", p["ts"])):
+                     ("&p_purge", p["purge"]), ("&p_ts", p["ts"]), ("&p_pipe", pipe)):
         block = block.replace(key, str(val))
     if "&p_" in block:
         raise RuntimeError("Marcador por substituir no bloco PL/SQL.")
@@ -185,8 +238,8 @@ def read_dbms_output(conn) -> list[str]:
     return lines
 
 
-def run_shrink(conn, params: dict) -> list[str]:
-    block = build_block(params)
+def run_shrink(conn, params: dict, pipe: str = "") -> list[str]:
+    block = build_block(params, pipe)
     with conn.cursor() as cur:
         cur.callproc("dbms_output.enable", [None])
         cur.execute(block)

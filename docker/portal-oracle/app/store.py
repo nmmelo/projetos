@@ -64,6 +64,7 @@ _SCHEMA = [
         started_at VARCHAR(19) NOT NULL,
         finished_at VARCHAR(19),
         current_action VARCHAR(255),
+        progress INTEGER,
         ora_sid INTEGER,
         ora_serial INTEGER,
         output {LONGTEXT},
@@ -198,6 +199,18 @@ class Store:
         if self.kind == "sqlite":
             self._migrate_v1()
         self._migrate_modulos()
+        self._add_column("jobs", "progress", "INTEGER")
+
+    def _add_column(self, table: str, col: str, ddl: str) -> None:
+        """Acrescenta uma coluna a uma tabela ja existente (versoes anteriores do portal)."""
+        try:
+            with self.tx() as t:
+                t.one(f"SELECT {col} FROM {table} WHERE 1 = 0")
+            return                                   # ja existe
+        except Exception:  # noqa: BLE001
+            pass
+        with self.tx() as t:
+            t.run(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
 
     def _migrate_modulos(self) -> None:
         """Perfis anteriores aos modulos: codigos antigos -> novos e acesso ao modulo Oracle."""

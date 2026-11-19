@@ -213,3 +213,23 @@ Chat de 19 de novembro de 2026.
 | Perfis por módulo | Permissão de acesso `modulo.oracle` e ações `oracle.*`; formulário agrupado por módulo, com as bases de dados dentro do Oracle. Perfis e backups antigos são convertidos; URLs antigos redirecionam |
 
 Modelo seguido: o portal do repositório workspace (tabela de módulos ativáveis, menus por módulo, manutenção com editor HTML onde só os administradores entram, e script de linha de comandos).
+
+---
+
+## 13. Shrink em direto: barra "ORACLE", passos e output linha a linha
+
+Chat de 19 de novembro de 2026.
+
+**Pergunta:**
+> fiz um analise de shrink, contudo não dá nada, devia ser mais dinamico, por exemplo como no projeto portal, onde temos a barra tesla a carregar e aparece em baixo o ouput dinamico, neste caso podia ser a barra oracle.
+
+**Resposta:** o bloco PL/SQL corria de uma vez e o `DBMS_OUTPUT` só era lido no fim, por isso, durante a execução, a página só mostrava o passo atual (ex. "2 calculo HWM (db file sequential read)").
+
+| O quê | Como |
+|---|---|
+| Percentagem | O bloco regista o avanço de cada passo em `V$SESSION_LONGOPS` (`SET_SESSION_LONGOPS`, permilagem; em TODOS, uma fatia por tablespace) |
+| Output em direto | Cada `p()` também envia a linha por `DBMS_PIPE` (chamada dinâmica: sem o privilégio, o bloco compila e só o output em direto fica desligado) |
+| Monitor | A segunda ligação lê a cada 2 s o passo, a percentagem e as linhas do pipe e grava-os na execução (nova coluna `progress`). O output final continua a vir do `DBMS_OUTPUT` |
+| Página | Painel ao estilo do "TESLA a carregar…": ORACLE animado, barra com percentagem, passos, tempo decorrido; output com cores e "Acompanhar o fim" |
+
+Privilégio opcional para as linhas em direto: `GRANT EXECUTE ON SYS.DBMS_PIPE TO <utilizador>`.

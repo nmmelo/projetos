@@ -1,12 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Execução #{{ job.id }}{% endblock %}
+{% block title %}Oracle · Execução #{{ job.id }}{% endblock %}
 {% block content %}
 {% include "oracle/_tabs.html" %}
+{% set running = job.status == 'EM CURSO' %}
 <div class="head">
   <h2>Execução #{{ job.id }} — {{ job.db_name }}</h2>
   <div class="buttons">
     <a class="btn" href="{{ url_for('oracle.job_log', job_id=job.id) }}">Descarregar log</a>
-    {% if job.status == 'EM CURSO' and can_cancel %}
+    {% if running and can_cancel %}
     <form method="post" action="{{ url_for('oracle.job_cancel', job_id=job.id) }}"
           onsubmit="return confirm('Cancelar a execução? A sessão Oracle será terminada (KILL SESSION).')">
       <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="danger">Cancelar</button>
@@ -15,9 +16,29 @@
   </div>
 </div>
 
+{# Painel de andamento (ao estilo do "TESLA a carregar..." do portal): palavra animada, barra, passo e tempo #}
+<section class="run-panel {{ 'is-running' if running else 'is-done s-' ~ job.status|replace(' ', '-') }}" id="panel"
+         data-progress="{{ job.progress if job.progress is not none else '' }}">
+  <div class="run-top">
+    <span class="run-word" aria-hidden="true">{% for c in 'ORACLE' %}<span style="--i:{{ loop.index0 }}">{{ c }}</span>{% endfor %}</span>
+    <span class="run-text" id="runtext">{% if running %}{{ 'a analisar' if job.params.modo == 'ANALISE' else 'a executar' }} {{ job.params.ts }}…{% else %}{{ 'Análise' if job.params.modo == 'ANALISE' else 'Execução' }} de {{ job.params.ts }} {{ {'OK': 'concluída', 'ERRO': 'terminou com erros', 'CANCELADO': 'cancelada', 'INTERROMPIDO': 'interrompida'}.get(job.status, '') }}{% endif %}</span>
+    <span class="run-right">
+      <span class="status s-{{ job.status|replace(' ', '-') }}" id="status">{{ job.status }}</span>
+      <span class="run-pct" id="pct"></span>
+      <span class="run-time" id="elapsed" title="Tempo decorrido"></span>
+    </span>
+  </div>
+  <div class="run-bar {{ 'indet' if running and job.progress is none }}" id="bar"><span id="barfill"></span></div>
+  <ol class="run-steps" id="steps">
+    {% for n, nome in [(1, 'Deteção'), (2, 'Cálculo do HWM'), (3, 'Diagnóstico'), (4, 'Shrink direto'),
+                       (5, 'Reorganização'), (6, 'Índices'), (7, 'Shrink final')] %}
+    <li data-step="{{ n }}"><span class="dot"></span>{{ nome }}</li>
+    {% endfor %}
+  </ol>
+  <div class="run-action"><span class="muted">Passo atual:</span> <span id="action">{{ job.current_action or '—' }}</span></div>
+</section>
+
 <table class="kv">
-  <tr><th>Estado</th><td><span id="status" class="status s-{{ job.status|replace(' ', '-') }}">{{ job.status }}</span></td></tr>
-  <tr><th>Passo atual</th><td id="action">{{ job.current_action or '—' }}</td></tr>
   <tr><th>Tablespace</th><td>{{ job.params.ts }}</td></tr>
   <tr><th>Parâmetros</th><td>{{ job.params.modo }} · ONLINE {{ job.params.online }} · ganho mín. {{ job.params.min_ganho }} MB · margem {{ job.params.margem }}% · purge {{ job.params.purge }}</td></tr>
   <tr><th>Início / fim</th><td>{{ job.started_at }} → <span id="fin">{{ job.finished_at or '…' }}</span></td></tr>
@@ -26,23 +47,80 @@
 
 <div id="err" class="flash error" {{ '' if job.error else 'hidden' }}>{{ job.error or '' }}</div>
 
-<h2>Output</h2>
-<p class="muted small" id="wait" {{ 'hidden' if job.status != 'EM CURSO' }}>
-  O output do PL/SQL só fica disponível quando a execução termina. A página atualiza sozinha.</p>
-<pre id="out">{{ job.output or '' }}</pre>
+<div class="out-head">
+  <h2>Output</h2>
+  <span class="tag live" id="live" {{ '' if running else 'hidden' }}>● em direto</span>
+  <label class="inline small" {{ '' if running else 'hidden' }} id="followwrap"><input type="checkbox" id="follow" checked> Acompanhar o fim</label>
+</div>
+<p class="muted small" id="wait" {{ '' if running and not job.output else 'hidden' }}>
+  As linhas aparecem aqui à medida que o PL/SQL as escreve (se o utilizador Oracle tiver <code>EXECUTE</code> em
+  <code>DBMS_PIPE</code>; senão, o output completo aparece no fim). O cálculo do HWM pode demorar vários minutos
+  em tablespaces grandes.</p>
+<pre id="out" class="out-live">{{ job.output or '' }}</pre>
 {% endblock %}
 {% block scripts %}
-{% if job.status == 'EM CURSO' %}
 <script>
-const timer = setInterval(async () => {
-  const r = await fetch("{{ url_for('oracle.api_job', job_id=job.id) }}");
-  if (!r.ok) return;
-  const j = await r.json();
-  document.getElementById('action').textContent = j.current_action || '—';
-  const s = document.getElementById('status');
-  s.textContent = j.status; s.className = 'status s-' + j.status.replace(' ', '-');
-  if (j.status !== 'EM CURSO') { clearInterval(timer); setTimeout(() => location.reload(), 500); }
-}, 5000);
+const out = document.getElementById('out'), bar = document.getElementById('bar'), fill = document.getElementById('barfill');
+const pctEl = document.getElementById('pct'), elEl = document.getElementById('elapsed');
+let elapsed = {{ elapsed }}, running = {{ 'true' if job.status == 'EM CURSO' else 'false' }}, lastText = null;
+
+// Cor de cada linha do output (como os simbolos do Tesla): erros, avisos, titulos e comandos
+function kind(l) {
+  if (/--\s*ERRO|ORA-\d{5}/.test(l)) return 'l-err';
+  if (/--\s*(AVISO|aviso|MANUAL)|IGNORADO/.test(l)) return 'l-warn';
+  if (/^#{4}/.test(l)) return 'l-ts';
+  if (/^={4,}/.test(l)) return 'l-head';
+  if (/^(ALTER|PURGE|DROP)\b/.test(l)) return 'l-cmd';
+  if (/^\s*--\s*OK|OK na tentativa/.test(l)) return 'l-ok';
+  return '';
+}
+function renderOut(text) {
+  if (text === lastText) return;
+  lastText = text;
+  const atEnd = out.scrollTop + out.clientHeight >= out.scrollHeight - 30;
+  const frag = document.createDocumentFragment();
+  (text || '').split('\n').forEach((l, i, a) => {
+    const s = document.createElement('span'); s.textContent = l + (i < a.length - 1 ? '\n' : '');
+    const k = kind(l); if (k) s.className = k; frag.appendChild(s);
+  });
+  out.replaceChildren(frag);
+  const follow = document.getElementById('follow');
+  if (running && (follow ? follow.checked : atEnd)) out.scrollTop = out.scrollHeight;
+  document.getElementById('wait').hidden = !running || !!text;
+}
+function fmt(t) { const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = String(t % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`; }
+function setProgress(p) {
+  if (p === null || p === undefined || p === '') { pctEl.textContent = ''; return; }
+  const v = Math.max(0, Math.min(100, p / 10));
+  bar.classList.remove('indet'); fill.style.width = v + '%'; pctEl.textContent = v.toFixed(v < 10 ? 1 : 0) + '%';
+}
+function setSteps(action) {
+  const m = /(?:^|\s)(\d)\s/.exec(' ' + (action || '') + ' ');
+  const cur = m ? +m[1] : (action === 'fim' || !running ? 8 : 0);
+  document.querySelectorAll('#steps li').forEach(li => {
+    const n = +li.dataset.step;
+    li.className = n < cur ? 'done' : (n === cur ? 'now' : '');
+  });
+}
+renderOut(out.textContent);
+setProgress(document.getElementById('panel').dataset.progress);
+setSteps(document.getElementById('action').textContent);
+elEl.textContent = fmt(elapsed);
+
+if (running) {
+  setInterval(() => { elapsed++; elEl.textContent = fmt(elapsed); }, 1000);
+  const timer = setInterval(async () => {
+    const r = await fetch("{{ url_for('oracle.api_job', job_id=job.id) }}");
+    if (!r.ok) return;
+    const j = await r.json();
+    elapsed = j.elapsed; elEl.textContent = fmt(elapsed);
+    document.getElementById('action').textContent = j.current_action || '—';
+    setSteps(j.current_action); setProgress(j.progress); renderOut(j.output || '');
+    const s = document.getElementById('status');
+    s.textContent = j.status; s.className = 'status s-' + j.status.replace(' ', '-');
+    if (j.status !== 'EM CURSO') { clearInterval(timer); setTimeout(() => location.reload(), 800); }
+  }, 2000);
+}
 </script>
-{% endif %}
 {% endblock %}

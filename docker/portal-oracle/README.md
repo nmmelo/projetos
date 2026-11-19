@@ -13,10 +13,27 @@ Instala-se **num servidor** (script `instalar.sh`, ver [Instalação num servido
 | **Home** | Um bloco por módulo a que o utilizador tem acesso (no Oracle: bases de dados visíveis, execuções em curso e nas últimas 24 h, últimas execuções) e o último backup |
 | **Oracle → Tablespaces** | Tamanho, usado e livre, do maior para o mais pequeno (sem SYSTEM, SYSAUX, UNDO e TEMP) |
 | **Oracle → Shrink** | Um tablespace ou TODOS, em ANÁLISE ou EXECUTAR, corre em segundo plano |
-| **Oracle → Execuções** | Histórico, passo em curso, log e cancelamento |
+| **Oracle → Execuções** | Histórico, andamento em direto (barra com percentagem, passos, tempo decorrido e output a aparecer linha a linha), log e cancelamento |
 | **Oracle → Definições** | Bases de dados Oracle: host, porta, SID ou Service Name, PDB, utilizador, password cifrada, Normal ou SYSDBA |
 | **Configuração** | **Geral**, **Aparência** (título, textos, ícone e tema), **Manutenção** (modo de manutenção com editor HTML), **Módulos** (ativar/desativar), **Armazenamento**, **Utilizadores**, **Perfis** e **Backups** |
 | **Minha área** (nome no canto superior direito) | Dados do utilizador, permissões e alteração da password |
+
+### Execução em direto
+
+Ao lançar um shrink (ANÁLISE ou EXECUTAR), a página da execução mostra um painel ao estilo do "TESLA a carregar…" do portal:
+
+| Elemento | De onde vem |
+|---|---|
+| **ORACLE** animado, percentagem e barra | `V$SESSION_LONGOPS` (`OPNAME = 'SHRINK_TS'`): o bloco PL/SQL regista o avanço de cada passo com `DBMS_APPLICATION_INFO.SET_SESSION_LONGOPS`. Em TODOS, cada tablespace tem a sua parte da barra |
+| **Passos** (Deteção, Cálculo do HWM, Diagnóstico, Shrink direto, Reorganização, Índices, Shrink final) e **passo atual** | `V$SESSION.ACTION` e o evento de espera (ex. `db file sequential read`) |
+| **Tempo decorrido** | Calculado no servidor |
+| **Output em direto**, com cores (erros, avisos, títulos, comandos) e "Acompanhar o fim" | Cada linha do PL/SQL também é enviada por `DBMS_PIPE`. Uma segunda ligação lê-a a cada 2 s e grava-a na execução. Sem `EXECUTE` em `DBMS_PIPE`, o output aparece no fim |
+
+![Execução em direto](docs/execucao-direto.png)
+
+No fim, o output completo vem do `DBMS_OUTPUT`, como antes, e substitui o que chegou em direto. A lista de execuções mostra uma mini barra nas que estão em curso. O output em direto também aparece no **Oracle → Execuções** de quem abrir a página a meio.
+
+> A **percentagem** é por passo: o cálculo do HWM (5 % → 40 %) não tem avanço interno e pode ficar parado durante minutos em tablespaces grandes com ligação Normal (`DBA_EXTENTS`). A ligação SYSDBA é muito mais rápida (`X$KTFBUE`).
 
 ### Situações que o shrink trata automaticamente
 
@@ -878,7 +895,8 @@ Ou, a partir do anfitrião, `docker-compose restart`.
 | Ligação | Necessário | Notas |
 |---|---|---|
 | SYSDBA | Password file (`remote_login_passwordfile = EXCLUSIVE`) | Usa `X$KTFBUE`: o cálculo do HWM é muito mais rápido |
-| Normal | `SELECT ANY DICTIONARY`, `ALTER DATABASE`, `ALTER ANY TABLE`, `ALTER ANY INDEX`, `ALTER SYSTEM` (para cancelar) | Usa `DBA_EXTENTS`, que é mais lento |
+| Normal | `SELECT ANY DICTIONARY`, `ALTER DATABASE`, `ALTER ANY TABLE`, `ALTER ANY INDEX`, `ALTER SYSTEM` (para cancelar) | Usa `DBA_EXTENTS`, que é mais lento (o passo "2 calculo HWM" com a espera `db file sequential read` pode demorar vários minutos) |
+| Output em direto (opcional) | `GRANT EXECUTE ON SYS.DBMS_PIPE TO <utilizador>` | Sem este privilégio, a barra e o passo atual continuam em direto, mas as linhas do output só aparecem no fim. Com SYSDBA já existe |
 
 O driver é o **python-oracledb** em modo *thin* (sem Instant Client). Requer Oracle 12.1 ou superior e não suporta Native Network Encryption: nesses casos, use o modo *thick*.
 
