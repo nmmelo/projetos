@@ -1,10 +1,10 @@
-"""Portal de gestao Oracle (shrink de tablespaces), com utilizadores e perfis."""
+"""Portal com modulos (Oracle: tablespaces e shrink), utilizadores, perfis e modo de manutencao."""
 import os
 import secrets
 
 from flask import Flask
 
-from . import crypto, settings, store
+from . import crypto, modulos, settings, store
 
 
 def _persistent_secret() -> str:
@@ -44,4 +44,5 @@ def create_app(mark_interrupted: bool = True) -> Flask:
 
     from .views import bp
     app.register_blueprint(bp)
+    modulos.carregar(app)
     return app

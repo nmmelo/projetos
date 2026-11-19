@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Configuração · {{ 'Editar' if editing else 'Nova' }} base de dados{% endblock %}
+{% block title %}Oracle · {{ 'Editar' if editing else 'Nova' }} base de dados{% endblock %}
 {% block content %}
-{% include "config/_tabs.html" %}
+{% include "oracle/_tabs.html" %}
 <section class="card">
   <h2>{{ 'Editar' if editing else 'Nova' }} base de dados</h2>
   <form method="post" class="grid">
@@ -37,7 +37,7 @@
 
     <div class="full buttons">
       <button class="primary">Guardar</button>
-      <a class="btn" href="{{ url_for('portal.cfg_dbs') }}">Cancelar</a>
+      <a class="btn" href="{{ url_for('oracle.cfg_dbs') }}">Cancelar</a>
     </div>
   </form>
 </section>

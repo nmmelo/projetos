@@ -3,7 +3,8 @@ import threading
 
 import oracledb
 
-from . import crypto, oracle, store
+from ... import crypto, store
+from . import bd as oracle
 
 POLL_SECONDS = 5
 

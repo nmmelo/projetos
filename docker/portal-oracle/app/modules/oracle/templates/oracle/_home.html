@@ -1,0 +1,63 @@
+{# Bloco do modulo Oracle na Home. Variaveis: ctx.dbs, ctx.stats, ctx.recent #}
+<section class="modulo-home">
+<h2 class="modulo-titulo"><a href="{{ url_for('oracle.index') }}">Oracle</a></h2>
+<div class="cards">
+  <a class="stat" href="{{ url_for('oracle.cfg_dbs') if user.can('oracle.definicoes') else '#oracle-dbs' }}">
+    <span class="label">Bases de dados</span><span class="value">{{ ctx.stats.dbs }}</span>
+    <span class="sub">{{ 'todas' if user.is_admin or user.all_dbs else 'visíveis no seu perfil' }}</span>
+  </a>
+  <a class="stat" href="{{ url_for('oracle.jobs_list') }}">
+    <span class="label">Execuções em curso</span><span class="value {{ 'accent' if ctx.stats.running }}">{{ ctx.stats.running }}</span>
+    <span class="sub">agora</span>
+  </a>
+  <a class="stat" href="{{ url_for('oracle.jobs_list') }}">
+    <span class="label">Execuções (24 h)</span><span class="value">{{ ctx.stats.last24 }}</span>
+    <span class="sub">{% if ctx.stats.errors24 %}<span class="bad">{{ ctx.stats.errors24 }} com erro</span>{% else %}sem erros{% endif %}</span>
+  </a>
+</div>
+
+<div class="split">
+  <section id="oracle-dbs">
+    <h3>Bases de dados</h3>
+    {% if ctx.dbs %}
+    <table>
+      <thead><tr><th>Nome</th><th>Host</th><th>PDB</th><th></th></tr></thead>
+      <tbody>
+      {% for d in ctx.dbs %}
+        <tr>
+          <td><strong>{{ d.name }}</strong></td>
+          <td>{{ d.host }}</td>
+          <td>{{ d.pdb or '—' }}</td>
+          <td class="actions">
+            {% if user.can('oracle.tablespaces') %}<a class="btn small" href="{{ url_for('oracle.report', db=d.id) }}">Tablespaces</a>{% endif %}
+            {% if user.can('oracle.shrink.analise') or user.can('oracle.shrink.executar') %}<a class="btn small" href="{{ url_for('oracle.shrink', db=d.id) }}">Shrink</a>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p class="muted">Não tem bases de dados atribuídas{% if user.can('oracle.definicoes') %} — <a href="{{ url_for('oracle.cfg_db_form') }}">adicionar</a>{% endif %}.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h3>Últimas execuções</h3>
+    {% if ctx.recent %}
+    <table>
+      <thead><tr><th class="num">#</th><th>BD</th><th>Tablespace</th><th>Estado</th></tr></thead>
+      <tbody>
+      {% for j in ctx.recent %}
+        <tr>
+          <td class="num"><a href="{{ url_for('oracle.job_detail', job_id=j.id) }}">{{ j.id }}</a></td>
+          <td>{{ j.db_name }}</td>
+          <td>{{ j.params.ts }} <span class="tag {{ 'warn' if j.params.modo == 'EXECUTAR' }}">{{ j.params.modo }}</span></td>
+          <td><span class="status s-{{ j.status|replace(' ', '-') }}">{{ j.status }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="muted">Ainda não há execuções.</p>{% endif %}
+  </section>
+</div>
+</section>

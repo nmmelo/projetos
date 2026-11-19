@@ -10,26 +10,38 @@
     <label>Descrição <input name="description" value="{{ p.description or '' }}" maxlength="255"></label>
 
     <fieldset class="full column">
-      <legend>O que pode fazer</legend>
-      {% set ns = namespace(grp='') %}
-      {% for code, info in ACTIONS.items() %}
-        {% if info[0] != ns.grp %}<div class="grp">{{ info[0] }}</div>{% set ns.grp = info[0] %}{% endif %}
+      <legend>Portal</legend>
+      {% for code, desc in acoes_portal.items() %}
         <label class="inline"><input type="checkbox" name="permissions" value="{{ code }}" {{ 'checked' if code in p.permissions }}>
-          <span>{{ info[1] }} <code class="small">{{ code }}</code></span></label>
+          <span>{{ desc }} <code class="small">{{ code }}</code></span></label>
       {% endfor %}
     </fieldset>
 
-    <fieldset class="full column">
-      <legend>Que bases de dados pode ver</legend>
-      <label class="inline"><input type="checkbox" name="all_dbs" id="all" {{ 'checked' if p.all_dbs }}>
-        <span><strong>Todas</strong> (incluindo as que forem adicionadas no futuro)</span></label>
-      <div id="dblist" class="checks">
-        {% for d in dbs %}
-        <label class="inline"><input type="checkbox" name="db_ids" value="{{ d.id }}" {{ 'checked' if d.id in p.db_ids }}>
-          <span>{{ d.name }} <span class="muted small">{{ d.host }}{{ ' / ' ~ d.pdb if d.pdb }}</span></span></label>
-        {% else %}<span class="muted">Ainda não há bases de dados configuradas.</span>{% endfor %}
+    {% for m in registo %}
+    <fieldset class="full column modulo-perm" data-modulo="{{ m.chave }}">
+      <legend>Módulo {{ m.nome }}{% if m.chave not in ativos %} <span class="tag warn">desativado</span>{% endif %}</legend>
+      <label class="inline acesso"><input type="checkbox" name="permissions" value="{{ m.acesso }}" class="acesso-mod" {{ 'checked' if m.acesso in p.permissions }}>
+        <span><strong>Acesso ao módulo {{ m.nome }}</strong> — mostra o menu {{ m.nome }} <code class="small">{{ m.acesso }}</code></span></label>
+      <div class="acoes-mod checks-col">
+        {% for code, desc in m.acoes.items() %}
+        <label class="inline"><input type="checkbox" name="permissions" value="{{ code }}" {{ 'checked' if code in p.permissions }}>
+          <span>{{ desc }} <code class="small">{{ code }}</code></span></label>
+        {% endfor %}
+
+        {% if m.chave == 'oracle' %}
+        <div class="grp">Bases de dados que pode ver</div>
+        <label class="inline"><input type="checkbox" name="all_dbs" id="all" {{ 'checked' if p.all_dbs }}>
+          <span><strong>Todas</strong> (incluindo as que forem adicionadas no futuro)</span></label>
+        <div id="dblist" class="checks">
+          {% for d in dbs %}
+          <label class="inline"><input type="checkbox" name="db_ids" value="{{ d.id }}" {{ 'checked' if d.id in p.db_ids }}>
+            <span>{{ d.name }} <span class="muted small">{{ d.host }}{{ ' / ' ~ d.pdb if d.pdb }}</span></span></label>
+          {% else %}<span class="muted">Ainda não há bases de dados configuradas (Oracle → Definições).</span>{% endfor %}
+        </div>
+        {% endif %}
       </div>
     </fieldset>
+    {% endfor %}
 
     <div class="full buttons">
       <button class="primary">Guardar</button>
@@ -40,9 +52,17 @@
 {% endblock %}
 {% block scripts %}
 <script>
+// Sem acesso ao modulo, as acoes dele ficam desligadas (nao contam)
+document.querySelectorAll('.modulo-perm').forEach(fs => {
+  const acesso = fs.querySelector('.acesso-mod'), box = fs.querySelector('.acoes-mod');
+  const sync = () => box.classList.toggle('disabled', !acesso.checked);
+  acesso.addEventListener('change', sync); sync();
+});
 const all = document.getElementById('all'), list = document.getElementById('dblist');
-function sync() { list.classList.toggle('disabled', all.checked);
-  list.querySelectorAll('input').forEach(i => i.disabled = all.checked); }
-all.addEventListener('change', sync); sync();
+if (all) {
+  const syncDb = () => { list.classList.toggle('disabled', all.checked);
+    list.querySelectorAll('input').forEach(i => i.disabled = all.checked); };
+  all.addEventListener('change', syncDb); syncDb();
+}
 </script>
 {% endblock %}

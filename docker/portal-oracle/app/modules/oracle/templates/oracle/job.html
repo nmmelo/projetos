@@ -1,12 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Execução #{{ job.id }}{% endblock %}
 {% block content %}
+{% include "oracle/_tabs.html" %}
 <div class="head">
-  <h1>Execução #{{ job.id }} — {{ job.db_name }}</h1>
+  <h2>Execução #{{ job.id }} — {{ job.db_name }}</h2>
   <div class="buttons">
-    <a class="btn" href="{{ url_for('portal.job_log', job_id=job.id) }}">Descarregar log</a>
+    <a class="btn" href="{{ url_for('oracle.job_log', job_id=job.id) }}">Descarregar log</a>
     {% if job.status == 'EM CURSO' and can_cancel %}
-    <form method="post" action="{{ url_for('portal.job_cancel', job_id=job.id) }}"
+    <form method="post" action="{{ url_for('oracle.job_cancel', job_id=job.id) }}"
           onsubmit="return confirm('Cancelar a execução? A sessão Oracle será terminada (KILL SESSION).')">
       <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="danger">Cancelar</button>
     </form>
@@ -34,7 +35,7 @@
 {% if job.status == 'EM CURSO' %}
 <script>
 const timer = setInterval(async () => {
-  const r = await fetch("{{ url_for('portal.api_job', job_id=job.id) }}");
+  const r = await fetch("{{ url_for('oracle.api_job', job_id=job.id) }}");
   if (!r.ok) return;
   const j = await r.json();
   document.getElementById('action').textContent = j.current_action || '—';

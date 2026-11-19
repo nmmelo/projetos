@@ -10,7 +10,7 @@ import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
-from . import aparencia, crypto, settings
+from . import aparencia, crypto, modulos, settings
 
 TABLES = ("settings", "oracle_dbs", "profiles", "users", "jobs", "backups")
 
@@ -197,6 +197,19 @@ class Store:
                       .replace("{SUFFIX}", d["SUFFIX"]))
         if self.kind == "sqlite":
             self._migrate_v1()
+        self._migrate_modulos()
+
+    def _migrate_modulos(self) -> None:
+        """Perfis anteriores aos modulos: codigos antigos -> novos e acesso ao modulo Oracle."""
+        with self.tx() as t:
+            if t.val("SELECT v FROM settings WHERE k = ?", ("perfis_modulos",)):
+                return
+            for p in t.all("SELECT id, permissions, all_dbs, db_ids FROM profiles"):
+                perms = json.loads(p["permissions"] or "[]")
+                tinha_bds = bool(p["all_dbs"]) or bool(json.loads(p["db_ids"] or "[]"))
+                novas = modulos.normalizar_permissoes(perms, legado=True, tinha_bds=tinha_bds)
+                t.run("UPDATE profiles SET permissions = ? WHERE id = ?", (json.dumps(novas), p["id"]))
+            t.run("INSERT INTO settings (k, v) VALUES (?, ?)", ("perfis_modulos", "1"))
 
     def _migrate_v1(self) -> None:
         """Versao anterior do portal: tabela 'databases' -> 'oracle_dbs'."""
@@ -315,7 +328,7 @@ def delete_db(db_id) -> None:
 # ------------------------------------------------------------------ perfis
 def _profile(row):
     if row:
-        row["permissions"] = json.loads(row.get("permissions") or "[]")
+        row["permissions"] = modulos.normalizar_permissoes(json.loads(row.get("permissions") or "[]"))
         row["db_ids"] = json.loads(row.get("db_ids") or "[]")
         row["all_dbs"] = bool(row["all_dbs"])
     return row

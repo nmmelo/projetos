@@ -1,8 +1,8 @@
 # Portal Oracle — gestão de espaço
 
-Portal web em Python (Flask + Gunicorn + Nginx) para gerir bases de dados Oracle, com **utilizadores e perfis**. Para já faz o **shrink de tablespaces**, e está preparado para receber outras operações no futuro.
+Portal web em Python (Flask + Gunicorn + Nginx) organizado em **módulos**, com **utilizadores e perfis**. O primeiro módulo é o **Oracle** (tablespaces e shrink); o portal está preparado para receber outros módulos, cada um com o seu menu, as suas permissões e a possibilidade de ser ativado ou desativado.
 
-Corre num **contentor único em Ubuntu 26.04 LTS** com Nginx, Gunicorn, **OpenSSH** (para o VS Code Remote-SSH), **cron**, **git** e as ferramentas habituais (`ping`, `ip`, `vim`, `nano`).
+Instala-se **num servidor** (script `instalar.sh`, ver [Instalação num servidor](#instalação-num-servidor-sem-docker)) ou num **contentor único em Ubuntu 26.04 LTS** com Nginx, Gunicorn, **OpenSSH** (para o VS Code Remote-SSH), **cron**, **git** e as ferramentas habituais (`ping`, `ip`, `vim`, `nano`).
 
 ---
 
@@ -10,13 +10,13 @@ Corre num **contentor único em Ubuntu 26.04 LTS** com Nginx, Gunicorn, **OpenSS
 
 | Menu | Conteúdo |
 |---|---|
-| **Home** | Número de bases de dados visíveis, execuções em curso, execuções nas últimas 24 h, último backup, lista de bases de dados e últimas execuções |
-| **Tablespaces** | Tamanho, usado e livre, do maior para o mais pequeno (sem SYSTEM, SYSAUX, UNDO e TEMP) |
-| **Shrink** | Um tablespace ou TODOS, em ANÁLISE ou EXECUTAR, corre em segundo plano |
-| **Execuções** | Histórico, passo em curso, log e cancelamento |
-| **Configuração → Bases de dados** | Bases de dados Oracle: host, porta, SID ou Service Name, PDB, utilizador, password cifrada, Normal ou SYSDBA |
-| **Configuração → Portal** | **Geral**, **Aparência** (título, textos, ícone e tema), **Armazenamento**, **Utilizadores**, **Perfis** e **Backups** |
-| **Minha área** (nome no canto superior direito) | Dados do utilizador e alteração da password |
+| **Home** | Um bloco por módulo a que o utilizador tem acesso (no Oracle: bases de dados visíveis, execuções em curso e nas últimas 24 h, últimas execuções) e o último backup |
+| **Oracle → Tablespaces** | Tamanho, usado e livre, do maior para o mais pequeno (sem SYSTEM, SYSAUX, UNDO e TEMP) |
+| **Oracle → Shrink** | Um tablespace ou TODOS, em ANÁLISE ou EXECUTAR, corre em segundo plano |
+| **Oracle → Execuções** | Histórico, passo em curso, log e cancelamento |
+| **Oracle → Definições** | Bases de dados Oracle: host, porta, SID ou Service Name, PDB, utilizador, password cifrada, Normal ou SYSDBA |
+| **Configuração** | **Geral**, **Aparência** (título, textos, ícone e tema), **Manutenção** (modo de manutenção com editor HTML), **Módulos** (ativar/desativar), **Armazenamento**, **Utilizadores**, **Perfis** e **Backups** |
+| **Minha área** (nome no canto superior direito) | Dados do utilizador, permissões e alteração da password |
 
 ### Situações que o shrink trata automaticamente
 
@@ -29,23 +29,95 @@ Corre num **contentor único em Ubuntu 26.04 LTS** com Nginx, Gunicorn, **OpenSS
 
 ### Utilizadores e perfis
 
-- O **administrador** é o único utilizador **local**: fica no ficheiro `data/admin.json`, tem todas as permissões e vê todas as bases de dados.
+- O **administrador** é o único utilizador **local**: fica no ficheiro `data/admin.json`, tem todas as permissões, vê todas as bases de dados e todos os módulos ativos.
 - Os restantes utilizadores ficam na **base de dados do portal** e cada um tem um **perfil**.
-- Um perfil define:
-  - **que bases de dados** o utilizador vê (todas, ou uma lista);
-  - **o que pode fazer**:
+- Um perfil define, **por módulo**:
+  - se o utilizador tem **acesso ao módulo** (sem acesso, o menu do módulo não aparece e as ações dele não contam);
+  - **o que pode fazer** no módulo;
+  - no Oracle, **que bases de dados** vê (todas, ou uma lista).
 
-| Permissão | Descrição |
-|---|---|
-| `tablespaces.ver` | Ver tablespaces |
-| `shrink.analise` | Shrink em modo ANÁLISE |
-| `shrink.executar` | Shrink em modo EXECUTAR e cancelar execuções |
-| `config.bds` | Gerir as bases de dados Oracle |
-| `config.portal` | Gerir utilizadores, perfis e backups |
+| Permissão | Grupo | Descrição |
+|---|---|---|
+| `config.portal` | Portal | Gerir o portal: aparência, manutenção, módulos, utilizadores, perfis e backups; entrar durante a manutenção |
+| `modulo.oracle` | Oracle | Acesso ao módulo Oracle (menu Oracle, Execuções das suas bases de dados) |
+| `oracle.tablespaces` | Oracle | Ver tablespaces |
+| `oracle.shrink.analise` | Oracle | Shrink em modo ANÁLISE |
+| `oracle.shrink.executar` | Oracle | Shrink em modo EXECUTAR e cancelar execuções |
+| `oracle.definicoes` | Oracle | Definições: gerir as bases de dados Oracle |
 
 A aba **Armazenamento** só está disponível para o administrador.
 
-**Acrescentar uma funcionalidade no futuro:** registe a nova permissão em `ACTIONS`, no ficheiro `app/auth.py`, e proteja a rota com `@auth.requires("nova.permissao")`. A permissão aparece automaticamente no formulário dos perfis.
+> **Perfis de versões anteriores** (antes dos módulos) são convertidos no primeiro arranque: `tablespaces.ver` → `oracle.tablespaces`, `shrink.analise` → `oracle.shrink.analise`, `shrink.executar` → `oracle.shrink.executar`, `config.bds` → `oracle.definicoes`. Os perfis com ações Oracle ou bases de dados atribuídas recebem `modulo.oracle`. O mesmo acontece ao importar um backup antigo. Os endereços antigos (`/report`, `/shrink`, `/jobs`, `/config/databases`) redirecionam para o módulo Oracle.
+
+---
+
+## Módulos
+
+Em **Configuração → Módulos** cada módulo aparece num cartão com a descrição, o menu, o número de permissões, os perfis com acesso e o botão **Ativar/Desativar**.
+
+| Estado | Efeito |
+|---|---|
+| **Ativo** | O menu do módulo aparece a quem tem acesso no perfil (e ao administrador), e o bloco do módulo aparece na Home |
+| **Inativo** | O menu desaparece para todos, as páginas do módulo respondem 404 e as permissões do módulo deixam de contar. Os dados e os perfis mantêm-se; ao reativar, tudo volta como estava |
+
+O estado fica na tabela `settings` (`module.<chave>` = `1`/`0`), por isso entra nos backups.
+
+| Configuração → Módulos | Perfil com permissões por módulo |
+|---|---|
+| ![Módulos](docs/modulos.png) | ![Perfil](docs/perfil-modulos.png) |
+
+**Estrutura de um módulo** (exemplo: Oracle):
+
+| Ficheiro | Conteúdo |
+|---|---|
+| `app/modulos.py` | Registo: lista `INSTALADOS`, classe `Modulo`, permissões do portal, conversão das permissões antigas |
+| `app/modules/oracle/__init__.py` | Definição `MODULO` (nome, descrição, ações, abas do menu, bloco da Home) e o Blueprint com prefixo `/oracle` |
+| `app/modules/oracle/views.py` | Rotas: `/oracle/tablespaces`, `/oracle/shrink`, `/oracle/execucoes`, `/oracle/definicoes` |
+| `app/modules/oracle/bd.py`, `jobs.py`, `sql/` | Lógica do módulo (ligação Oracle, shrink em segundo plano, scripts SQL) |
+| `app/modules/oracle/templates/oracle/` | Páginas do módulo, `_tabs.html` (abas) e `_home.html` (bloco da Home) |
+
+**Acrescentar um módulo** (ex. `mysql`):
+
+1. Criar `app/modules/mysql/__init__.py` com um `Blueprint("mysql", __name__, url_prefix="/mysql", template_folder="templates")`, uma rota `index` e um `MODULO = modulos.registar(modulos.Modulo(chave="mysql", nome="MySQL", ...))` com as ações (`"mysql.<acao>": "descrição"`) e as abas.
+2. Acrescentar `"mysql"` a `INSTALADOS`, em `app/modulos.py`.
+3. Proteger as rotas com `@auth.requires("mysql.<acao>")`. O acesso ao módulo (`modulo.mysql`) e as ações aparecem sozinhos nos perfis, o menu aparece quando o módulo está ativo e o perfil tem acesso.
+
+---
+
+## Modo de manutenção
+
+Em **Configuração → Manutenção**:
+
+| Elemento | Descrição |
+|---|---|
+| **Estado** | Ativo (em manutenção) ou inativo (operacional), com a data e quem ativou |
+| **Editor HTML** | Barra com título, parágrafo, negrito, itálico, texto pequeno, lista, ligação, quebra e linha, e **pré-visualização ao lado**, atualizada enquanto escreve |
+| **Botões** | Guardar mensagem · Guardar e ativar/desativar a manutenção · Repor a mensagem por omissão |
+
+Com a manutenção ativa:
+
+- **Quem gere o portal** (administrador e perfis com `config.portal`) entra e navega normalmente, com um aviso no topo de todas as páginas.
+- **Os outros utilizadores** veem a mensagem, com o código HTTP 503 (a API responde em JSON). A página de login mostra a mensagem e continua a deixar entrar os administradores.
+- **Segurança da mensagem:** ao guardar, o HTML é filtrado. Ficam só títulos, parágrafos, formatação, listas, ligações `http(s)`/`mailto`, imagens, tabelas e `style`. Scripts, eventos (`onclick`, ...), `javascript:`, formulários e iframes são removidos, e a página é servida com uma CSP que bloqueia scripts.
+
+| Editor (administrador) | O que os outros utilizadores veem |
+|---|---|
+| ![Editor da mensagem de manutenção](docs/manutencao-editor.png) | ![Página de manutenção](docs/manutencao-utilizador.png) |
+
+Pela linha de comandos (se não conseguir entrar no portal):
+
+```bash
+cd /opt/<nome>
+sudo -u <nome> .venv/bin/python manage.py maintenance status
+sudo -u <nome> .venv/bin/python manage.py maintenance on --html mensagem.html
+sudo -u <nome> .venv/bin/python manage.py maintenance off
+# ou, numa instalação em servidor:
+sudo ./instalar.sh --manutencao <nome> on|off|status
+# Docker:
+docker-compose exec -u portal portal python manage.py maintenance on
+```
+
+> Durante um reinício do serviço (por exemplo ao atualizar), o Nginx mostra uma página "O portal está a reiniciar", que volta a tentar a cada 10 segundos (`app/static/indisponivel.html`). Isto acontece mesmo sem o modo de manutenção.
 
 ---
 
@@ -265,7 +337,9 @@ Ao voltar a correr o script, ele mostra as instâncias do servidor e a configura
 | Ver a configuração guardada | `sudo ./instalar.sh --mostrar <nome>` |
 | **Mudar a configuração** (SSL, nome DNS, base de dados, porta, cron) | `sudo ./instalar.sh <nome>` → "Rever". A base de dados pode ficar como está (opção "Manter") |
 | **Reaplicar** sem perguntas (ex.: depois de atualizar o script ou os templates) | `sudo ./instalar.sh --reaplicar <nome>` |
-| **Atualizar o código** pelo Git e reaplicar | `sudo ./instalar.sh --atualizar <nome>` |
+| **Atualizar o código** pelo Git e reaplicar | `sudo ./instalar.sh --atualizar <nome>` (ver [Atualizar o código](#6-atualizar-o-código-sincronizar-com-o-repositório)) |
+| **Diagnóstico** (portal indisponível?) | `sudo ./instalar.sh --verificar <nome>` |
+| **Modo de manutenção** | `sudo ./instalar.sh --manutencao <nome> on\|off\|status` |
 | **Outra instância** no mesmo servidor | `sudo ./instalar.sh` → "Nova instancia". Use outro nome DNS (ou outra porta HTTP) |
 | **Remover** | `sudo ./instalar.sh --desinstalar <nome>`: remove o serviço, o site do Nginx, o cron e a configuração guardada. Pergunta se apaga a pasta (antes guarda `data/` em `/root/<nome>-data-<data>.tar.gz`) e o utilizador. A base de dados MariaDB/PostgreSQL não é tocada |
 
@@ -275,6 +349,42 @@ Notas:
 - **Confirmação:** mesmo a reaplicar sem perguntas, o resumo é mostrado e pede confirmação.
 - **Quando volta a perguntar:** se algum valor guardado já não servir (por exemplo, o certificado mudou de sítio ou deixou de ser válido), o script pergunta só esse.
 - **Instalações anteriores:** a configuração guardada em `/opt/<nome>/.instalacao` é lida e passa para `/etc/portal-oracle/` na execução seguinte.
+
+#### 6. Atualizar o código (sincronizar com o repositório)
+
+Use **sempre o script** para atualizar:
+
+```bash
+sudo /opt/<nome>/instalar.sh --atualizar <nome>     # obtém do Git só a pasta do portal
+# ou, a partir de uma pasta com a versão nova (ex. extraída com o extrair_pasta_git):
+sudo /tmp/portal-oracle/instalar.sh <nome>          # -> Rever -> origem "Copiar da pasta deste script"
+```
+
+| Passo | Porquê |
+|---|---|
+| Substitui cada entrada de código (`app/`, `deploy/`, `manage.py`, ...) em vez de copiar por cima | Não ficam ficheiros antigos (ex. `app/oracle.py`, `app/views/ops.py` de antes dos módulos) |
+| Remove `Dockerfile`, `docker-compose.yml`, `.dockerignore` e `docker/` | Numa instalação em servidor não servem; também são removidos ao reaplicar com o código mantido |
+| Nunca toca em `data/`, `.env` e `.venv` | Configuração, chaves, SQLite e backups |
+| Corrige as permissões (código do root, `data/` e `.venv` do utilizador de serviço) | O serviço tem de conseguir escrever em `data/` |
+| `pip install -r requirements.txt` | Pacotes novos ou atualizados |
+| Reinicia o serviço | O Gunicorn carrega o código Python no arranque: sem reiniciar, continua com a versão antiga |
+
+**Porque é que o portal fica indisponível depois de copiar o repositório à mão** (ex. `extrair_pasta_git.sh -d /opt/<nome>`, `cp -a` ou `rsync` como root):
+
+| Causa | Sintoma |
+|---|---|
+| A cópia como root traz `data/` do repositório (só tem o `.gitkeep`) e muda o dono de `data/` para `root` | O serviço deixa de conseguir escrever: SQLite só de leitura, erros 500 |
+| O Gunicorn continua com o código Python antigo, mas os templates são lidos do disco já na versão nova | Erros 500 (`BuildError`) em páginas que usam rotas novas, até reiniciar |
+| Ficheiros antigos ficam ao lado dos novos | Comportamentos inesperados depois de mudanças grandes |
+
+O que já está previsto para isto:
+
+- **O serviço corrige as permissões ao arrancar:** antes de arrancar, o systemd faz `chown` de `data/` e `.venv` para o utilizador de serviço (`ExecStartPre=+...`). Depois de uma cópia à mão, um `sudo systemctl restart <nome>` resolve as permissões.
+- **Diagnóstico:** `sudo ./instalar.sh --verificar <nome>` verifica o serviço, se o Gunicorn responde, os donos e as permissões de `data/` e `.venv`, se o código é legível, se há ficheiros do Docker ou antigos, o Nginx e as últimas linhas do registo, e diz o que fazer.
+- **Correção completa:** `sudo ./instalar.sh --reaplicar <nome>`.
+- **Durante o reinício**, o Nginx mostra "O portal está a reiniciar" em vez de "502 Bad Gateway".
+
+Para uma janela de manutenção mais longa (ex. migração da base de dados), ative o [modo de manutenção](#modo-de-manutenção) antes.
 
 #### Permissões aplicadas
 
@@ -521,6 +631,10 @@ sudo systemctl restart <nome>
 A pasta `data/` não é alterada por atualizações. Faça backup dela, sobretudo do `fernet.key` e do `admin.json`.
 
 ### Problemas conhecidos
+
+**O portal fica indisponível (erro 500 ou 502) depois de sincronizar o código**
+
+Ver [Atualizar o código](#6-atualizar-o-código-sincronizar-com-o-repositório): `sudo ./instalar.sh --verificar <nome>` e depois `sudo ./instalar.sh --reaplicar <nome>`.
 
 **`[ERROR] Control server error: [Errno 13] Permission denied: '/opt/<nome>/.gunicorn/gunicorn.ctl'`**
 

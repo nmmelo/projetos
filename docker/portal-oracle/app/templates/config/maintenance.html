@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Manutenção{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<section class="card wide">
+  <div class="modulo-head">
+    <h2>Modo de manutenção</h2>
+    <span class="status {{ 's-ERRO' if m.ativo else 's-OK' }}">{{ 'Ativo — em manutenção' if m.ativo else 'Inativo — operacional' }}</span>
+  </div>
+  <p class="muted">Ativo, só quem gere o portal (administrador e perfis com <code>config.portal</code>) consegue entrar e
+    navegar. Os outros utilizadores veem a mensagem abaixo, também na página de login.
+    {% if m.ativo and m.desde %}<br>Ativado em {{ m.desde[:16] }}{{ ' por ' ~ m.por if m.por }}.{% endif %}</p>
+
+  <form method="post" id="fman">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <div class="editor-bar" role="toolbar" aria-label="Formatação">
+      <button type="button" data-wrap="h2" title="Título">T</button>
+      <button type="button" data-wrap="p" title="Parágrafo">¶</button>
+      <button type="button" data-wrap="strong" title="Negrito"><b>B</b></button>
+      <button type="button" data-wrap="em" title="Itálico"><i>I</i></button>
+      <button type="button" data-wrap="small" title="Texto pequeno">small</button>
+      <button type="button" data-list="ul" title="Lista">• Lista</button>
+      <button type="button" data-link title="Ligação">Ligação</button>
+      <button type="button" data-insert="<br>" title="Quebra de linha">↵</button>
+      <button type="button" data-insert="<hr>" title="Linha">―</button>
+    </div>
+    <div class="editor">
+      <label class="full">HTML
+        <textarea name="html" id="html" rows="14" spellcheck="false">{{ m.html }}</textarea></label>
+      <div class="full">
+        <span class="label-like">Pré-visualização</span>
+        <iframe id="preview" sandbox title="Pré-visualização da mensagem"></iframe>
+      </div>
+    </div>
+    <p class="hint">Permitido: títulos, parágrafos, negrito, itálico, listas, ligações, imagens, tabelas e <code>style</code>.
+      Scripts, eventos (<code>onclick</code>, ...), formulários e iframes são removidos ao guardar.</p>
+    <div class="buttons">
+      <button class="primary" name="action" value="save">Guardar mensagem</button>
+      {% if m.ativo %}
+      <button class="primary" name="action" value="off">Guardar e desativar a manutenção</button>
+      {% else %}
+      <button class="danger" name="action" value="on"
+              onclick="return confirm('Ativar o modo de manutenção? Só quem gere o portal vai conseguir entrar.')">Guardar e ativar a manutenção</button>
+      {% endif %}
+      <button class="btn" name="action" value="reset" formnovalidate
+              onclick="return confirm('Repor a mensagem por omissão?')">Repor mensagem</button>
+    </div>
+  </form>
+</section>
+<section class="card wide" style="margin-top:16px">
+  <h2>Linha de comandos</h2>
+  <p class="muted">Se não conseguir entrar no portal (no servidor, na pasta do portal, com o utilizador de serviço):</p>
+  <pre>.venv/bin/python manage.py maintenance status
+.venv/bin/python manage.py maintenance on  [--html mensagem.html]
+.venv/bin/python manage.py maintenance off</pre>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+const ta = document.getElementById('html'), frame = document.getElementById('preview');
+const css = `body{font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1d2433;margin:0;padding:24px;text-align:center}
+  img{max-width:100%} h1,h2,h3{margin:.3em 0 .5em} ul,ol{display:inline-block;text-align:left} table{margin:auto;border-collapse:collapse} td,th{border:1px solid #ddd;padding:4px 8px}`;
+// iframe com sandbox vazio: o conteudo nao corre scripts nem acede ao portal
+function render() { frame.srcdoc = `<!DOCTYPE html><meta charset="utf-8"><style>${css}</style><div class="box">${ta.value}</div>`; }
+ta.addEventListener('input', render); render();
+function wrap(before, after) {
+  const s = ta.selectionStart, e = ta.selectionEnd, sel = ta.value.slice(s, e) || 'texto';
+  ta.setRangeText(before + sel + after, s, e, 'select'); ta.focus(); render();
+}
+document.querySelectorAll('.editor-bar button').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.wrap) wrap(`<${b.dataset.wrap}>`, `</${b.dataset.wrap}>`);
+  else if (b.dataset.list) {
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const items = (ta.value.slice(s, e) || 'item').split('\n').map(l => `  <li>${l}</li>`).join('\n');
+    ta.setRangeText(`<${b.dataset.list}>\n${items}\n</${b.dataset.list}>`, s, e, 'end'); ta.focus(); render();
+  } else if (b.dataset.link !== undefined) {
+    const url = prompt('Endereço (https://...)', 'https://'); if (url) wrap(`<a href="${url.replace(/"/g, '&quot;')}" target="_blank">`, '</a>');
+  } else if (b.dataset.insert) { ta.setRangeText(b.dataset.insert, ta.selectionStart, ta.selectionEnd, 'end'); ta.focus(); render(); }
+}));
+</script>
+{% endblock %}

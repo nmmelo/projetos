@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Módulos{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<p class="muted">Cada módulo ativo acrescenta um menu ao portal. Desativado, o menu desaparece para todos e as páginas
+  do módulo deixam de responder; os dados e as permissões dos perfis mantêm-se. Quem vê cada módulo define-se nos
+  <a href="{{ url_for('portal.cfg_profiles') }}">perfis</a>.</p>
+<div class="modulos">
+  {% for i in lista %}
+  <section class="card modulo {{ 'on' if i.ativo else 'off' }}">
+    <div class="modulo-head">
+      <h2>{{ i.m.nome }}</h2>
+      <span class="status {{ 's-OK' if i.ativo else 's-CANCELADO' }}">{{ 'Ativo' if i.ativo else 'Inativo' }}</span>
+    </div>
+    <p>{{ i.m.descricao }}</p>
+    <table class="kv small">
+      <tr><th>Menu</th><td>{% for _, rotulo, _ in i.m.abas %}{{ rotulo }}{{ ' · ' if not loop.last }}{% endfor %}</td></tr>
+      <tr><th>Permissões</th><td>{{ i.m.acoes|length + 1 }} (acesso + {{ i.m.acoes|length }} ações)</td></tr>
+      <tr><th>Perfis com acesso</th><td>{% for n in i.perfis %}<span class="tag">{{ n }}</span> {% else %}<span class="muted">nenhum (só o administrador)</span>{% endfor %}</td></tr>
+    </table>
+    <form method="post" class="buttons">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="module" value="{{ i.m.chave }}">
+      {% if i.ativo %}
+      <button class="danger" name="active" value="0"
+              onclick="return confirm('Desativar o módulo {{ i.m.nome }}? O menu desaparece para todos os utilizadores.')">Desativar</button>
+      {% else %}
+      <button class="primary" name="active" value="1">Ativar</button>
+      {% endif %}
+    </form>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

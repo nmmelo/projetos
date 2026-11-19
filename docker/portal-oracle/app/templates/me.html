@@ -10,13 +10,15 @@
       <tr><th>Perfil</th><td>{{ user.profile_name }}</td></tr>
       {% if user.last_login %}<tr><th>Último login</th><td>{{ user.last_login }}</td></tr>{% endif %}
       <tr><th>Permissões</th><td>
-        {% for code, info in ACTIONS.items() if user.can(code) %}<div>✓ {{ info[1] }}</div>{% else %}<span class="muted">nenhuma</span>{% endfor %}
+        {% for code, info in ACTIONS.items() if user.can(code) %}<div>✓ <span class="muted small">{{ info[0] }} ·</span> {{ info[1] }}</div>{% else %}<span class="muted">nenhuma</span>{% endfor %}
       </td></tr>
-      <tr><th>Bases de dados</th><td>
+      {% if dbs is not none %}
+      <tr><th>Bases de dados Oracle</th><td>
         {% if user.is_admin or user.all_dbs %}Todas ({{ dbs|length }}){% else %}
           {% for d in dbs %}<span class="tag">{{ d.name }}</span> {% else %}<span class="muted">nenhuma</span>{% endfor %}
         {% endif %}
       </td></tr>
+      {% endif %}
     </table>
 
     <form method="post" class="stack" style="margin-top:18px">

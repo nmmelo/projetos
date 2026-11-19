@@ -11,7 +11,7 @@ import re
 import secrets
 from datetime import datetime
 
-from . import crypto, settings, store
+from . import crypto, modulos, settings, store
 
 FORMAT = "oracle-shrink-portal-backup"
 BACKUP_DIR = settings.path("backups")
@@ -32,6 +32,7 @@ def export_data(user: str) -> dict:
         sett = t.all("SELECT k, v FROM settings ORDER BY k")
     return {
         "format": FORMAT, "version": 1,
+        "modulos": True,                 # permissoes ja no formato por modulo (ver app/modulos.py)
         "created_at": store.now(), "created_by": user,
         "key_fingerprint": _key_fingerprint(),
         "settings": {r["k"]: r["v"] for r in sett},
@@ -145,7 +146,10 @@ def import_data(data: dict, mode: str = "juntar") -> dict:
             row = {"name": p["name"], "description": p.get("description") or "",
                    "all_dbs": 1 if p.get("all_dbs") else 0,
                    "db_ids": json.dumps(sorted(db_ids[n] for n in p.get("dbs", []) if n in db_ids)),
-                   "permissions": json.dumps(sorted(p.get("permissions", []))), "updated_at": store.now()}
+                   "permissions": json.dumps(modulos.normalizar_permissoes(
+                       p.get("permissions", []), legado=not data.get("modulos"),
+                       tinha_bds=bool(p.get("all_dbs") or p.get("dbs")))),
+                   "updated_at": store.now()}
             cur = t.one("SELECT id FROM profiles WHERE name = ?", (row["name"],))
             if cur:
                 t.update("profiles", cur["id"], row)

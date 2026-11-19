@@ -1,0 +1,8 @@
+{# Cabecalho do modulo Oracle: abas visiveis segundo o perfil (definidas em app/modules/oracle/__init__.py) #}
+<h1>Oracle</h1>
+{% set ep = request.endpoint or '' %}
+<nav class="tabs">
+  {% for endpoint, rotulo in oracle_abas() %}
+  <a href="{{ url_for(endpoint) }}" class="{{ 'on' if ep == endpoint or (endpoint == 'oracle.jobs_list' and ep == 'oracle.job_detail') or (endpoint == 'oracle.cfg_dbs' and ep == 'oracle.cfg_db_form') }}">{{ rotulo }}</a>
+  {% endfor %}
+</nav>

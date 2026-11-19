@@ -7,6 +7,7 @@
   python manage.py set-storage --type T [--host H ...]  define a BD do portal (testa e cria as tabelas)
                                                         password em PORTAL_DB_PASSWORD (ou pedida)
   python manage.py show-storage                         mostra a BD do portal em uso
+  python manage.py maintenance on|off|status [--html F] modo de manutencao (F = ficheiro com a mensagem HTML)
 """
 import argparse
 import getpass
@@ -43,7 +44,26 @@ def main():
     s.add_argument("--user", default="portal")
     s.add_argument("--test-only", action="store_true", help="so testa a ligacao e cria as tabelas, nao grava")
     sub.add_parser("show-storage")
+    mt = sub.add_parser("maintenance", help="modo de manutencao")
+    mt.add_argument("estado", choices=["on", "off", "status"])
+    mt.add_argument("--html", help="ficheiro com a mensagem HTML a mostrar")
     args = ap.parse_args()
+
+    if args.cmd == "maintenance":
+        from app import crypto, manutencao, settings
+        crypto.init(settings.DATA_DIR)
+        if args.estado != "status":
+            msg = None
+            if args.html:
+                with open(args.html, encoding="utf-8") as fh:
+                    msg = fh.read()
+            manutencao.definir(args.estado == "on", "linha de comandos", msg)
+        e = manutencao.estado()
+        print("Ativo [Em manutencao]" if e["ativo"] else "Inativo [Operacional]")
+        if e["ativo"] and e["desde"]:
+            print(f"Desde {e['desde']} por {e['por']}")
+        print("Mensagem:\n" + e["html"])
+        return
 
     if args.cmd in ("set-storage", "show-storage"):
         from app import crypto, settings, store

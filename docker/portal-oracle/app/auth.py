@@ -1,8 +1,8 @@
 """Autenticacao, utilizador atual e permissoes.
 
-As ACOES sao o catalogo de permissoes atribuiveis a um perfil. Para acrescentar
-funcionalidades no futuro basta registar aqui a nova acao e usar
-@requires("nova.acao") na rota.
+O catalogo de permissoes vem de app/modulos.py: as do portal (ACOES_PORTAL) e, por modulo, o acesso
+"modulo.<chave>" e as acoes "<chave>.<acao>". Uma acao de modulo so vale se o modulo estiver ativo
+e o perfil tiver acesso a esse modulo. Nas rotas: @requires("codigo").
 """
 import functools
 import time
@@ -11,16 +11,7 @@ from dataclasses import dataclass, field
 from flask import abort, g, redirect, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from . import settings, store
-
-# codigo -> (grupo, descricao)
-ACTIONS = {
-    "tablespaces.ver":  ("Operações", "Ver tablespaces (tamanho, usado, livre)"),
-    "shrink.analise":   ("Operações", "Shrink — modo ANÁLISE"),
-    "shrink.executar":  ("Operações", "Shrink — modo EXECUTAR (e cancelar execuções)"),
-    "config.bds":       ("Configuração", "Gerir bases de dados Oracle"),
-    "config.portal":    ("Configuração", "Gerir portal: utilizadores, perfis e backups"),
-}
+from . import modulos, settings, store
 
 MIN_PASSWORD = 8
 
@@ -39,6 +30,13 @@ class CurrentUser:
     last_login: str = ""
 
     def can(self, perm: str) -> bool:
+        mod = modulos.modulo_de(perm)
+        if mod:
+            if mod not in modulos.ativos():
+                return False
+            if self.is_admin:
+                return True
+            return f"modulo.{mod}" in self.perms and perm in self.perms
         return self.is_admin or perm in self.perms
 
     def can_db(self, db_id) -> bool:
@@ -49,7 +47,11 @@ class CurrentUser:
 
     @property
     def can_config(self) -> bool:
-        return self.can("config.bds") or self.can("config.portal")
+        return self.can("config.portal")
+
+    @property
+    def modulos(self) -> list:
+        return modulos.visiveis(self)
 
 
 def check_password_strength(pwd: str) -> None:
@@ -77,7 +79,7 @@ def authenticate(username: str, password: str) -> CurrentUser | None:
 def _admin_user(adm: dict) -> CurrentUser:
     return CurrentUser(id="admin", username=adm["username"], name=adm.get("name", ""),
                        email=adm.get("email", ""), is_admin=True, profile_name="Administrador (local)",
-                       perms=set(ACTIONS), all_dbs=True)
+                       perms=set(modulos.todas_acoes()), all_dbs=True)
 
 
 def _db_user(u: dict) -> CurrentUser:

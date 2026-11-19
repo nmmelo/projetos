@@ -106,6 +106,9 @@ Uso:
   sudo ./instalar.sh --atualizar NOME obter o codigo do Git e reaplicar, sem perguntas
   sudo ./instalar.sh --mostrar [NOME] mostrar a configuracao guardada
   sudo ./instalar.sh --lista          listar as instancias deste servidor
+  sudo ./instalar.sh --verificar [NOME]   diagnostico (portal indisponivel?): servico, Gunicorn,
+                                      permissoes de data/ e .venv, ficheiros a mais, Nginx, registo
+  sudo ./instalar.sh --manutencao NOME on|off|status   modo de manutencao do portal
   sudo ./instalar.sh --desinstalar [NOME]
   ./instalar.sh --help                esta ajuda (tambem -h, --ajuda)
 
@@ -126,6 +129,14 @@ Configuracao guardada:
     - reaplicar sem perguntas (ex. depois de atualizar o script ou os templates)
     - atualizar o codigo pelo Git e reaplicar
   data/, .env e .venv nunca sao substituidos.
+
+Atualizar o codigo (sincronizar com o repositorio):
+  Use --atualizar (ou o menu). O script substitui o codigo (app/, deploy/, ...) para nao ficarem
+  ficheiros antigos, remove o que e so do Docker (Dockerfile, docker-compose.yml, .dockerignore,
+  docker/), corrige as permissoes, atualiza os pacotes Python e reinicia o servico.
+  NAO copie o repositorio diretamente por cima de /opt/<nome>: os ficheiros ficam do root (o servico
+  deixa de conseguir escrever em data/) e o Gunicorn continua com o codigo antigo carregado. Se ja o
+  fez: sudo ./instalar.sh --verificar NOME  e  sudo ./instalar.sh --reaplicar NOME
 
 O que cria (exemplo com o nome "nome-portal"):
   /opt/nome-portal                       codigo (do root), data/ e .venv (do utilizador de servico)
@@ -197,10 +208,35 @@ extrair_pasta_git() {   # extrair_pasta_git URL BRANCH PASTA DESTINO
     rm -rf "$tmp"
 }
 
+# Ficheiros so para Docker: numa instalacao em servidor nao servem e sao removidos
+DOCKER_FICHEIROS=(Dockerfile docker-compose.yml .dockerignore docker)
+# Nunca substituidos nem apagados na pasta da instalacao
+PRESERVAR=(data .env .venv "$ESTADO_LEGADO")
+
+limpar_docker() {
+    local f n=0
+    for f in "${DOCKER_FICHEIROS[@]}"; do
+        [[ -e $DIR/$f ]] && { rm -rf -- "${DIR:?}/$f"; n=$((n + 1)); }
+    done
+    (( n )) && ok "ficheiros do Docker removidos ($n)"
+    return 0
+}
+
 copiar_codigo() {   # copiar_codigo ORIGEM  -> $DIR (nunca toca em data/, .env, .venv)
-    [[ $(realpath "$1") == $(realpath "$DIR") ]] && return 0
-    tar -C "$1" --exclude=./data --exclude=./.env --exclude=./.venv --exclude=./.git \
-        --exclude="./$ESTADO_LEGADO" --exclude='__pycache__' -cf - . | tar -C "$DIR" -xf -
+    local src=$1 item nome p
+    [[ $(realpath "$src") == $(realpath "$DIR") ]] && return 0
+    # Substitui cada entrada de codigo da origem (ex. app/ inteira), para nao ficarem ficheiros
+    # antigos (modulos, templates ou rotas que ja nao existem). O que nao vem na origem fica.
+    for item in "$src"/* "$src"/.[!.]*; do
+        [[ -e $item ]] || continue
+        nome=${item##*/}
+        for p in "${PRESERVAR[@]}" .git "${DOCKER_FICHEIROS[@]}"; do [[ $nome == "$p" ]] && continue 2; done
+        rm -rf -- "${DIR:?}/$nome"
+    done
+    local excl=(--exclude=./.git --exclude='__pycache__')
+    for p in "${PRESERVAR[@]}" "${DOCKER_FICHEIROS[@]}"; do excl+=("--exclude=./$p"); done
+    tar -C "$src" "${excl[@]}" -cf - . | tar -C "$DIR" --no-same-owner -xf -
+    limpar_docker
 }
 
 tem_codigo() { [[ -f $1/wsgi.py && -f $1/manage.py && -d $1/app && -d $1/deploy ]]; }
@@ -368,11 +404,60 @@ desinstalar() {
     exit 0
 }
 
+# ============================================================================ verificar
+verificar() {   # diagnostico de uma instancia (portal indisponivel?)
+    local unit="/etc/systemd/system/$NOME.service" cod dono modo f problemas=0
+    titulo "Verificar '$NOME'"
+    falha() { aviso "$*"; problemas=$((problemas + 1)); }
+    [[ -f $unit ]] && ok "servico $unit" || falha "falta o servico $unit"
+    if systemctl is-active -q "$NOME" 2>/dev/null; then ok "servico ativo"
+    else falha "servico parado: $(systemctl is-active "$NOME" 2>/dev/null || true)"; fi
+    cod=$(curl -s -o /dev/null -m 5 -w '%{http_code}' "http://127.0.0.1:${PORTA_GUNICORN:-8000}/login" || true)
+    case $cod in
+        200) ok "Gunicorn responde em 127.0.0.1:${PORTA_GUNICORN:-8000}" ;;
+        503) ok "Gunicorn responde (modo de manutencao ativo)" ;;
+        *)   falha "Gunicorn nao responde em 127.0.0.1:${PORTA_GUNICORN:-8000} (HTTP $cod)" ;;
+    esac
+    for f in data .venv; do
+        [[ -d $DIR/$f ]] || { falha "falta $DIR/$f"; continue; }
+        dono=$(stat -c '%U' "$DIR/$f")
+        [[ $dono == "$UTIL" ]] && ok "$f/ e de $UTIL" || falha "$f/ e de '$dono' (devia ser $UTIL): ficheiros copiados a mao?"
+        if [[ $f == data ]]; then
+            [[ -z $(find "$DIR/data" ! -user "$UTIL" -print -quit) ]] || falha "ha ficheiros em data/ que nao sao de $UTIL"
+        fi
+    done
+    modo=$(stat -c '%a' "$DIR/data" 2>/dev/null || echo "?")
+    [[ $modo == 700 ]] && ok "data/ com permissoes 700" || falha "data/ com permissoes $modo (devia ser 700)"
+    if runuser -u "$UTIL" -- test -r "$DIR/wsgi.py" -a -r "$DIR/app/__init__.py" 2>/dev/null; then ok "codigo legivel por $UTIL"
+    else falha "o codigo nao e legivel por $UTIL"; fi
+    for f in "${DOCKER_FICHEIROS[@]}"; do [[ -e $DIR/$f ]] && falha "ficheiro do Docker na instalacao: $DIR/$f"; done
+    for f in app/oracle.py app/jobs.py app/views/ops.py; do [[ -e $DIR/$f ]] && falha "ficheiro antigo (antes dos modulos): $DIR/$f"; done
+    if command -v nginx >/dev/null; then
+        nginx -t >/dev/null 2>&1 && ok "configuracao do Nginx valida" || falha "nginx -t falha"
+        systemctl is-active -q nginx && ok "Nginx ativo" || falha "Nginx parado"
+    fi
+    info "Manutencao: $(manage maintenance status 2>/dev/null | head -1 || echo '?')"
+    echo
+    info "Ultimas linhas do registo (journalctl -u $NOME):"
+    journalctl -u "$NOME" -n 15 --no-pager 2>/dev/null | sed 's/^/     /' || true
+    echo
+    if (( problemas )); then
+        aviso "$problemas problema(s). Normalmente resolve: sudo $0 --reaplicar $NOME"
+        info "(so permissoes de data/ e .venv: sudo systemctl restart $NOME)"
+    else
+        ok "sem problemas encontrados"
+    fi
+    exit 0
+}
+
 # ============================================================================ inicio
 MODO=""; NOME_ARG=""
 case "${1:-}" in
     -h|--help|--ajuda) ajuda; exit 0 ;;
-    --desinstalar|--reaplicar|--atualizar|--mostrar|--lista|--listar) MODO=${1#--}; NOME_ARG=${2:-} ;;
+    --desinstalar|--reaplicar|--atualizar|--mostrar|--lista|--listar|--verificar) MODO=${1#--}; NOME_ARG=${2:-} ;;
+    --manutencao)
+        MODO=manutencao; NOME_ARG=${2:-}; MANUT_ACAO=${3:-status}
+        [[ $MANUT_ACAO =~ ^(on|off|status)$ ]] || { echo "Uso: $0 --manutencao NOME on|off|status" >&2; exit 2; } ;;
     -*) echo "Opcao desconhecida: $1 (ver $0 --help)" >&2; exit 2 ;;
     *) NOME_ARG=${1:-} ;;
 esac
@@ -402,11 +487,11 @@ elif [[ -z $NOME_ARG && ${#INSTANCIAS[@]} -gt 0 ]]; then
         fi
     done
     [[ -z $INST_DEF && ${#INSTANCIAS[@]} -eq 1 ]] && INST_DEF=${INSTANCIAS[0]}
-    [[ $MODO == desinstalar || $MODO == mostrar ]] || OPCOES_INST+=("+nova|Nova instancia")
+    [[ -z $MODO ]] && OPCOES_INST+=("+nova|Nova instancia")
     escolher NOME_ARG "Qual?" "${INST_DEF:-+nova}" "${OPCOES_INST[@]}"
     [[ $NOME_ARG == +nova ]] && NOME_ARG=""
 fi
-[[ -z $NOME_ARG && ( $MODO == mostrar || $MODO == desinstalar || $MODO == reaplicar || $MODO == atualizar ) ]] \
+[[ -z $NOME_ARG && -n $MODO ]] \
     && erro "nao ha instancias registadas (ver: $0 --lista)."
 
 REINSTALAR=0; ESTADO_ORIGEM=""
@@ -419,6 +504,13 @@ elif [[ -n $NOME_ARG ]]; then
 fi
 
 [[ $MODO == mostrar ]] && { titulo "Configuracao guardada"; mostrar_estado; exit 0; }
+if [[ $MODO == verificar || $MODO == manutencao ]]; then
+    (( REINSTALAR )) || erro "a instancia '$NOME_ARG' nao tem configuracao guardada."
+    [[ $MODO == verificar ]] && verificar
+    titulo "Modo de manutencao de '$NOME'"
+    manage maintenance "$MANUT_ACAO" | sed 's/^/   /'
+    exit 0
+fi
 [[ $MODO == desinstalar ]] && desinstalar "$NOME_ARG"
 
 if (( REINSTALAR )); then
@@ -680,7 +772,7 @@ case $COD in
         tem_codigo "$TMP_COD" || { rm -rf "$TMP_COD"; erro "a pasta '$GIT_PASTA' nao tem o portal (wsgi.py, app/, deploy/)."; }
         copiar_codigo "$TMP_COD"; rm -rf "$TMP_COD"
         ok "codigo obtido do Git" ;;
-    manter) ok "codigo mantido" ;;
+    manter) ok "codigo mantido"; limpar_docker ;;
 esac
 tem_codigo "$DIR" || erro "$DIR nao tem o codigo do portal."
 

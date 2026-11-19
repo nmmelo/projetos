@@ -1,8 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Shrink{% endblock %}
+{% block title %}Oracle · Shrink{% endblock %}
 {% block content %}
+{% include "oracle/_tabs.html" %}
 <section class="card">
-  <h1>Shrink de tablespaces</h1>
+  <h2>Shrink de tablespaces</h2>
   {% if not dbs %}
     <p class="muted">Não tem bases de dados atribuídas ao seu perfil.</p>
   {% else %}
@@ -52,7 +53,7 @@
 {% endblock %}
 {% block scripts %}
 <script>
-const API_TS = "{{ url_for('portal.api_tablespaces', db_id=0) }}";
+const API_TS = "{{ url_for('oracle.api_tablespaces', db_id=0) }}";
 const db = document.getElementById('db'), ts = document.getElementById('ts'), st = document.getElementById('tsStatus');
 const box = document.getElementById('confirmBox'), go = document.getElementById('go');
 

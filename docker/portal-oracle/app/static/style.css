@@ -119,6 +119,8 @@ table.kv th { width: 160px; text-transform: none; font-size: 13px; }
 .flash { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; border: 1px solid; }
 .flash.ok { background: var(--ok-bg); border-color: var(--ok-line); color: var(--ok); }
 .flash.error { background: var(--danger-bg); border-color: var(--danger-line); color: var(--danger); }
+.flash.warn { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn); }
+.flash.warn a { color: inherit; font-weight: 600; }
 
 .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .bar { width: 120px; height: 8px; background: var(--ok-bg); border-radius: 4px; overflow: hidden; }
@@ -137,14 +139,13 @@ fieldset .grp { font-size: 11px; text-transform: uppercase; letter-spacing: .4px
 select.small, button.small { padding: 3px 8px; font-size: 12px; }
 
 /* abas da configuracao */
-.tabs { display: flex; gap: 2px; border-bottom: 2px solid var(--line); margin-bottom: 0; }
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 2px solid var(--line); margin-bottom: 16px; }
 .tabs a { padding: 9px 18px; text-decoration: none; color: var(--muted); font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -2px; }
 .tabs a.on { color: var(--accent); border-bottom-color: var(--accent); }
 .subtabs { display: flex; gap: 4px; padding: 10px 0; margin-bottom: 14px; }
 .subtabs a { padding: 5px 12px; border-radius: 16px; text-decoration: none; color: var(--ink); font-size: 13px; }
 .subtabs a:hover { background: var(--hover); }
 .subtabs a.on { background: var(--accent); color: var(--accent-ink); }
-.tabs + .head, .tabs + section, .tabs + div { margin-top: 16px; }
 
 /* home */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 24px; }
@@ -189,3 +190,36 @@ main { width: 100%; flex: 1; }
 .mock-card b { height: 5px; border-radius: 3px; opacity: .75; width: 80%; }
 .mock-card b.short { width: 50%; opacity: .4; }
 .mock-card em { margin-top: auto; height: 10px; width: 36px; border-radius: 3px; }
+
+/* modulos */
+.modulo-home + .modulo-home { margin-top: 28px; }
+.modulo-titulo { font-size: 18px; margin: 4px 0 12px; }
+.modulo-titulo a { color: var(--ink); text-decoration: none; }
+.modulo-titulo a:hover { color: var(--accent); }
+.stat.mini { padding: 8px 14px; min-width: 0; }
+.stat.mini .value.small { font-size: 15px; }
+.modulos { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.modulo.off { border-style: dashed; }
+.modulo-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.modulo-head h2 { margin: 0; }
+.modulo-perm .acesso { padding-bottom: 6px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.checks-col { display: flex; flex-direction: column; gap: 8px; }
+.disabled { opacity: .45; }
+
+/* manutencao */
+.editor-bar { display: flex; flex-wrap: wrap; gap: 4px; margin: 14px 0 8px; }
+.editor-bar button { padding: 4px 10px; font-size: 13px; }
+.editor { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.editor textarea { width: 100%; font-family: var(--mono); font-size: 13px; padding: 10px; border: 1px solid var(--input-line);
+  border-radius: 6px; background: var(--input-bg); color: var(--ink); resize: vertical; min-height: 280px; }
+.editor iframe { width: 100%; min-height: 280px; height: calc(100% - 26px); border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.label-like { display: block; font-weight: 500; margin-bottom: 6px; }
+@media (max-width: 900px) { .editor { grid-template-columns: 1fr; } }
+.manutencao { text-align: center; margin-top: 40px; }
+.manutencao-msg img { max-width: 100%; }
+.manutencao .manutencao-msg ul, .manutencao .manutencao-msg ol { display: inline-block; text-align: left; margin: 0 auto 10px; }
+.modulo .buttons { margin-top: 16px; }
+.manutencao-msg.aviso { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 8px; padding: 10px 14px;
+  margin: 0 0 16px; text-align: left; }
+.manutencao-msg.aviso h2 { font-size: 16px; margin: 0 0 6px; }
+.buttons.center { justify-content: center; align-items: center; }

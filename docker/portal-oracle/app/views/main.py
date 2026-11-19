@@ -1,4 +1,4 @@
-"""Login, Home e Minha area."""
+"""Login, Home (blocos dos modulos), Minha area e enderecos antigos."""
 import base64
 import os
 
@@ -6,7 +6,7 @@ from flask import (current_app, flash, g, make_response, redirect, render_templa
                    url_for)
 from werkzeug.security import check_password_hash
 
-from .. import aparencia, auth, settings, store
+from .. import aparencia, auth, manutencao, settings, store
 from . import bp
 
 
@@ -21,7 +21,8 @@ def login():
             nxt = request.args.get("next", "")
             return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else url_for("portal.home"))
         flash("Utilizador ou password inválidos.", "error")
-    return render_template("login.html", no_admin=settings.admin() is None)
+    manut_msg = manutencao.estado()["html"] if g.get("manutencao") else None
+    return render_template("login.html", no_admin=settings.admin() is None, manut_msg=manut_msg)
 
 
 @bp.route("/favicon.ico")
@@ -62,21 +63,37 @@ def logout():
 @bp.route("/")
 @auth.login_required
 def home():
-    dbs = g.user.visible_dbs(store.list_dbs())
-    visible = {d["id"] for d in dbs}
-    jobs = [j for j in store.list_jobs(500) if j["db_id"] in visible]
-    since = store.ago(hours=24)
-    stats = {
-        "dbs": len(dbs),
-        "running": sum(1 for j in jobs if j["status"] == "EM CURSO"),
-        "last24": sum(1 for j in jobs if j["started_at"] >= since),
-        "errors24": sum(1 for j in jobs if j["started_at"] >= since and j["status"] in ("ERRO", "INTERROMPIDO")),
-    }
+    blocos = []
+    for m in g.user.modulos:
+        if m.home_template:
+            blocos.append({"modulo": m, "ctx": m.home_context(g.user) if m.home_context else {}})
     last_backup = None
     if g.user.can("config.portal"):
         b = store.list_backups()
         last_backup = b[0] if b else None
-    return render_template("home.html", dbs=dbs, stats=stats, recent=jobs[:8], last_backup=last_backup)
+    return render_template("home.html", blocos=blocos, last_backup=last_backup)
+
+
+# Enderecos anteriores aos modulos (marcadores, links antigos) -> modulo Oracle
+@bp.route("/report")
+def old_report():
+    return redirect(url_for("oracle.report", **request.args), 301)
+
+
+@bp.route("/shrink")
+def old_shrink():
+    return redirect(url_for("oracle.shrink", **request.args), 301)
+
+
+@bp.route("/jobs")
+@bp.route("/jobs/<int:job_id>")
+def old_jobs(job_id=None):
+    return redirect(url_for("oracle.job_detail", job_id=job_id) if job_id else url_for("oracle.jobs_list"), 301)
+
+
+@bp.route("/config/databases")
+def old_dbs():
+    return redirect(url_for("oracle.cfg_dbs"), 301)
 
 
 @bp.route("/me", methods=["GET", "POST"])
@@ -111,5 +128,7 @@ def me():
             return redirect(url_for("portal.me"))
         except ValueError as exc:
             flash(str(exc), "error")
-    dbs = store.list_dbs() if u.is_admin or u.all_dbs else [d for d in store.list_dbs() if d["id"] in u.db_ids]
+    dbs = None
+    if u.can("modulo.oracle"):
+        dbs = store.list_dbs() if u.is_admin or u.all_dbs else [d for d in store.list_dbs() if d["id"] in u.db_ids]
     return render_template("me.html", dbs=dbs)

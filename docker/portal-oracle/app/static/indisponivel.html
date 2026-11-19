@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="10">
+<title>Portal a reiniciar</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: #f5f6f8; color: #1d2433; }
+  .box { background: #fff; border: 1px solid #e2e5ea; border-radius: 12px; padding: 32px 40px; max-width: 460px; text-align: center; }
+  h1 { font-size: 20px; margin: 12px 0 8px; }
+  p { color: #6b7385; margin: 6px 0; }
+  .spin { width: 36px; height: 36px; border: 4px solid #e2e5ea; border-top-color: #1f5fbf; border-radius: 50%;
+          margin: 0 auto; animation: r 1s linear infinite; }
+  @keyframes r { to { transform: rotate(360deg); } }
+  @media (prefers-color-scheme: dark) { body { background: #0f141c; color: #e3e8f0; } .box { background: #171e29; border-color: #2a3444; } p { color: #93a0b4; } }
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="spin" aria-hidden="true"></div>
+  <h1>O portal está a reiniciar</h1>
+  <p>Normalmente demora poucos segundos (por exemplo, depois de uma atualização).</p>
+  <p>Esta página volta a tentar sozinha a cada 10 segundos.</p>
+</div>
+</body>
+</html>

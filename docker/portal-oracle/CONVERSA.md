@@ -191,3 +191,25 @@ Chat de 19 de novembro de 2026.
 | `--ajuda` com o cabeçalho do ficheiro | `--help` completo; novas opções `NOME`, `--lista`, `--mostrar`, `--reaplicar`, `--atualizar` |
 
 O ficheiro antigo `.instalacao` é lido e migrado.
+
+---
+
+## 12. Módulos, manutenção e sincronização sem indisponibilidade
+
+Chat de 19 de novembro de 2026.
+
+**Pergunta:**
+> o problema, é que cada vez que faço sincronização do portal, depois o portal fica indisponivel, deve ser os ficheiros que vem do repositorio, também como é uma instalação no servidor, tudo o que seja docker, durante o processo de instalação, pode ser removido para garantir que não fica lixo. Também ter a opção nas configurações, a opção de colocar o portal em manutenção, tendo um editor html. Podemos também colocar tudo num modulo de oracle, ou seja o portal vai servir para mais coisas, a ideia é ter vários modulos, podemos fazer parecido ao projeto de portal no repositorio workspace, onde temos diversos modulos, podemos ativar ou desativar, cada modulo ativo ativa os menus, por exemplo oracle, deve aparecer uma aba oracle e depois diversas abas, com as funções, por exemplo definições, onde temos as configurações de base de dados. como vamos ter modulos, os perfis podem estar associados aos modulos.
+
+**Resposta:**
+
+| Tema | O que mudou |
+|---|---|
+| Portal indisponível depois de sincronizar | Causas: cópia como root muda o dono de `data/`; o Gunicorn continua com o código antigo; ficheiros antigos ficam. O serviço corrige as permissões ao arrancar (`ExecStartPre=+chown`), o `instalar.sh` substitui o código em vez de copiar por cima, e há `--verificar` (diagnóstico) e `--reaplicar` |
+| Ficheiros do Docker no servidor | `Dockerfile`, `docker-compose.yml`, `.dockerignore` e `docker/` são removidos na instalação e na atualização |
+| Reinício | O Nginx mostra "O portal está a reiniciar" (`app/static/indisponivel.html`) em vez de 502 |
+| Manutenção | Configuração → Manutenção: ativar/desativar, editor HTML com pré-visualização, HTML filtrado, 503 para quem não gere o portal, aviso no login; `manage.py maintenance` e `instalar.sh --manutencao` |
+| Módulos | `app/modulos.py` (registo) e `app/modules/oracle/` (Blueprint `/oracle`). Configuração → Módulos ativa/desativa; menu Oracle com abas Tablespaces, Shrink, Execuções e Definições (bases de dados) |
+| Perfis por módulo | Permissão de acesso `modulo.oracle` e ações `oracle.*`; formulário agrupado por módulo, com as bases de dados dentro do Oracle. Perfis e backups antigos são convertidos; URLs antigos redirecionam |
+
+Modelo seguido: o portal do repositório workspace (tabela de módulos ativáveis, menus por módulo, manutenção com editor HTML onde só os administradores entram, e script de linha de comandos).

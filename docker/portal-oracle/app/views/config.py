@@ -1,10 +1,10 @@
-"""Configuracao: abas 'Bases de dados' e 'Portal' (Geral, Aparencia, Armazenamento, Utilizadores, Perfis, Backups)."""
+"""Configuracao do portal: Geral, Aparencia, Manutencao, Modulos, Armazenamento, Utilizadores, Perfis, Backups)."""
 import os
 import re
 
 from flask import abort, flash, g, redirect, render_template, request, send_file, url_for
 
-from .. import aparencia, auth, backup, crypto, oracle, settings, store
+from .. import aparencia, auth, backup, crypto, manutencao, modulos, settings, store
 from . import bp
 
 USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
@@ -13,86 +13,9 @@ USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
 @bp.route("/config")
 @auth.login_required
 def config():
-    if g.user.can("config.bds"):
-        return redirect(url_for("portal.cfg_dbs"))
     if g.user.can("config.portal"):
         return redirect(url_for("portal.cfg_general"))
     abort(403)
-
-
-# ====================================================================== Bases de dados Oracle
-def _form_to_db(form) -> dict:
-    data = {
-        "name": form.get("name", "").strip(),
-        "host": form.get("host", "").strip(),
-        "port": form.get("port", "1521").strip() or "1521",
-        "sid": form.get("sid", "").strip() or None,
-        "service_name": form.get("service_name", "").strip() or None,
-        "pdb": form.get("pdb", "").strip().upper() or None,
-        "username": form.get("username", "").strip(),
-        "role": "SYSDBA" if form.get("role") == "SYSDBA" else "NORMAL",
-    }
-    if not data["name"] or not data["host"] or not data["username"]:
-        raise ValueError("Nome, host e utilizador são obrigatórios.")
-    if not data["port"].isdigit():
-        raise ValueError("Porta inválida.")
-    data["port"] = int(data["port"])
-    if not data["sid"] and not data["service_name"]:
-        raise ValueError("Indique o SID ou o Service Name.")
-    if data["pdb"]:
-        oracle.valid_ident(data["pdb"], "PDB")
-    return data
-
-
-@bp.route("/config/databases")
-@auth.requires("config.bds")
-def cfg_dbs():
-    return render_template("config/dbs.html", dbs=store.list_dbs(), tab="dbs")
-
-
-@bp.route("/config/databases/new", methods=["GET", "POST"])
-@bp.route("/config/databases/<int:db_id>/edit", methods=["GET", "POST"])
-@auth.requires("config.bds")
-def cfg_db_form(db_id=None):
-    db = store.get_db(db_id) if db_id else None
-    if db_id and not db:
-        abort(404)
-    if request.method == "POST":
-        try:
-            data = _form_to_db(request.form)
-            pwd = request.form.get("password", "")
-            if not db and not pwd:
-                raise ValueError("A password é obrigatória.")
-            new_id = store.save_db(data, crypto.encrypt(pwd) if pwd else None, db_id)
-            flash("Base de dados guardada.", "ok")
-            return redirect(url_for("portal.cfg_dbs", _anchor=f"db{new_id}"))
-        except Exception as exc:  # noqa: BLE001 - validacao, nome duplicado, ...
-            flash(f"Erro: {exc}", "error")
-            db = {**(db or {}), **request.form.to_dict()}
-    return render_template("config/db_form.html", db=db or {}, editing=bool(db_id), tab="dbs")
-
-
-@bp.route("/config/databases/<int:db_id>/delete", methods=["POST"])
-@auth.requires("config.bds")
-def cfg_db_delete(db_id):
-    store.delete_db(db_id)
-    flash("Base de dados removida.", "ok")
-    return redirect(url_for("portal.cfg_dbs"))
-
-
-@bp.route("/config/databases/<int:db_id>/test", methods=["POST"])
-@auth.requires("config.bds")
-def cfg_db_test(db_id):
-    db = store.get_db(db_id) or abort(404)
-    try:
-        conn = oracle.connect(db, crypto.decrypt(db["password_enc"]))
-        info = oracle.test_connection(conn)
-        conn.close()
-        flash(f"{db['name']}: ligação OK — utilizador {info['user']}, contentor {info['container']}, "
-              f"BD {info['db']}, versão {info['version']}", "ok")
-    except Exception as exc:  # noqa: BLE001
-        flash(f"{db['name']}: falha na ligação — {exc}", "error")
-    return redirect(url_for("portal.cfg_dbs"))
 
 
 # ====================================================================== Portal: Geral
@@ -145,6 +68,48 @@ def cfg_appearance():
     return render_template("config/appearance.html", s=s, themes=aparencia.THEMES,
                            limits=aparencia.LIMITS, favicon_max=aparencia.FAVICON_MAX // 1024,
                            custom_icon=bool(s.get("favicon_ver")), tab="portal", sub="appearance")
+
+
+# ====================================================================== Portal: Manutencao
+@bp.route("/config/portal/maintenance", methods=["GET", "POST"])
+@auth.requires("config.portal")
+def cfg_maintenance():
+    if request.method == "POST":
+        action = request.form.get("action", "save")
+        html_msg = request.form.get("html", "")
+        if action == "reset":
+            html_msg = manutencao.DEFAULT_HTML
+        ativo = {"on": True, "off": False}.get(action, manutencao.ativa())
+        manutencao.definir(ativo, g.user.username, html_msg)
+        flash({"on": "Modo de manutenção ATIVO: só quem gere o portal consegue entrar.",
+               "off": "Modo de manutenção desativado: o portal está disponível para todos.",
+               "reset": "Mensagem reposta."}.get(action, "Mensagem guardada."), "ok")
+        return redirect(url_for("portal.cfg_maintenance"))
+    return render_template("config/maintenance.html", m=manutencao.estado(), tab="portal", sub="maintenance")
+
+
+# ====================================================================== Portal: Modulos
+@bp.route("/config/portal/modules", methods=["GET", "POST"])
+@auth.requires("config.portal")
+def cfg_modules():
+    if request.method == "POST":
+        chave = request.form.get("module", "")
+        if chave not in modulos.REGISTO:
+            abort(404)
+        ativo = request.form.get("active") == "1"
+        store.save_settings({f"module.{chave}": "1" if ativo else "0"})
+        nome = modulos.REGISTO[chave].nome
+        flash(f"Módulo {nome} {'ativado' if ativo else 'desativado'}.", "ok")
+        return redirect(url_for("portal.cfg_modules"))
+    ativos = modulos.ativos()
+    perfis = store.list_profiles()
+    lista = []
+    for k in modulos.INSTALADOS:
+        m = modulos.REGISTO.get(k)
+        if m:
+            com_acesso = [p["name"] for p in perfis if m.acesso in p["permissions"]]
+            lista.append({"m": m, "ativo": k in ativos, "perfis": com_acesso})
+    return render_template("config/modules.html", lista=lista, tab="portal", sub="modules")
 
 
 # ====================================================================== Portal: Armazenamento
@@ -270,7 +235,8 @@ def cfg_user_delete(uid):
 def cfg_profiles():
     dbs = {d["id"]: d["name"] for d in store.list_dbs()}
     return render_template("config/profiles.html", profiles=store.list_profiles(), dbs=dbs,
-                           tab="portal", sub="profiles")
+                           tab="portal", sub="profiles",
+                           registo=[modulos.REGISTO[k] for k in modulos.INSTALADOS if k in modulos.REGISTO])
 
 
 @bp.route("/config/portal/profiles/new", methods=["GET", "POST"])
@@ -286,7 +252,8 @@ def cfg_profile_form(pid=None):
             name = f.get("name", "").strip()[:100]
             if not name:
                 raise ValueError("O nome do perfil é obrigatório.")
-            perms = [a for a in f.getlist("permissions") if a in auth.ACTIONS]
+            catalogo = modulos.todas_acoes()
+            perms = [a for a in f.getlist("permissions") if a in catalogo]
             data = {"name": name, "description": f.get("description", "").strip()[:255],
                     "all_dbs": f.get("all_dbs") == "on", "permissions": perms,
                     "db_ids": [int(i) for i in f.getlist("db_ids") if i.isdigit()]}
@@ -299,7 +266,9 @@ def cfg_profile_form(pid=None):
                  "all_dbs": f.get("all_dbs") == "on", "permissions": f.getlist("permissions"),
                  "db_ids": [int(i) for i in f.getlist("db_ids") if i.isdigit()]}
     return render_template("config/profile_form.html", p=p or {"permissions": [], "db_ids": []},
-                           editing=bool(pid), dbs=store.list_dbs(), tab="portal", sub="profiles")
+                           editing=bool(pid), dbs=store.list_dbs(), tab="portal", sub="profiles",
+                           registo=[modulos.REGISTO[k] for k in modulos.INSTALADOS if k in modulos.REGISTO],
+                           ativos=modulos.ativos(), acoes_portal=modulos.ACOES_PORTAL)
 
 
 @bp.route("/config/portal/profiles/<int:pid>/delete", methods=["POST"])

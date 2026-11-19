@@ -24,6 +24,10 @@ Environment=PYTHONUNBUFFERED=1
 RuntimeDirectory=@NOME@
 RuntimeDirectoryMode=0750
 Environment=XDG_RUNTIME_DIR=/run/@NOME@
+# Antes de arrancar (como root, prefixo +): data/ e .venv sao do utilizador de servico. Corrige o caso
+# de ficheiros copiados a mao como root (ex. sincronizacao do repositorio por cima da pasta).
+ExecStartPre=+/usr/bin/chown -R @UTILIZADOR@:@UTILIZADOR@ @DIR@/data @DIR@/.venv
+ExecStartPre=+/usr/bin/chmod 700 @DIR@/data
 ExecStart=@DIR@/.venv/bin/gunicorn -c @DIR@/gunicorn.conf.py --bind @BIND@ wsgi:app
 ExecReload=/bin/kill -s HUP $MAINPID
 SyslogIdentifier=@NOME@

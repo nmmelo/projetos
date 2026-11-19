@@ -3,21 +3,22 @@
 {% block content %}
 {% include "config/_tabs.html" %}
 <div class="head">
-  <p class="muted">Um perfil define <strong>que bases de dados</strong> o utilizador vê e <strong>o que pode fazer</strong>.</p>
+  <p class="muted">Um perfil define <strong>a que módulos</strong> o utilizador tem acesso, <strong>o que pode fazer</strong> em cada um e, no Oracle, <strong>que bases de dados</strong> vê.</p>
   <a class="btn primary" href="{{ url_for('portal.cfg_profile_form') }}">+ Novo perfil</a>
 </div>
 {% if not profiles %}
   <p class="muted">Ainda não há perfis.</p>
 {% else %}
 <table>
-  <thead><tr><th>Perfil</th><th>Bases de dados</th><th>Permissões</th><th class="num">Utilizadores</th><th></th></tr></thead>
+  <thead><tr><th>Perfil</th><th>Módulos</th><th>Bases de dados Oracle</th><th>Permissões</th><th class="num">Utilizadores</th><th></th></tr></thead>
   <tbody>
   {% for p in profiles %}
     <tr>
       <td><strong>{{ p.name }}</strong>{% if p.description %}<div class="small muted">{{ p.description }}</div>{% endif %}</td>
+      <td>{% for m in registo if m.acesso in p.permissions %}<span class="tag">{{ m.nome }}</span> {% else %}<span class="muted">nenhum</span>{% endfor %}</td>
       <td>{% if p.all_dbs %}<span class="tag warn">Todas</span>{% else %}
           {% for i in p.db_ids if i in dbs %}<span class="tag">{{ dbs[i] }}</span> {% else %}<span class="muted">nenhuma</span>{% endfor %}{% endif %}</td>
-      <td class="small">{% for a in p.permissions if a in ACTIONS %}<div>{{ ACTIONS[a][1] }}</div>{% else %}<span class="muted">nenhuma</span>{% endfor %}</td>
+      <td class="small">{% for a in p.permissions if a in ACTIONS and not a.startswith('modulo.') %}<div><span class="muted">{{ ACTIONS[a][0] }} ·</span> {{ ACTIONS[a][1] }}</div>{% else %}<span class="muted">nenhuma</span>{% endfor %}</td>
       <td class="num">{{ p.n_users }}</td>
       <td class="actions">
         <a class="btn" href="{{ url_for('portal.cfg_profile_form', pid=p.id) }}">Editar</a>

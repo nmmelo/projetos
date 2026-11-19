@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Em manutenção{% endblock %}
+{% block content %}
+<section class="card narrow manutencao">
+  {% if show_icon %}<img class="login-icon" src="{{ url_for('portal.favicon', v=favicon_ver) }}" alt="">{% endif %}
+  <div class="manutencao-msg">{{ msg|safe }}</div>
+  {% if user %}
+  <form method="post" action="{{ url_for('portal.logout') }}" class="buttons center">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <span class="muted small">Sessão iniciada como {{ user.username }}.</span>
+    <button class="btn">Sair</button>
+  </form>
+  {% else %}
+  <p class="small"><a href="{{ url_for('portal.login') }}">Entrar como administrador</a></p>
+  {% endif %}
+</section>
+{% endblock %}

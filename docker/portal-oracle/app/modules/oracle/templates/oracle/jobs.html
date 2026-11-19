@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Execuções{% endblock %}
+{% block title %}Oracle · Execuções{% endblock %}
 {% block content %}
-<h1>Execuções</h1>
+{% include "oracle/_tabs.html" %}
 {% if not jobs %}
   <p class="muted">Ainda não há execuções nas suas bases de dados.</p>
 {% else %}
@@ -11,7 +11,7 @@
   <tbody>
   {% for j in jobs %}
     <tr>
-      <td class="num"><a href="{{ url_for('portal.job_detail', job_id=j.id) }}">{{ j.id }}</a></td>
+      <td class="num"><a href="{{ url_for('oracle.job_detail', job_id=j.id) }}">{{ j.id }}</a></td>
       <td>{{ j.db_name }}</td>
       <td>{{ j.params.ts }}</td>
       <td><span class="tag {{ 'warn' if j.params.modo == 'EXECUTAR' }}">{{ j.params.modo }}</span></td>

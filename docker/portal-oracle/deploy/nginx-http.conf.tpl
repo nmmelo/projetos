@@ -14,6 +14,14 @@ server {
         expires 1h;
     }
 
+    # Gunicorn parado ou a reiniciar (atualizacao): pagina estatica em vez de "502 Bad Gateway".
+    # (o modo de manutencao do portal e outra coisa: e a aplicacao que responde 503 com a mensagem)
+    error_page 502 504 /indisponivel.html;
+    location = /indisponivel.html {
+        root @DIR@/app/static;
+        internal;
+    }
+
     location / {
         proxy_pass         http://@BIND@;
         proxy_set_header   Host              $host;

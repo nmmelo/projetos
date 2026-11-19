@@ -11,21 +11,19 @@
 <header class="top">
   <a class="brand" href="{{ url_for('portal.home') }}">
     {%- if show_icon %}<img src="{{ url_for('portal.favicon', v=favicon_ver) }}" alt="">{% endif %}{{ portal_name }}</a>
-  {% if user %}
+  {% if user and not pagina_minima %}
   {% set ep = request.endpoint or '' %}
   <nav>
     <a href="{{ url_for('portal.home') }}" class="{{ 'on' if ep == 'portal.home' }}">Home</a>
-    {% if user.can('tablespaces.ver') %}
-    <a href="{{ url_for('portal.report') }}" class="{{ 'on' if ep == 'portal.report' }}">Tablespaces</a>
-    {% endif %}
-    {% if user.can('shrink.analise') or user.can('shrink.executar') %}
-    <a href="{{ url_for('portal.shrink') }}" class="{{ 'on' if ep == 'portal.shrink' }}">Shrink</a>
-    {% endif %}
-    <a href="{{ url_for('portal.jobs_list') }}" class="{{ 'on' if ep in ('portal.jobs_list', 'portal.job_detail') }}">Execuções</a>
+    {% for m in modulos_menu %}
+    <a href="{{ url_for(m.chave ~ '.index') }}" class="{{ 'on' if ep.startswith(m.chave ~ '.') }}">{{ m.nome }}</a>
+    {% endfor %}
     {% if user.can_config %}
     <a href="{{ url_for('portal.config') }}" class="{{ 'on' if ep.startswith('portal.cfg') }}">Configuração</a>
     {% endif %}
   </nav>
+  {% endif %}
+  {% if user %}
   <div class="who">
     <a href="{{ url_for('portal.me') }}" class="{{ 'on' if ep == 'portal.me' }}" title="Minha área">
       <span class="avatar">{{ (user.name or user.username)[:1]|upper }}</span>{{ user.name or user.username }}</a>
@@ -36,6 +34,10 @@
   {% endif %}
 </header>
 <main>
+  {% if manutencao_ativa and user and user.can_config and not pagina_minima %}
+  <div class="flash warn">Modo de manutenção <strong>ativo</strong>: só quem gere o portal consegue entrar.
+    <a href="{{ url_for('portal.cfg_maintenance') }}">Gerir</a></div>
+  {% endif %}
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat, msg in msgs %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
   {% endwith %}
