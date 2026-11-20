@@ -300,7 +300,7 @@ Desativado por omissão: ative-o em **Configuração → Módulos**. Os utilizad
 | **LDAP** | Bind no diretório (OpenLDAP ou Active Directory) | Muda-se no diretório; o portal não a guarda |
 | Administrador | Sempre local (`data/admin.json`), mesmo com o LDAP em baixo | — |
 
-O tipo escolhe-se em **Configuração → Utilizadores** (formulário do utilizador). O perfil (o que pode fazer) é sempre o do portal.
+O tipo escolhe-se em **Configuração → Utilizadores** (formulário do utilizador), que tem **Utilizador**, **Nome próprio**, **Último nome** e **E-mail**. Num utilizador LDAP, **Preencher a partir do LDAP / AD** procura-o no diretório (conta de serviço e correspondência de atributos) e preenche o nome próprio, o último nome e o e-mail. O perfil (o que pode fazer) é sempre o do portal.
 
 **Configuração → Autenticação** mostra os cartões **Local** e **LDAP** com o número de utilizadores de cada tipo. Clicar em **LDAP** abre a janela de configuração (a mesma página está em **Autenticação → LDAP**):
 
@@ -312,9 +312,10 @@ O tipo escolhe-se em **Configuração → Utilizadores** (formulário do utiliza
 | **Servidor(es)** | Vários separados por vírgulas (usa o primeiro que responder); `host:porta` para outra porta |
 | **Validar o certificado** + **Certificado da CA (PEM)** | Para a CA interna do AD/OpenLDAP. Vazio = as CAs do sistema. Desligar a validação aceita qualquer certificado (só para testes). O certificado é validado ao guardar |
 | **Conta de serviço** (bind DN + password) | Só de leitura, para procurar os utilizadores. No AD pode ser `conta@dominio`. Password cifrada (como as das BDs Oracle) |
-| **Base de procura**, **Filtro** (`{u}` = nome do login), **Atributos** do nome e do email | OpenLDAP: `(&(objectClass=inetOrgPerson)(uid={u}))`, `cn`, `mail`. AD: `(&(objectCategory=person)(objectClass=user)(sAMAccountName={u}))`, `displayName`, `mail` |
+| **Base de procura** e **Filtro de objetos** (opcional) | OpenLDAP: `(objectClass=inetOrgPerson)`. AD: `(&(objectCategory=person)(objectClass=user))`. O portal procura `(&<filtro>(<atributo utilizador>=<login>))`; um filtro completo com `{u}` (versões anteriores) continua a funcionar |
+| **Correspondência de atributos** | **Atributo utilizador** \* (AD `sAMAccountName`, OpenLDAP `uid`: o nome do login), **Atributo nome próprio** (`givenName`), **Atributo último nome** (`sn`), **Atributo e-mail** (`mail`). Vazio = o valor do driver |
 | **Grupo obrigatório** | DN do grupo; só os membros entram |
-| **Atualizar nome e email** | A partir do diretório em cada login |
+| **Atualizar nome próprio, último nome e e-mail** | A partir do diretório (pela correspondência acima) em cada login |
 | **Criar o utilizador no primeiro login** | Se não existir no portal, é criado como LDAP com o perfil escolhido |
 
 **Testar ligação** usa os valores do formulário (mesmo sem guardar) e mostra cada passo: ligação, TLS, bind da conta de serviço, base de procura e, opcionalmente, o utilizador (encontrado, grupo, password).

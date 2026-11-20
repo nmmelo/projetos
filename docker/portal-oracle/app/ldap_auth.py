@@ -18,14 +18,31 @@ from . import crypto, settings, store
 DRIVERS = {"openldap": "OpenLDAP", "ad": "Active Directory (Microsoft)"}
 SEGURANCA = {"nenhuma": "Sem cifra (porta 389)", "starttls": "STARTTLS (porta 389)", "ldaps": "LDAPS (porta 636)"}
 PADRAO = {
-    "openldap": {"filtro": "(&(objectClass=inetOrgPerson)(uid={u}))", "nome": "cn", "email": "mail",
+    "openldap": {"filtro": "(objectClass=inetOrgPerson)", "utilizador": "uid", "nome_proprio": "givenName",
+                 "ultimo_nome": "sn", "nome": "cn", "email": "mail",
                  "bind": "cn=leitor,ou=servicos,dc=empresa,dc=pt", "base": "ou=pessoas,dc=empresa,dc=pt"},
-    "ad": {"filtro": "(&(objectCategory=person)(objectClass=user)(sAMAccountName={u}))", "nome": "displayName",
-           "email": "mail", "bind": "svc-portal@empresa.local", "base": "DC=empresa,DC=local"},
+    "ad": {"filtro": "(&(objectCategory=person)(objectClass=user))", "utilizador": "sAMAccountName",
+           "nome_proprio": "givenName", "ultimo_nome": "sn", "nome": "displayName", "email": "mail",
+           "bind": "svc-portal@empresa.local", "base": "DC=empresa,DC=local"},
 }
 CAMPOS = ("ldap_driver", "ldap_hosts", "ldap_porta", "ldap_seguranca", "ldap_verificar", "ldap_bind_dn",
-          "ldap_base_dn", "ldap_filtro", "ldap_attr_nome", "ldap_attr_email", "ldap_grupo", "ldap_auto_criar",
+          "ldap_base_dn", "ldap_filtro", "ldap_attr_utilizador", "ldap_attr_nome_proprio", "ldap_attr_ultimo_nome",
+          "ldap_attr_nome", "ldap_attr_email", "ldap_grupo", "ldap_auto_criar",
           "ldap_perfil", "ldap_timeout", "ldap_ativo", "ldap_atualizar_dados")
+ATTR_RE = __import__("re").compile(r"^[A-Za-z][A-Za-z0-9-]{0,59}$")
+
+
+def filtro_final(c: dict) -> str:
+    """Filtro de procura: o antigo (com {u}) ou (&<filtro de objetos>(<atributo utilizador>={u}))."""
+    f = (c.get("filtro_objetos") or "").strip()
+    if "{u}" in f:
+        return f
+    attr = f"({c['attr_utilizador']}={{u}})"
+    if not f:
+        return attr
+    if not f.startswith("("):
+        f = f"({f})"
+    return f"(&{f}{attr})"
 
 
 class Falha(Exception):
@@ -44,7 +61,11 @@ def config(s: dict | None = None) -> dict:
         "seguranca": seg, "verificar": s.get("ldap_verificar", "1") == "1",
         "ca": s.get("ldap_ca_pem") or "", "bind_dn": s.get("ldap_bind_dn") or "",
         "bind_password": _decifrar(s.get("ldap_bind_password_enc")), "base_dn": s.get("ldap_base_dn") or "",
-        "filtro": s.get("ldap_filtro") or pad["filtro"], "attr_nome": s.get("ldap_attr_nome") or pad["nome"],
+        "filtro_objetos": s.get("ldap_filtro") or pad["filtro"],
+        "attr_utilizador": s.get("ldap_attr_utilizador") or pad["utilizador"],
+        "attr_nome_proprio": s.get("ldap_attr_nome_proprio") or pad["nome_proprio"],
+        "attr_ultimo_nome": s.get("ldap_attr_ultimo_nome") or pad["ultimo_nome"],
+        "attr_nome": s.get("ldap_attr_nome") or pad["nome"],
         "attr_email": s.get("ldap_attr_email") or pad["email"], "grupo": s.get("ldap_grupo") or "",
         "auto_criar": s.get("ldap_auto_criar") == "1", "perfil": s.get("ldap_perfil") or "",
         "atualizar_dados": s.get("ldap_atualizar_dados", "1") == "1",
@@ -136,17 +157,42 @@ def _esc(v: str) -> str:
 
 def procurar(conn, c: dict, username: str) -> dict | None:
     import ldap3
-    filtro = c["filtro"].replace("{u}", _esc(username))
-    attrs = [a for a in {c["attr_nome"], c["attr_email"], "memberOf"} if a]
+    filtro = filtro_final(c).replace("{u}", _esc(username))
+    attrs = [a for a in {c["attr_utilizador"], c["attr_nome_proprio"], c["attr_ultimo_nome"], c["attr_nome"],
+                         c["attr_email"], "memberOf"} if a]
     conn.search(c["base_dn"], filtro, search_scope=ldap3.SUBTREE, attributes=attrs, size_limit=2)
     res = [e for e in conn.response if e.get("type") == "searchResEntry"]
     if len(res) != 1:
         return None
     e = res[0]
-    a = e.get("attributes", {})
-    um = lambda v: (v[0] if isinstance(v, list) and v else v) or ""  # noqa: E731
-    return {"dn": e["dn"], "nome": str(um(a.get(c["attr_nome"]))), "email": str(um(a.get(c["attr_email"]))),
-            "grupos": [str(x) for x in (a.get("memberOf") or [])]}
+    a = {k.lower(): v for k, v in (e.get("attributes") or {}).items()}
+    um = lambda k: str(((lambda v: v[0] if isinstance(v, list) and v else v)(a.get((k or "").lower()))) or "")  # noqa: E731
+    np_, un = um(c["attr_nome_proprio"]), um(c["attr_ultimo_nome"])
+    return {"dn": e["dn"], "utilizador": um(c["attr_utilizador"]), "nome_proprio": np_, "ultimo_nome": un,
+            "nome": " ".join(x for x in (np_, un) if x) or um(c["attr_nome"]), "email": um(c["attr_email"]),
+            "grupos": [str(x) for x in (a.get("memberof") or [])]}
+
+
+def consultar(username: str) -> dict:
+    """Procura um utilizador no diretorio com a conta de servico (sem password do utilizador): para preencher
+    a ficha. {ok, utilizador, nome_proprio, ultimo_nome, email, dn} ou {ok: False, error}."""
+    ok, msg = disponivel()
+    if not ok:
+        return {"ok": False, "error": msg}
+    c = config()
+    if not configurado(c):
+        return {"ok": False, "error": "LDAP por configurar (Configuração → Autenticação)."}
+    try:
+        conn = ligar(c)
+        try:
+            u = procurar(conn, c, username)
+        finally:
+            conn.unbind()
+    except Falha as exc:
+        return {"ok": False, "error": str(exc)}
+    if not u:
+        return {"ok": False, "error": f"'{username}' não encontrado ({c['attr_utilizador']}) em {c['base_dn']}."}
+    return {"ok": True, **{k: u[k] for k in ("dn", "utilizador", "nome_proprio", "ultimo_nome", "nome", "email")}}
 
 
 def no_grupo(conn, c: dict, u: dict, username: str) -> bool:
@@ -210,8 +256,10 @@ def testar(dados: dict, utilizador: str = "", password: str = "") -> dict:
             if utilizador:
                 u = procurar(conn, c, utilizador)
                 if not u:
-                    raise Falha(f"Utilizador '{utilizador}' não encontrado com o filtro {c['filtro']}.")
-                reg(f"utilizador encontrado: {u['dn']} (nome: {u['nome'] or '—'}, email: {u['email'] or '—'})")
+                    raise Falha(f"Utilizador '{utilizador}' não encontrado com o filtro {filtro_final(c)}.")
+                reg(f"utilizador encontrado: {u['dn']}")
+                reg(f"  {c['attr_utilizador']} = {u['utilizador'] or '—'} · {c['attr_nome_proprio']} = {u['nome_proprio'] or '—'}"
+                    f" · {c['attr_ultimo_nome']} = {u['ultimo_nome'] or '—'} · {c['attr_email']} = {u['email'] or '—'}")
                 if c["grupo"]:
                     if not no_grupo(conn, c, u, utilizador):
                         raise Falha(f"'{utilizador}' não pertence ao grupo {c['grupo']}.")

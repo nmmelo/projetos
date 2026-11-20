@@ -412,6 +412,8 @@ class Store:
         self._add_column("clientes", "zabbix_host", "VARCHAR(128)")
         self._add_column("jobs", "agendado_para", "VARCHAR(19)")
         self._add_column("profiles", "administrador", "INTEGER NOT NULL DEFAULT 0")
+        self._add_column("users", "first_name", "VARCHAR(100)")
+        self._add_column("users", "last_name", "VARCHAR(100)")
 
     def _add_column(self, table: str, col: str, ddl: str) -> None:
         """Acrescenta uma coluna a uma tabela ja existente (versoes anteriores do portal)."""
@@ -598,7 +600,7 @@ def delete_profile(pid) -> None:
 # ------------------------------------------------------------------ utilizadores
 def list_users() -> list[dict]:
     with tx() as t:
-        return t.all("""SELECT u.id, u.username, u.name, u.email, u.profile_id, u.active,
+        return t.all("""SELECT u.id, u.username, u.name, u.first_name, u.last_name, u.email, u.profile_id, u.active,
                                u.created_at, u.last_login, u.auth_tipo, p.name AS profile_name
                         FROM users u LEFT JOIN profiles p ON p.id = u.profile_id
                         ORDER BY u.username""")
@@ -612,7 +614,10 @@ def get_user(uid=None, username=None) -> dict | None:
 
 
 def save_user(data: dict, password_hash: str | None, uid=None) -> int:
-    row = {"username": data["username"], "name": data.get("name") or "", "email": data.get("email") or "",
+    first, last = (data.get("first_name") or "").strip(), (data.get("last_name") or "").strip()
+    nome = " ".join(x for x in (first, last) if x) or (data.get("name") or "")
+    row = {"username": data["username"], "name": nome, "email": data.get("email") or "",
+           "first_name": first, "last_name": last,
            "profile_id": data.get("profile_id"), "active": 1 if data.get("active") else 0,
            "auth_tipo": data.get("auth_tipo") or "local", "updated_at": now()}
     if row["auth_tipo"] == "ldap" and uid is None and not password_hash:

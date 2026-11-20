@@ -512,7 +512,8 @@ def cfg_user_form(uid=None):
                 if pwd != rep:
                     raise ValueError("A password e a confirmação não coincidem.")
             profile_id = f.get("profile_id") or None
-            data = {"username": username, "name": f.get("name", "").strip()[:150],
+            data = {"username": username, "first_name": f.get("first_name", "").strip()[:100],
+                    "last_name": f.get("last_name", "").strip()[:100], "name": f.get("name", "").strip()[:150],
                     "email": f.get("email", "").strip()[:255],
                     "profile_id": int(profile_id) if profile_id else None, "active": f.get("active") == "on",
                     "auth_tipo": tipo}
@@ -546,6 +547,19 @@ def cfg_profiles():
     return render_template("config/profiles.html", profiles=store.list_profiles(), dbs=dbs,
                            tab="portal", sub="profiles",
                            registo=[modulos.REGISTO[k] for k in modulos.INSTALADOS if k in modulos.REGISTO])
+
+
+@bp.route("/config/portal/users/ldap")
+@auth.requires("config.portal")
+def cfg_user_ldap():
+    """Dados de um utilizador no LDAP/AD (atributos da correspondencia) para preencher a ficha."""
+    from .. import ldap_auth
+    if not auth.ldap_ativo():
+        return jsonify(ok=False, error="LDAP desligado (Configuração → Autenticação).")
+    u = (request.args.get("u") or "").strip().lower()
+    if not USERNAME_RE.match(u):
+        return jsonify(ok=False, error="Utilizador inválido.")
+    return jsonify(ldap_auth.consultar(u))
 
 
 @bp.route("/config/portal/profiles/new", methods=["GET", "POST"])

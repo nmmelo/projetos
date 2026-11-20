@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1459">
+<lingua codigo="en" nome="English" textos="1479">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -5837,5 +5837,85 @@
   <texto>
     <origem>Só um administrador pode dar ou retirar o perfil de administrador.</origem>
     <traducao>Only an administrator can grant or remove the administrator profile.</traducao>
+  </texto>
+  <texto>
+    <origem>Correspondência de atributos (utilizador do portal ↔ diretório)</origem>
+    <traducao>Attribute mapping (portal user ↔ directory)</traducao>
+  </texto>
+  <texto>
+    <origem>Atributo utilizador</origem>
+    <traducao>User attribute</traducao>
+  </texto>
+  <texto>
+    <origem>Atributo nome próprio</origem>
+    <traducao>First name attribute</traducao>
+  </texto>
+  <texto>
+    <origem>Atributo último nome</origem>
+    <traducao>Last name attribute</traducao>
+  </texto>
+  <texto>
+    <origem>Atributo e-mail</origem>
+    <traducao>E-mail attribute</traducao>
+  </texto>
+  <texto>
+    <origem>O nome escrito no login (AD:</origem>
+    <traducao>The name typed at login (AD:</traducao>
+  </texto>
+  <texto>
+    <origem>; OpenLDAP:</origem>
+    <traducao>; OpenLDAP:</traducao>
+  </texto>
+  <texto>
+    <origem>). Vazio = o do driver.</origem>
+    <traducao>). Empty = the driver default.</traducao>
+  </texto>
+  <texto>
+    <origem>Filtro de objetos (opcional)</origem>
+    <traducao>Object filter (optional)</traducao>
+  </texto>
+  <texto>
+    <origem>Limita a procura (ex. só pessoas). O portal procura</origem>
+    <traducao>Limits the search (e.g. people only). The portal searches</traducao>
+  </texto>
+  <texto>
+    <origem>. Um filtro completo com</origem>
+    <traducao>. A full filter with</traducao>
+  </texto>
+  <texto>
+    <origem>(versões anteriores) continua a funcionar.</origem>
+    <traducao>(earlier versions) still works.</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar o nome próprio, o último nome e o e-mail do utilizador a partir do diretório em cada login</origem>
+    <traducao>Update the user first name, last name and e-mail from the directory at each login</traducao>
+  </texto>
+  <texto>
+    <origem>Nome próprio</origem>
+    <traducao>First name</traducao>
+  </texto>
+  <texto>
+    <origem>Último nome</origem>
+    <traducao>Last name</traducao>
+  </texto>
+  <texto>
+    <origem>E-mail</origem>
+    <traducao>E-mail</traducao>
+  </texto>
+  <texto>
+    <origem>↧ Preencher a partir do LDAP / AD</origem>
+    <traducao>↧ Fill from LDAP / AD</traducao>
+  </texto>
+  <texto>
+    <origem>Usa a correspondência de atributos de Configuração → Autenticação.</origem>
+    <traducao>Uses the attribute mapping in Configuration → Authentication.</traducao>
+  </texto>
+  <texto>
+    <origem>Escreva primeiro o utilizador.</origem>
+    <traducao>Type the user name first.</traducao>
+  </texto>
+  <texto>
+    <origem>A procurar…</origem>
+    <traducao>Searching…</traducao>
   </texto>
 </lingua>

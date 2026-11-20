@@ -28,16 +28,28 @@
       {% if tem_pw %}<span class="hint"><label class="inline"><input type="checkbox" name="ldap_bind_password_limpar" value="1"> apagar a guardada</label></span>{% endif %}</label>
     <label class="full">Base de procura (base DN)
       <input name="ldap_base_dn" value="{{ s.ldap_base_dn or '' }}" id="lbase" placeholder="{{ padrao[c.driver].base }}" translate="no"></label>
-    <label class="full">Filtro do utilizador
+    <fieldset class="full ldap-map"><legend>Correspondência de atributos (utilizador do portal ↔ diretório)</legend>
+      <div class="grid2">
+      <label><span>Atributo utilizador <b class="c-bad">*</b></span>
+        <input name="ldap_attr_utilizador" value="{{ s.ldap_attr_utilizador or '' }}" id="luser" placeholder="{{ padrao[c.driver].utilizador }}" translate="no">
+        <span class="hint">O nome escrito no login (AD: <code>sAMAccountName</code>; OpenLDAP: <code>uid</code>). Vazio = o do driver.</span></label>
+      <label>Atributo nome próprio
+        <input name="ldap_attr_nome_proprio" value="{{ s.ldap_attr_nome_proprio or '' }}" id="lnp" placeholder="{{ padrao[c.driver].nome_proprio }}" translate="no"></label>
+      <label>Atributo último nome
+        <input name="ldap_attr_ultimo_nome" value="{{ s.ldap_attr_ultimo_nome or '' }}" id="lun" placeholder="{{ padrao[c.driver].ultimo_nome }}" translate="no"></label>
+      <label>Atributo e-mail
+        <input name="ldap_attr_email" value="{{ s.ldap_attr_email or '' }}" id="lemail" placeholder="{{ padrao[c.driver].email }}" translate="no"></label>
+      </div>
+    </fieldset>
+    <label class="full">Filtro de objetos (opcional)
       <input name="ldap_filtro" value="{{ s.ldap_filtro or '' }}" id="lfiltro" placeholder="{{ padrao[c.driver].filtro }}" translate="no">
-      <span class="hint"><code>{u}</code> é o nome escrito no login. Vazio = o filtro do driver.</span></label>
-    <label>Atributo do nome <input name="ldap_attr_nome" value="{{ s.ldap_attr_nome or '' }}" id="lnome" placeholder="{{ padrao[c.driver].nome }}" translate="no"></label>
-    <label>Atributo do email <input name="ldap_attr_email" value="{{ s.ldap_attr_email or '' }}" id="lemail" placeholder="{{ padrao[c.driver].email }}" translate="no"></label>
+      <span class="hint">Limita a procura (ex. só pessoas). O portal procura <code>(&amp;&lt;filtro&gt;(&lt;atributo utilizador&gt;=&lt;login&gt;))</code>.
+        Um filtro completo com <code>{u}</code> (versões anteriores) continua a funcionar.</span></label>
     <label class="full">Grupo obrigatório (DN, opcional)
       <input name="ldap_grupo" value="{{ s.ldap_grupo or '' }}" placeholder="CN=DBA-Portal,OU=Grupos,DC=empresa,DC=local" translate="no">
       <span class="hint">Só entram os membros deste grupo (no AD inclui grupos dentro de grupos).</span></label>
     <label class="inline full"><input type="checkbox" name="ldap_atualizar_dados" value="1" {{ 'checked' if c.atualizar_dados }}>
-      Atualizar o nome e o email do utilizador a partir do diretório em cada login</label>
+      Atualizar o nome próprio, o último nome e o e-mail do utilizador a partir do diretório em cada login</label>
     <label class="inline full"><input type="checkbox" name="ldap_auto_criar" value="1" id="lauto" {{ 'checked' if c.auto_criar }}>
       Criar o utilizador no portal no primeiro login (se não existir)</label>
     <label id="lperfil">Perfil dos utilizadores criados
@@ -65,7 +77,7 @@
   const drv = $('ldriver'), seg = $('lseg'), porta = $('lporta'), verif = $('lverif');
   function ver() {
     const p = PAD[drv.value];
-    [['lbind', 'bind'], ['lbase', 'base'], ['lfiltro', 'filtro'], ['lnome', 'nome'], ['lemail', 'email']].forEach(([id, k]) => $(id).placeholder = p[k]);
+    [['lbind', 'bind'], ['lbase', 'base'], ['lfiltro', 'filtro'], ['luser', 'utilizador'], ['lnp', 'nome_proprio'], ['lun', 'ultimo_nome'], ['lemail', 'email']].forEach(([id, k]) => $(id).placeholder = p[k]);
     $('lca').hidden = seg.value === 'nenhuma' || !verif.checked; verif.closest('label').hidden = seg.value === 'nenhuma';
     $('lperfil').hidden = !$('lauto').checked;
   }

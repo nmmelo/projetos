@@ -408,3 +408,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > não consigo limpar as notificações, como podemos ver na imagem, no perfil deviamos ter a opção administrador, ou seja esse perfil com a opção administradores conseguem ter acesso total.
 
 **Resposta:** Sininho com "Limpar todas" e ✕ em cada notificação (o "Marcar como lidas" só tirava o destaque). Perfil com a opção "Administrador — acesso total" (todas as permissões, módulos e bases de dados, Armazenamento); só um administrador a pode dar ou retirar.
+
+## 30. Campos do utilizador e correspondência de atributos LDAP/AD
+
+**Pergunta:**
+> quero que no utilizador tenha os seguintes campos e com o match para no caso da AD, Atributo utilizador * Atributo nome próprio Atributo último nome Atributo e-mail
+
+**Resposta:** Utilizador com Nome próprio, Último nome e E-mail; na configuração LDAP, "Correspondência de atributos": Atributo utilizador (obrigatório; AD sAMAccountName), nome próprio (givenName), último nome (sn) e e-mail (mail), mais um filtro de objetos opcional. Preenchidos no login, na criação automática e com o botão "Preencher a partir do LDAP / AD".

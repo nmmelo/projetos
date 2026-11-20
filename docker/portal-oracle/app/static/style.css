@@ -724,3 +724,6 @@ tr.novo-job { animation: novo-job 2.5s ease-out 2; }
 .bell-x:hover { background: var(--hover); color: var(--danger); }
 .bell-acoes { display: inline-flex; gap: 10px; }
 .danger-link { color: var(--danger) !important; }
+.ldap-fill { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.ldap-map { border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px 12px; }
+.ldap-map legend { font-weight: 600; font-size: 13px; padding: 0 4px; }

@@ -38,8 +38,13 @@ def guardar_form(form) -> None:
     if not 1 <= porta <= 65535 or not 2 <= timeout <= 120:
         raise ValueError("Porta (1-65535) ou timeout (2-120 s) fora dos limites.")
     filtro = form.get("ldap_filtro", "").strip()
-    if filtro and "{u}" not in filtro:
-        raise ValueError("O filtro tem de ter {u} no lugar do nome do utilizador.")
+    if filtro and filtro.count("(") != filtro.count(")"):
+        raise ValueError("Filtro de objetos inválido (parênteses).")
+    attrs = {k: form.get(k, "").strip() for k in ("ldap_attr_utilizador", "ldap_attr_nome_proprio",
+                                                  "ldap_attr_ultimo_nome", "ldap_attr_email")}
+    for k, v in attrs.items():
+        if v and not ldap_auth.ATTR_RE.match(v):
+            raise ValueError(f"Atributo inválido: {v}")
     hosts = form.get("ldap_hosts", "").strip()
     ativo = form.get("ldap_ativo") == "1"
     if ativo and (not hosts or not form.get("ldap_base_dn", "").strip()):
@@ -47,8 +52,7 @@ def guardar_form(form) -> None:
     v = {"ldap_driver": drv, "ldap_seguranca": seg, "ldap_porta": str(porta), "ldap_timeout": str(timeout),
          "ldap_hosts": hosts[:500], "ldap_bind_dn": form.get("ldap_bind_dn", "").strip()[:500],
          "ldap_base_dn": form.get("ldap_base_dn", "").strip()[:500], "ldap_filtro": filtro[:500],
-         "ldap_attr_nome": form.get("ldap_attr_nome", "").strip()[:60],
-         "ldap_attr_email": form.get("ldap_attr_email", "").strip()[:60],
+         **{k: v[:60] for k, v in attrs.items()},
          "ldap_grupo": form.get("ldap_grupo", "").strip()[:500],
          "ldap_verificar": "1" if form.get("ldap_verificar") else "0",
          "ldap_auto_criar": "1" if form.get("ldap_auto_criar") else "0",

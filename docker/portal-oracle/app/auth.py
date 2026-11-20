@@ -97,7 +97,8 @@ def authenticate(username: str, password: str, ip: str = "") -> CurrentUser | No
             return None
         campos = {"last_login": store.now()}
         if ldap_auth.config()["atualizar_dados"]:
-            campos.update({k: v for k, v in (("name", info["nome"]), ("email", info["email"])) if v})
+            campos.update({k: v for k, v in (("first_name", info["nome_proprio"]), ("last_name", info["ultimo_nome"]),
+                                             ("name", info["nome"]), ("email", info["email"])) if v})
         store.update_user_fields(u["id"], **campos)
         return _db_user(store.get_user(uid=u["id"]))
     if u:
@@ -114,6 +115,7 @@ def authenticate(username: str, password: str, ip: str = "") -> CurrentUser | No
         if ok:
             perfil = ldap_auth.config()["perfil"]
             uid = store.save_user({"username": nome, "name": info["nome"], "email": info["email"], "active": True,
+                                   "first_name": info["nome_proprio"], "last_name": info["ultimo_nome"],
                                    "profile_id": int(perfil) if str(perfil).isdigit() else None,
                                    "auth_tipo": "ldap"}, None)
             store.update_user_fields(uid, last_login=store.now())
