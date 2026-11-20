@@ -14,7 +14,7 @@
   </div>
   <div class="jx-linha2">
     <div class="jx-chips" id="chips" role="tablist">
-      {% for k, rotulo in [('', 'Todas'), ('sucesso', 'Sucesso'), ('aviso', 'Com avisos'), ('erro', 'Com erros'), ('falhado', 'Falhadas'), ('em curso', 'Em curso')] %}
+      {% for k, rotulo in [('', 'Todas'), ('sucesso', 'Sucesso'), ('aviso', 'Com avisos'), ('erro', 'Com erros'), ('falhado', 'Falhadas'), ('em curso', 'Em curso'), ('agendado', 'Agendadas')] %}
       <button type="button" class="chip r-{{ k|replace(' ', '-') or 'todas' }} {{ 'on' if not k }}" data-r="{{ k }}"><i></i>{{ rotulo }} <b data-n="{{ k }}">0</b></button>
       {% endfor %}
     </div>
@@ -73,7 +73,8 @@ const API = "{{ url_for('oracle.api_jobs') }}", DEL = "{{ url_for('oracle.jobs_d
 const JOB = "{{ url_for('oracle.api_job', job_id=0) }}", PAGE = "{{ url_for('oracle.job_detail', job_id=0) }}",
       LOG = "{{ url_for('oracle.job_log', job_id=0) }}";
 const CSRF = "{{ csrf_token }}", CAN_DEL = {{ 'true' if can_delete else 'false' }};
-const ROTULO = {'sucesso': 'Sucesso', 'aviso': 'Com avisos', 'erro': 'Com erros', 'falhado': 'Falhada', 'em curso': 'Em curso'};
+const ROTULO = {'sucesso': 'Sucesso', 'aviso': 'Com avisos', 'erro': 'Com erros', 'falhado': 'Falhada', 'em curso': 'Em curso', 'agendado': 'Agendada'};
+const NOVO = +new URLSearchParams(location.search).get('novo') || 0, ATIVOS = ['EM CURSO', 'PENDENTE', 'AGENDADO'];
 const POR_PAG = 50;
 let todos = [], vis = [], pag = 0, sortK = 'id', sortDir = -1, filtroR = '', sel = new Set(), qTimer = null;
 const $ = id => document.getElementById(id);
@@ -109,14 +110,15 @@ function filtrar() {
 function desenhar() {
   const ini = pag * POR_PAG, linhas = vis.slice(ini, ini + POR_PAG);
   $('rows').innerHTML = linhas.length ? linhas.map(j => `
-    <tr data-id="${j.id}" class="${sel.has(j.id) ? 'sel' : ''}">
-      ${CAN_DEL ? `<td class="cb"><input type="checkbox" data-id="${j.id}" ${sel.has(j.id) ? 'checked' : ''} ${['EM CURSO', 'PENDENTE'].includes(j.status) ? 'disabled' : ''}></td>` : ''}
+    <tr data-id="${j.id}" class="${sel.has(j.id) ? 'sel' : ''}${j.id === NOVO ? ' novo-job' : ''}">
+      ${CAN_DEL ? `<td class="cb"><input type="checkbox" data-id="${j.id}" ${sel.has(j.id) ? 'checked' : ''} ${ATIVOS.includes(j.status) ? 'disabled' : ''}></td>` : ''}
       <td class="num">${j.id}</td><td>${esc(j.db_name)}</td><td><strong>${esc(j.ts)}</strong></td>
       <td><span class="tag ${j.modo === 'EXECUTAR' ? 'warn' : ''}">${esc(j.modo)}</span></td>
       <td><span class="res r-${j.resultado.replace(' ', '-')}">${ROTULO[j.resultado] || j.resultado}</span>
         ${j.n_erros ? `<span class="cnt e" title="linhas com erro">${j.n_erros} erro(s)</span>` : ''}
         ${j.n_avisos ? `<span class="cnt a" title="linhas com aviso">${j.n_avisos} aviso(s)</span>` : ''}
         ${j.status === 'PENDENTE' ? '<span class="cnt">na fila do agente</span>' : ''}
+        ${j.status === 'AGENDADO' ? `<span class="cnt" title="O agente corre-a a esta hora">⏰ ${esc((j.agendado_para || '').slice(0, 16))}</span>` : ''}
         ${j.status === 'EM CURSO' && j.progress != null ? `<span class="minibar"><span style="width:${j.progress / 10}%"></span></span>` : ''}</td>
       <td class="small">${esc(j.started_at)}</td><td class="num">${dur(j.duracao)}</td><td>${esc(j.created_by)}</td>
     </tr>`).join('') : `<tr><td colspan="9" class="muted">Nenhuma execução${todos.length ? ' com estes filtros' : ''}.</td></tr>`;
@@ -159,7 +161,7 @@ async function abrir(id) {
     <span>Ganho mín. <b>${esc(p.min_ganho)} MB</b></span><span>Margem <b>${esc(p.margem)}%</b></span>
     <span>Início <b>${esc(j.started_at)}</b></span><span>Duração <b>${dur(j.duracao)}</b></span><span>Por <b>${esc(j.created_by)}</b></span>`;
   $('d-err').hidden = !j.error; $('d-err').textContent = j.error ? 'Falhou: ' + j.error : '';
-  if ($('d-del')) $('d-del').disabled = ['EM CURSO', 'PENDENTE'].includes(j.status);
+  if ($('d-del')) $('d-del').disabled = ATIVOS.includes(j.status);
   $('d-only').checked = false;
   render();
   $('dlg').showModal();
@@ -216,7 +218,7 @@ $('rows').addEventListener('click', e => {
 if (CAN_DEL) {
   $('all').addEventListener('change', e => {
     const ini = pag * POR_PAG;
-    vis.slice(ini, ini + POR_PAG).filter(j => !['EM CURSO', 'PENDENTE'].includes(j.status))
+    vis.slice(ini, ini + POR_PAG).filter(j => !ATIVOS.includes(j.status))
        .forEach(j => e.target.checked ? sel.add(j.id) : sel.delete(j.id));
     desenhar(); });
   $('delsel').onclick = () => apagar([...sel], `Apagar ${sel.size} execução(ões)? O output e o log deixam de estar disponíveis.`);
@@ -234,5 +236,6 @@ document.addEventListener('keydown', e => { if (!$('dlg').open) return;
 carregar();
 // atualiza sozinha enquanto houver execucoes em curso ou na fila
 setInterval(() => { if (!$('dlg').open && todos.some(j => ['EM CURSO', 'PENDENTE'].includes(j.status))) carregar(); }, 4000);
+setInterval(() => { if (!$('dlg').open && todos.some(j => j.status === 'AGENDADO')) carregar(); }, 30000);
 </script>
 {% endblock %}

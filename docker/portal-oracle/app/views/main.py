@@ -121,6 +121,9 @@ def _definicoes_home() -> list[tuple[dict, dict, object]]:
         for cid, c in m.cartoes.items():
             if not c.get("perm") or g.user.can(c["perm"]):
                 out.append(({"id": cid, **c}, m, m.home_context))
+    out.append(({"id": "portal.tarefas", "titulo": "Tarefas", "icone": "⏳", "template": "home/c_tarefas.html",
+                 "link": "oracle.jobs_list" if "oracle" in modulos.ativos() and g.user.can("modulo.oracle") else None,
+                 "link_txt": "Execuções"}, None, _ctx_tarefas))
     out.append(({"id": "portal.notificacoes", "titulo": "Notificações", "icone": "🔔", "template": "home/c_notificacoes.html",
                  "link": "smtp.notificacoes" if "smtp" in modulos.ativos() and g.user.can("modulo.smtp") else None,
                  "link_txt": "Regras de notificação"}, None, _ctx_notificacoes))
@@ -147,6 +150,35 @@ def _cartoes_home() -> list[dict]:
             html = '<p class="muted small">Não foi possível obter estes dados.</p>'
         out.append({**c, "html": html, "url": url_for(c["link"]) if c.get("link") else None})
     return out
+
+
+def _ctx_tarefas(user) -> dict:
+    """Em curso, na fila e agendadas: execucoes Oracle, atualizacoes em segundo plano e proximas tarefas agendadas."""
+    from .. import agendamento, modulos, tarefas_bg
+    execs = []
+    if "oracle" in modulos.ativos() and user.can("modulo.oracle"):
+        visiveis = {d["id"] for d in user.visible_dbs(store.list_dbs())}
+        with store.tx() as t:
+            rows = t.all("SELECT id, db_id, db_name, params, status, started_at, progress, current_action, agendado_para, "
+                         "created_by FROM jobs WHERE status IN ('EM CURSO', 'PENDENTE', 'AGENDADO') ORDER BY "
+                         "COALESCE(agendado_para, started_at)")
+        import json as _json
+        for r in rows:
+            if r["db_id"] in visiveis:
+                r["params"] = _json.loads(r["params"])
+                execs.append(r)
+    proximas = []
+    if user.can_config:
+        for c in agendamento.listar():
+            if c.get("ativo") and c.get("modulo_ativo"):
+                try:
+                    proximas.append({"nome": c["nome"], "quando": agendamento.proxima(c).strftime("%Y-%m-%d %H:%M"),
+                                     "a_correr": c.get("a_correr")})
+                except Exception:  # noqa: BLE001
+                    pass
+        proximas.sort(key=lambda x: x["quando"])
+    return {"execs": execs, "bg": [x for x in tarefas_bg.tarefas(user.username) if x["estado"] == "a_atualizar"],
+            "proximas": proximas[:5]}
 
 
 def _ctx_notificacoes(user) -> dict:

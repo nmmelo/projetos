@@ -3,19 +3,20 @@
 {% block content %}
 {% include "oracle/_tabs.html" %}
 {% set running = job.status in ('EM CURSO', 'PENDENTE') %}
+{% set agendado = job.status == 'AGENDADO' %}
 <div class="head">
   <h2>Execução #{{ job.id }} — {{ job.db_name }}</h2>
   <div class="buttons">
     <a class="btn" href="{{ url_for('oracle.job_log', job_id=job.id) }}">Descarregar log</a>
-    {% if not running and user.can('oracle.execucoes.apagar') %}
+    {% if not running and not agendado and user.can('oracle.execucoes.apagar') %}
     <form method="post" action="{{ url_for('oracle.jobs_delete') }}" onsubmit="return confirm('Apagar a execução #{{ job.id }}?')">
       <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="ids" value="{{ job.id }}">
       <button class="danger">Apagar</button>
     </form>
     {% endif %}
-    {% if running and can_cancel %}
+    {% if (running or agendado) and can_cancel %}
     <form method="post" action="{{ url_for('oracle.job_cancel', job_id=job.id) }}"
-          onsubmit="return confirm('Cancelar a execução? A sessão Oracle será terminada (KILL SESSION).')">
+          onsubmit="return confirm('{{ 'Cancelar o agendamento?' if agendado else 'Cancelar a execução? A sessão Oracle será terminada (KILL SESSION).' }}')">
       <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="danger">Cancelar</button>
     </form>
     {% endif %}
@@ -27,7 +28,7 @@
          data-progress="{{ job.progress if job.progress is not none else '' }}">
   <div class="run-top">
     <span class="run-word" aria-hidden="true">{% for c in 'ORACLE' %}<span style="--i:{{ loop.index0 }}">{{ c }}</span>{% endfor %}</span>
-    <span class="run-text" id="runtext">{% if job.status == 'PENDENTE' %}na fila do agente: {{ job.params.ts }} começa dentro de segundos…{% elif running %}{{ 'a analisar' if job.params.modo == 'ANALISE' else 'a executar' }} {{ job.params.ts }}…{% else %}{{ 'Análise' if job.params.modo == 'ANALISE' else 'Execução' }} de {{ job.params.ts }} {{ {'OK': 'concluída', 'ERRO': 'terminou com erros', 'CANCELADO': 'cancelada', 'INTERROMPIDO': 'interrompida'}.get(job.status, '') }}{% endif %}</span>
+    <span class="run-text" id="runtext">{% if agendado %}agendada para {{ (job.agendado_para or '')[:16] }}: o agente começa {{ job.params.ts }} a essa hora{% elif job.status == 'PENDENTE' %}na fila do agente: {{ job.params.ts }} começa dentro de segundos…{% elif running %}{{ 'a analisar' if job.params.modo == 'ANALISE' else 'a executar' }} {{ job.params.ts }}…{% else %}{{ 'Análise' if job.params.modo == 'ANALISE' else 'Execução' }} de {{ job.params.ts }} {{ {'OK': 'concluída', 'ERRO': 'terminou com erros', 'CANCELADO': 'cancelada', 'INTERROMPIDO': 'interrompida'}.get(job.status, '') }}{% endif %}</span>
     <span class="run-right">
       <span class="status s-{{ job.status|replace(' ', '-') }}" id="status">{{ job.status }}</span>
       <span class="run-pct" id="pct"></span>
@@ -114,6 +115,7 @@ setProgress(document.getElementById('panel').dataset.progress);
 setSteps(document.getElementById('action').textContent);
 elEl.textContent = fmt(elapsed);
 
+{% if agendado %}setTimeout(() => location.reload(), 30000);{% endif %}
 if (running) {
   setInterval(() => { elapsed++; elEl.textContent = fmt(elapsed); }, 1000);
   const timer = setInterval(async () => {

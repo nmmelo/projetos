@@ -114,14 +114,41 @@ def shrink():
                 raise oracle.ValidationError(f"O seu perfil não permite o modo {params['modo']}.")
             if params["modo"] == "EXECUTAR" and request.form.get("confirm") != "on":
                 raise oracle.ValidationError("Para EXECUTAR tem de confirmar a operação.")
-            job_id = jobs.start(db["id"], params, g.user.username)
-            return redirect(url_for("oracle.job_detail", job_id=job_id))
+            quando = None
+            if request.form.get("quando") == "agendar":
+                quando = _hora_agendada(request.form.get("agendado_para", ""))
+            job_id = jobs.start(db["id"], params, g.user.username, quando)
+            if quando:
+                flash(f"Shrink de {params['ts']} agendado para {quando[:16]} (#{job_id}). O agente corre-o à hora "
+                      "marcada; pode cancelar em Execuções.", "ok")
+            else:
+                flash(f"Shrink de {params['ts']} a correr em segundo plano (#{job_id}). Pode continuar a usar o portal "
+                      "e acompanhar aqui, na Home ou na página da execução.", "ok")
+            return redirect(url_for("oracle.jobs_list", novo=job_id))
         except (oracle.ValidationError, ValueError) as exc:
             flash(str(exc), "error")
     return render_template("oracle/shrink.html", dbs=g.user.visible_dbs(store.list_dbs()),
                            sel_db=request.args.get("db", type=int),
                            can_exec=g.user.can("oracle.shrink.executar"),
-                           can_analise=g.user.can("oracle.shrink.analise"))
+                           can_analise=g.user.can("oracle.shrink.analise"), agente_ativo=_agente_ativo())
+
+
+def _agente_ativo() -> bool:
+    from ... import agente_info
+    return agente_info.ativo()
+
+
+def _hora_agendada(valor: str) -> str:
+    from datetime import datetime, timedelta
+    try:
+        d = datetime.strptime(valor.strip()[:16], "%Y-%m-%dT%H:%M")
+    except ValueError:
+        raise oracle.ValidationError("Indique a data e a hora do agendamento.") from None
+    if d < datetime.now() - timedelta(minutes=1):
+        raise oracle.ValidationError("A data do agendamento já passou.")
+    if d > datetime.now() + timedelta(days=60):
+        raise oracle.ValidationError("Agendamento no máximo a 60 dias.")
+    return d.strftime("%Y-%m-%d %H:%M:00")
 
 
 # ====================================================================== Execucoes
@@ -137,7 +164,8 @@ def _resumo(j: dict) -> dict:
             "status": j["status"], "resultado": j["resultado"], "n_erros": j.get("n_erros") or 0,
             "n_avisos": j.get("n_avisos") or 0, "started_at": j["started_at"], "finished_at": j["finished_at"],
             "duracao": _elapsed(j), "created_by": j["created_by"], "progress": j.get("progress"),
-            "runner": j.get("runner") or "portal", "erro": (j.get("error") or "")[:300]}
+            "runner": j.get("runner") or "portal", "erro": (j.get("error") or "")[:300],
+            "agendado_para": j.get("agendado_para")}
 
 
 @bp.route("/api/jobs")
@@ -219,10 +247,14 @@ def job_cancel(job_id):
     if not (g.user.can("oracle.shrink.executar") or job["created_by"] == g.user.username):
         abort(403)
     try:
-        jobs.cancel(job_id)
-        flash("Pedido de cancelamento enviado (KILL SESSION).", "ok")
+        r = jobs.cancel(job_id)
+        flash({"fila": "Execução retirada da fila / agendamento cancelado.",
+               "kill": "Execução cancelada: a sessão Oracle foi terminada (KILL SESSION).",
+               "marcada": "Cancelamento aceite: a sessão Oracle está marcada para terminar (ORA-00031). O Oracle "
+                          "termina-a depois de desfazer a operação em curso (pode levar algum tempo num MOVE/REBUILD "
+                          "grande); a execução fica CANCELADO."}.get(r, "Cancelada."), "ok")
     except Exception as exc:  # noqa: BLE001
-        flash(f"Não foi possível cancelar: {exc}", "error")
+        flash(f"Não foi possível cancelar: {str(exc).splitlines()[0]}", "error")
     return redirect(url_for("oracle.job_detail", job_id=job_id))
 
 

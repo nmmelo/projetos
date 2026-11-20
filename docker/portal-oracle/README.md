@@ -44,6 +44,21 @@ Instala-se **num servidor** (script `instalar.sh`, ver [Instalação num servido
 |---|---|
 | ![Home](docs/home.png) | ![Editar](docs/home-editar.png) |
 
+### Shrink em segundo plano, agendado e cancelamento
+
+| Opção (em Shrink → Quando) | O que acontece |
+|---|---|
+| **Agora, em segundo plano** | Corre no agente do portal (ou numa thread do portal, sem agente). O portal volta para **Execuções** com a execução destacada: pode continuar a usar o portal e acompanhar lá, na página da execução ou no cartão **Tarefas** da Home |
+| **Agendar** | Data e hora (atalhos: hoje às 22:00, esta madrugada às 02:00, sábado às 01:00; até 60 dias). Fica **AGENDADO** e o agente corre-o à hora marcada (precisa do agente ativo). Em Execuções há o filtro **Agendadas**; cancela-se na página da execução até começar |
+
+**Cancelar** uma execução em curso faz `ALTER SYSTEM KILL SESSION ... IMMEDIATE`. Se o Oracle responder **ORA-00031** (sessão marcada para terminar, por vezes com `DPY-4011` porque a ligação cai), o cancelamento foi aceite: o Oracle termina a sessão depois de desfazer a operação em curso (num MOVE/REBUILD grande pode demorar) e a execução fica CANCELADO.
+
+O cartão **Tarefas** da Home mostra execuções em curso, na fila e agendadas, as atualizações em segundo plano e as próximas tarefas de Configuração → Agendamento.
+
+![Shrink agendado](docs/oracle-shrink-agendar.png)
+![Execuções agendadas](docs/oracle-execucoes-agendada.png)
+![Cartão Tarefas](docs/home-tarefas.png)
+
 ### Oracle → Bases de dados
 
 Permissão `oracle.bds`. Uma tabela com todas as BDs visíveis no perfil, verificadas em paralelo (botão **Atualizar**):
@@ -1464,6 +1479,7 @@ O driver é o **python-oracledb** em modo *thin* (sem Instant Client). Requer Or
 | Firewall: "O portal não tem permissão para ler a firewall" | Falta o `sudoers`: `sudo ./instalar.sh --firewall <nome> on`. Se a firewall estiver parada, inicie-a no Sistema |
 | Cliente a vermelho (sem contacto) | No cliente: `agente-portal estado` e `journalctl -u agente-portal -n 30`. `HTTP 401`: id ou token errados (token novo: `agente-portal configurar --token <novo>`). Erro de certificado: `agente-portal configurar --inseguro` ou `--ca`. Firewall entre o cliente e o portal (porta HTTPS) |
 | Teste de ligação: `Permission denied (publickey)` | A chave do portal não está no `authorized_keys` do utilizador SSH: `sudo bash setup.sh --verificar --utilizador <utilizador> --portal https://<portal>` |
+| Cancelar: `ORA-00031: session marked for kill` | Normal: o cancelamento foi aceite e o Oracle termina a sessão depois do rollback (o portal já o trata como cancelado) |
 | Uma tarefa agendada não corre | Confirme em Configuração → Agendamento: interruptor geral **Ativos**, tarefa ativa, módulo ativo e agente ativo (`systemctl status <nome>-agente`). O resultado de cada execução fica no histórico da tarefa |
 | Textos em português com a língua inglesa | São textos sem tradução: traduza-os em Configuração → Aparência → Linguagem (filtro **Em falta**) ou exporte/importe o XML. Dados, código e notificações já criadas não são traduzidos |
 | `Internal Server Error` | O erro fica no log do serviço com uma referência que aparece na página: `journalctl -u <nome> \| grep <referência>`. Na versão anterior acontecia em Oracle → Execuções quando havia uma execução em curso (corrigido) |

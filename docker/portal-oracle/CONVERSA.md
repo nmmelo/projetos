@@ -394,3 +394,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > no dba portal, quando seleciono uma base de dados aparece sempre a fazer ligação a base de dados, pode ser uma barra a dizer oracle a carregar, é um processo demorado, podemos fazer cache para o portal [...] pode ficar uma barra em baixo [...] podemos sair e isso continua, até podemos ter mais de que uma tarefa a realizar. depois de feito atualiza a cache ou se tivermos na janela da base de dados faz um auto refresh dos dados..
 
 **Resposta:** Cache no portal (`cache_dados`) para o estado das BDs, a janela de cada BD, Tablespaces e a lista do Shrink: mostra logo a cache e atualiza em segundo plano; "Oracle a carregar…" quando não há dados; barra em baixo com as tarefas em curso (várias, continua noutras páginas); a vista aberta atualiza-se sozinha quando a tarefa acaba; ↻ Atualizar força a leitura.
+
+## 28. Shrink em segundo plano, agendado e cancelamento com ORA-00031
+
+**Pergunta:**
+> cancelar o shrink de um tablespace, Não foi possível cancelar: DPY-4011 [...] ORA-00031: session marked for kill [...] podemos colocar a fazer e depois podemos acompanhar na aba execuções [...] na home um cartão com tarefas a fazer ou agendadas, também podemos agendar o shrink por exemplo para ser feito de noite, quando houver menos carga.
+
+**Resposta:** ORA-00031 passa a ser tratado como cancelamento aceite (sessão marcada para terminar). Shrink com "Quando": agora em segundo plano (volta a Execuções com a execução destacada) ou agendado (data/hora, atalhos para a noite; estado AGENDADO corrido pelo agente; filtro Agendadas; cancelável). Cartão Tarefas na Home: em curso, na fila, agendadas e próximas tarefas do Agendamento.

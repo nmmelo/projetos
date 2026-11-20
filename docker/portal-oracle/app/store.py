@@ -410,6 +410,7 @@ class Store:
         self._add_column("jobs", "n_avisos", "INTEGER")
         self._add_column("users", "auth_tipo", "VARCHAR(10)")
         self._add_column("clientes", "zabbix_host", "VARCHAR(128)")
+        self._add_column("jobs", "agendado_para", "VARCHAR(19)")
 
     def _add_column(self, table: str, col: str, ddl: str) -> None:
         """Acrescenta uma coluna a uma tabela ja existente (versoes anteriores do portal)."""
@@ -419,8 +420,12 @@ class Store:
             return                                   # ja existe
         except Exception:  # noqa: BLE001
             pass
-        with self.tx() as t:
-            t.run(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+        try:
+            with self.tx() as t:
+                t.run(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+        except Exception:  # noqa: BLE001 - outro processo (portal/agente) acrescentou-a ao mesmo tempo
+            with self.tx() as t:
+                t.one(f"SELECT {col} FROM {table} WHERE 1 = 0")
 
     def _migrate_modulos(self) -> None:
         """Perfis anteriores aos modulos: codigos antigos -> novos e acesso ao modulo Oracle."""
@@ -631,13 +636,15 @@ def delete_user(uid) -> None:
 
 # ------------------------------------------------------------------ execucoes
 JOB_RESUMO = ("id, db_id, db_name, params, status, started_at, finished_at, current_action, progress, "
-              "created_by, runner, n_erros, n_avisos, error")
+              "created_by, runner, n_erros, n_avisos, error, agendado_para")
 
 
-def create_job(db: dict, params: dict, user: str, status: str = "EM CURSO", runner: str = "portal") -> int:
+def create_job(db: dict, params: dict, user: str, status: str = "EM CURSO", runner: str = "portal",
+               agendado_para: str | None = None) -> int:
     with tx() as t:
         return t.insert("jobs", {"db_id": db["id"], "db_name": db["name"], "params": json.dumps(params),
-                                 "status": status, "started_at": now(), "created_by": user, "runner": runner})
+                                 "status": status, "started_at": agendado_para or now(), "created_by": user,
+                                 "runner": runner, "agendado_para": agendado_para})
 
 
 def update_job(job_id: int, **fields) -> None:
@@ -656,6 +663,8 @@ def _job(row):
 def resultado(j: dict) -> str:
     """sucesso | aviso | erro | falhado | em curso (para os filtros das execucoes)."""
     st = j.get("status")
+    if st == "AGENDADO":
+        return "agendado"
     if st in ("EM CURSO", "PENDENTE"):
         return "em curso"
     if st in ("INTERROMPIDO", "CANCELADO") or (st == "ERRO" and j.get("error")):
@@ -702,7 +711,7 @@ def search_jobs(texto: str = "", limit: int = 1000) -> list[dict]:
         args = (like,) * 5
     with tx() as t:
         rows = t.all(sql + " ORDER BY id DESC LIMIT ?", (*args, int(limit)))
-        falta = [r["id"] for r in rows if r["n_erros"] is None and r["status"] not in ("EM CURSO", "PENDENTE")]
+        falta = [r["id"] for r in rows if r["n_erros"] is None and r["status"] not in ("EM CURSO", "PENDENTE", "AGENDADO")]
         for jid in falta[:200]:
             out = t.val("SELECT output FROM jobs WHERE id = ?", (jid,)) or ""
             e, a = contar(out)
@@ -720,7 +729,7 @@ def delete_jobs(ids) -> int:
         return 0
     marks = ", ".join("?" * len(ids))
     with tx() as t:
-        return t.run(f"DELETE FROM jobs WHERE id IN ({marks}) AND status NOT IN ('EM CURSO', 'PENDENTE')", ids)
+        return t.run(f"DELETE FROM jobs WHERE id IN ({marks}) AND status NOT IN ('EM CURSO', 'PENDENTE', 'AGENDADO')", ids)
 
 
 def interrupt_running_jobs(runner: str = "portal") -> None:
@@ -736,15 +745,18 @@ def interrupt_running_jobs(runner: str = "portal") -> None:
 
 
 def pending_jobs() -> list[int]:
+    """Na fila (PENDENTE) e agendadas cuja hora chegou (AGENDADO), por ordem."""
     with tx() as t:
-        return [r["id"] for r in t.all("SELECT id FROM jobs WHERE status = 'PENDENTE' ORDER BY id")]
+        return [r["id"] for r in t.all(
+            "SELECT id FROM jobs WHERE status = 'PENDENTE' OR (status = 'AGENDADO' AND agendado_para <= ?) "
+            "ORDER BY COALESCE(agendado_para, started_at), id", (now(),))]
 
 
 def claim_job(job_id: int) -> bool:
     """O agente fica com a execucao (so uma vez, mesmo com varios agentes)."""
     with tx() as t:
-        return t.run("UPDATE jobs SET status = 'EM CURSO', started_at = ? WHERE id = ? AND status = 'PENDENTE'",
-                     (now(), job_id)) == 1
+        return t.run("UPDATE jobs SET status = 'EM CURSO', started_at = ? WHERE id = ? AND (status = 'PENDENTE' "
+                     "OR (status = 'AGENDADO' AND agendado_para <= ?))", (now(), job_id, now())) == 1
 
 
 # ------------------------------------------------------------------ acoes sobre servicos (agente)

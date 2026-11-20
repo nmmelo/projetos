@@ -138,12 +138,18 @@ def _parar(stop: threading.Event, monitor) -> None:
         monitor.join(timeout=15)
 
 
-def start(db_id: int, params: dict, user: str) -> int:
+def start(db_id: int, params: dict, user: str, agendado_para: str | None = None) -> int:
     """Com o agente ativo, a execucao fica na fila (PENDENTE) e e o agente que a corre: continua
-    mesmo que o portal seja reiniciado. Sem agente, corre numa thread do portal (como antes)."""
+    mesmo que o portal seja reiniciado. Sem agente, corre numa thread do portal (como antes).
+    agendado_para ('AAAA-MM-DD HH:MM:SS'): fica AGENDADO e o agente corre-a a essa hora."""
     cfg = store.get_db(db_id)
     if not cfg:
         raise oracle.ValidationError("Base de dados nao encontrada.")
+    if agendado_para:
+        if not agente_info.ativo():
+            raise oracle.ValidationError("Para agendar é preciso o agente do portal ativo (serviço <instância>-agente): "
+                                         "é ele que corre a execução à hora marcada.")
+        return store.create_job(cfg, params, user, status="AGENDADO", runner="agente", agendado_para=agendado_para)
     if agente_info.ativo():
         return store.create_job(cfg, params, user, status="PENDENTE", runner="agente")
     job_id = store.create_job(cfg, params, user, runner="portal")
@@ -164,19 +170,50 @@ def executar(job_id: int) -> bool:
     return True
 
 
-def cancel(job_id: int) -> None:
+def cancel(job_id: int) -> str:
+    """Cancela: na fila/agendada sai logo ("fila"); em curso termina a sessao Oracle ("kill") ou fica marcada
+    para terminar ("marcada", ORA-00031: o Oracle acaba-a depois de desfazer o trabalho em curso)."""
     job = store.get_job(job_id)
-    if job and job["status"] == "PENDENTE":
-        store.update_job(job_id, status="CANCELADO", finished_at=store.now(), current_action="cancelada na fila")
-        return
+    if job and job["status"] in ("PENDENTE", "AGENDADO"):
+        store.update_job(job_id, status="CANCELADO", finished_at=store.now(),
+                         current_action="cancelada na fila" if job["status"] == "PENDENTE" else "agendamento cancelado")
+        return "fila"
     if not job or job["status"] != "EM CURSO":
         raise oracle.ValidationError("A execucao ja terminou.")
     if not job["ora_sid"]:
         raise oracle.ValidationError("Sessao Oracle ainda nao identificada; tente daqui a uns segundos.")
     cfg = store.get_db(job["db_id"])
-    store.update_job(job_id, status="CANCELADO")
-    conn = oracle.connect(cfg, crypto.decrypt(cfg["password_enc"]))
+    store.update_job(job_id, status="CANCELADO", current_action="a cancelar (KILL SESSION)")
+    conn = None
     try:
+        conn = oracle.connect(cfg, crypto.decrypt(cfg["password_enc"]))
         oracle.kill_session(conn, job["ora_sid"], job["ora_serial"])
+        return "kill"
+    except oracledb.Error as exc:
+        msg = str(exc)
+        if "ORA-00031" in msg:                  # sessao marcada para terminar: o pedido foi aceite
+            return "marcada"
+        if "ORA-00030" in msg:                  # a sessao ja nao existe: a execucao acabou entretanto
+            return "kill"
+        if "DPY-4011" in msg and "ORA-00031" not in msg:
+            # a ligacao caiu durante o KILL: confirma se a sessao ainda existe
+            try:
+                c2 = oracle.connect(cfg, crypto.decrypt(cfg["password_enc"]))
+                try:
+                    with c2.cursor() as cur:
+                        cur.execute("SELECT COUNT(*) FROM v$session WHERE sid = :1 AND serial# = :2",
+                                    [job["ora_sid"], job["ora_serial"]])
+                        if cur.fetchone()[0] == 0:
+                            return "kill"
+                finally:
+                    c2.close()
+            except oracledb.Error:
+                pass
+        store.update_job(job_id, status="EM CURSO", current_action=job.get("current_action"))
+        raise
     finally:
-        conn.close()
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:  # noqa: BLE001
+                pass

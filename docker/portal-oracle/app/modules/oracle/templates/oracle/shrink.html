@@ -41,6 +41,21 @@
     <label class="inline"><input type="checkbox" name="online" value="S" checked> <span>Operações ONLINE (requer Enterprise Edition)</span></label>
     <label class="inline"><input type="checkbox" name="purge" value="S"> <span>PURGE da recyclebin do tablespace</span></label>
 
+    <fieldset class="full">
+      <legend>Quando</legend>
+      <label class="inline"><input type="radio" name="quando" value="agora" checked>
+        <span>Agora, em segundo plano — pode continuar a usar o portal e acompanhar em Execuções</span></label>
+      <label class="inline"><input type="radio" name="quando" value="agendar" {{ 'disabled' if not agente_ativo }}>
+        <span>Agendar{% if not agente_ativo %} <em class="muted">(precisa do agente do portal ativo)</em>{% endif %}</span></label>
+      <div class="agendar-box" id="agBox" hidden>
+        <input type="datetime-local" name="agendado_para" id="agQuando" step="60">
+        <button type="button" class="small" data-h="22:00">Hoje às 22:00</button>
+        <button type="button" class="small" data-h="02:00">Esta madrugada (02:00)</button>
+        <button type="button" class="small" data-h="sab">Sábado 01:00</button>
+        <span class="hint">O agente corre-o à hora marcada (de noite há menos carga). Fica em Execuções como AGENDADO e pode ser cancelado até começar.</span>
+      </div>
+    </fieldset>
+
     <div class="full confirm" id="confirmBox" hidden>
       <label class="inline"><input type="checkbox" name="confirm" id="confirm">
         <span>Confirmo que quero <strong>executar</strong> as alterações (MOVE/REBUILD/RESIZE) nesta base de dados.</span></label>
@@ -83,10 +98,29 @@ window.addEventListener('portal:tarefa', e => { if (e.detail.chave === tsChave &
 db?.addEventListener('change', loadTs);
 if (db?.value) loadTs();
 
+const agBox = document.getElementById('agBox'), agQ = document.getElementById('agQuando');
+const pad = n => String(n).padStart(2, '0');
+const local = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function quando() {
+  const ag = document.querySelector('input[name=quando]:checked')?.value === 'agendar';
+  if (agBox) { agBox.hidden = !ag; agQ.required = ag; if (ag && !agQ.value) definir('02:00'); }
+  if (go) go.textContent = ag ? (window.t || (x => x))('Agendar') : (modo() === 'EXECUTAR' ? (window.t || (x => x))('Executar shrink') : (window.t || (x => x))('Iniciar'));
+}
+function definir(h) {
+  const d = new Date(), agora = new Date();
+  if (h === 'sab') { d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7)); d.setHours(1, 0, 0, 0); }
+  else { const [hh, mm] = h.split(':').map(Number); d.setHours(hh, mm, 0, 0); if (d <= agora) d.setDate(d.getDate() + 1); }
+  agQ.value = local(d);
+}
+agQ && (agQ.min = local(new Date()));
+document.querySelectorAll('[data-h]').forEach(b => b.onclick = () => definir(b.dataset.h));
+document.querySelectorAll('input[name=quando]').forEach(r => r.addEventListener('change', quando));
+
 function modo() { return document.querySelector('input[name=modo]:checked')?.value; }
 function syncModo() {
   const ex = modo() === 'EXECUTAR';
-  if (box) { box.hidden = !ex; go.textContent = ex ? 'Executar shrink' : 'Iniciar'; go.classList.toggle('danger', ex); }
+  if (box) { box.hidden = !ex; go.classList.toggle('danger', ex); }
+  quando();
 }
 document.querySelectorAll('input[name=modo]').forEach(r => r.addEventListener('change', syncModo));
 syncModo();

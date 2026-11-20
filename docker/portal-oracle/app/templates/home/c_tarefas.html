@@ -1,0 +1,30 @@
+{% set em_curso = ctx.execs|selectattr('status', 'eq', 'EM CURSO')|list %}
+{% set fila = ctx.execs|selectattr('status', 'eq', 'PENDENTE')|list %}
+{% set agend = ctx.execs|selectattr('status', 'eq', 'AGENDADO')|list %}
+<div class="tiles g3">
+  <div class="tile num-tile"><span class="tile-l">Em curso</span><b class="tile-v {{ 'c-accent' if em_curso or ctx.bg }}">{{ em_curso|length + ctx.bg|length }}</b></div>
+  <div class="tile num-tile"><span class="tile-l">Na fila</span><b class="tile-v">{{ fila|length }}</b></div>
+  <div class="tile num-tile"><span class="tile-l">Agendadas</span><b class="tile-v">{{ agend|length + ctx.proximas|length }}</b></div>
+</div>
+<div class="lista">
+{% for j in em_curso + fila %}
+  <a class="lrow" href="{{ url_for('oracle.job_detail', job_id=j.id) }}"><span class="dot d-{{ 'accent a-pulsar' if j.status == 'EM CURSO' else 'warn' }}"></span>
+    <span class="lrow-t"><b><span translate="no">Shrink {{ j.params.ts }} · {{ j.db_name }}</span> <small>({{ j.params.modo }})</small></b>
+      <small>{% if j.status == 'EM CURSO' %}{{ j.current_action or 'a correr' }}{% if j.progress %} · {{ (j.progress / 10)|round(0)|int }}%{% endif %}{% else %}na fila do agente{% endif %} · <span translate="no">{{ j.created_by }}</span></small>
+      {% if j.status == 'EM CURSO' and j.progress %}<span class="mini-bar"><span class="b-ok" style="width:{{ j.progress / 10 }}%"></span></span>{% endif %}</span></a>
+{% endfor %}
+{% for t in ctx.bg %}
+  <a class="lrow" href="{{ t.link or '#' }}"><span class="dot d-accent a-pulsar"></span>
+    <span class="lrow-t"><b translate="no">{{ t.titulo }}</b><small>a atualizar{% if t.segundos is not none %} · {{ t.segundos }} s{% endif %}</small></span></a>
+{% endfor %}
+{% for j in agend %}
+  <a class="lrow" href="{{ url_for('oracle.job_detail', job_id=j.id) }}"><span class="dot d-agendado"></span>
+    <span class="lrow-t"><b><span translate="no">Shrink {{ j.params.ts }} · {{ j.db_name }}</span> <small>({{ j.params.modo }})</small></b>
+      <small>⏰ {{ (j.agendado_para or '')[:16] }} · <span translate="no">{{ j.created_by }}</span></small></span></a>
+{% endfor %}
+{% for p in ctx.proximas %}
+  <a class="lrow" href="{{ url_for('portal.cfg_agendamento') }}"><span class="dot d-{{ 'accent a-pulsar' if p.a_correr else 'off' }}"></span>
+    <span class="lrow-t"><b>{{ p.nome }}</b><small>{{ 'a correr' if p.a_correr else 'próxima: ' ~ p.quando }}</small></span></a>
+{% endfor %}
+{% if not ctx.execs and not ctx.bg and not ctx.proximas %}<p class="muted small">Nada em curso nem agendado.</p>{% endif %}
+</div>

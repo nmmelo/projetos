@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1433">
+<lingua codigo="en" nome="English" textos="1452">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -5733,5 +5733,81 @@
   <texto>
     <origem>há {n} s</origem>
     <traducao>{n} s ago</traducao>
+  </texto>
+  <texto>
+    <origem>Agora, em segundo plano — pode continuar a usar o portal e acompanhar em Execuções</origem>
+    <traducao>Now, in the background — you can keep using the portal and follow it in Runs</traducao>
+  </texto>
+  <texto>
+    <origem>Agendar</origem>
+    <traducao>Schedule</traducao>
+  </texto>
+  <texto>
+    <origem>(precisa do agente do portal ativo)</origem>
+    <traducao>(needs the portal agent running)</traducao>
+  </texto>
+  <texto>
+    <origem>Hoje às 22:00</origem>
+    <traducao>Today at 22:00</traducao>
+  </texto>
+  <texto>
+    <origem>Esta madrugada (02:00)</origem>
+    <traducao>Tonight (02:00)</traducao>
+  </texto>
+  <texto>
+    <origem>Sábado 01:00</origem>
+    <traducao>Saturday 01:00</traducao>
+  </texto>
+  <texto>
+    <origem>O agente corre-o à hora marcada (de noite há menos carga). Fica em Execuções como AGENDADO e pode ser cancelado até começar.</origem>
+    <traducao>The agent runs it at the set time (less load at night). It shows in Runs as SCHEDULED and can be cancelled until it starts.</traducao>
+  </texto>
+  <texto>
+    <origem>Agendadas</origem>
+    <traducao>Scheduled</traducao>
+  </texto>
+  <texto>
+    <origem>Agendada</origem>
+    <traducao>Scheduled</traducao>
+  </texto>
+  <texto>
+    <origem>Tarefas</origem>
+    <traducao>Tasks</traducao>
+  </texto>
+  <texto>
+    <origem>Nada em curso nem agendado.</origem>
+    <traducao>Nothing running or scheduled.</traducao>
+  </texto>
+  <texto>
+    <origem>a correr</origem>
+    <traducao>running</traducao>
+  </texto>
+  <texto>
+    <origem>Cancelar o agendamento?</origem>
+    <traducao>Cancel the schedule?</traducao>
+  </texto>
+  <texto>
+    <origem>Execução retirada da fila / agendamento cancelado.</origem>
+    <traducao>Run removed from the queue / schedule cancelled.</traducao>
+  </texto>
+  <texto>
+    <origem>Execução cancelada: a sessão Oracle foi terminada (KILL SESSION).</origem>
+    <traducao>Run cancelled: the Oracle session was killed (KILL SESSION).</traducao>
+  </texto>
+  <texto>
+    <origem>Cancelamento aceite: a sessão Oracle está marcada para terminar (ORA-00031). O Oracle termina-a depois de desfazer a operação em curso (pode levar algum tempo num MOVE/REBUILD grande); a execução fica CANCELADO.</origem>
+    <traducao>Cancellation accepted: the Oracle session is marked for kill (ORA-00031). Oracle ends it after rolling back the current operation (may take a while on a large MOVE/REBUILD); the run stays CANCELLED.</traducao>
+  </texto>
+  <texto>
+    <origem>A data do agendamento já passou.</origem>
+    <traducao>The scheduled date has already passed.</traducao>
+  </texto>
+  <texto>
+    <origem>Indique a data e a hora do agendamento.</origem>
+    <traducao>Enter the schedule date and time.</traducao>
+  </texto>
+  <texto>
+    <origem>Agendamento no máximo a 60 dias.</origem>
+    <traducao>Schedule at most 60 days ahead.</traducao>
   </texto>
 </lingua>
