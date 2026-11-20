@@ -9,6 +9,15 @@
     <label>Nome <input name="name" value="{{ p.name or '' }}" required maxlength="100" placeholder="ex.: DBA Produção"></label>
     <label>Descrição <input name="description" value="{{ p.description or '' }}" maxlength="255"></label>
 
+    <fieldset class="full column perfil-admin">
+      <legend>Administrador</legend>
+      <label class="inline"><input type="checkbox" name="administrador" id="padm" {{ 'checked' if p.administrador }} {{ 'disabled' if not user.total }}>
+        <span><strong>Administrador — acesso total</strong>: todas as permissões do portal e de todos os módulos ativos e todas as
+          bases de dados, incluindo o que for acrescentado no futuro (as opções abaixo deixam de contar).
+          {% if not user.total %}<em class="muted">Só um administrador pode alterar esta opção.</em>{% endif %}</span></label>
+      {% if not user.total and p.administrador %}<input type="hidden" name="administrador" value="on">{% endif %}
+    </fieldset>
+    <div class="full perfil-resto" id="presto">
     <fieldset class="full column">
       <legend>Portal</legend>
       {% for code, desc in acoes_portal.items() %}
@@ -43,6 +52,7 @@
     </fieldset>
     {% endfor %}
 
+    </div>
     <div class="full buttons">
       <button class="primary">Guardar</button>
       <a class="btn" href="{{ url_for('portal.cfg_profiles') }}">Cancelar</a>
@@ -58,6 +68,8 @@ document.querySelectorAll('.modulo-perm').forEach(fs => {
   const sync = () => box.classList.toggle('disabled', !acesso.checked);
   acesso.addEventListener('change', sync); sync();
 });
+const padm = document.getElementById('padm'), presto = document.getElementById('presto');
+if (padm) { const s = () => presto.classList.toggle('disabled', padm.checked); padm.addEventListener('change', s); s(); }
 const all = document.getElementById('all'), list = document.getElementById('dblist');
 if (all) {
   const syncDb = () => { list.classList.toggle('disabled', all.checked);

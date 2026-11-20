@@ -223,6 +223,15 @@ def notif_lida():
     return jsonify(ok=True, n=eventos.nao_lidas(str(g.user.id)))
 
 
+@bp.route("/notificacoes/limpar", methods=["POST"])
+@auth.login_required
+def notif_limpar():
+    from .. import eventos
+    nid = (request.get_json(silent=True) or {}).get("id")
+    eventos.limpar(str(g.user.id), int(nid) if str(nid).isdigit() else None)
+    return jsonify(ok=True, n=eventos.nao_lidas(str(g.user.id)))
+
+
 # Enderecos anteriores aos modulos (marcadores, links antigos) -> modulo Oracle
 @bp.route("/report")
 def old_report():

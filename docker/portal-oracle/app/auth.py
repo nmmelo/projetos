@@ -29,19 +29,25 @@ class CurrentUser:
     db_ids: set = field(default_factory=set)
     last_login: str = ""
     auth_tipo: str = "local"
+    perfil_admin: bool = False    # perfil "Administrador": acesso total, como o administrador local
+
+    @property
+    def total(self) -> bool:
+        """Administrador local ou com perfil de administrador: tem todas as permissoes."""
+        return self.is_admin or self.perfil_admin
 
     def can(self, perm: str) -> bool:
         mod = modulos.modulo_de(perm)
         if mod:
             if mod not in modulos.ativos():
                 return False
-            if self.is_admin:
+            if self.total:
                 return True
             return f"modulo.{mod}" in self.perms and perm in self.perms
-        return self.is_admin or perm in self.perms
+        return self.total or perm in self.perms
 
     def can_db(self, db_id) -> bool:
-        return self.is_admin or self.all_dbs or (db_id is not None and int(db_id) in self.db_ids)
+        return self.total or self.all_dbs or (db_id is not None and int(db_id) in self.db_ids)
 
     def visible_dbs(self, dbs: list[dict]) -> list[dict]:
         return [d for d in dbs if self.can_db(d["id"])]
@@ -140,7 +146,8 @@ def _db_user(u: dict) -> CurrentUser:
                        perms=set(prof["permissions"]) if prof else set(),
                        all_dbs=bool(prof and prof["all_dbs"]),
                        db_ids=set(prof["db_ids"]) if prof else set(),
-                       last_login=u.get("last_login") or "", auth_tipo=u.get("auth_tipo") or "local")
+                       last_login=u.get("last_login") or "", auth_tipo=u.get("auth_tipo") or "local",
+                       perfil_admin=bool(prof and prof.get("administrador")))
 
 
 def login_session(user: CurrentUser) -> None:
@@ -199,7 +206,7 @@ def admin_required(view):
     @functools.wraps(view)
     @login_required
     def wrapped(*args, **kwargs):
-        if not g.user.is_admin:
+        if not g.user.total:
             abort(403)
         return view(*args, **kwargs)
     return wrapped

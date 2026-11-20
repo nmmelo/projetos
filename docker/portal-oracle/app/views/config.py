@@ -563,8 +563,11 @@ def cfg_profile_form(pid=None):
                 raise ValueError("O nome do perfil é obrigatório.")
             catalogo = modulos.todas_acoes()
             perms = [a for a in f.getlist("permissions") if a in catalogo]
+            adm = f.get("administrador") == "on"
+            if adm != bool(p and p.get("administrador")) and not g.user.total:
+                raise ValueError("Só um administrador pode dar ou retirar o perfil de administrador.")
             data = {"name": name, "description": f.get("description", "").strip()[:255],
-                    "all_dbs": f.get("all_dbs") == "on", "permissions": perms,
+                    "all_dbs": f.get("all_dbs") == "on", "permissions": perms, "administrador": adm,
                     "db_ids": [int(i) for i in f.getlist("db_ids") if i.isdigit()]}
             store.save_profile(data, pid)
             flash("Perfil guardado.", "ok")
@@ -573,6 +576,7 @@ def cfg_profile_form(pid=None):
             flash(f"Erro: {exc}", "error")
             p = {**(p or {}), "name": f.get("name"), "description": f.get("description"),
                  "all_dbs": f.get("all_dbs") == "on", "permissions": f.getlist("permissions"),
+                 "administrador": f.get("administrador") == "on",
                  "db_ids": [int(i) for i in f.getlist("db_ids") if i.isdigit()]}
     return render_template("config/profile_form.html", p=p or {"permissions": [], "db_ids": []},
                            editing=bool(pid), dbs=store.list_dbs(), tab="portal", sub="profiles",

@@ -160,6 +160,7 @@ No fim, o output completo vem do `DBMS_OUTPUT`, como antes, e substitui o que ch
 
 - O **administrador** é o único utilizador **local**: fica no ficheiro `data/admin.json`, tem todas as permissões, vê todas as bases de dados e todos os módulos ativos.
 - Os restantes utilizadores ficam na **base de dados do portal** e cada um tem um **perfil**.
+- Um perfil com a opção **Administrador — acesso total** dá todas as permissões do portal e de todos os módulos ativos, todas as bases de dados e a aba Armazenamento, incluindo o que for acrescentado no futuro (como o administrador local). Só um administrador (o local ou outro com esse perfil) pode dar ou retirar esta opção.
 - Um perfil define, **por módulo**:
   - se o utilizador tem **acesso ao módulo** (sem acesso, o menu do módulo não aparece e as ações dele não contam);
   - **o que pode fazer** no módulo;
@@ -174,7 +175,9 @@ No fim, o output completo vem do `DBMS_OUTPUT`, como antes, e substitui o que ch
 | `oracle.shrink.executar` | Oracle | Shrink em modo EXECUTAR e cancelar execuções |
 | `oracle.definicoes` | Oracle | Definições: gerir as bases de dados Oracle |
 
-A aba **Armazenamento** só está disponível para o administrador.
+A aba **Armazenamento** só está disponível para o administrador (local ou com perfil de administrador).
+
+**Notificações (sininho):** *Marcar como lidas*, *Limpar todas* (apaga as do utilizador) e ✕ em cada uma (aparece ao passar o rato).
 
 > **Perfis de versões anteriores** (antes dos módulos) são convertidos no primeiro arranque: `tablespaces.ver` → `oracle.tablespaces`, `shrink.analise` → `oracle.shrink.analise`, `shrink.executar` → `oracle.shrink.executar`, `config.bds` → `oracle.definicoes`. Os perfis com ações Oracle ou bases de dados atribuídas recebem `modulo.oracle`. O mesmo acontece ao importar um backup antigo. Os endereços antigos (`/report`, `/shrink`, `/jobs`, `/config/databases`) redirecionam para o módulo Oracle.
 

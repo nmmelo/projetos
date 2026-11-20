@@ -14,7 +14,7 @@
   <tbody>
   {% for p in profiles %}
     <tr>
-      <td><strong>{{ p.name }}</strong>{% if p.description %}<div class="small muted">{{ p.description }}</div>{% endif %}</td>
+      <td><strong>{{ p.name }}</strong>{% if p.administrador %} <span class="tag adm">Administrador</span>{% endif %}{% if p.description %}<div class="small muted">{{ p.description }}</div>{% endif %}</td>
       <td>{% for m in registo if m.acesso in p.permissions %}<span class="tag">{{ m.nome }}</span> {% else %}<span class="muted">nenhum</span>{% endfor %}</td>
       <td>{% if p.all_dbs %}<span class="tag warn">Todas</span>{% else %}
           {% for i in p.db_ids if i in dbs %}<span class="tag">{{ dbs[i] }}</span> {% else %}<span class="muted">nenhuma</span>{% endfor %}{% endif %}</td>

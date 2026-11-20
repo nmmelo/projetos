@@ -411,6 +411,7 @@ class Store:
         self._add_column("users", "auth_tipo", "VARCHAR(10)")
         self._add_column("clientes", "zabbix_host", "VARCHAR(128)")
         self._add_column("jobs", "agendado_para", "VARCHAR(19)")
+        self._add_column("profiles", "administrador", "INTEGER NOT NULL DEFAULT 0")
 
     def _add_column(self, table: str, col: str, ddl: str) -> None:
         """Acrescenta uma coluna a uma tabela ja existente (versoes anteriores do portal)."""
@@ -559,6 +560,7 @@ def _profile(row):
         row["permissions"] = modulos.normalizar_permissoes(json.loads(row.get("permissions") or "[]"))
         row["db_ids"] = json.loads(row.get("db_ids") or "[]")
         row["all_dbs"] = bool(row["all_dbs"])
+        row["administrador"] = bool(row.get("administrador"))
     return row
 
 
@@ -576,7 +578,7 @@ def get_profile(pid) -> dict | None:
 
 def save_profile(data: dict, pid=None) -> int:
     row = {"name": data["name"], "description": data.get("description") or "",
-           "all_dbs": 1 if data.get("all_dbs") else 0,
+           "all_dbs": 1 if data.get("all_dbs") else 0, "administrador": 1 if data.get("administrador") else 0,
            "db_ids": json.dumps(sorted(int(i) for i in data.get("db_ids", []))),
            "permissions": json.dumps(sorted(data.get("permissions", []))), "updated_at": now()}
     with tx() as t:

@@ -248,6 +248,14 @@ def listar(user_key: str, limite: int = 20) -> list[dict]:
                      (user_key, int(limite)))
 
 
+def limpar(user_key: str, nid=None) -> int:
+    """Apaga as notificacoes do utilizador (todas, ou so a nid)."""
+    with store.tx() as t:
+        if nid is None:
+            return t.run("DELETE FROM notifications WHERE user_key = ?", (user_key,))
+        return t.run("DELETE FROM notifications WHERE user_key = ? AND id = ?", (user_key, nid))
+
+
 def marcar_lida(user_key: str, nid=None) -> None:
     with store.tx() as t:
         if nid is None:

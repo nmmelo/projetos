@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1452">
+<lingua codigo="en" nome="English" textos="1459">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -5809,5 +5809,33 @@
   <texto>
     <origem>Agendamento no máximo a 60 dias.</origem>
     <traducao>Schedule at most 60 days ahead.</traducao>
+  </texto>
+  <texto>
+    <origem>Marcar como lidas</origem>
+    <traducao>Mark as read</traducao>
+  </texto>
+  <texto>
+    <origem>Limpar todas</origem>
+    <traducao>Clear all</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar todas as notificações?</origem>
+    <traducao>Delete all notifications?</traducao>
+  </texto>
+  <texto>
+    <origem>Administrador — acesso total</origem>
+    <traducao>Administrator — full access</traducao>
+  </texto>
+  <texto>
+    <origem>: todas as permissões do portal e de todos os módulos ativos e todas as bases de dados, incluindo o que for acrescentado no futuro (as opções abaixo deixam de contar).</origem>
+    <traducao>: all permissions of the portal and of all active modules and all databases, including anything added in the future (the options below no longer count).</traducao>
+  </texto>
+  <texto>
+    <origem>Só um administrador pode alterar esta opção.</origem>
+    <traducao>Only an administrator can change this option.</traducao>
+  </texto>
+  <texto>
+    <origem>Só um administrador pode dar ou retirar o perfil de administrador.</origem>
+    <traducao>Only an administrator can grant or remove the administrator profile.</traducao>
   </texto>
 </lingua>

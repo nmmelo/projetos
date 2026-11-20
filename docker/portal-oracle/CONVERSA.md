@@ -401,3 +401,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > cancelar o shrink de um tablespace, Não foi possível cancelar: DPY-4011 [...] ORA-00031: session marked for kill [...] podemos colocar a fazer e depois podemos acompanhar na aba execuções [...] na home um cartão com tarefas a fazer ou agendadas, também podemos agendar o shrink por exemplo para ser feito de noite, quando houver menos carga.
 
 **Resposta:** ORA-00031 passa a ser tratado como cancelamento aceite (sessão marcada para terminar). Shrink com "Quando": agora em segundo plano (volta a Execuções com a execução destacada) ou agendado (data/hora, atalhos para a noite; estado AGENDADO corrido pelo agente; filtro Agendadas; cancelável). Cartão Tarefas na Home: em curso, na fila, agendadas e próximas tarefas do Agendamento.
+
+## 29. Limpar notificações e perfil de administrador
+
+**Pergunta:**
+> não consigo limpar as notificações, como podemos ver na imagem, no perfil deviamos ter a opção administrador, ou seja esse perfil com a opção administradores conseguem ter acesso total.
+
+**Resposta:** Sininho com "Limpar todas" e ✕ em cada notificação (o "Marcar como lidas" só tirava o destaque). Perfil com a opção "Administrador — acesso total" (todas as permissões, módulos e bases de dados, Armazenamento); só um administrador a pode dar ou retirar.

@@ -411,7 +411,7 @@ button.small, .btn.small { padding: 4px 10px; font-size: 12.5px; }
 .bell-i { display: flex; gap: 10px; padding: 10px 14px; text-decoration: none; color: var(--ink); border-bottom: 1px solid var(--line); }
 .bell-i:hover { background: var(--hover); }
 .bell-i.nova { background: var(--info-bg); }
-.bell-i span:last-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bell-i > span:not(.nv) { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding-right: 16px; }
 .bell-i small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bell-i em { font-style: normal; font-size: 11px; color: var(--muted); }
 .nv { width: 9px; height: 9px; border-radius: 50%; flex: none; margin-top: 5px; display: inline-block; background: var(--accent); }
@@ -713,3 +713,14 @@ tr.novo-job { animation: novo-job 2.5s ease-out 2; }
 @keyframes novo-job { 0% { background: #fef9c3; } 100% { background: transparent; } }
 .dot.d-agendado { background: #7c3aed; }
 .lrow .mini-bar { margin-top: 4px; }
+.perfil-resto { display: grid; gap: inherit; grid-column: 1 / -1; }
+.perfil-resto.disabled { opacity: .45; pointer-events: none; }
+.perfil-admin { border-color: #f59e0b; }
+.tag.adm { background: #fef3c7; color: #92400e; font-weight: 600; }
+.who .bell-panel a.bell-i { position: relative; }
+.bell-x { position: absolute; top: 8px; right: 8px; border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  font-size: 12px; padding: 2px 5px; border-radius: 6px; opacity: 0; }
+.who .bell-panel a.bell-i:hover .bell-x, .bell-x:focus { opacity: 1; }
+.bell-x:hover { background: var(--hover); color: var(--danger); }
+.bell-acoes { display: inline-flex; gap: 10px; }
+.danger-link { color: var(--danger) !important; }
