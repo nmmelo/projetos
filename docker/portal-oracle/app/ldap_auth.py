@@ -56,7 +56,7 @@ def config(s: dict | None = None) -> dict:
     seg = s.get("ldap_seguranca") or "starttls"
     return {
         "driver": drv, "ativo": s.get("ldap_ativo") == "1",
-        "hosts": [h.strip() for h in (s.get("ldap_hosts") or "").replace(";", ",").split(",") if h.strip()],
+        "hosts": [h.strip() for h in __import__("re").split(r"[,;\s]+", s.get("ldap_hosts") or "") if h.strip()],
         "porta": int(s.get("ldap_porta") or (636 if seg == "ldaps" else 389)),
         "seguranca": seg, "verificar": s.get("ldap_verificar", "1") == "1",
         "ca": s.get("ldap_ca_pem") or "", "bind_dn": s.get("ldap_bind_dn") or "",
@@ -94,11 +94,15 @@ def disponivel() -> tuple[bool, str]:
 
 
 # ------------------------------------------------------------------ ligacao
-def _tls(c: dict, reg):
+def _tls(c: dict, reg, host: str = ""):
+    """Tls do ldap3 para um servidor. sni = o nome do servidor: sem ele o Python recusa a ligacao
+    ("server_hostname cannot be an empty string") e nao consegue validar o nome no certificado."""
     import ldap3
     if c["seguranca"] == "nenhuma":
         return None
     kw = {"validate": ssl.CERT_REQUIRED if c["verificar"] else ssl.CERT_NONE, "version": ssl.PROTOCOL_TLS_CLIENT}
+    if host:
+        kw["sni"] = host
     if c["verificar"] and c["ca"].strip():
         kw["ca_certs_file"] = _ficheiro_ca(c["ca"])
         reg(f"certificado da CA: o guardado no portal ({c['ca'].count('BEGIN CERTIFICATE')} certificado(s))")
@@ -109,17 +113,42 @@ def _tls(c: dict, reg):
     return ldap3.Tls(**kw)
 
 
+def _host_porta(h: str) -> tuple[str, int | None]:
+    """'ldaps://dc01.empresa.local:636/' -> ('dc01.empresa.local', 636). Aceita [IPv6]:porta."""
+    h = h.strip()
+    for pre in ("ldaps://", "ldap://"):
+        if h.lower().startswith(pre):
+            h = h[len(pre):]
+    h = h.split("/")[0].strip()
+    porta = None
+    if h.startswith("["):                       # [IPv6]:porta
+        fim = h.find("]")
+        host, resto = h[1:fim], h[fim + 1:]
+        if resto.startswith(":") and resto[1:].isdigit():
+            porta = int(resto[1:])
+        return host, porta
+    if h.count(":") == 1:
+        host, _, p = h.partition(":")
+        if p.isdigit():
+            return host.strip().strip("."), int(p)
+        raise Falha(f"Porta inválida em '{h}'.")
+    return h.strip(".") if h.count(":") == 0 else h, porta
+
+
 def ligar(c: dict, reg=lambda m: None, user_dn: str | None = None, password: str | None = None):
     """Liga a um dos servidores e faz bind (conta de servico, ou o DN indicado). Devolve a Connection."""
     import ldap3
     from ldap3.core import exceptions as lex
     if not c["hosts"]:
         raise Falha("Indique pelo menos um servidor LDAP.")
-    tls = _tls(c, reg)
-    servidores = []
+    servidores, primeiro = [], True
     for h in c["hosts"]:
-        host, _, porta = h.partition(":")
-        servidores.append(ldap3.Server(host, port=int(porta or c["porta"]), use_ssl=c["seguranca"] == "ldaps",
+        host, porta = _host_porta(h)
+        if not host:
+            raise Falha(f"Servidor inválido: '{h}'. Use o nome ou o IP (ex. dc01.empresa.local ou dc01.empresa.local:636).")
+        tls = _tls(c, reg if primeiro else (lambda m: None), host)
+        primeiro = False
+        servidores.append(ldap3.Server(host, port=porta or c["porta"], use_ssl=c["seguranca"] == "ldaps",
                                        tls=tls, get_info=ldap3.NONE, connect_timeout=c["timeout"]))
     pool = ldap3.ServerPool(servidores, ldap3.FIRST, active=1, exhaust=True) if len(servidores) > 1 else servidores[0]
     dn = user_dn if user_dn is not None else c["bind_dn"]
