@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Autenticação · LDAP{% endblock %}
+{% block content %}
+{% include "autenticacao/_tabs.html" %}
+{% if not lib_ok %}<div class="flash error">{{ lib_falta }}</div>{% endif %}
+<div class="smtp-grid">
+<section class="card">
+  <h2>Ligação LDAP</h2>
+  {% set voltar = '' %}
+  {% include "autenticacao/_ldap_form.html" %}
+</section>
+<section class="card">
+  <h2>Estado</h2>
+  {% from "_cartoes.html" import saude %}
+  {% if not c.ativo %}{{ saude('warn', 'LDAP desligado', 'Os utilizadores do tipo LDAP não conseguem entrar') }}
+  {% elif not c.hosts %}{{ saude('bad', 'Por configurar', 'Indique o servidor e a base de procura') }}
+  {% else %}{{ saude('ok', 'LDAP ligado', drivers[c.driver]) }}{% endif %}
+  <div class="tiles g2" style="margin-top:12px">
+    <div class="tile num-tile"><span class="tile-l">Utilizadores locais</span><b class="tile-v">{{ cont.local }}</b>
+      <span class="tile-s1">+ o administrador{% if cont.local_inativos %} · {{ cont.local_inativos }} inativo(s){% endif %}</span></div>
+    <div class="tile num-tile"><span class="tile-l">Utilizadores LDAP</span><b class="tile-v">{{ cont.ldap }}</b>
+      {% if cont.ldap_inativos %}<span class="tile-s1">{{ cont.ldap_inativos }} inativo(s)</span>{% endif %}</div>
+  </div>
+  <h3>Como funciona</h3>
+  <ul class="small muted lista-simples">
+    <li>O <b>administrador</b> é sempre local (ficheiro <code>data/admin.json</code>).</li>
+    <li>Cada utilizador tem um <b>tipo de autenticação</b> (Configuração → Utilizadores): <b>Local</b> (password no portal) ou <b>LDAP</b>.</li>
+    <li>LDAP: a conta de serviço procura o utilizador com o filtro; depois o portal confirma a password com um bind do próprio utilizador.</li>
+    <li>O perfil (o que pode fazer) é sempre o do portal.</li>
+    <li>Cada login fica no registo de <b>Acessos</b>.</li>
+  </ul>
+</section>
+</div>
+{% endblock %}

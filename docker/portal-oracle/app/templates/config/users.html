@@ -10,7 +10,7 @@
   <p class="muted">Ainda não há utilizadores.</p>
 {% else %}
 <table>
-  <thead><tr><th>Utilizador</th><th>Nome</th><th>Email</th><th>Perfil</th><th>Estado</th><th>Último login</th><th></th></tr></thead>
+  <thead><tr><th>Utilizador</th><th>Nome</th><th>Email</th><th>Perfil</th><th>Autenticação</th><th>Estado</th><th>Último login</th><th></th></tr></thead>
   <tbody>
   {% for u in users %}
     <tr>
@@ -18,6 +18,7 @@
       <td>{{ u.name or '' }}</td>
       <td>{{ u.email or '' }}</td>
       <td>{{ u.profile_name or '—' }}</td>
+      <td>{% if u.auth_tipo == 'ldap' %}<span class="tag">LDAP</span>{% else %}<span class="tag">Local</span>{% endif %}</td>
       <td>{% if u.active %}<span class="status s-OK">ativo</span>{% else %}<span class="status s-ERRO">inativo</span>{% endif %}</td>
       <td>{{ u.last_login or '—' }}</td>
       <td class="actions">

@@ -5,3 +5,4 @@ oracledb>=3.4
 cryptography>=44.0
 pymysql>=1.1          # MariaDB / MySQL (opcional)
 psycopg[binary]>=3.2.10  # PostgreSQL (opcional)
+ldap3>=2.9            # Autenticacao LDAP / Active Directory (modulo Autenticacao)

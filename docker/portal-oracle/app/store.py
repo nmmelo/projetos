@@ -119,6 +119,15 @@ _SCHEMA = [
         log {LONGTEXT},
         pedido_por VARCHAR(64)
     ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS auth_log (
+        id {ID},
+        quando VARCHAR(19) NOT NULL,
+        utilizador VARCHAR(64),
+        metodo VARCHAR(10),
+        resultado VARCHAR(10),
+        detalhe TEXT,
+        ip VARCHAR(64)
+    ){SUFFIX}""",
     """CREATE TABLE IF NOT EXISTS traducoes (
         id {ID},
         lingua VARCHAR(10) NOT NULL,
@@ -296,6 +305,7 @@ class Store:
         self._add_column("jobs", "runner", "VARCHAR(10)")
         self._add_column("jobs", "n_erros", "INTEGER")
         self._add_column("jobs", "n_avisos", "INTEGER")
+        self._add_column("users", "auth_tipo", "VARCHAR(10)")
 
     def _add_column(self, table: str, col: str, ddl: str) -> None:
         """Acrescenta uma coluna a uma tabela ja existente (versoes anteriores do portal)."""
@@ -478,7 +488,7 @@ def delete_profile(pid) -> None:
 def list_users() -> list[dict]:
     with tx() as t:
         return t.all("""SELECT u.id, u.username, u.name, u.email, u.profile_id, u.active,
-                               u.created_at, u.last_login, p.name AS profile_name
+                               u.created_at, u.last_login, u.auth_tipo, p.name AS profile_name
                         FROM users u LEFT JOIN profiles p ON p.id = u.profile_id
                         ORDER BY u.username""")
 
@@ -493,7 +503,9 @@ def get_user(uid=None, username=None) -> dict | None:
 def save_user(data: dict, password_hash: str | None, uid=None) -> int:
     row = {"username": data["username"], "name": data.get("name") or "", "email": data.get("email") or "",
            "profile_id": data.get("profile_id"), "active": 1 if data.get("active") else 0,
-           "updated_at": now()}
+           "auth_tipo": data.get("auth_tipo") or "local", "updated_at": now()}
+    if row["auth_tipo"] == "ldap" and uid is None and not password_hash:
+        password_hash = "!ldap"           # sem password local (autentica no LDAP)
     with tx() as t:
         if uid is None:
             return t.insert("users", {**row, "password_hash": password_hash, "created_at": now()})

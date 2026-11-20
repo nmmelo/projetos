@@ -28,6 +28,7 @@ class CurrentUser:
     all_dbs: bool = False
     db_ids: set = field(default_factory=set)
     last_login: str = ""
+    auth_tipo: str = "local"
 
     def can(self, perm: str) -> bool:
         mod = modulos.modulo_de(perm)
@@ -64,16 +65,66 @@ def hash_password(pwd: str) -> str:
 
 
 # ------------------------------------------------------------------ login
-def authenticate(username: str, password: str) -> CurrentUser | None:
+def authenticate(username: str, password: str, ip: str = "") -> CurrentUser | None:
+    """Administrador: sempre local. Utilizadores: local (password no portal) ou LDAP (modulo
+    Autenticacao ativo e LDAP ligado), conforme o tipo de autenticacao de cada um."""
+    from . import ldap_auth
     username = (username or "").strip()
     adm = settings.admin()
     if adm and username == adm["username"]:
-        return _admin_user(adm) if check_password_hash(adm["password_hash"], password) else None
-    u = store.get_user(username=username.lower())
-    if u and u["active"] and check_password_hash(u["password_hash"], password):
-        store.update_user_fields(u["id"], last_login=store.now())
-        return _db_user(u)
+        ok = check_password_hash(adm["password_hash"], password)
+        ldap_auth.registar_acesso(username, "local", ok, "administrador", ip)
+        return _admin_user(adm) if ok else None
+    nome = username.lower()
+    u = store.get_user(username=nome)
+    ldap_on = ldap_ativo()
+    if u and (u.get("auth_tipo") or "local") == "ldap":
+        if not u["active"]:
+            ldap_auth.registar_acesso(nome, "ldap", False, "utilizador inativo", ip)
+            return None
+        if not ldap_on:
+            ldap_auth.registar_acesso(nome, "ldap", False, "LDAP desligado (módulo Autenticação)", ip)
+            return None
+        ok, info = ldap_auth.autenticar(nome, password)
+        ldap_auth.registar_acesso(nome, "ldap", ok, "" if ok else str(info), ip)
+        if not ok:
+            return None
+        campos = {"last_login": store.now()}
+        if ldap_auth.config()["atualizar_dados"]:
+            campos.update({k: v for k, v in (("name", info["nome"]), ("email", info["email"])) if v})
+        store.update_user_fields(u["id"], **campos)
+        return _db_user(store.get_user(uid=u["id"]))
+    if u:
+        ok = bool(u["active"]) and check_password_hash(u["password_hash"], password)
+        ldap_auth.registar_acesso(nome, "local", ok, "" if ok else ("utilizador inativo" if not u["active"] else "password errada"), ip)
+        if ok:
+            store.update_user_fields(u["id"], last_login=store.now())
+            return _db_user(u)
+        return None
+    # nao existe no portal: criar a partir do LDAP, se configurado
+    if ldap_on and ldap_auth.config()["auto_criar"] and settings_username_ok(nome):
+        ok, info = ldap_auth.autenticar(nome, password)
+        ldap_auth.registar_acesso(nome, "ldap", ok, "criado no primeiro login" if ok else str(info), ip)
+        if ok:
+            perfil = ldap_auth.config()["perfil"]
+            uid = store.save_user({"username": nome, "name": info["nome"], "email": info["email"], "active": True,
+                                   "profile_id": int(perfil) if str(perfil).isdigit() else None,
+                                   "auth_tipo": "ldap"}, None)
+            store.update_user_fields(uid, last_login=store.now())
+            return _db_user(store.get_user(uid=uid))
+        return None
+    ldap_auth.registar_acesso(nome, "local", False, "utilizador desconhecido", ip)
     return None
+
+
+def settings_username_ok(nome: str) -> bool:
+    import re
+    return bool(re.match(r"^[a-z0-9][a-z0-9._-]{2,63}$", nome))
+
+
+def ldap_ativo() -> bool:
+    """LDAP em uso: modulo Autenticacao ativo e LDAP ligado na configuracao."""
+    return "autenticacao" in modulos.ativos() and store.get_setting("ldap_ativo") == "1"
 
 
 def _admin_user(adm: dict) -> CurrentUser:
@@ -89,7 +140,7 @@ def _db_user(u: dict) -> CurrentUser:
                        perms=set(prof["permissions"]) if prof else set(),
                        all_dbs=bool(prof and prof["all_dbs"]),
                        db_ids=set(prof["db_ids"]) if prof else set(),
-                       last_login=u.get("last_login") or "")
+                       last_login=u.get("last_login") or "", auth_tipo=u.get("auth_tipo") or "local")
 
 
 def login_session(user: CurrentUser) -> None:

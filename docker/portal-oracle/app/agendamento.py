@@ -47,9 +47,10 @@ def _t_limpeza(par: dict) -> tuple[str, str]:
         n2 = t.run("DELETE FROM email_queue WHERE status IN ('ENVIADO', 'ERRO') AND created_at < ?", (limite,))
         n3 = t.run("DELETE FROM agendamento_execucoes WHERE inicio < ?", (limite,))
         n4 = t.run("DELETE FROM system_actions WHERE requested_at < ?", (limite,))
-    total = sum(max(x or 0, 0) for x in (n1, n2, n3, n4))
+        n5 = t.run("DELETE FROM auth_log WHERE quando < ?", (limite,))
+    total = sum(max(x or 0, 0) for x in (n1, n2, n3, n4, n5))
     return "sucesso", (f"Removidos registos com mais de {dias} dias: notificações lidas, emails, execuções de "
-                       f"agendamentos e ações sobre serviços ({total} no total).")
+                       f"agendamentos, ações sobre serviços e acessos ({total} no total).")
 
 
 TAREFAS_PORTAL = {

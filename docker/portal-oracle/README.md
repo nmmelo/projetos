@@ -221,6 +221,45 @@ Desativado por omissão: ative-o em **Configuração → Módulos**. Aparece o m
 
 ---
 
+## Módulo Autenticação (LDAP / Active Directory)
+
+Desativado por omissão: ative-o em **Configuração → Módulos**. Os utilizadores passam a ter um **tipo de autenticação**:
+
+| Tipo | Como entra | Password |
+|---|---|---|
+| **Local** | Password do portal (hash na base de dados do portal) | Muda-se em Minha área ou em Utilizadores |
+| **LDAP** | Bind no diretório (OpenLDAP ou Active Directory) | Muda-se no diretório; o portal não a guarda |
+| Administrador | Sempre local (`data/admin.json`), mesmo com o LDAP em baixo | — |
+
+O tipo escolhe-se em **Configuração → Utilizadores** (formulário do utilizador). O perfil (o que pode fazer) é sempre o do portal.
+
+**Configuração → Autenticação** mostra os cartões **Local** e **LDAP** com o número de utilizadores de cada tipo. Clicar em **LDAP** abre a janela de configuração (a mesma página está em **Autenticação → LDAP**):
+
+| Campo | Notas |
+|---|---|
+| **LDAP ligado** | Desligado, os utilizadores LDAP não entram (os locais e o administrador sim) |
+| **Driver** | **OpenLDAP** ou **Active Directory (Microsoft)**: muda os valores por omissão do filtro e dos atributos e, no AD, o grupo obrigatório inclui grupos dentro de grupos |
+| **Segurança** | Sem cifra (389), **STARTTLS** (389) ou **LDAPS** (636) |
+| **Servidor(es)** | Vários separados por vírgulas (usa o primeiro que responder); `host:porta` para outra porta |
+| **Validar o certificado** + **Certificado da CA (PEM)** | Para a CA interna do AD/OpenLDAP. Vazio = as CAs do sistema. Desligar a validação aceita qualquer certificado (só para testes). O certificado é validado ao guardar |
+| **Conta de serviço** (bind DN + password) | Só de leitura, para procurar os utilizadores. No AD pode ser `conta@dominio`. Password cifrada (como as das BDs Oracle) |
+| **Base de procura**, **Filtro** (`{u}` = nome do login), **Atributos** do nome e do email | OpenLDAP: `(&(objectClass=inetOrgPerson)(uid={u}))`, `cn`, `mail`. AD: `(&(objectCategory=person)(objectClass=user)(sAMAccountName={u}))`, `displayName`, `mail` |
+| **Grupo obrigatório** | DN do grupo; só os membros entram |
+| **Atualizar nome e email** | A partir do diretório em cada login |
+| **Criar o utilizador no primeiro login** | Se não existir no portal, é criado como LDAP com o perfil escolhido |
+
+**Testar ligação** usa os valores do formulário (mesmo sem guardar) e mostra cada passo: ligação, TLS, bind da conta de serviço, base de procura e, opcionalmente, o utilizador (encontrado, grupo, password).
+
+**Autenticação → Acessos**: todos os logins (sucesso e falhados, com o motivo: password errada, fora do grupo, LDAP desligado, ...), o método e o IP. Limpos pela tarefa "Limpeza do histórico".
+
+> Precisa do pacote Python `ldap3` (está no `requirements.txt`: `instalar.sh --atualizar` ou recriar o contentor instala-o).
+
+| Configuração → Autenticação | Janela LDAP (teste) |
+|---|---|
+| ![Autenticação](docs/autenticacao.png) | ![LDAP](docs/autenticacao-ldap.png) |
+
+---
+
 ## Módulos
 
 Em **Configuração → Módulos** cada módulo aparece num cartão com a descrição, o menu, o número de permissões, os perfis com acesso e o botão **Ativar/Desativar**.

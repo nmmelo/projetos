@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Autenticação · Acessos{% endblock %}
+{% block content %}
+{% include "autenticacao/_tabs.html" %}
+<section class="jx-filtros">
+  <div class="jx-toolbar">
+    <label class="jx-search"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 2a8 8 0 0 1 6.32 12.9l5.39 5.4-1.42 1.4-5.39-5.38A8 8 0 1 1 10 2Zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z"/></svg>
+      <input type="search" id="q" placeholder="Procurar utilizador, IP ou motivo" autocomplete="off"></label>
+  </div>
+  <div class="jx-linha2"><div class="jx-chips" id="chips">
+    {% for k, r, c in [('', 'Todos', 'todas'), ('OK', 'Com sucesso', 'sucesso'), ('FALHOU', 'Falhados', 'erro')] %}
+    <button type="button" class="chip r-{{ c }} {{ 'on' if not k }}" data-f="{{ k }}"><i></i>{{ r }} <b data-n="{{ k }}">0</b></button>{% endfor %}
+  </div></div>
+</section>
+<div class="table-wrap"><table>
+  <thead><tr><th>Quando</th><th>Utilizador</th><th>Método</th><th>Resultado</th><th>Motivo</th><th>IP</th></tr></thead>
+  <tbody id="rows"><tr><td colspan="6" class="muted">A carregar…</td></tr></tbody>
+</table></div>
+<p class="hint">Os últimos 500. Os registos com mais de N dias são apagados pela tarefa "Limpeza do histórico" (Configuração → Agendamento).</p>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const $ = id => document.getElementById(id), esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const MET = {local: 'Local', ldap: 'LDAP', teste: 'Teste'};
+  let f = '';
+  async function carregar() {
+    const r = await fetch("{{ url_for('autenticacao.acessos_api') }}?" + new URLSearchParams({q: $('q').value, r: f}), {cache: 'no-store'});
+    const d = await r.json();
+    document.querySelectorAll('#chips b').forEach(b => b.textContent = b.dataset.n ? (d.cont[b.dataset.n] || 0) : (d.cont.OK || 0) + (d.cont.FALHOU || 0));
+    $('rows').innerHTML = d.linhas.map(x => `<tr><td class="nowrap small">${esc(x.quando)}</td><td translate="no"><b>${esc(x.utilizador)}</b></td>
+      <td>${esc(MET[x.metodo] || x.metodo)}</td><td><span class="sys-pill ${x.resultado === 'OK' ? 'ok' : 'bad'}">${x.resultado === 'OK' ? 'Sucesso' : 'Falhou'}</span></td>
+      <td class="small">${esc(x.detalhe)}</td><td class="small" translate="no">${esc(x.ip)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Sem registos.</td></tr>';
+  }
+  $('chips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; document.querySelectorAll('#chips .chip').forEach(x => x.classList.toggle('on', x === b)); f = b.dataset.f; carregar(); };
+  let tq; $('q').oninput = () => { clearTimeout(tq); tq = setTimeout(carregar, 250); };
+  carregar();
+})();
+</script>
+{% endblock %}

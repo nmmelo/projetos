@@ -290,6 +290,27 @@ def cfg_tarefa_executar(tid):
     return redirect(request.form.get("voltar") or url_for("portal.cfg_tarefa", tid=tid))
 
 
+# ====================================================================== Portal: Autenticacao
+@bp.route("/config/portal/autenticacao")
+@auth.requires("config.portal")
+def cfg_autenticacao():
+    ativo = "autenticacao" in modulos.ativos()
+    ctx = {}
+    if ativo:
+        from ..modules.autenticacao import views as av
+        ctx = av.contexto()
+        cont = ctx["cont"]
+    else:
+        with store.tx() as t:
+            rows = t.all("SELECT COALESCE(auth_tipo, 'local') AS tipo, COUNT(*) AS n FROM users WHERE active = 1 "
+                         "GROUP BY COALESCE(auth_tipo, 'local')")
+        cont = {"local": 0, "ldap": 0, "local_inativos": 0, "ldap_inativos": 0}
+        for r in rows:
+            cont[r["tipo"] if r["tipo"] in ("local", "ldap") else "local"] += int(r["n"])
+    return render_template("config/autenticacao.html", modulo_ativo=ativo, cont=cont, pode=True,
+                           admin=settings.admin(), tab="portal", sub="autenticacao", **{k: v for k, v in ctx.items() if k != "cont"})
+
+
 # ====================================================================== Portal: Manutencao
 @bp.route("/config/portal/maintenance", methods=["GET", "POST"])
 @auth.requires("config.portal")
@@ -469,23 +490,32 @@ def cfg_user_form(uid=None):
             other = store.get_user(username=username)
             if other and other["id"] != uid:
                 raise ValueError("Já existe um utilizador com esse nome.")
+            tipo = f.get("auth_tipo", "local")
+            if tipo not in ("local", "ldap"):
+                raise ValueError("Tipo de autenticação inválido.")
+            if tipo == "ldap" and (u or {}).get("auth_tipo") != "ldap" and "autenticacao" not in modulos.ativos():
+                raise ValueError("Para usar LDAP ative o módulo Autenticação (Configuração → Módulos).")
             pwd, rep = f.get("password", ""), f.get("repeat", "")
-            if not u or pwd:
+            if tipo == "ldap":
+                pwd = rep = ""
+            elif (not u or pwd) or (u and u.get("auth_tipo") == "ldap" and tipo == "local"):
                 auth.check_password_strength(pwd)
                 if pwd != rep:
                     raise ValueError("A password e a confirmação não coincidem.")
             profile_id = f.get("profile_id") or None
             data = {"username": username, "name": f.get("name", "").strip()[:150],
                     "email": f.get("email", "").strip()[:255],
-                    "profile_id": int(profile_id) if profile_id else None, "active": f.get("active") == "on"}
-            store.save_user(data, auth.hash_password(pwd) if pwd else None, uid)
+                    "profile_id": int(profile_id) if profile_id else None, "active": f.get("active") == "on",
+                    "auth_tipo": tipo}
+            store.save_user(data, auth.hash_password(pwd) if pwd else ("!ldap" if tipo == "ldap" else None), uid)
             flash("Utilizador guardado.", "ok")
             return redirect(url_for("portal.cfg_users"))
         except ValueError as exc:
             flash(str(exc), "error")
             u = {**(u or {}), **f.to_dict(), "active": f.get("active") == "on"}
     return render_template("config/user_form.html", u=u or {"active": 1}, editing=bool(uid),
-                           profiles=store.list_profiles(), tab="portal", sub="users")
+                           profiles=store.list_profiles(), ldap_disponivel="autenticacao" in modulos.ativos(),
+                           tab="portal", sub="users")
 
 
 @bp.route("/config/portal/users/<int:uid>/delete", methods=["POST"])

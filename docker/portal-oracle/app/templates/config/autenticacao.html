@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Autenticação{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<p class="muted">Como os utilizadores entram no portal. O tipo de cada utilizador escolhe-se em
+  <a href="{{ url_for('portal.cfg_users') }}">Utilizadores</a>. O administrador é sempre local.</p>
+<div class="auth-cards">
+  <button type="button" class="auth-card" onclick="location.href='{{ url_for('portal.cfg_users') }}'">
+    <span class="auth-h">🔑 <span>Local</span></span>
+    <span class="auth-n">{{ cont.local + (1 if admin else 0) }}</span>
+    <span class="muted small">Password guardada no portal (hash). Inclui o administrador <b translate="no">{{ admin.username if admin else '' }}</b>.
+      {% if cont.local_inativos %} {{ cont.local_inativos }} inativo(s).{% endif %}</span>
+    <span class="sys-pill ok">Sempre ativo</span>
+  </button>
+  <button type="button" class="auth-card" id="bldap" {{ 'disabled' if not modulo_ativo }}>
+    <span class="auth-h">🏢 <span>LDAP</span> <span class="muted small">OpenLDAP / Active Directory</span></span>
+    <span class="auth-n">{{ cont.ldap }}</span>
+    {% if not modulo_ativo %}
+    <span class="muted small">Ative o módulo <b>Autenticação</b> em <a href="{{ url_for('portal.cfg_modules') }}">Módulos</a> para configurar o LDAP.</span>
+    <span class="sys-pill off">Módulo inativo</span>
+    {% else %}
+    <span class="muted small">{{ drivers[c.driver] }}{% if c.hosts %} · <span translate="no">{{ c.hosts|join(', ') }}</span>{% endif %}. Clique para configurar e testar.</span>
+    <span class="sys-pill {{ 'ok' if c.ativo and c.hosts else 'warn' }}">{{ 'Ligado' if c.ativo and c.hosts else ('Desligado' if c.hosts else 'Por configurar') }}</span>
+    {% endif %}
+  </button>
+</div>
+
+{% if modulo_ativo %}
+<dialog id="dldap" class="jx-dlg dlg-largo">
+  <div class="jx-dlg-head"><div><h2>LDAP</h2><div class="muted small">Driver, servidor, certificado, conta de serviço e filtro</div></div>
+    <div class="buttons">{% if user.can('autenticacao.acessos') %}<a class="btn small" href="{{ url_for('autenticacao.acessos') }}">Acessos</a>{% endif %}
+      <button type="button" class="small" id="dfechar" aria-label="Fechar">✕</button></div></div>
+  <div class="dlg-corpo">
+    {% if not lib_ok %}<div class="flash error">{{ lib_falta }}</div>{% endif %}
+    {% set voltar = url_for('portal.cfg_autenticacao') %}
+    {% include "autenticacao/_ldap_form.html" %}
+  </div>
+</dialog>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if modulo_ativo %}
+<script>
+const d = document.getElementById('dldap');
+document.getElementById('bldap').onclick = () => d.showModal();
+document.getElementById('dfechar').onclick = () => d.close();
+if (location.hash === '#ldap') d.showModal();
+</script>
+{% endif %}
+{% endblock %}

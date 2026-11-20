@@ -5,6 +5,7 @@
   <a href="{{ url_for('portal.cfg_maintenance') }}" class="{{ 'on' if sub == 'maintenance' }}">Manutenção{% if manutencao_ativa %} <span class="tag warn">ativa</span>{% endif %}</a>
   <a href="{{ url_for('portal.cfg_modules') }}" class="{{ 'on' if sub == 'modules' }}">Módulos</a>
   <a href="{{ url_for('portal.cfg_agendamento') }}" class="{{ 'on' if sub == 'agendamento' }}">Agendamento</a>
+  <a href="{{ url_for('portal.cfg_autenticacao') }}" class="{{ 'on' if sub == 'autenticacao' }}">Autenticação</a>
   {% if user.is_admin %}<a href="{{ url_for('portal.cfg_storage') }}" class="{{ 'on' if sub == 'storage' }}">Armazenamento</a>{% endif %}
   <a href="{{ url_for('portal.cfg_users') }}" class="{{ 'on' if sub == 'users' }}">Utilizadores</a>
   <a href="{{ url_for('portal.cfg_profiles') }}" class="{{ 'on' if sub == 'profiles' }}">Perfis</a>

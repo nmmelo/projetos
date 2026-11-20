@@ -346,3 +346,18 @@ Chat de 20 de novembro de 2026.
 - **Agendamento:** nova aba, executado pelo agente: backup do portal, limpeza do histórico, verificação de tablespaces (Oracle) e validação SMTP; frequência, notificação (evento "Tarefa agendada terminada"), parâmetros, executar agora e histórico.
 - **Módulos → Editar:** nome, perfis com acesso, agendamentos e regras de notificação do módulo.
 
+## 23. Autenticação LDAP/AD, Oracle → Bases de dados, Firewall e agente cliente
+
+Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o seu commit).
+
+**Pergunta (resumo das partes):**
+> depois quero outro modulo, autenticação, onde podemos ter AD ou OPENLDAP, onde podemos configurar o acesso dos utilizadores, [...] o administrador, é sempre local [...] na configuração, podemos ter uma aba a dizer autenticação, onde aparece local com o nº de utilizadores com isso, LDAP a mesma coisa, sendo que ao clicar no LDAP, abre uma janela onde temos que configurar o metodo com todos os parametros e também podemos ter a opção de testar [...] pode ser necessário colocar o certificado do servidor LDAP ou podemos ignorar a validação.
+
+> Também no aba oracle, quero outra subaba a dizer base de dados [...] versão, [...] SID, Servicename, se tem DataGuard ativo, qual o estado dela online/mount/close [...] ao clicar na base de dados [...] o espaço livre no ASM [...] os jobs, o recycle bin [...] Os backup por expdb e também os backup de rman [...] criar um utilizador dboperator [...] quais os grants necessários [...] os schemas [...] os criados pelo portal ficam com uma cor diferente [...]
+
+> [...] agente cliente, ou seja poder instalar o agente como um serviço no cliente, do genero zabbix [...] token [...] SSH [...] know_hosts [...] .env com toda a informação sensivel encriptada [...] uma tag ou regra que colocamos um nome, ele gera um id [...] o agente vai buscar a ultima linha ou log [...] nada de referencias ao [...]
+
+> [...] nos serviços do portal tenha o serviço firewall, ou pode ser um modulo, onde vamos poder criar as regras e ver regras e ipsets [...] logs [...] geral com o estado geral da firewalld ou ufw [...] definições [...]
+
+**Resposta — fase 1, módulo Autenticação:** tipo de autenticação por utilizador (Local ou LDAP; o administrador é sempre local), Configuração → Autenticação com os cartões Local e LDAP (número de utilizadores) e a janela de configuração (driver OpenLDAP ou Active Directory, STARTTLS/LDAPS, certificado da CA ou sem validação, conta de serviço, filtro, grupo obrigatório, criação no primeiro login) com **Testar ligação** passo a passo; registo de acessos.
+

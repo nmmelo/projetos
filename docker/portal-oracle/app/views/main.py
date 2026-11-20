@@ -15,7 +15,8 @@ def login():
     if g.user:
         return redirect(url_for("portal.home"))
     if request.method == "POST":
-        user = auth.authenticate(request.form.get("user", ""), request.form.get("password", ""))
+        ip = request.headers.get("X-Real-IP") or request.remote_addr or ""
+        user = auth.authenticate(request.form.get("user", ""), request.form.get("password", ""), ip)
         if user:
             auth.login_session(user)
             nxt = request.args.get("next", "")
@@ -221,6 +222,8 @@ def me():
                     store.update_user_fields(u.id, name=name, email=email)
                 flash("Dados atualizados.", "ok")
             elif action == "password":
+                if u.auth_tipo == "ldap":
+                    raise ValueError("A password das contas LDAP muda-se no diretório (LDAP / Active Directory).")
                 cur, new, rep = (request.form.get(k, "") for k in ("current", "new", "repeat"))
                 stored = settings.admin()["password_hash"] if u.is_admin else store.get_user(uid=u.id)["password_hash"]
                 if not check_password_hash(stored, cur):

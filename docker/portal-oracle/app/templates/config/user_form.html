@@ -1,5 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Configuração · {{ 'Editar' if editing else 'Novo' }} utilizador{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const t = document.getElementById('atipo'), novo = {{ 'false' if editing else 'true' }};
+  function ver() { document.querySelectorAll('.pw-local').forEach(l => { l.hidden = t.value === 'ldap';
+    l.querySelector('input').required = novo && t.value !== 'ldap'; }); }
+  t.onchange = ver; ver();
+})();
+</script>
+{% endblock %}
 {% block content %}
 {% include "config/_tabs.html" %}
 <section class="card">
@@ -16,12 +26,19 @@
         {% for p in profiles %}<option value="{{ p.id }}" {{ 'selected' if u.profile_id|string == p.id|string }}>{{ p.name }}</option>{% endfor %}
       </select>
       {% if not profiles %}<span class="hint">Crie primeiro um perfil em <a href="{{ url_for('portal.cfg_profile_form') }}">Perfis</a>.</span>{% endif %}</label>
+    <label>Autenticação
+      <select name="auth_tipo" id="atipo">
+        <option value="local" {{ 'selected' if (u.auth_tipo or 'local') == 'local' }}>Local (password no portal)</option>
+        <option value="ldap" {{ 'selected' if u.auth_tipo == 'ldap' }} {{ '' if ldap_disponivel or u.auth_tipo == 'ldap' else 'disabled' }}>LDAP / Active Directory</option>
+      </select>
+      {% if not ldap_disponivel %}<span class="hint">LDAP: ative o módulo Autenticação e configure-o em Configuração → Autenticação.</span>
+      {% else %}<span class="hint">LDAP: o nome de utilizador tem de ser o do diretório (ex. <code>uid</code> ou <code>sAMAccountName</code>).</span>{% endif %}</label>
     <label>Nome <input name="name" value="{{ u.name or '' }}" maxlength="150"></label>
     <label>Email <input name="email" type="email" value="{{ u.email or '' }}" maxlength="255"></label>
-    <label>Password
+    <label class="pw-local">Password
       <input name="password" type="password" autocomplete="new-password" {{ '' if editing else 'required' }} minlength="8"
              placeholder="{{ 'deixe vazio para manter a atual' if editing else 'mínimo 8 caracteres' }}"></label>
-    <label>Confirmar password
+    <label class="pw-local">Confirmar password
       <input name="repeat" type="password" autocomplete="new-password" {{ '' if editing else 'required' }} minlength="8"></label>
     <label class="inline full"><input type="checkbox" name="active" {{ 'checked' if u.active }}> <span>Utilizador ativo</span></label>
     <div class="full buttons">

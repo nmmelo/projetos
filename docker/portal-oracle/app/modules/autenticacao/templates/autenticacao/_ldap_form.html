@@ -1,0 +1,86 @@
+{# Formulario LDAP (pagina Autenticacao > LDAP e janela de Configuracao > Autenticacao). Variaveis: s, c, drivers,
+   seguranca, padrao, perfis, tem_pw, ca_info, pode, voltar #}
+<form method="post" action="{{ url_for('autenticacao.ldap') }}" class="stack ldap-form" id="fldap">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="voltar" value="{{ (voltar ~ '#ldap') if voltar else '' }}">
+  <fieldset {{ 'disabled' if not pode }} class="sem-borda">
+  <label class="inline"><input type="checkbox" name="ldap_ativo" value="1" {{ 'checked' if c.ativo }}>
+    <b>LDAP ligado</b> <span class="muted small">— os utilizadores do tipo LDAP autenticam-se no diretório</span></label>
+  <div class="grid2">
+    <label>Driver
+      <select name="ldap_driver" id="ldriver">{% for k, v in drivers.items() %}<option value="{{ k }}" {{ 'selected' if c.driver == k }}>{{ v }}</option>{% endfor %}</select></label>
+    <label>Segurança
+      <select name="ldap_seguranca" id="lseg">{% for k, v in seguranca.items() %}<option value="{{ k }}" {{ 'selected' if c.seguranca == k }}>{{ v }}</option>{% endfor %}</select></label>
+    <label>Servidor(es)
+      <input name="ldap_hosts" value="{{ s.ldap_hosts or '' }}" placeholder="ldap1.empresa.pt, ldap2.empresa.pt" translate="no">
+      <span class="hint">Vários separados por vírgulas (usa o primeiro que responder). <code>host:porta</code> para outra porta.</span></label>
+    <label>Porta <input name="ldap_porta" id="lporta" type="number" min="1" max="65535" value="{{ c.porta }}"></label>
+    <label class="inline full"><input type="checkbox" name="ldap_verificar" value="1" id="lverif" {{ 'checked' if c.verificar }}>
+      Validar o certificado do servidor <span class="muted small">(desligado: aceita qualquer certificado — só para testes)</span></label>
+    <label class="full" id="lca">Certificado da CA (PEM)
+      <textarea name="ldap_ca_pem" rows="4" class="mono-area" placeholder="-----BEGIN CERTIFICATE-----&#10;… (CA interna do AD / OpenLDAP; vazio = CAs do sistema)" translate="no"></textarea>
+      {% if ca_info %}<span class="hint">Guardado: <span translate="no">{{ ca_info }}</span>
+        <label class="inline"><input type="checkbox" name="ldap_ca_remover" value="1"> remover</label></span>{% endif %}</label>
+    <label class="full">Conta de serviço (bind DN)
+      <input name="ldap_bind_dn" value="{{ s.ldap_bind_dn or '' }}" id="lbind" placeholder="{{ padrao[c.driver].bind }}" translate="no">
+      <span class="hint">Conta só de leitura para procurar os utilizadores. No AD pode ser <code>utilizador@dominio</code>. Vazio = anónimo.</span></label>
+    <label class="full">Password da conta de serviço
+      <input name="ldap_bind_password" type="password" autocomplete="new-password" placeholder="{{ '•••••• (guardada; vazio = manter)' if tem_pw else '' }}">
+      {% if tem_pw %}<span class="hint"><label class="inline"><input type="checkbox" name="ldap_bind_password_limpar" value="1"> apagar a guardada</label></span>{% endif %}</label>
+    <label class="full">Base de procura (base DN)
+      <input name="ldap_base_dn" value="{{ s.ldap_base_dn or '' }}" id="lbase" placeholder="{{ padrao[c.driver].base }}" translate="no"></label>
+    <label class="full">Filtro do utilizador
+      <input name="ldap_filtro" value="{{ s.ldap_filtro or '' }}" id="lfiltro" placeholder="{{ padrao[c.driver].filtro }}" translate="no">
+      <span class="hint"><code>{u}</code> é o nome escrito no login. Vazio = o filtro do driver.</span></label>
+    <label>Atributo do nome <input name="ldap_attr_nome" value="{{ s.ldap_attr_nome or '' }}" id="lnome" placeholder="{{ padrao[c.driver].nome }}" translate="no"></label>
+    <label>Atributo do email <input name="ldap_attr_email" value="{{ s.ldap_attr_email or '' }}" id="lemail" placeholder="{{ padrao[c.driver].email }}" translate="no"></label>
+    <label class="full">Grupo obrigatório (DN, opcional)
+      <input name="ldap_grupo" value="{{ s.ldap_grupo or '' }}" placeholder="CN=DBA-Portal,OU=Grupos,DC=empresa,DC=local" translate="no">
+      <span class="hint">Só entram os membros deste grupo (no AD inclui grupos dentro de grupos).</span></label>
+    <label class="inline full"><input type="checkbox" name="ldap_atualizar_dados" value="1" {{ 'checked' if c.atualizar_dados }}>
+      Atualizar o nome e o email do utilizador a partir do diretório em cada login</label>
+    <label class="inline full"><input type="checkbox" name="ldap_auto_criar" value="1" id="lauto" {{ 'checked' if c.auto_criar }}>
+      Criar o utilizador no portal no primeiro login (se não existir)</label>
+    <label id="lperfil">Perfil dos utilizadores criados
+      <select name="ldap_perfil"><option value="">— sem perfil (sem acessos) —</option>
+        {% for p in perfis %}<option value="{{ p.id }}" {{ 'selected' if c.perfil|string == p.id|string }}>{{ p.name }}</option>{% endfor %}</select></label>
+    <label>Timeout (s) <input name="ldap_timeout" type="number" min="2" max="120" value="{{ c.timeout }}"></label>
+  </div>
+  <section class="ldap-teste">
+    <h3>Testar</h3>
+    <p class="hint">Testa os valores do formulário (mesmo sem guardar): ligação, TLS, conta de serviço e base de procura. Com um
+      utilizador, procura-o e confirma o grupo; com a password, confirma-a também.</p>
+    <div class="grid2">
+      <label>Utilizador de teste (opcional) <input name="teste_utilizador" autocomplete="off" translate="no"></label>
+      <label>Password (opcional) <input name="teste_password" type="password" autocomplete="new-password"></label>
+    </div>
+    <div class="buttons"><button type="button" id="ltestar">🔌 Testar ligação</button><span id="lres" class="small"></span></div>
+    <pre class="mono-area small" id="llog" hidden translate="no"></pre>
+  </section>
+  <div class="buttons"><button class="primary">Guardar</button>{{ caller() if caller is defined }}</div>
+  </fieldset>
+</form>
+<script>
+(() => {
+  const PAD = {{ padrao|tojson }}, $ = id => document.getElementById(id);
+  const drv = $('ldriver'), seg = $('lseg'), porta = $('lporta'), verif = $('lverif');
+  function ver() {
+    const p = PAD[drv.value];
+    [['lbind', 'bind'], ['lbase', 'base'], ['lfiltro', 'filtro'], ['lnome', 'nome'], ['lemail', 'email']].forEach(([id, k]) => $(id).placeholder = p[k]);
+    $('lca').hidden = seg.value === 'nenhuma' || !verif.checked; verif.closest('label').hidden = seg.value === 'nenhuma';
+    $('lperfil').hidden = !$('lauto').checked;
+  }
+  seg.onchange = () => { if (['389', '636', ''].includes(porta.value)) porta.value = seg.value === 'ldaps' ? 636 : 389; ver(); };
+  drv.onchange = verif.onchange = $('lauto').onchange = ver; ver();
+  $('ltestar').onclick = async () => {
+    const b = $('ltestar'), r = $('lres'), log = $('llog');
+    b.disabled = true; r.className = 'small'; r.textContent = (window.t || (x => x))('A testar…'); log.hidden = true;
+    try {
+      const resp = await fetch("{{ url_for('autenticacao.testar') }}", {method: 'POST', body: new FormData($('fldap')), headers: {'X-CSRF': "{{ csrf_token }}"}});
+      const d = await resp.json();
+      r.textContent = (d.ok ? '✓ ' : '✕ ') + d.msg; r.className = 'small ' + (d.ok ? 'c-ok' : 'c-bad');
+      log.textContent = d.log || ''; log.hidden = !d.log;
+    } catch (e) { r.textContent = '✕ ' + e; r.className = 'small c-bad'; }
+    b.disabled = false;
+  };
+})();
+</script>

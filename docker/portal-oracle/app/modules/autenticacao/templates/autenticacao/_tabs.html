@@ -1,0 +1,5 @@
+<h1>Autenticação</h1>
+<nav class="tabs">
+  <a href="{{ url_for('autenticacao.ldap') }}" class="{{ 'on' if request.endpoint == 'autenticacao.ldap' }}">LDAP</a>
+  {% if user.can('autenticacao.acessos') %}<a href="{{ url_for('autenticacao.acessos') }}" class="{{ 'on' if request.endpoint == 'autenticacao.acessos' }}">Acessos</a>{% endif %}
+</nav>
