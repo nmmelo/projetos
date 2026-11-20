@@ -338,6 +338,8 @@ O estado fica na tabela `settings` (`module.<chave>` = `1`/`0`), por isso entra 
 
 ---
 
+> Os módulos **SMTP** e **Autenticação**, quando ativos, aparecem como abas de **Configuração** (com as suas sub-abas) e não no menu principal. Quem só tem acesso a um deles (sem `config.portal`) vê o menu Configuração apenas com essa aba.
+
 ## Módulo Firewall (firewalld / ufw)
 
 Ver e alterar a firewall do servidor do portal. Ative-o em **Configuração → Módulos** e dê, nos perfis, o acesso (`modulo.firewall`) e, a quem pode alterar, `firewall.alterar`.

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Configuração · Autenticação{% endblock %}
 {% block content %}
-{% include "config/_tabs.html" %}
+{% if modulo_ativo and user.can('modulo.autenticacao') %}{% include "autenticacao/_tabs.html" %}{% else %}{% include "config/_tabs.html" %}{% endif %}
 <p class="muted">Como os utilizadores entram no portal. O tipo de cada utilizador escolhe-se em
   <a href="{{ url_for('portal.cfg_users') }}">Utilizadores</a>. O administrador é sempre local.</p>
 <div class="auth-cards">

@@ -70,7 +70,7 @@ def inject():
     g.lingua = lingua
     return {"csrf_token": session["csrf"], "user": user, "static_v": STATIC_V, "ACTIONS": modulos.todas_acoes(),
             "lingua": lingua, "linguas_ativas": linguas, "i18n_v": i18n_v,
-            "modulos_menu": modulos.visiveis(user), "manutencao_ativa": g.get("manutencao", False), **look}
+            "modulos_menu": modulos.menu(user), "modulos_config": modulos.de_config(user), "manutencao_ativa": g.get("manutencao", False), **look}
 
 
 @bp.app_errorhandler(403)

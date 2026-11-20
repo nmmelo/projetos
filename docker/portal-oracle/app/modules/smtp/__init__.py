@@ -34,6 +34,7 @@ MODULO = modulos.registar(modulos.Modulo(
                      "\"Ligação SMTP: falhou\"; quando volta, \"recuperou\".",
         "padrao": {"ativo": True, "freq": "minutos", "intervalo": 60, "notificar": "nunca"}}},
     ativo_por_omissao=False,
+    em_config=True,
 ))
 
 

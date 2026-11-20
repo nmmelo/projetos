@@ -22,10 +22,12 @@
   <nav>
     <a href="{{ url_for('portal.home') }}" class="{{ 'on' if ep == 'portal.home' }}">Home</a>
     {% for m in modulos_menu %}
-    <a href="{{ url_for(m.chave ~ '.index') }}" class="{{ 'on' if ep.startswith(m.chave ~ '.') }}">{{ m.nome }}</a>
+    <a href="{{ url_for(m.chave ~ '.index') }}" class="{{ 'on' if ep.startswith(m.chave ~ '.') and not ep.startswith('clientes.gerir') }}">{{ m.nome }}</a>
     {% endfor %}
-    {% if user.can_config %}
-    <a href="{{ url_for('portal.config') }}" class="{{ 'on' if ep.startswith('portal.cfg') }}">Configuração</a>
+    {% set cfg_mods = modulos_config|map(attribute='chave')|list %}
+    {% if user.can_config or cfg_mods %}
+    <a href="{{ url_for('portal.config') if user.can_config else url_for(cfg_mods[0] ~ '.index') }}"
+       class="{{ 'on' if ep.startswith('portal.cfg') or ep.split('.')[0] in cfg_mods or ep.startswith('clientes.gerir') }}">Configuração</a>
     {% endif %}
   </nav>
   {% endif %}

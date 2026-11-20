@@ -373,3 +373,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > melhorar o aspecto o ipsets, pode ser uma tabela e depois ao clicar vai para a ipsets concreta. Agora nem aparece o dba-portal-agente. Podemos também melhorar o aspecto da janela centra, pode ser dinamico [...]
 
 **Resposta:** IPsets em tabela (tipo, entradas, onde são usados) com página por ipset; botão de largura da página (automática, toda a largura, normal); no `instalar.sh --lista` o agente aparece na coluna AGENTE da instância.
+
+## 25. SMTP e Autenticação dentro de Configuração
+
+**Pergunta:**
+> o smtp tem que ficar quando ativo dentro do configuração, e não no menu principal. e aautenticação também dentro de configuração
+
+**Resposta:** SMTP e Autenticação saem do menu principal e passam a abas de Configuração, com as sub-abas de cada um (SMTP: Geral, Regras, Notificações, Logs; Autenticação: Utilizadores e métodos, LDAP, Acessos).

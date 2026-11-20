@@ -22,6 +22,7 @@ MODULO = modulos.registar(modulos.Modulo(
     ],
     eventos={"autenticacao.ldap": {"nome": "Ligação LDAP (teste)", "situacoes": {"falhou": "Falhou"}}},
     ativo_por_omissao=False,
+    em_config=True,
 ))
 
 

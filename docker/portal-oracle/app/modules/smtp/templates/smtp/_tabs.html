@@ -1,6 +1,6 @@
-<h1>SMTP</h1>
+{% include "config/_tabs.html" %}
 {% set ep = request.endpoint or '' %}
-<nav class="tabs">
+<nav class="subtabs">
   {% for endpoint, rotulo in smtp_abas() %}
   <a href="{{ url_for(endpoint) }}" class="{{ 'on' if ep == endpoint or (endpoint == 'smtp.regras' and ep == 'smtp.regra_form' and canal == 'email') or (endpoint == 'smtp.notificacoes' and ep == 'smtp.regra_form' and canal == 'portal') }}">{{ rotulo }}</a>
   {% endfor %}

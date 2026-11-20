@@ -1,5 +1,6 @@
-<h1>Autenticação</h1>
-<nav class="tabs">
+{% include "config/_tabs.html" %}
+<nav class="subtabs">
+  {% if user.can_config %}<a href="{{ url_for('portal.cfg_autenticacao') }}" class="{{ 'on' if request.endpoint == 'portal.cfg_autenticacao' }}">Utilizadores e métodos</a>{% endif %}
   <a href="{{ url_for('autenticacao.ldap') }}" class="{{ 'on' if request.endpoint == 'autenticacao.ldap' }}">LDAP</a>
   {% if user.can('autenticacao.acessos') %}<a href="{{ url_for('autenticacao.acessos') }}" class="{{ 'on' if request.endpoint == 'autenticacao.acessos' }}">Acessos</a>{% endif %}
 </nav>

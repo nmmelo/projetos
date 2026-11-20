@@ -1,14 +1,24 @@
+{% set ep = request.endpoint or '' %}
+{% set cfg_mods = modulos_config|map(attribute='chave')|list %}
 <h1>Configuração</h1>
 <nav class="tabs">
+  {% if user.can_config %}
   <a href="{{ url_for('portal.cfg_general') }}" class="{{ 'on' if sub == 'general' }}">Geral</a>
   <a href="{{ url_for('portal.cfg_appearance') }}" class="{{ 'on' if sub == 'appearance' }}">Aparência</a>
   <a href="{{ url_for('portal.cfg_maintenance') }}" class="{{ 'on' if sub == 'maintenance' }}">Manutenção{% if manutencao_ativa %} <span class="tag warn">ativa</span>{% endif %}</a>
   <a href="{{ url_for('portal.cfg_modules') }}" class="{{ 'on' if sub == 'modules' }}">Módulos</a>
   <a href="{{ url_for('portal.cfg_agendamento') }}" class="{{ 'on' if sub == 'agendamento' }}">Agendamento</a>
-  <a href="{{ url_for('portal.cfg_autenticacao') }}" class="{{ 'on' if sub == 'autenticacao' }}">Autenticação</a>
+  {% endif %}
+  {% if user.can_config or 'autenticacao' in cfg_mods %}
+  <a href="{{ url_for('portal.cfg_autenticacao') if user.can_config else url_for('autenticacao.index') }}"
+     class="{{ 'on' if sub == 'autenticacao' or ep.startswith('autenticacao.') }}">Autenticação</a>{% endif %}
+  {% if 'smtp' in cfg_mods %}
+  <a href="{{ url_for('smtp.index') }}" class="{{ 'on' if ep.startswith('smtp.') }}">SMTP</a>{% endif %}
+  {% if user.can_config %}
   <a href="{{ url_for('portal.cfg_clientes') }}" class="{{ 'on' if sub == 'clientes' }}">Clientes</a>
   {% if user.is_admin %}<a href="{{ url_for('portal.cfg_storage') }}" class="{{ 'on' if sub == 'storage' }}">Armazenamento</a>{% endif %}
   <a href="{{ url_for('portal.cfg_users') }}" class="{{ 'on' if sub == 'users' }}">Utilizadores</a>
   <a href="{{ url_for('portal.cfg_profiles') }}" class="{{ 'on' if sub == 'profiles' }}">Perfis</a>
   <a href="{{ url_for('portal.cfg_backups') }}" class="{{ 'on' if sub == 'backups' }}">Backups</a>
+  {% endif %}
 </nav>

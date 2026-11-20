@@ -32,6 +32,7 @@ class Modulo:
     tarefas: dict = field(default_factory=dict)
     eventos: dict = field(default_factory=dict)        # eventos para as regras de email/notificacao
     ativo_por_omissao: bool = True
+    em_config: bool = False                            # aparece como aba de Configuracao (nao no menu principal)
     nome_original: str = ""                            # nome do codigo (o "nome" pode ser mudado no portal)
 
     def __post_init__(self):
@@ -132,6 +133,15 @@ def visiveis(user) -> list:
     if not user:
         return []
     return [REGISTO[k] for k in INSTALADOS if k in REGISTO and user.can(REGISTO[k].acesso)]
+
+
+def menu(user) -> list:
+    """Modulos do menu principal (os de Configuracao ficam como abas de Configuracao)."""
+    return [m for m in visiveis(user) if not m.em_config]
+
+
+def de_config(user) -> list:
+    return [m for m in visiveis(user) if m.em_config]
 
 
 def todos_eventos() -> dict:
