@@ -3,12 +3,12 @@ import secrets
 
 from flask import Blueprint, abort, g, jsonify, make_response, render_template, request, session
 
-from .. import aparencia, auth, manutencao, modulos, store
+from .. import aparencia, auth, i18n, manutencao, modulos, store
 
 bp = Blueprint("portal", __name__)
 
 # Paginas que funcionam durante a manutencao (o login continua disponivel para os administradores)
-LIVRES_MANUTENCAO = {"static", "portal.login", "portal.logout", "portal.favicon"}
+LIVRES_MANUTENCAO = {"static", "portal.login", "portal.logout", "portal.favicon", "portal.i18n_js", "portal.idioma"}
 
 
 @bp.before_app_request
@@ -61,7 +61,15 @@ def inject():
     except Exception:  # noqa: BLE001 - BD do portal indisponivel
         look = aparencia.context(aparencia.DEFAULTS)
     user = g.get("user")
+    try:
+        lingua = i18n.do_utilizador(str(user.id) if user else None, request.cookies.get("lingua"))
+        linguas = i18n.ativas()
+        i18n_v = i18n.versao(lingua) if lingua != i18n.BASE else ""
+    except Exception:  # noqa: BLE001 - BD do portal indisponivel
+        lingua, linguas, i18n_v = i18n.BASE, [dict(x, base=x["codigo"] == "pt") for x in i18n.LINGUAS_PADRAO], ""
+    g.lingua = lingua
     return {"csrf_token": session["csrf"], "user": user, "static_v": STATIC_V, "ACTIONS": modulos.todas_acoes(),
+            "lingua": lingua, "linguas_ativas": linguas, "i18n_v": i18n_v,
             "modulos_menu": modulos.visiveis(user), "manutencao_ativa": g.get("manutencao", False), **look}
 
 

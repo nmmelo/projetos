@@ -16,7 +16,8 @@ Instala-se **num servidor** (script `instalar.sh`, ver [Instalação num servido
 | **Oracle → Execuções** | Tabela dinâmica com filtros (sucesso, avisos, erros, falhadas, em curso; tablespace; BD; modo; texto também no output), janela com o output a saltar para os erros, apagar (uma, selecionadas, falhadas); andamento em direto (barra, passos, tempo, output linha a linha), log e cancelamento |
 | **Sistema** | Servidor onde o portal corre: CPU, RAM, discos, serviços (Nginx, portal, agente, ...) com start/stop/restart, em cartões que se podem esconder e reordenar (**Editar**), atualizados a cada 2 s pelo agente |
 | **Oracle → Definições** | Bases de dados Oracle: host, porta, SID ou Service Name, PDB, utilizador, password cifrada, Normal ou SYSDBA |
-| **Configuração** | **Geral**, **Aparência** (título, textos, ícone e tema), **Manutenção** (modo de manutenção com editor HTML), **Módulos** (ativar/desativar), **Armazenamento**, **Utilizadores**, **Perfis** e **Backups** |
+| **Configuração** | **Geral**, **Aparência** (Geral: título, textos, ícone e tema; **Linguagem**: línguas e traduções, exportar/importar XML), **Manutenção** (modo de manutenção com editor HTML), **Módulos** (ativar/desativar e **Editar**: nome, perfis com acesso, agendamentos e notificações), **Agendamento** (tarefas dos módulos), **Armazenamento**, **Utilizadores**, **Perfis** e **Backups** |
+| **Língua** (bandeiras ao lado do sininho) | Português ou inglês (e outras que se acrescentem), por utilizador; também na página de entrada |
 | **Agente do portal** (serviço `<nome>-agente`) | Corre as execuções Oracle (continuam se o portal reiniciar), publica as métricas do servidor e executa as ações sobre serviços |
 | **Minha área** (nome no canto superior direito) | Dados do utilizador, permissões e alteração da password |
 
@@ -157,7 +158,21 @@ Em **Sistema → Painel** (permissão `modulo.sistema`):
 
 - **Atualização:** a cada 2 s por omissão (pausa, 2, 5, 10 ou 30 s), com o indicador "em direto". Não atualiza quando o separador está escondido.
 - **Editar** (ícone do lápis): esconder (✕), voltar a mostrar (+) e arrastar os cartões, como na Home. Guardado por utilizador.
-- **Definições** (permissão `sistema.definicoes`): os serviços a mostrar. Por omissão são os do portal (`nginx`, `<nome>`, `<nome>-agente`, e a base de dados se for local). O agente só consegue gerir os que estão no `sudoers`, que o `instalar.sh` cria a partir da pergunta "Serviços geridos pelo módulo Sistema".
+- **Definições** (permissão `sistema.definicoes`): os serviços a mostrar, com sugestões dos que estão instalados no servidor (ex. `firewalld`, `chronyd`, bases de dados). Por omissão são os do portal (`nginx`, `<nome>`, `<nome>-agente`, e a base de dados se for local).
+- **Permissões (sudoers):** o agente só consegue iniciar/parar/reiniciar os serviços que estão em `/etc/sudoers.d/<nome>-agente`. As Definições mostram, para cada serviço, se está **Autorizado** ou **Sem sudoers** (no painel aparece 🔒 em vez dos botões) e o comando para o autorizar.
+
+**Gerir também o firewalld (ou outro serviço)**, no servidor:
+
+```bash
+sudo ./instalar.sh --servicos dba-portal                 # lista atual e serviços detetados
+sudo ./instalar.sh --servicos dba-portal +firewalld      # acrescentar
+sudo ./instalar.sh --servicos dba-portal -firewalld      # retirar
+sudo ./instalar.sh --servicos dba-portal "nginx dba-portal dba-portal-agente firewalld"   # lista completa
+```
+
+Atualiza a configuração guardada, a regra `sudoers` (validada com `visudo`) e os serviços, e reinicia o portal e o agente. Depois, acrescente o serviço também em **Sistema → Definições** (se tiver alterado a lista mostrada). Na pergunta "Serviços geridos pelo módulo Sistema" do `instalar.sh`, o `firewalld` (ou `ufw`) já é sugerido quando existe. No Docker, o agente gere os programas do contentor; os serviços do anfitrião não são acessíveis.
+
+![Sistema → Definições](docs/sistema-definicoes.png)
 
 ![Módulo Sistema](docs/sistema.png)
 
@@ -217,6 +232,17 @@ Em **Configuração → Módulos** cada módulo aparece num cartão com a descri
 
 O estado fica na tabela `settings` (`module.<chave>` = `1`/`0`), por isso entra nos backups.
 
+**✎ Editar** (cada módulo):
+
+| Secção | O que se faz |
+|---|---|
+| **Geral** | Mudar o **nome** do módulo (menu, Home, notificações; o original fica indicado) e ativar/desativar |
+| **Quem tem acesso** | Escolher os perfis (um ou mais) com acesso ao módulo. Retirar um perfil retira também as ações desse módulo; as ações escolhem-se em Perfis |
+| **Agendamento** | As tarefas do módulo: ativar/desativar, frequência, última execução e **Editar** |
+| **Notificações** | Os eventos do módulo e as regras de sininho e de email que os usam: ativar/desativar, editar e criar regras (no módulo SMTP) |
+
+![Configuração → Módulos → Editar](docs/modulo-editar.png)
+
 | Configuração → Módulos | Perfil com permissões por módulo |
 |---|---|
 | ![Módulos](docs/modulos.png) | ![Perfil](docs/perfil-modulos.png) |
@@ -233,9 +259,80 @@ O estado fica na tabela `settings` (`module.<chave>` = `1`/`0`), por isso entra 
 
 **Acrescentar um módulo** (ex. `mysql`):
 
-1. Criar `app/modules/mysql/__init__.py` com um `Blueprint("mysql", __name__, url_prefix="/mysql", template_folder="templates")`, uma rota `index` e um `MODULO = modulos.registar(modulos.Modulo(chave="mysql", nome="MySQL", ...))` com as ações (`"mysql.<acao>": "descrição"`) e as abas.
+1. Criar `app/modules/mysql/__init__.py` com um `Blueprint("mysql", __name__, url_prefix="/mysql", template_folder="templates")`, uma rota `index` e um `MODULO = modulos.registar(modulos.Modulo(chave="mysql", nome="MySQL", ...))` com as ações (`"mysql.<acao>": "descrição"`) e as abas. Opcionais: `cartoes` (Home), `eventos` (regras de notificação) e `tarefas` (agendamentos: `{"mysql.verificar": {"nome": ..., "funcao": f(parametros) -> (estado, mensagem), "padrao": {...}, "parametros": [...]}}`), que aparecem sozinhos em Configuração → Agendamento.
 2. Acrescentar `"mysql"` a `INSTALADOS`, em `app/modulos.py`.
 3. Proteger as rotas com `@auth.requires("mysql.<acao>")`. O acesso ao módulo (`modulo.mysql`) e as ações aparecem sozinhos nos perfis, o menu aparece quando o módulo está ativo e o perfil tem acesso.
+
+---
+
+## Agendamento
+
+Em **Configuração → Agendamento**: as tarefas periódicas do portal e dos módulos ativos, executadas pelo **agente** (sem o agente não correm à hora marcada; podem correr à mão com **▶ Agora**).
+
+| Tarefa | Módulo | O que faz | Por omissão |
+|---|---|---|---|
+| **Backup do portal** | Portal | Backup da configuração (como em Backups), mantém os N mais recentes | Inativa, diário às 02:00 |
+| **Limpeza do histórico** | Portal | Apaga notificações lidas, emails enviados/com erro, execuções de agendamentos e ações sobre serviços com mais de N dias | Ativa, diário às 03:30, 90 dias |
+| **Verificação de tablespaces** | Oracle | Liga a cada BD (todas ou as indicadas) e verifica a ocupação em relação ao máximo com autoextend; acima do limiar gera o evento "Tablespace acima do limiar" | Inativa, a cada 4 h, 90 % |
+| **Validação da ligação SMTP** | SMTP | Liga ao servidor de email (TLS e autenticação) sem enviar; gera o evento "Ligação SMTP" (falhou/recuperou) | Ativa, a cada 60 min |
+
+| Opção | Valores |
+|---|---|
+| **Ativos / Desativar todos** | Interruptor geral: desativado, nenhuma tarefa corre à hora marcada |
+| **Frequência** | A cada N minutos (5–1440), a cada N horas (1–168), todos os dias às HH:MM, ou dias da semana às HH:MM |
+| **Notificar** | Não, Só se falhar, Sempre → evento **"Tarefa agendada terminada"** (sucesso, com avisos, falhou), entregue pelas regras do SMTP (sininho e/ou email). Vêm criadas: "Tarefa agendada falhou" no sininho (quem gere o portal) e por email (destinatários por omissão) |
+| **Parâmetros** | Próprios de cada tarefa (ex. backups a manter, dias a manter, limiar, bases de dados) |
+
+Cada execução fica registada (início, fim, estado, origem: agendamento ou manual, e a mensagem), em **Últimas execuções** e na página da tarefa. A configuração (tabela `agendamentos`) entra nos backups.
+
+> A validação SMTP passou a ser esta tarefa (antes era o campo "Validar a cada (min)" em SMTP → Geral). Numa instalação com o backup diário no cron do `instalar.sh`, a página avisa: use um ou o outro.
+
+![Configuração → Agendamento](docs/agendamento.png)
+
+---
+
+## Línguas (português e inglês)
+
+O portal é escrito em português. Ao lado do sininho há as **bandeiras**: cada utilizador escolhe a língua (fica guardada para ele e num cookie, para a página de entrada). Para quem ainda não escolheu, vale a **língua por omissão**.
+
+Em **Configuração → Aparência → Linguagem** (permissão `config.portal`):
+
+| Ação | Descrição |
+|---|---|
+| **Línguas** | Nome, ativa/inativa (inativa não aparece nas bandeiras), língua por omissão, e a percentagem traduzida |
+| **Acrescentar língua** | Código ISO (ex. `es`, `fr`, `pt-BR`) e nome. Fica inativa até ser traduzida e ativada |
+| **Ver traduções** | Tabela com o texto original e a tradução, pesquisa e filtros (Traduzidos, Alterados no portal, Em falta). Altera-se no próprio campo (guarda ao sair) e **Repor** volta à tradução do portal |
+| **Exportar XML** | Todos os textos do portal com a tradução atual (os em falta vêm vazios) |
+| **Importar** | Escolher o XML → **validação** sem alterar nada (XML bem formado, língua certa, sem `DOCTYPE`/`ENTITY`, marcadores `{n}` mantidos, textos desconhecidos, repetidos) → resumo (alterados, novos, iguais, sem tradução, erros) e a lista das diferenças → **Aplicar** |
+
+Formato do XML:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<lingua codigo="en" nome="English">
+  <texto>
+    <origem>Guardar</origem>
+    <traducao>Save</traducao>
+  </texto>
+  <texto>
+    <origem>há {n} min</origem>
+    <traducao>{n} min ago</traducao>
+  </texto>
+</lingua>
+```
+
+| Pormenor | Como funciona |
+|---|---|
+| Onde estão as traduções | As do portal em `app/i18n/<codigo>.xml` (vêm com o código); as alteradas no portal na tabela `traducoes`, que tem prioridade e entra nos backups |
+| Como se aplicam | No browser (`static/i18n.js`): os textos da página e dos atributos (dicas, marcadores dos campos) são trocados, incluindo o que o JavaScript cria depois. Um texto sem tradução fica em português |
+| Números | Procuram-se como `{n}`: "há 5 min" usa a tradução de "há {n} min". A tradução tem de manter os mesmos marcadores |
+| O que não é traduzido | Dados (nomes de BDs, tablespaces, utilizadores), código (`<code>`, logs, output do Oracle), o título do portal e o texto da manutenção (são definidos por si), e as notificações e emails já gerados (ficam na língua em que foram criados) |
+
+| Inglês | Linguagem → traduções | Importar (validação) |
+|---|---|---|
+| ![Inglês](docs/lingua-ingles.png) | ![Traduções](docs/traducoes.png) | ![Importar](docs/traducoes-importar.png) |
+
+![Configuração → Aparência → Linguagem](docs/linguagem.png)
 
 ---
 
@@ -550,6 +647,7 @@ Ao voltar a correr o script, ele mostra as instâncias do servidor e a configura
 | **Atualizar o código** pelo Git e reaplicar | `sudo ./instalar.sh --atualizar <nome> [URL [branch [pasta]]]`. Se a instância foi instalada a partir de uma pasta (sem repositório guardado), usa o URL indicado ou pergunta-o, e guarda-o para a próxima vez (ver [Atualizar o código](#6-atualizar-o-código-sincronizar-com-o-repositório)) |
 | **Diagnóstico** (portal indisponível?) | `sudo ./instalar.sh --verificar <nome>` |
 | **Modo de manutenção** | `sudo ./instalar.sh --manutencao <nome> on\|off\|status` |
+| **Serviços do módulo Sistema** (sudoers do agente) | `sudo ./instalar.sh --servicos <nome> [+servico\|-servico\|"lista"]`, ex. `+firewalld` |
 | **Outra instância** no mesmo servidor | `sudo ./instalar.sh` → "Nova instancia". Use outro nome DNS (ou outra porta HTTP) |
 | **Remover** | `sudo ./instalar.sh --desinstalar <nome>`: remove o serviço, o site do Nginx, o cron e a configuração guardada. Pergunta se apaga a pasta (antes guarda `data/` em `/root/<nome>-data-<data>.tar.gz`) e o utilizador. A base de dados MariaDB/PostgreSQL não é tocada |
 
@@ -906,7 +1004,7 @@ Só é preciso refazer a imagem (`docker-compose build`) para mudar o sistema ba
 
 ## Aparência: título, rodapé, ícone e tema
 
-Em **Configuração → Portal → Aparência** (permissão `config.portal`):
+Em **Configuração → Aparência → Geral** (permissão `config.portal`; a sub-aba **Linguagem** está em [Línguas](#línguas-português-e-inglês)):
 
 | Campo | Onde aparece | Notas |
 |---|---|---|
@@ -997,7 +1095,7 @@ Entre por SSH, abra o crontab com `crontab -e` e acrescente:
 0 2 * * * . /etc/profile.d/portal.sh; cd /srv/portal && /opt/venv/bin/python manage.py backup --prune >> data/cron.log 2>&1
 ```
 
-O `--prune` mantém só os N últimos backups do cron. N define-se em **Configuração → Portal → Geral**.
+O `--prune` mantém só os N últimos backups do cron. N define-se em **Configuração → Portal → Geral**. Em alternativa, use a tarefa **Backup do portal** em [Configuração → Agendamento](#agendamento) (feita pelo agente; não use os dois).
 
 ---
 
@@ -1153,6 +1251,9 @@ O driver é o **python-oracledb** em modo *thin* (sem Instant Client). Requer Or
 | `ERROR: No container found for portal_1` no `docker-compose exec` | O contentor não está a correr. Veja `docker-compose ps` e `docker-compose logs --tail 60 portal`. Se o `up` disse `container name "/oracle-portal" is already in use`, há outro contentor com o mesmo nome (outra instalação): pare-o ou mude `PORTAL_CONTAINER` no `.env`. O `portal-docker.sh` deteta os dois casos |
 | `services.portal.ports contains an invalid type, it should be a number, or an object` | Uma porta no `.env` não é só um número (ex. ficou `<porta_http>`, tem aspas, espaços, um comentário no fim ou CRLF). Veja com `grep -n PORT .env \| cat -A`, deixe `PORTAL_HTTP_PORT=8090` e `PORTAL_SSH_PORT=2223` e confirme com `docker-compose config -q`. O `portal-docker.sh` limpa e valida estes valores |
 | O `portal-docker.sh` volta a pôr as portas 8080 e 2222 | As portas foram alteradas no `docker-compose.yml`, que é substituído em cada atualização. Ponha-as no `.env` (`PORTAL_HTTP_PORT`, `PORTAL_SSH_PORT`) ou use `-H`/`-S` |
+| Um serviço aparece com 🔒 "sem sudoers" no Sistema | O agente não tem permissão para esse serviço: `sudo ./instalar.sh --servicos <nome> +<servico>` |
+| Uma tarefa agendada não corre | Confirme em Configuração → Agendamento: interruptor geral **Ativos**, tarefa ativa, módulo ativo e agente ativo (`systemctl status <nome>-agente`). O resultado de cada execução fica no histórico da tarefa |
+| Textos em português com a língua inglesa | São textos sem tradução: traduza-os em Configuração → Aparência → Linguagem (filtro **Em falta**) ou exporte/importe o XML. Dados, código e notificações já criadas não são traduzidos |
 | `Internal Server Error` | O erro fica no log do serviço com uma referência que aparece na página: `journalctl -u <nome> \| grep <referência>`. Na versão anterior acontecia em Oracle → Execuções quando havia uma execução em curso (corrigido) |
 | Emails não chegam | SMTP → Logs mostra o diálogo com o servidor e o erro. Confirme o **Envio automático ligado**, a regra ativa e o agente ativo (`systemctl status <nome>-agente`) |
 | Execução em `INTERROMPIDO` | O portal foi reiniciado durante a execução. Confirme em `V$SESSION` se a sessão Oracle continuou |

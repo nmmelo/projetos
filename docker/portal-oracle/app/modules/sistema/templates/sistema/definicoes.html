@@ -2,23 +2,58 @@
 {% block title %}Sistema · Definições{% endblock %}
 {% block content %}
 {% include "sistema/_tabs.html" %}
-<section class="card wide">
+{% set nome = instancia or '<nome>' %}
+<div class="smtp-grid">
+<section class="card">
   <h2>Serviços mostrados no painel</h2>
   <p class="muted">Um por linha (ou separados por espaços). Vazio = os do portal:
     {% for u in padrao %}<code>{{ u }}</code>{{ ', ' if not loop.last }}{% endfor %}.
     Gestor de serviços: <strong>{{ {'systemd': 'systemd (systemctl)', 'supervisor': 'supervisord (Docker)'}.get(backend, 'nenhum acessível') }}</strong>{% if instancia %}, instância <code>{{ instancia }}</code>{% endif %}.</p>
-  <form method="post" class="stack">
+  <form method="post" class="stack" id="fserv">
     <input type="hidden" name="csrf" value="{{ csrf_token }}">
-    <textarea name="servicos" rows="8" class="mono-area" placeholder="nginx&#10;{{ padrao[1] if padrao|length > 1 else 'portal' }}&#10;cron&#10;ssh&#10;postgresql">{{ atual|replace(' ', '\n') }}</textarea>
-    <p class="hint">Iniciar, parar e reiniciar é feito pelo agente. Numa instalação em servidor, o agente corre com o utilizador de
-      serviço e só pode gerir os serviços autorizados em <code>/etc/sudoers.d/{{ instancia or '&lt;nome&gt;' }}-agente</code>
-      (criado pelo <code>instalar.sh</code>, pergunta "Serviços geridos pelo módulo Sistema"). Se acrescentar aqui um serviço,
-      volte a correr <code>sudo instalar.sh {{ instancia or '&lt;nome&gt;' }}</code> e acrescente-o também lá.</p>
+    <textarea name="servicos" id="servicos" rows="8" class="mono-area" placeholder="nginx&#10;{{ padrao[1] if padrao|length > 1 else 'portal' }}&#10;firewalld&#10;chronyd">{{ atual|replace(' ', '\n') }}</textarea>
+    {% if instalados %}
+    <div class="sugestoes"><span class="muted small">Instalados neste servidor (clique para acrescentar):</span>
+      {% for u in instalados %}<button type="button" class="small tray-chip" data-add="{{ u }}">+ {{ u }}</button>{% endfor %}</div>
+    {% endif %}
     <div class="buttons"><button class="primary">Guardar</button></div>
   </form>
 </section>
-<section class="card wide" style="margin-top:16px">
-  <h2>Em uso</h2>
-  <p>{% for u in units %}<span class="tag">{{ u }}</span> {% endfor %}</p>
+
+<section class="card">
+  <h2>Em uso e permissões</h2>
+  <div class="lista">
+  {% for u in units %}
+    {% set ok = aut is none or u in aut %}
+    <div class="lrow"><span class="dot d-{{ 'ok' if ok else 'warn' }}"></span>
+      <span class="lrow-t"><b>{{ u }}</b><small>{{ 'Start, stop e restart pelo agente' if ok else 'Só o estado: sem permissão no sudoers' }}</small></span>
+      <span class="sys-pill {{ 'ok' if ok else 'warn' }}">{{ 'Autorizado' if ok else 'Sem sudoers' }}</span></div>
+  {% endfor %}
+  </div>
+  {% if aut is not none %}
+  {% set falta = units|reject('in', aut)|list %}
+  <p class="hint">Iniciar, parar e reiniciar é feito pelo agente, que corre com o utilizador de serviço e só pode gerir os
+    serviços em <code>/etc/sudoers.d/{{ nome }}-agente</code>. Para autorizar um serviço (ex. <code>firewalld</code>),
+    no servidor:</p>
+  <pre class="mono-area cmd">sudo instalar.sh --servicos {{ nome }} {% for u in falta or ['firewalld'] %}+{{ u }} {% endfor %}</pre>
+  <p class="hint">Ver a lista atual e os serviços detetados: <code>sudo instalar.sh --servicos {{ nome }}</code>.
+    Retirar: <code>-firewalld</code>. O agente e o portal são reiniciados.</p>
+  {% elif backend == 'supervisor' %}
+  <p class="hint">No Docker, o agente gere os programas do supervisord do contentor (nginx, gunicorn, agente, sshd, cron).
+    Os serviços do anfitrião (ex. <code>firewalld</code>) não são acessíveis a partir do contentor.</p>
+  {% else %}
+  <p class="hint">O agente corre como root: pode gerir qualquer serviço da lista.</p>
+  {% endif %}
 </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => {
+  const t = document.getElementById('servicos'), l = t.value.split(/[\s,]+/).filter(Boolean);
+  if (!l.length) l.push(...{{ padrao|tojson }});
+  if (!l.includes(b.dataset.add)) l.push(b.dataset.add);
+  t.value = l.join('\n'); b.disabled = true;
+});
+</script>
 {% endblock %}

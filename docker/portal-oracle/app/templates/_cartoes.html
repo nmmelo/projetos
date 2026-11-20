@@ -31,7 +31,7 @@
     <span class="dcard-grip" title="Arraste para mudar a ordem">⋮⋮</span>
     <button type="button" class="dcard-x" title="Esconder este cartão" aria-label="Esconder">✕</button></header>
   <div class="dcard-b">{{ caller() }}</div>
-  {% if url %}<a class="dcard-f" href="{{ url }}">{{ link_txt or 'Abrir' }} →</a>{% endif %}
+  {% if url %}<a class="dcard-f" href="{{ url }}"><span>{{ link_txt or 'Abrir' }}</span> →</a>{% endif %}
 </article>
 {%- endmacro %}
 

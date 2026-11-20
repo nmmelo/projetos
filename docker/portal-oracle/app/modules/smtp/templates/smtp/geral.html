@@ -33,9 +33,10 @@
     <label>Endereço do portal (ligações nos emails)
       <input name="smtp_url_portal" value="{{ s.smtp_url_portal or url_sugerido }}" {{ 'disabled' if not pode }}></label>
     <label>Timeout (s) <input name="smtp_timeout" type="number" min="3" max="300" value="{{ s.smtp_timeout or 20 }}" {{ 'disabled' if not pode }}></label>
-    <label>Validar a ligação a cada (min)
-      <input name="smtp_validar_min" type="number" min="0" max="10080" value="{{ s.smtp_validar_min or 60 }}" {{ 'disabled' if not pode }}>
-      <span class="hint">Feito pelo agente; 0 = nunca. Falhas geram o evento "Ligação SMTP".</span></label>
+    <div class="field-nota"><span>Validação periódica</span>
+      <span class="hint">É a tarefa "Validação da ligação SMTP" em
+      {% if user.can('config.portal') %}<a href="{{ url_for('portal.cfg_agendamento') }}">Configuração → Agendamento</a>{% else %}Configuração → Agendamento{% endif %}
+      (por omissão a cada 60 min, feita pelo agente). Falhas geram o evento "Ligação SMTP".</span></div>
     <label class="full">Nome no EHLO (opcional) <input name="smtp_helo" value="{{ s.smtp_helo or '' }}" placeholder="nome do servidor (FQDN)" {{ 'disabled' if not pode }}></label>
   </div>
   {% if pode %}<div class="buttons"><button class="primary">Guardar</button></div>{% endif %}

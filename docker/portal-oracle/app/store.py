@@ -13,10 +13,11 @@ from datetime import datetime, timedelta
 from . import aparencia, crypto, modulos, settings
 
 TABLES = ("settings", "oracle_dbs", "profiles", "users", "jobs", "backups", "system_actions",
-          "notification_rules", "notifications", "email_queue")
+          "notification_rules", "notifications", "email_queue", "traducoes", "agendamentos",
+          "agendamento_execucoes")
 
 # Definicoes volateis (escritas pelo agente a cada poucos segundos): fora dos backups
-VOLATEIS = ("agente_estado", "sistema_metricas", "smtp_estado", "regras_iniciais")
+VOLATEIS = ("agente_estado", "sistema_metricas", "smtp_estado", "regras_iniciais", "regras_iniciais_2", "i18n_rev")
 
 _SCHEMA = [
     """CREATE TABLE IF NOT EXISTS settings (
@@ -117,6 +118,41 @@ _SCHEMA = [
         erro TEXT,
         log {LONGTEXT},
         pedido_por VARCHAR(64)
+    ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS traducoes (
+        id {ID},
+        lingua VARCHAR(10) NOT NULL,
+        chave VARCHAR(40) NOT NULL,
+        origem TEXT NOT NULL,
+        texto TEXT,
+        updated_at VARCHAR(19),
+        updated_by VARCHAR(64),
+        UNIQUE (lingua, chave)
+    ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS agendamentos (
+        id VARCHAR(80) NOT NULL PRIMARY KEY,
+        ativo INTEGER NOT NULL DEFAULT 0,
+        freq VARCHAR(10) NOT NULL DEFAULT 'diario',
+        hora VARCHAR(5),
+        intervalo INTEGER,
+        dias VARCHAR(20),
+        notificar VARCHAR(10) NOT NULL DEFAULT 'erro',
+        parametros TEXT,
+        proxima VARCHAR(19),
+        ultima_inicio VARCHAR(19),
+        ultima_fim VARCHAR(19),
+        ultimo_estado VARCHAR(12),
+        ultima_msg TEXT,
+        updated_by VARCHAR(64)
+    ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS agendamento_execucoes (
+        id {ID},
+        tarefa VARCHAR(80) NOT NULL,
+        inicio VARCHAR(19) NOT NULL,
+        fim VARCHAR(19),
+        estado VARCHAR(12) NOT NULL,
+        msg TEXT,
+        origem VARCHAR(64)
     ){SUFFIX}""",
     """CREATE TABLE IF NOT EXISTS system_actions (
         id {ID},
@@ -310,7 +346,7 @@ class Store:
                     t.run(f"INSERT INTO {tb} ({cols}) VALUES ({', '.join('?' * len(row))})", row.values())
             if self.kind == "postgresql":  # acertar as sequencias depois de inserir ids explicitos
                 for tb in TABLES:
-                    if tb != "settings":
+                    if tb not in ("settings", "agendamentos"):
                         t.run(f"SELECT setval(pg_get_serial_sequence('{tb}', 'id'), "
                               f"COALESCE((SELECT MAX(id) FROM {tb}), 0) + 1, false)")
 

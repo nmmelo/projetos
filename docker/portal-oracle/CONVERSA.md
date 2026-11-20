@@ -331,3 +331,18 @@ Chat de 19 de novembro de 2026.
 
 **Resposta:** o contentor não estava a correr (parou no arranque, ou não foi criado porque já existia outro contentor `oracle-portal`). O nome passou a ser configurável (`PORTAL_CONTAINER` no `.env`), e o `portal-docker.sh` deteta um contentor com o mesmo nome de outra pasta e espera que o contentor fique a correr, mostrando o log se não ficar.
 
+## 22. Firewalld no Sistema, língua, agendamento e edição de módulos
+
+Chat de 20 de novembro de 2026.
+
+**Pergunta:**
+> permitir por exemplo no caso do firewalld, iniciar , parar e restart, tendo também ao pé do icon notificação, a opção de mudar de lingua, neste caso deve ter portuges, ingles pode ser paracido ao projeto portal no repositorio workspace, onde temos com icon. Nas configuração, podemos ter ouma aba com agendamento, onde temos se está ativo, temos lá os modulos que tem backup, outros modulos que possam aparecer, para isso na parte dos modulos podemos ter editar e lá podemos alterar o nome, ver quem tem acesso (um ou mais perfis), o agendamento, ou seja ativo, notificação. Na aparencia temos sub abas, uma com geral, outra com linguagem, onde temos as linguas, podendo ver a tradução , podendo alterar se quisermos, podemos também export em xml e alterar lá e voltar a importar o xml, fazendo primeiro uma validação.
+
+**Resposta:**
+
+- **Firewalld:** `instalar.sh --servicos <nome> +firewalld` atualiza o sudoers do agente (validado com `visudo`); Sistema → Definições sugere os serviços instalados e mostra se cada um está autorizado; no painel, 🔒 em vez dos botões quando não está.
+- **Língua:** bandeiras (português, inglês) ao lado do sininho, por utilizador e na página de entrada; tradução no browser a partir de `app/i18n/en.xml` (cerca de 1000 textos).
+- **Aparência:** sub-abas Geral e Linguagem (línguas, língua por omissão, acrescentar línguas, ver/alterar traduções, exportar XML, importar com validação e revisão das diferenças antes de aplicar).
+- **Agendamento:** nova aba, executado pelo agente: backup do portal, limpeza do histórico, verificação de tablespaces (Oracle) e validação SMTP; frequência, notificação (evento "Tarefa agendada terminada"), parâmetros, executar agora e histórico.
+- **Módulos → Editar:** nome, perfis com acesso, agendamentos e regras de notificação do módulo.
+

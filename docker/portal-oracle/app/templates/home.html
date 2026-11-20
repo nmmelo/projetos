@@ -3,7 +3,7 @@
 {% block title %}Home{% endblock %}
 {% block content %}
 <div class="dash-bar">
-  <h1>Olá, {{ user.name or user.username }}</h1>
+  <h1><span>Olá,</span> <span translate="no">{{ user.name or user.username }}</span></h1>
   {{ controlos() }}
 </div>
 <div class="dash-tray" id="tray" hidden></div>

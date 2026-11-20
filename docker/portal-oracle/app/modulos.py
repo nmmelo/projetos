@@ -27,8 +27,15 @@ class Modulo:
     # (oculto=True: disponivel em "Editar painel" mas escondido por omissao)
     cartoes: dict = field(default_factory=dict)
     home_context: object = None                       # funcao(user) -> dict (ctx) para os templates dos cartoes
+    # Tarefas agendadas (Configuracao > Agendamento): id -> {nome, descricao, funcao(parametros) -> (estado, msg),
+    # padrao: {ativo, freq, hora, intervalo, dias, notificar}, parametros: [{chave, rotulo, tipo, padrao, min, max}]}
+    tarefas: dict = field(default_factory=dict)
     eventos: dict = field(default_factory=dict)        # eventos para as regras de email/notificacao
     ativo_por_omissao: bool = True
+    nome_original: str = ""                            # nome do codigo (o "nome" pode ser mudado no portal)
+
+    def __post_init__(self):
+        self.nome_original = self.nome_original or self.nome
 
     @property
     def acesso(self) -> str:
@@ -113,6 +120,8 @@ def ativos() -> set:
         s = {}
     res = {k for k, m in REGISTO.items()
            if s.get(f"module.{k}", "1" if m.ativo_por_omissao else "0") == "1"}
+    for k, m in REGISTO.items():                  # nome mudado em Configuracao > Modulos > Editar
+        m.nome = (s.get(f"module_nome.{k}") or "").strip() or m.nome_original
     if has_app_context():
         g._modulos_ativos = res
     return res
@@ -127,7 +136,8 @@ def visiveis(user) -> list:
 
 def todos_eventos() -> dict:
     """evento -> definicao (com o nome do modulo), de todos os modulos registados."""
-    out = {}
+    from .agendamento import EVENTOS_PORTAL
+    out = {ev: {**d, "modulo": "Portal", "chave_modulo": "portal"} for ev, d in EVENTOS_PORTAL.items()}
     for k in INSTALADOS:
         m = REGISTO.get(k)
         if m:

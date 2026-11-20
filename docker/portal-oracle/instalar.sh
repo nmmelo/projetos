@@ -111,6 +111,10 @@ Uso:
   sudo ./instalar.sh --verificar [NOME]   diagnostico (portal indisponivel?): servico, Gunicorn,
                                       permissoes de data/ e .venv, ficheiros a mais, Nginx, registo
   sudo ./instalar.sh --manutencao NOME on|off|status   modo de manutencao do portal
+  sudo ./instalar.sh --servicos NOME [LISTA | +UNIT | -UNIT ...]
+                                      servicos do modulo Sistema que o agente pode iniciar/parar/
+                                      reiniciar (sudoers). Sem argumentos mostra a lista e os servicos
+                                      detetados. Ex.: --servicos dba-portal +firewalld
   sudo ./instalar.sh --desinstalar [NOME]
   ./instalar.sh --help                esta ajuda (tambem -h, --ajuda)
 
@@ -433,6 +437,56 @@ instalar_sudoers() {   # o agente (utilizador de servico) pode start/stop/restar
     ok "sudoers: $f ($SERVICOS)"
 }
 
+# ============================================================================ servicos (modulo Sistema)
+servicos_detetados() {   # servicos uteis instalados neste servidor
+    systemctl list-unit-files --type=service --no-legend --no-pager 2>/dev/null | awk '{print $1}' | sed 's/\.service$//' \
+        | grep -xE 'firewalld|ufw|nftables|iptables|chronyd|chrony|ntp|ntpd|crond|cron|sshd|ssh|rsyslog|auditd|NetworkManager|docker|containerd|postfix|nginx|httpd|apache2|mariadb|mysql|mysqld|postgresql(@.*|-[0-9.]+)?|oracle-ohasd|ohasd|oracle.*|dbora|tuned|fail2ban|zabbix-agent2?|node_exporter|snmpd' \
+        | sort -u | tr '\n' ' '
+}
+
+gerir_servicos() {   # --servicos NOME [LISTA | +UNIT | -UNIT ...]
+    local a nova novos=() u det
+    titulo "Servicos do modulo Sistema - '$NOME'"
+    info "Atuais (sudoers do agente): ${SERVICOS:-nenhum}"
+    det=$(servicos_detetados)
+    [[ -n $det ]] && info "Detetados neste servidor:   $det"
+    if (( ${#SERV_ARGS[@]} == 0 )); then
+        info "Alterar: sudo $0 --servicos $NOME +firewalld   (acrescentar)"
+        info "         sudo $0 --servicos $NOME -firewalld   (retirar)"
+        info "         sudo $0 --servicos $NOME \"nginx $NOME $NOME-agente firewalld\"   (lista completa)"
+        exit 0
+    fi
+    read -ra novos <<< "${SERVICOS:-}"
+    for a in "${SERV_ARGS[@]}"; do
+        for u in $a; do
+            case "$u" in
+                +*) u=${u#+}; [[ " ${novos[*]} " == *" $u "* ]] || novos+=("$u") ;;
+                -*) u=${u#-}; local t=(); for x in "${novos[@]}"; do [[ $x == "$u" ]] || t+=("$x"); done; novos=("${t[@]}") ;;
+                *)  [[ ${SUBST_FEITA:-0} == 1 ]] || { novos=(); SUBST_FEITA=1; }
+                    [[ " ${novos[*]} " == *" $u "* ]] || novos+=("$u") ;;
+            esac
+            [[ $u =~ ^[A-Za-z0-9@._:-]+$ ]] || erro "nome de servico invalido: $u"
+        done
+    done
+    nova="${novos[*]}"
+    [[ -n $nova ]] || erro "a lista ficaria vazia"
+    for u in "${novos[@]}"; do
+        systemctl cat "$u" >/dev/null 2>&1 || aviso "o servico '$u' nao existe neste servidor (fica na lista)"
+    done
+    SERVICOS=$nova
+    T_NOME=$NOME T_DIR=$DIR T_UTILIZADOR=$UTIL T_BIND="127.0.0.1:$PORTA_GUNICORN" T_SERVICOS=$SERVICOS \
+        render "$DIR/deploy/portal.service.tpl" "/etc/systemd/system/$NOME.service"
+    T_NOME=$NOME T_DIR=$DIR T_UTILIZADOR=$UTIL T_SERVICOS=$SERVICOS \
+        render "$DIR/deploy/agente.service.tpl" "/etc/systemd/system/$NOME-agente.service"
+    instalar_sudoers
+    gravar_estado "${ESTADO_INST:-concluida}"
+    systemctl daemon-reload
+    systemctl restart "$NOME-agente" "$NOME"
+    ok "servicos: $SERVICOS"
+    info "No portal (Sistema > Definicoes) acrescente-os tambem a lista mostrada, se a tiver alterado."
+    exit 0
+}
+
 # ============================================================================ verificar
 verificar() {   # diagnostico de uma instancia (portal indisponivel?)
     local unit="/etc/systemd/system/$NOME.service" cod dono modo f problemas=0
@@ -491,6 +545,7 @@ case "${1:-}" in
     --manutencao)
         MODO=manutencao; NOME_ARG=${2:-}; MANUT_ACAO=${3:-status}
         [[ $MANUT_ACAO =~ ^(on|off|status)$ ]] || { echo "Uso: $0 --manutencao NOME on|off|status" >&2; exit 2; } ;;
+    --servicos) MODO=servicos; NOME_ARG=${2:-}; shift 2 2>/dev/null || shift $#; SERV_ARGS=("$@") ;;
     -*) echo "Opcao desconhecida: $1 (ver $0 --help)" >&2; exit 2 ;;
     *) NOME_ARG=${1:-} ;;
 esac
@@ -544,6 +599,7 @@ if [[ $MODO == verificar || $MODO == manutencao ]]; then
     manage maintenance "$MANUT_ACAO" | sed 's/^/   /'
     exit 0
 fi
+[[ $MODO == servicos ]] && { (( REINSTALAR )) || erro "a instancia '$NOME_ARG' nao tem configuracao guardada."; gerir_servicos; }
 [[ $MODO == desinstalar ]] && desinstalar "$NOME_ARG"
 
 if (( REINSTALAR )); then
@@ -756,6 +812,8 @@ info "Modulo Sistema: servicos mostrados no portal e que o agente pode iniciar/p
 SERV_DEF="nginx $NOME $NOME-agente"
 [[ $BD_OPCAO == mariadb-local ]] && SERV_DEF+=" mariadb"
 [[ $BD_OPCAO == postgresql-local ]] && SERV_DEF+=" postgresql"
+for u in firewalld ufw; do systemctl cat "$u" >/dev/null 2>&1 && SERV_DEF+=" $u" && break; done
+info "Servicos detetados neste servidor: $(servicos_detetados)"
 perguntar SERVICOS "Servicos geridos pelo modulo Sistema" "${SERVICOS:-$SERV_DEF}" '^[A-Za-z0-9@._: -]+$'
 SERVICOS=$(echo "$SERVICOS" | tr -s ' ')
 FW=""

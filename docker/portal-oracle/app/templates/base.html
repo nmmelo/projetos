@@ -1,11 +1,16 @@
 <!DOCTYPE html>
-<html lang="pt-PT" data-tema="{{ theme }}">
+<html lang="{{ 'pt-PT' if lingua == 'pt' else lingua }}" data-tema="{{ theme }}"{% if lingua != 'pt' %} class="i18n"{% endif %}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{% endblock %} · {{ portal_name }}</title>
   <link rel="icon" href="{{ url_for('portal.favicon', v=favicon_ver) }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=static_v) }}">
+  {% if lingua != 'pt' %}
+  <style>html.i18n body { visibility: hidden; }</style>
+  <script src="{{ url_for('portal.i18n_js', codigo=lingua, v=i18n_v) }}"></script>
+  {% endif %}
+  <script src="{{ url_for('static', filename='i18n.js', v=static_v) }}"></script>
 </head>
 <body>
 <header class="top">
@@ -23,8 +28,18 @@
     {% endif %}
   </nav>
   {% endif %}
-  {% if user %}
+  {% if user or request.endpoint == 'portal.login' %}
   <div class="who">
+    {% if linguas_ativas|length > 1 %}
+    <div class="lang-switch" role="group" aria-label="Língua" translate="no">
+      {% for l in linguas_ativas %}
+      <button type="button" data-lingua="{{ l.codigo }}" title="{{ l.nome }}" aria-label="{{ l.nome }}" aria-pressed="{{ 'true' if l.codigo == lingua else 'false' }}">
+        {%- if l.codigo in ('pt', 'en') %}<img src="{{ url_for('static', filename='bandeiras/' ~ l.codigo ~ '.svg') }}" alt="">{% else %}<span>{{ l.codigo|upper }}</span>{% endif -%}
+      </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% if user %}
     {% if not pagina_minima %}
     <div class="bell-wrap">
       <button type="button" class="bell" id="bell" title="Notificações" aria-label="Notificações">
@@ -41,6 +56,7 @@
     <form method="post" action="{{ url_for('portal.logout') }}">
       <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="link">Sair</button>
     </form>
+  {% endif %}
   </div>
   {% endif %}
 </header>
@@ -55,6 +71,16 @@
   {% block content %}{% endblock %}
 </main>
 {% if footer %}<footer class="rodape">{{ footer }}</footer>{% endif %}
+{% if linguas_ativas|length > 1 %}
+<script>
+document.querySelectorAll('[data-lingua]').forEach(b => b.onclick = async () => {
+  if (b.getAttribute('aria-pressed') === 'true') return;
+  const r = await fetch("{{ url_for('portal.idioma') }}", {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF': "{{ csrf_token }}"},
+                                                    body: JSON.stringify({lingua: b.dataset.lingua})});
+  if (r.ok) location.reload();
+});
+</script>
+{% endif %}
 {% if user and not pagina_minima %}
 <script>
 (() => {

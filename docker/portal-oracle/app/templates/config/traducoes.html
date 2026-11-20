@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Traduções · {{ l.nome }}{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+{% include "config/_aparencia_tabs.html" %}
+<p class="crumbs"><a href="{{ url_for('portal.cfg_linguas') }}">Linguagem</a> › <span translate="no">{{ l.nome }}</span> ({{ l.codigo }})</p>
+
+<div class="smtp-grid tr-topo">
+<section class="jx-filtros">
+  <div class="jx-toolbar">
+    <label class="jx-search"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 2a8 8 0 0 1 6.32 12.9l5.39 5.4-1.42 1.4-5.39-5.38A8 8 0 1 1 10 2Zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z"/></svg>
+      <input type="search" id="q" placeholder="Procurar no texto original ou na tradução" autocomplete="off"></label>
+  </div>
+  <div class="jx-linha2">
+    <div class="jx-chips" id="chips">
+      {% for k, r, c in [('', 'Todos', 'todas'), ('traduzida', 'Traduzidos', 'sucesso'), ('alterada', 'Alterados no portal', 'em-curso'), ('em falta', 'Em falta', 'aviso')] %}
+      <button type="button" class="chip r-{{ c }} {{ 'on' if not k }}" data-f="{{ k }}"><i></i>{{ r }} <b data-n="{{ k }}">0</b></button>{% endfor %}
+    </div>
+  </div>
+</section>
+<section class="card">
+  <h2>Exportar / importar</h2>
+  <div class="buttons wrap">
+    <a class="btn" href="{{ url_for('portal.cfg_traducoes_exportar', codigo=l.codigo) }}">⬇ Exportar XML</a>
+    <form method="post" action="{{ url_for('portal.cfg_traducoes_importar', codigo=l.codigo) }}" enctype="multipart/form-data" class="inline-form">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <input type="file" name="xml" accept=".xml,application/xml,text/xml" required>
+      <button class="primary">Validar e importar</button>
+    </form>
+  </div>
+  <p class="hint">O XML tem todos os textos. Altere só o <code>&lt;traducao&gt;</code>; o ficheiro é validado antes de ser
+    aplicado e pode rever as diferenças.</p>
+  <form method="post" action="{{ url_for('portal.cfg_traducoes_repor', codigo=l.codigo) }}"
+        onsubmit="return confirm('Apagar todas as alterações feitas no portal a esta língua?')">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <button class="small danger" {{ 'disabled' if not cont.alterada }}>Repor as traduções do portal ({{ cont.alterada }} alteração(ões))</button>
+  </form>
+</section>
+</div>
+
+<div class="table-wrap">
+<table class="tr-tab" translate="no">
+  <thead><tr><th style="width:42%">Texto original (português)</th><th>Tradução ({{ l.nome }})</th><th style="width:130px">Estado</th></tr></thead>
+  <tbody id="rows"><tr><td colspan="3" class="muted">A carregar…</td></tr></tbody>
+</table>
+</div>
+<div class="pager"><span id="pinfo" class="muted small"></span>
+  <button type="button" class="small" id="prev">‹ Anterior</button><button type="button" class="small" id="next">Seguinte ›</button></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const API = "{{ url_for('portal.cfg_traducoes_api', codigo=l.codigo) }}", GUARDAR = "{{ url_for('portal.cfg_traducao_guardar', codigo=l.codigo) }}";
+  const CSRF = "{{ csrf_token }}", POR = 50, $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const T = s => (window.t ? window.t(s) : s);
+  const EST = {traduzida: ['Traduzido', 'ok'], alterada: ['Alterado', 'warn'], 'em falta': ['Em falta', 'off']};
+  let linhas = [], filtro = '', pag = 0;
+  async function carregar() { const r = await fetch(API, {cache: 'no-store'}); const d = await r.json(); linhas = d.linhas; contar(d.cont); desenhar(); }
+  function contar(c) { document.querySelectorAll('#chips b').forEach(b => b.textContent = b.dataset.n ? c[b.dataset.n] : c.total); }
+  function visiveis() { const q = $('q').value.trim().toLowerCase();
+    return linhas.filter(x => (!filtro || x.estado === filtro) && (!q || x.origem.toLowerCase().includes(q) || x.traducao.toLowerCase().includes(q))); }
+  function linha(x) {
+    const [et, ec] = EST[x.estado];
+    return `<tr data-o="${esc(x.origem)}"><td class="tr-o">${esc(x.origem)}</td>
+      <td><textarea rows="${Math.min(4, Math.ceil((x.origem.length + 1) / 60))}" placeholder="${esc(T('(sem tradução: mostra o português)'))}">${esc(x.traducao)}</textarea>
+        ${x.estado === 'alterada' ? `<small class="muted">${esc(T('Original do portal'))}: ${esc(x.ficheiro || '—')} · ${esc(x.por)} ${esc(x.em)}</small>` : ''}</td>
+      <td><span class="sys-pill ${ec}">${esc(T(et))}</span><span class="tr-st"></span>
+        ${x.estado === 'alterada' ? `<button type="button" class="small link-btn" data-repor>${esc(T('Repor'))}</button>` : ''}</td></tr>`;
+  }
+  function desenhar() {
+    const v = visiveis(), max = Math.max(0, Math.ceil(v.length / POR) - 1); pag = Math.min(pag, max);
+    $('rows').innerHTML = v.slice(pag * POR, pag * POR + POR).map(linha).join('') || `<tr><td colspan="3" class="muted">${esc(T('Nenhum texto.'))}</td></tr>`;
+    $('pinfo').textContent = v.length ? `${pag * POR + 1}–${Math.min(v.length, pag * POR + POR)} / ${v.length}` : '0';
+    $('prev').disabled = pag === 0; $('next').disabled = pag >= max;
+  }
+  async function guardar(tr, corpo) {
+    const st = tr.querySelector('.tr-st'); st.textContent = '…';
+    const r = await fetch(GUARDAR, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF': CSRF},
+                                    body: JSON.stringify({origem: tr.dataset.o, ...corpo})});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) { st.textContent = '⚠ ' + (d.error || r.status); st.className = 'tr-st c-bad'; return; }
+    const i = linhas.findIndex(x => x.origem === tr.dataset.o); if (i >= 0 && d.linha) linhas[i] = d.linha;
+    contar(d.cont);
+    const novo = document.createElement('tbody'); novo.innerHTML = linha(linhas[i]); const n = novo.firstElementChild;
+    tr.replaceWith(n); const s = n.querySelector('.tr-st'); s.textContent = '✓'; s.className = 'tr-st c-ok';
+  }
+  $('rows').addEventListener('change', e => { if (e.target.tagName === 'TEXTAREA') guardar(e.target.closest('tr'), {texto: e.target.value}); });
+  $('rows').addEventListener('click', e => { if (e.target.matches('[data-repor]')) guardar(e.target.closest('tr'), {repor: true}); });
+  $('chips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return;
+    document.querySelectorAll('#chips .chip').forEach(x => x.classList.toggle('on', x === b)); filtro = b.dataset.f; pag = 0; desenhar(); });
+  let tq; $('q').addEventListener('input', () => { clearTimeout(tq); tq = setTimeout(() => { pag = 0; desenhar(); }, 200); });
+  $('prev').onclick = () => { pag--; desenhar(); }; $('next').onclick = () => { pag++; desenhar(); };
+  carregar();
+})();
+</script>
+{% endblock %}

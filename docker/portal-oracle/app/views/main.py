@@ -25,6 +25,32 @@ def login():
     return render_template("login.html", no_admin=settings.admin() is None, manut_msg=manut_msg)
 
 
+@bp.route("/i18n/<codigo>.js")
+def i18n_js(codigo):
+    """Dicionario de uma lingua para o static/i18n.js (publico: tambem e usado na pagina de login)."""
+    from .. import i18n
+    if not i18n.CODIGO_RE.match(codigo) or codigo not in {x["codigo"] for x in i18n.linguas()}:
+        abort(404)
+    resp = make_response(i18n.js(codigo))
+    resp.headers["Content-Type"] = "application/javascript; charset=utf-8"
+    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable" if request.args.get("v") else "no-cache"
+    return resp
+
+
+@bp.route("/idioma", methods=["POST"])
+def idioma():
+    """Muda a lingua (do utilizador, e num cookie para a pagina de login)."""
+    from .. import i18n
+    codigo = (request.get_json(silent=True) or request.form).get("lingua", "")
+    user = g.get("user")
+    if not i18n.escolher(str(user.id) if user else None, codigo):
+        return jsonify(ok=False, error="Língua desconhecida."), 400
+    resp = jsonify(ok=True)
+    resp.set_cookie("lingua", codigo, max_age=365 * 86400, samesite="Lax", httponly=True,
+                    secure=current_app.config.get("SESSION_COOKIE_SECURE", False))
+    return resp
+
+
 @bp.route("/favicon.ico")
 def favicon():
     """Icone configurado em Configuracao > Portal > Aparencia, ou o de omissao (static/favicon.svg).

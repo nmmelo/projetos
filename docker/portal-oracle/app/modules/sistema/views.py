@@ -49,6 +49,9 @@ def api_estado():
         for s in servs:
             s["papel"] = sistema_info.papel(s["unit"])
         m.update(historico=[], servicos=servs, backend=sistema_info.servicos_backend(), origem="portal")
+    aut = sistema_info.autorizados()
+    for s in m.get("servicos", []):
+        s["autorizado"] = aut is None or s["unit"] in aut
     acoes = store.list_actions(15)
     return jsonify(ok=True, metricas=m, agente=ag, acoes=acoes,
                    pode_servicos=g.user.can("sistema.servicos") and ag["ativo"])
@@ -63,6 +66,11 @@ def acao():
         return jsonify(ok=False, error="Serviço ou ação inválida."), 400
     if not agente_info.ativo():
         return jsonify(ok=False, error="O agente do portal está parado: as ações sobre serviços são feitas por ele."), 409
+    aut = sistema_info.autorizados()
+    if aut is not None and unit not in aut:
+        nome = sistema_info.instancia() or "<nome>"
+        return jsonify(ok=False, error=f"O agente não tem permissão para gerir '{unit}' (sudoers). No servidor: "
+                                       f"sudo instalar.sh --servicos {nome} +{unit}"), 403
     aid = store.add_action(unit, acao_, g.user.username)
     return jsonify(ok=True, id=aid)
 
@@ -81,6 +89,7 @@ def definicoes():
             flash("Serviços guardados." if lista else "Lista vazia: são usados os serviços por omissão.", "ok")
             return redirect(url_for("sistema.definicoes"))
     atual = store.get_setting("sistema_servicos") or ""
+    aut = sistema_info.autorizados()
     return render_template("sistema/definicoes.html", atual=atual, padrao=sistema_info.servicos_padrao(),
                            backend=sistema_info.servicos_backend(), instancia=sistema_info.instancia(),
-                           units=_units())
+                           units=_units(), instalados=sistema_info.servicos_instalados(), aut=aut)

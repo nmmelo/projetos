@@ -2,6 +2,7 @@
 {% block title %}Configuração · Aparência{% endblock %}
 {% block content %}
 {% include "config/_tabs.html" %}
+{% include "config/_aparencia_tabs.html" %}
 <form method="post" enctype="multipart/form-data" class="stack wide-form">
   <input type="hidden" name="csrf" value="{{ csrf_token }}">
 

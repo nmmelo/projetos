@@ -82,7 +82,9 @@ function desenhar(d) {
       const det = [s.descricao, s.pid && 'pid ' + s.pid, s.memoria != null && mb(s.memoria), s.cpu_pct != null && s.cpu_pct + '% CPU',
                    s.desde && s.estado === 'active' && 'desde ' + s.desde].filter(Boolean).join(' · ');
       const ped = pedidos[s.unit];
-      const act = !PODE || !d.pode_servicos || s.existe === false ? '' : ped ? `<span class="sys-pedido">⏳ ${esc(ped)}…</span>`
+      const act = !PODE || !d.pode_servicos || s.existe === false ? ''
+        : s.autorizado === false ? `<span class="muted small" title="O agente não tem permissão (sudoers). Ver Sistema → Definições.">🔒 sem sudoers</span>`
+        : ped ? `<span class="sys-pedido">⏳ ${esc(ped)}…</span>`
         : s.estado !== 'active' ? `<button type="button" class="small primary" data-u="${esc(s.unit)}" data-a="start" title="Iniciar">▶</button>`
         : `<button type="button" class="small" data-u="${esc(s.unit)}" data-a="restart" title="Reiniciar">⟳</button>
            <button type="button" class="small danger" data-u="${esc(s.unit)}" data-a="stop" title="Parar">■</button>`;

@@ -14,13 +14,16 @@
     </div>
     <p>{{ i.m.descricao }}</p>
     <table class="kv small">
-      <tr><th>Menu</th><td>{% for _, rotulo, _ in i.m.abas %}{{ rotulo }}{{ ' · ' if not loop.last }}{% endfor %}</td></tr>
+      <tr><th>Menu</th><td>{% for _, rotulo, _ in i.m.abas %}<span>{{ rotulo }}</span>{{ ' · ' if not loop.last }}{% endfor %}</td></tr>
       <tr><th>Permissões</th><td>{{ i.m.acoes|length + 1 }} (acesso + {{ i.m.acoes|length }} ações)</td></tr>
+      <tr><th>Agendamentos</th><td>{{ i.m.tarefas|length or 'nenhum' }}</td></tr>
+      <tr><th>Eventos</th><td>{{ i.m.eventos|length or 'nenhum' }}</td></tr>
       <tr><th>Perfis com acesso</th><td>{% for n in i.perfis %}<span class="tag">{{ n }}</span> {% else %}<span class="muted">nenhum (só o administrador)</span>{% endfor %}</td></tr>
     </table>
     <form method="post" class="buttons">
       <input type="hidden" name="csrf" value="{{ csrf_token }}">
       <input type="hidden" name="module" value="{{ i.m.chave }}">
+      <a class="btn" href="{{ url_for('portal.cfg_module_edit', chave=i.m.chave) }}">✎ Editar</a>
       {% if i.ativo %}
       <button class="danger" name="active" value="0"
               onclick="return confirm('Desativar o módulo {{ i.m.nome }}? O menu desaparece para todos os utilizadores.')">Desativar</button>

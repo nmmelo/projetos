@@ -214,6 +214,43 @@ def acao_servico(unit: str, acao: str) -> tuple[bool, str]:
     return False, "Sem systemd nem supervisord neste servidor."
 
 
+_AUT = {"t": 0.0, "v": None}
+
+
+def autorizados() -> set[str] | None:
+    """Servicos que este utilizador pode iniciar/parar/reiniciar (sudoers), ou None = sem restricao
+    (root, ou supervisord no Docker). Lido de 'sudo -n -l' e guardado 60 s."""
+    if servicos_backend() != "systemd" or os.geteuid() == 0:
+        return None
+    if time.time() - _AUT["t"] < 60 and _AUT["v"] is not None:
+        return _AUT["v"]
+    rc, out = _run(["sudo", "-n", "-l"], timeout=10)
+    ok = set()
+    if rc == 0:
+        for m in re.finditer(r"systemctl\s+(start|stop|restart)\s+([A-Za-z0-9@._:-]+)", out):
+            ok.add(m.group(2))
+    _AUT.update(t=time.time(), v=ok)
+    return ok
+
+
+UTEIS = re.compile(r"^(firewalld|ufw|nftables|iptables|chronyd|chrony|ntpd?|crond?|sshd?|rsyslog|auditd|NetworkManager|"
+                   r"docker|containerd|postfix|nginx|httpd|apache2|mariadb|mysqld?|postgresql(@.*|-[0-9.]+)?|"
+                   r"oracle.*|ohasd|dbora|tuned|fail2ban|zabbix-agent2?|node_exporter|snmpd)$")
+
+
+def servicos_instalados() -> list[str]:
+    """Servicos uteis instalados (firewalld, chronyd, bases de dados, ...), para sugerir nas Definicoes."""
+    b = servicos_backend()
+    if b == "supervisor":
+        rc, out = _run(["supervisorctl", "status"], timeout=10)
+        return sorted({l.split()[0] for l in out.splitlines() if l.strip()})
+    if b != "systemd":
+        return []
+    rc, out = _run(["systemctl", "list-unit-files", "--type=service", "--no-legend", "--no-pager"], timeout=15)
+    nomes = {l.split()[0].removesuffix(".service") for l in out.splitlines() if l.strip()}
+    return sorted(n for n in nomes if UTEIS.match(n) and "@" not in n.rstrip("@"))
+
+
 def instancia() -> str:
     """Nome da instancia (servico systemd do portal). Definido no servico por PORTAL_INSTANCIA."""
     return os.environ.get("PORTAL_INSTANCIA", "")

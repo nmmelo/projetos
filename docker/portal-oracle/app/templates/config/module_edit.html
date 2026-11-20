@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Módulo {{ m.nome }}{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<p class="crumbs"><a href="{{ url_for('portal.cfg_modules') }}">Módulos</a> › <span>{{ m.nome }}</span></p>
+<form method="post" class="smtp-grid">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <section class="card stack">
+    <h2>Geral</h2>
+    <label>Nome no menu
+      <input name="nome" value="{{ m.nome }}" maxlength="40" required>
+      <span class="hint"><span>Nome original:</span> <b>{{ m.nome_original }}</b>. <span>Aparece no menu, na Home e nas notificações.</span></span></label>
+    <label class="inline"><input type="checkbox" name="ativo" value="1" {{ 'checked' if ativo }}> Módulo ativo</label>
+    <p class="muted small">{{ m.descricao }}</p>
+    <table class="kv small">
+      <tr><th>Abas</th><td>{% for _, rotulo, _ in m.abas %}<span>{{ rotulo }}</span>{{ ' · ' if not loop.last }}{% endfor %}</td></tr>
+      <tr><th>Ações</th><td>{% for k, v in m.acoes.items() %}<span class="tag" title="{{ v }}">{{ k }}</span> {% else %}—{% endfor %}</td></tr>
+    </table>
+  </section>
+  <section class="card stack">
+    <h2>Quem tem acesso</h2>
+    <p class="muted small">Perfis com a permissão <code>{{ m.acesso }}</code>. O administrador tem sempre acesso. Retirar um perfil
+      também lhe retira as ações deste módulo; as ações de cada perfil escolhem-se em
+      <a href="{{ url_for('portal.cfg_profiles') }}">Perfis</a>.</p>
+    {% if perfis %}
+    <div class="lista">
+    {% for p in perfis %}
+      <label class="lrow"><input type="checkbox" name="perfis" value="{{ p.id }}" {{ 'checked' if m.acesso in p.permissions }}>
+        <span class="lrow-t"><b>{{ p.name }}</b><small>{{ p.description or '' }}{{ ' · ' if p.description }}{{ p.n_users }} utilizador(es) ·
+          {% set n = namespace(c=0) %}{% for x in p.permissions if x.startswith(m.chave ~ '.') %}{% set n.c = n.c + 1 %}{% endfor %}{{ n.c }} ação(ões) do módulo</small></span>
+        <a class="btn small" href="{{ url_for('portal.cfg_profile_form', pid=p.id) }}">Perfil</a></label>
+    {% endfor %}
+    </div>
+    {% else %}<p class="muted">Ainda não há perfis. <a href="{{ url_for('portal.cfg_profile_form') }}">Criar perfil</a></p>{% endif %}
+  </section>
+  <div class="buttons full-row"><button class="primary">Guardar</button>
+    <a class="btn" href="{{ url_for('portal.cfg_modules') }}">Voltar</a></div>
+</form>
+
+<section class="card full" style="margin-top:16px" id="agendamento">
+  <h2>Agendamento</h2>
+  {% if tarefas %}
+  {% if not ativo_global %}<p class="hint warn-txt">Os agendamentos estão desativados em <a href="{{ url_for('portal.cfg_agendamento') }}">Configuração → Agendamento</a>.</p>{% endif %}
+  <div class="table-wrap"><table class="ag-tab">
+    <thead><tr><th>Tarefa</th><th>Ativa</th><th>Quando</th><th>Notificar</th><th>Última execução</th><th></th></tr></thead>
+    <tbody>{% for t in tarefas %}
+      <tr class="{{ 'inativa' if not t.ativo }}">
+        <td><b>{{ t.nome }}</b><br><small class="muted">{{ t.descricao }}</small></td>
+        <td><form method="post" action="{{ url_for('portal.cfg_tarefa_ativar', tid=t.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="ativo" value="{{ '0' if t.ativo else '1' }}">
+          <input type="hidden" name="voltar" value="{{ url_for('portal.cfg_module_edit', chave=m.chave) }}#agendamento">
+          <button class="toggle {{ 'on' if t.ativo }}" title="{{ 'Desativar' if t.ativo else 'Ativar' }}" aria-label="{{ 'Desativar' if t.ativo else 'Ativar' }}"><span></span></button></form></td>
+        <td class="nowrap">{{ t.resumo }}</td>
+        <td>{{ {'nunca': 'Não', 'erro': 'Só se falhar', 'sempre': 'Sempre'}[t.notificar] }}</td>
+        <td>{% include "config/_estado_tarefa.html" %}</td>
+        <td class="acoes"><a class="btn small" href="{{ url_for('portal.cfg_tarefa', tid=t.id, voltar=url_for('portal.cfg_module_edit', chave=m.chave)) }}">Editar</a></td>
+      </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="muted">Este módulo não tem tarefas agendadas.</p>{% endif %}
+</section>
+
+<section class="card full" style="margin-top:16px" id="notificacoes">
+  <h2>Notificações</h2>
+  {% if m.eventos %}
+  <p class="muted small">Eventos do módulo:
+    {% for ev, d in m.eventos.items() %}<b>{{ d.nome }}</b> {% for s in d.situacoes.values() %}<span class="tag">{{ s }}</span> {% endfor %}{{ '·' if not loop.last }} {% endfor %}</p>
+  <p class="muted small"><span>Sininho = notificação no portal; Email = enviado pelo módulo SMTP.</span>{% if not smtp_ativo %} <span>O módulo SMTP está inativo.</span>{% endif %}</p>
+  {% if regras %}
+  <div class="table-wrap"><table class="ag-tab">
+    <thead><tr><th>Regra</th><th>Canal</th><th>Evento</th><th>Situações</th><th>Ativa</th><th></th></tr></thead>
+    <tbody>{% for r in regras %}{% set sit = eventos.get(r.evento, {}).get('situacoes', {}) %}
+      <tr class="{{ 'inativa' if not r.ativo }}">
+        <td><b>{{ r.nome }}</b></td>
+        <td>{{ '🔔 Sininho' if r.canal == 'portal' else '✉️ Email' }}</td>
+        <td>{{ r.evento_nome }}{% if r.parametro %} ({{ r.parametro }}){% endif %}</td>
+        <td>{% for s in r.situacoes %}<span class="tag">{{ sit.get(s, s) }}</span> {% endfor %}</td>
+        <td><form method="post" action="{{ url_for('portal.cfg_module_regra', chave=m.chave, rid=r.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="toggle {{ 'on' if r.ativo }}" title="{{ 'Desativar' if r.ativo else 'Ativar' }}" aria-label="{{ 'Desativar' if r.ativo else 'Ativar' }}"><span></span></button></form></td>
+        <td class="acoes">{% if smtp_ativo and user.can('smtp.regras') %}<a class="btn small" href="{{ url_for('smtp.regra_form', canal=r.canal, rid=r.id) }}">Editar</a>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="muted">Ainda não há regras para os eventos deste módulo.</p>{% endif %}
+  {% if smtp_ativo and user.can('smtp.regras') %}
+  <div class="buttons">{% set ev1 = (m.eventos|list)[0] %}
+    <a class="btn" href="{{ url_for('smtp.regra_form', canal='portal', evento=ev1) }}">+ Regra de sininho</a>
+    <a class="btn" href="{{ url_for('smtp.regra_form', canal='email', evento=ev1) }}">+ Regra de email</a></div>
+  {% elif not smtp_ativo %}<p class="hint">Para criar ou editar regras, ative o módulo SMTP (as regras de sininho funcionam na mesma).</p>{% endif %}
+  {% else %}<p class="muted">Este módulo não gera eventos.</p>{% endif %}
+</section>
+{% endblock %}

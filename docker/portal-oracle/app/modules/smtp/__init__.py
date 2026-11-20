@@ -28,6 +28,11 @@ MODULO = modulos.registar(modulos.Modulo(
                         "link": "smtp.logs", "link_txt": "Ver os envios"},
     },
     home_context=lambda user: _home_context(user),
+    tarefas={"smtp.validar": {
+        "nome": "Validação da ligação SMTP", "funcao": lambda par: _t_validar(par),
+        "descricao": "Liga ao servidor de email (TLS e autenticação), sem enviar. Se falhar, gera o evento "
+                     "\"Ligação SMTP: falhou\"; quando volta, \"recuperou\".",
+        "padrao": {"ativo": True, "freq": "minutos", "intervalo": 60, "notificar": "nunca"}}},
     ativo_por_omissao=False,
 ))
 
@@ -54,3 +59,11 @@ def _guard():
 
 
 from . import views  # noqa: E402,F401
+
+
+def _t_validar(par: dict) -> tuple[str, str]:
+    from ... import smtp_envio, store
+    if not store.get_setting("smtp_host"):
+        return "aviso", "Servidor SMTP por configurar (SMTP → Geral)."
+    ok, msg = smtp_envio.validar()
+    return ("sucesso" if ok else "erro"), msg

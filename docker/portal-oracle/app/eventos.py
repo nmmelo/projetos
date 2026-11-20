@@ -66,6 +66,7 @@ def apagar_regra(rid) -> None:
 def regras_iniciais() -> None:
     """Na primeira vez: regras uteis por omissao (podem ser alteradas ou apagadas)."""
     if store.get_setting("regras_iniciais"):
+        regras_iniciais_2()
         return
     base = [
         ("Execução Oracle terminada (avisar quem a lançou)", "portal", "oracle.execucao",
@@ -82,6 +83,23 @@ def regras_iniciais() -> None:
         guardar_regra({"nome": nome, "canal": canal, "evento": ev, "situacoes": sit, "parametro": par,
                        "destino": dest, "ativo": True})
     store.save_settings({"regras_iniciais": "1"})
+    regras_iniciais_2()
+
+
+def regras_iniciais_2() -> None:
+    """Regras das tarefas agendadas e da verificacao de tablespaces (versao com agendamentos)."""
+    if store.get_setting("regras_iniciais_2"):
+        return
+    base = [
+        ("Tarefa agendada falhou", "portal", "portal.agendamento", ["erro"], None, {"admins": True}),
+        ("Tarefa agendada falhou", "email", "portal.agendamento", ["erro"], None, {"padrao": True}),
+        ("Tablespace acima do limiar", "portal", "oracle.tablespace", ["acima", "erro"], None, {"modulo": True}),
+        ("Tablespace acima do limiar", "email", "oracle.tablespace", ["acima"], None, {"padrao": True}),
+    ]
+    for nome, canal, ev, sit, par, dest in base:
+        guardar_regra({"nome": nome, "canal": canal, "evento": ev, "situacoes": sit, "parametro": par,
+                       "destino": dest, "ativo": True})
+    store.save_settings({"regras_iniciais_2": "1"})
 
 
 # ============================================================================ destinatarios

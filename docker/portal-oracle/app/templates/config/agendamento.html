@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Agendamento{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<div class="smtp-grid">
+<section class="card">
+  <h2>Agendamentos</h2>
+  {% if not ativo %}
+  <div class="saude s-warn"><span class="saude-i">!</span><div><b>Desativados</b><small>Nenhuma tarefa corre à hora marcada (pode correr à mão).</small></div></div>
+  {% elif not agente.ativo %}
+  <div class="saude s-bad"><span class="saude-i">✕</span><div><b>Agente parado</b><small>As tarefas são executadas pelo agente do portal: sem ele não correm à hora marcada.</small></div></div>
+  {% else %}
+  <div class="saude s-ok"><span class="saude-i">✓</span><div><b>Ativos</b><small>O agente corre as tarefas ativas à hora marcada.</small></div></div>
+  {% endif %}
+  <form method="post" class="buttons">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    {% if ativo %}<input type="hidden" name="ativo" value="0"><button class="danger" onclick="return confirm('Desativar todos os agendamentos?')">Desativar todos</button>
+    {% else %}<input type="hidden" name="ativo" value="1"><button class="primary">Ativar</button>{% endif %}
+  </form>
+  <p class="hint">Cada módulo pode ter tarefas próprias; aparecem aqui quando o módulo está ativo. A notificação usa as regras de
+    {% if 'smtp' in modulos_menu|map(attribute='chave')|list %}<a href="{{ url_for('smtp.notificacoes') }}">SMTP → Notificações</a> e <a href="{{ url_for('smtp.regras') }}">Regras</a>{% else %}SMTP → Notificações e Regras{% endif %}
+    (evento "Tarefa agendada terminada").</p>
+  {% if cron_backup %}<p class="hint warn-txt">Este servidor também tem o backup diário no cron (<code>/etc/cron.d</code>, do <code>instalar.sh</code>).
+    Se ativar o "Backup do portal" aqui, fica com dois: desligue um deles.</p>{% endif %}
+</section>
+<section class="card">
+  <h2>Últimas execuções</h2>
+  {% if historico %}
+  <div class="lista">
+  {% for h in historico %}{% set c = {'SUCESSO': 'ok', 'AVISO': 'warn', 'A CORRER': 'accent'}.get(h.estado, 'bad') %}
+    <a class="lrow" href="{{ url_for('portal.cfg_tarefa', tid=h.tarefa) }}"><span class="dot d-{{ c }}"></span>
+      <span class="lrow-t"><b>{{ nomes.get(h.tarefa, h.tarefa) }}</b>
+        <small title="{{ h.msg or '' }}">{{ (h.inicio|string)[5:16] }} · {{ h.origem }}{% if h.msg %} · {{ h.msg.split('\n')[0][:90] }}{% endif %}</small></span></a>
+  {% endfor %}
+  </div>
+  {% else %}<p class="muted small">Ainda não correu nenhuma tarefa.</p>{% endif %}
+</section>
+</div>
+
+{% for modulo, tarefas in grupos.items() %}
+<section class="card full" style="margin-top:16px">
+  <h2>{{ modulo }}{% if not tarefas[0].modulo_ativo %} <span class="tag">módulo inativo</span>{% endif %}</h2>
+  <div class="table-wrap">
+  <table class="ag-tab">
+    <thead><tr><th>Tarefa</th><th>Ativa</th><th>Quando</th><th>Notificar</th><th>Última execução</th><th>Próxima</th><th></th></tr></thead>
+    <tbody>
+    {% for t in tarefas %}
+      <tr class="{{ 'inativa' if not t.ativo }}">
+        <td><b>{{ t.nome }}</b><br><small class="muted">{{ t.descricao }}</small></td>
+        <td><form method="post" action="{{ url_for('portal.cfg_tarefa_ativar', tid=t.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="ativo" value="{{ '0' if t.ativo else '1' }}">
+          <button class="toggle {{ 'on' if t.ativo }}" title="{{ 'Desativar' if t.ativo else 'Ativar' }}" aria-label="{{ 'Desativar' if t.ativo else 'Ativar' }}"><span></span></button></form></td>
+        <td class="nowrap">{{ t.resumo }}</td>
+        <td>{{ {'nunca': 'Não', 'erro': 'Só se falhar', 'sempre': 'Sempre'}[t.notificar] }}</td>
+        <td>{% include "config/_estado_tarefa.html" %}{% if t.ultima_inicio %}<br><small class="muted">{{ (t.ultima_inicio|string)[:16] }}</small>{% endif %}</td>
+        <td class="nowrap small">{{ (t.proxima|string)[:16] if t.ativo and t.proxima and ativo else '—' }}</td>
+        <td class="acoes">
+          <form method="post" action="{{ url_for('portal.cfg_tarefa_executar', tid=t.id) }}" class="inline-form">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="voltar" value="{{ url_for('portal.cfg_agendamento') }}">
+            <button class="small" {{ 'disabled' if t.a_correr or not t.modulo_ativo }} title="Executar agora">▶ Agora</button></form>
+          <a class="btn small" href="{{ url_for('portal.cfg_tarefa', tid=t.id) }}">Editar</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endfor %}
+{% endblock %}

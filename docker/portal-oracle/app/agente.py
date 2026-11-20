@@ -22,7 +22,7 @@ import socket
 import threading
 import time
 
-from . import crypto, eventos, modulos, settings, sistema_info, smtp_envio, store
+from . import agendamento, crypto, eventos, modulos, settings, sistema_info, smtp_envio, store
 
 VERSAO = "1.0"
 CICLO = 1.0                 # segundos entre verificacoes da fila
@@ -43,7 +43,7 @@ class Agente:
         self.cpu_serv: dict[str, tuple] = {}
         self.estado_serv: dict[str, str] = {}     # ultimo estado visto (para detetar mudancas)
         self.disco_acima: set = set()             # (ponto, limiar) ja notificados
-        self.prox_validacao = 0.0
+        self.prox_agenda = 0.0
 
     # ------------------------------------------------------------------ execucoes
     def fila(self) -> None:
@@ -140,17 +140,17 @@ class Agente:
                     self.disco_acima.discard(chave)          # desceu: volta a avisar se subir outra vez
 
     def email(self) -> None:
-        smtp_envio.processar_fila()
-        if "smtp" not in modulos.ativos() or not store.get_setting("smtp_host"):
+        smtp_envio.processar_fila()          # a validacao periodica e a tarefa agendada smtp.validar
+
+    def agendamentos(self) -> None:
+        """Tarefas agendadas cuja hora chegou: cada uma numa thread (nao atrasam a fila)."""
+        if time.time() < self.prox_agenda:
             return
-        try:
-            minutos = int(store.get_setting("smtp_validar_min") or 60)
-        except ValueError:
-            minutos = 60
-        if minutos > 0 and time.time() >= self.prox_validacao:
-            self.prox_validacao = time.time() + minutos * 60
-            ok, msg = smtp_envio.validar()
-            log.info("validacao SMTP: %s", msg)
+        self.prox_agenda = time.time() + 15
+        for tid in agendamento.pendentes():
+            log.info("agendamento: %s", tid)
+            threading.Thread(target=agendamento.executar, args=(tid, "agendamento"), name=f"tarefa-{tid}",
+                             daemon=True).start()
 
     def publicar_estado(self) -> None:
         estado = {"heartbeat": time.time(), "pid": os.getpid(), "host": socket.gethostname(),
@@ -163,10 +163,12 @@ class Agente:
         store.interrupt_running_jobs("agente")      # execucoes de um agente anterior que morreu
         smtp_envio.recuperar_presas()
         eventos.regras_iniciais()
+        agendamento.recuperar_presas()
+        agendamento.garantir_padrao()
         log.info("agente %s a correr (pid %s, dados em %s)", VERSAO, os.getpid(), store.get().describe())
         prox_metricas = 0.0
         while not self.parar.is_set():
-            for passo in (self.fila, self.acoes, self.email):
+            for passo in (self.fila, self.acoes, self.email, self.agendamentos):
                 try:
                     passo()
                 except Exception:  # noqa: BLE001 - BD momentaneamente indisponivel, etc.

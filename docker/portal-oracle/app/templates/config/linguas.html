@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Linguagem{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+{% include "config/_aparencia_tabs.html" %}
+<form method="post" class="stack">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <input type="hidden" name="acao" value="guardar">
+  <section class="card full">
+    <h2>Línguas</h2>
+    <p class="muted">O portal é escrito em português. As outras línguas traduzem os {{ total }} textos do portal; um texto sem
+      tradução aparece em português. Cada utilizador escolhe a língua nas bandeiras ao lado do sininho; a <b>língua por
+      omissão</b> é a da página de entrada e de quem ainda não escolheu.</p>
+    <div class="table-wrap">
+    <table class="lang-tab">
+      <thead><tr><th>Língua</th><th>Código</th><th>Ativa</th><th>Por omissão</th><th>Traduções</th><th></th></tr></thead>
+      <tbody>
+      {% for l in linguas %}
+        <tr>
+          <td class="lang-nome">{% if l.codigo in ('pt', 'en') %}<img src="{{ url_for('static', filename='bandeiras/' ~ l.codigo ~ '.svg') }}" alt="">{% endif %}
+            <input name="nome_{{ l.codigo }}" value="{{ l.nome }}" maxlength="40" translate="no"></td>
+          <td><code>{{ l.codigo }}</code></td>
+          <td><input type="checkbox" name="ativa" value="{{ l.codigo }}" {{ 'checked' if l.ativa }} {{ 'disabled' if l.base }} aria-label="Ativa"></td>
+          <td><input type="radio" name="padrao" value="{{ l.codigo }}" {{ 'checked' if l.codigo == padrao }} {{ 'disabled' if not l.ativa }}></td>
+          <td>
+            {% if l.base %}<span class="muted small">Língua original</span>
+            {% else %}
+            {% set c = l.cont %}{% set pct = ((c.traduzida + c.alterada) * 100 / c.total)|round|int if c.total else 0 %}
+            <div class="tile-bar mini"><span class="b-{{ 'ok' if pct >= 90 else 'warn' }}" style="width:{{ pct }}%"></span></div>
+            <span class="small">{{ pct }}% · <span>{{ c.alterada }} alterada(s)</span> · <span>{{ c['em falta'] }} em falta</span></span>
+            {% endif %}
+          </td>
+          <td class="acoes">
+            {% if not l.base %}
+            <a class="btn small" href="{{ url_for('portal.cfg_traducoes', codigo=l.codigo) }}">Ver traduções</a>
+            <a class="btn small" href="{{ url_for('portal.cfg_traducoes_exportar', codigo=l.codigo) }}">Exportar XML</a>
+            {% if l.codigo != 'en' %}
+            <button class="small danger" form="rm-{{ l.codigo }}">Remover</button>
+            {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <div class="buttons"><button class="primary">Guardar</button></div>
+  </section>
+</form>
+{% for l in linguas if not l.base and l.codigo != 'en' %}
+<form method="post" id="rm-{{ l.codigo }}" hidden onsubmit="return confirm('Remover a língua {{ l.nome }} e as suas traduções?')">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="remover">
+  <input type="hidden" name="codigo" value="{{ l.codigo }}"></form>
+{% endfor %}
+
+<section class="card full" style="margin-top:16px">
+  <h2>Acrescentar língua</h2>
+  <form method="post" class="inline-form wrap">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="adicionar">
+    <label>Código <input name="codigo" placeholder="es" pattern="[a-z]{2,3}(-[A-Za-z]{2,4})?" size="8" required></label>
+    <label>Nome <input name="nome" placeholder="Español" maxlength="40" required></label>
+    <button class="primary">Acrescentar</button>
+  </form>
+  <p class="hint">Fica inativa até a ativar. Para a traduzir: <b>Exportar XML</b> (com todos os textos), traduzir os
+    <code>&lt;traducao&gt;</code> e <b>Importar</b> em Ver traduções; ou traduzir no próprio portal.</p>
+</section>
+{% endblock %}

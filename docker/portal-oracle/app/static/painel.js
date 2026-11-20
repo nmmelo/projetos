@@ -59,7 +59,7 @@ class Painel {
     t.innerHTML = `<div class="tray-t"><b>Editar painel</b><span class="muted small">Arraste os cartões para os reordenar;
         ✕ esconde um cartão.</span></div>
       <div class="tray-add">${ocultos.length ? '<span class="muted small">Adicionar:</span>' + ocultos.map(c =>
-        `<button type="button" class="small tray-chip" data-add="${esc(c.dataset.id)}">+ ${esc(c.dataset.i || '')} ${esc(c.dataset.t)}</button>`).join('')
+        `<button type="button" class="small tray-chip" data-add="${esc(c.dataset.id)}">+ ${esc(c.dataset.i || '')} <span>${esc(c.dataset.t)}</span></button>`).join('')
         : '<span class="muted small">Todos os cartões estão visíveis.</span>'}</div>
       <div class="tray-b"><button type="button" class="small" data-acao="repor">Repor</button>
         <button type="button" class="small primary" data-acao="fim">Concluir</button></div>`;

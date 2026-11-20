@@ -2,9 +2,9 @@
 import os
 import re
 
-from flask import abort, flash, g, redirect, render_template, request, send_file, url_for
+from flask import abort, flash, g, jsonify, make_response, redirect, render_template, request, send_file, url_for
 
-from .. import aparencia, auth, backup, crypto, manutencao, modulos, settings, store
+from .. import agendamento, agente_info, aparencia, auth, backup, crypto, i18n, manutencao, modulos, settings, store
 from . import bp
 
 USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
@@ -67,7 +67,227 @@ def cfg_appearance():
     s = store.get_settings()
     return render_template("config/appearance.html", s=s, themes=aparencia.THEMES,
                            limits=aparencia.LIMITS, favicon_max=aparencia.FAVICON_MAX // 1024,
-                           custom_icon=bool(s.get("favicon_ver")), tab="portal", sub="appearance")
+                           custom_icon=bool(s.get("favicon_ver")), tab="portal", sub="appearance", sub2="geral")
+
+
+# ====================================================================== Portal: Aparencia > Linguagem
+def _lingua_ou_404(codigo: str) -> dict:
+    l = next((x for x in i18n.linguas() if x["codigo"] == codigo), None)
+    if not l:
+        abort(404)
+    return l
+
+
+@bp.route("/config/portal/appearance/linguas", methods=["GET", "POST"])
+@auth.requires("config.portal")
+def cfg_linguas():
+    if request.method == "POST":
+        acao = request.form.get("acao", "")
+        lista = i18n.linguas()
+        try:
+            if acao == "adicionar":
+                cod = request.form.get("codigo", "").strip()
+                nome = request.form.get("nome", "").strip()[:40]
+                if not i18n.CODIGO_RE.match(cod):
+                    raise ValueError("Código inválido: use o código ISO da língua (ex. es, fr, pt-BR).")
+                if any(x["codigo"] == cod for x in lista):
+                    raise ValueError(f"A língua '{cod}' já existe.")
+                if not nome:
+                    raise ValueError("Indique o nome da língua (ex. Español).")
+                lista.append({"codigo": cod, "nome": nome, "ativa": False})
+                i18n.guardar_linguas(lista)
+                flash(f"Língua {nome} acrescentada (inativa). Traduza os textos ou importe um XML e depois ative-a.", "ok")
+            elif acao == "guardar":
+                ativas = set(request.form.getlist("ativa"))
+                for x in lista:
+                    x["ativa"] = x["base"] or x["codigo"] in ativas
+                    novo = request.form.get(f"nome_{x['codigo']}", "").strip()[:40]
+                    if novo:
+                        x["nome"] = novo
+                i18n.guardar_linguas(lista)
+                pad = request.form.get("padrao", i18n.BASE)
+                if not any(x["codigo"] == pad and x["ativa"] for x in lista):
+                    pad = i18n.BASE
+                store.save_settings({"lingua_padrao": pad})
+                flash("Línguas guardadas.", "ok")
+            elif acao == "remover":
+                cod = request.form.get("codigo", "")
+                if cod in (i18n.BASE, "en"):
+                    raise ValueError("O português e o inglês não podem ser removidos (pode desativar o inglês).")
+                i18n.guardar_linguas([x for x in lista if x["codigo"] != cod])
+                i18n.repor(cod)
+                flash(f"Língua '{cod}' removida, com as suas traduções.", "ok")
+        except ValueError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("portal.cfg_linguas"))
+    lista = i18n.linguas()
+    for x in lista:
+        x["cont"] = None if x["base"] else i18n.contagens(x["codigo"])
+    return render_template("config/linguas.html", linguas=lista, padrao=i18n.padrao(), total=len(i18n.catalogo()),
+                           tab="portal", sub="appearance", sub2="linguas")
+
+
+@bp.route("/config/portal/appearance/linguas/<codigo>")
+@auth.requires("config.portal")
+def cfg_traducoes(codigo):
+    l = _lingua_ou_404(codigo)
+    if l["base"]:
+        flash("O português é a língua original do portal: não tem traduções.", "info")
+        return redirect(url_for("portal.cfg_linguas"))
+    return render_template("config/traducoes.html", l=l, cont=i18n.contagens(codigo),
+                           tab="portal", sub="appearance", sub2="linguas")
+
+
+@bp.route("/config/portal/appearance/linguas/<codigo>/api")
+@auth.requires("config.portal")
+def cfg_traducoes_api(codigo):
+    _lingua_ou_404(codigo)
+    return jsonify(linhas=i18n.listar(codigo), cont=i18n.contagens(codigo))
+
+
+@bp.route("/config/portal/appearance/linguas/<codigo>/texto", methods=["POST"])
+@auth.requires("config.portal")
+def cfg_traducao_guardar(codigo):
+    l = _lingua_ou_404(codigo)
+    if l["base"]:
+        abort(400)
+    d = request.get_json(silent=True) or {}
+    try:
+        if d.get("repor"):
+            o = i18n.normalizar(d.get("origem", ""))
+            i18n.repor(codigo, [i18n.chave(o)])
+        else:
+            i18n.guardar(codigo, d.get("origem", ""), d.get("texto", ""), g.user.username)
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+    o = i18n.normalizar(d.get("origem", ""))
+    linha = next((x for x in i18n.listar(codigo) if x["origem"] == o), None)
+    return jsonify(ok=True, linha=linha, cont=i18n.contagens(codigo))
+
+
+@bp.route("/config/portal/appearance/linguas/<codigo>/repor", methods=["POST"])
+@auth.requires("config.portal")
+def cfg_traducoes_repor(codigo):
+    _lingua_ou_404(codigo)
+    n = i18n.repor(codigo)
+    flash(f"{n} alteração(ões) apagadas: voltam as traduções do ficheiro do portal.", "ok")
+    return redirect(url_for("portal.cfg_traducoes", codigo=codigo))
+
+
+@bp.route("/config/portal/appearance/linguas/<codigo>/exportar")
+@auth.requires("config.portal")
+def cfg_traducoes_exportar(codigo):
+    l = _lingua_ou_404(codigo)
+    resp = make_response(i18n.exportar(codigo))
+    resp.headers["Content-Type"] = "application/xml; charset=utf-8"
+    resp.headers["Content-Disposition"] = f'attachment; filename="portal-traducoes-{l["codigo"]}.xml"'
+    return resp
+
+
+@bp.route("/config/portal/appearance/linguas/<codigo>/importar", methods=["POST"])
+@auth.requires("config.portal")
+def cfg_traducoes_importar(codigo):
+    l = _lingua_ou_404(codigo)
+    if l["base"]:
+        abort(400)
+    f = request.files.get("xml")
+    if not f or not f.filename:
+        flash("Escolha o ficheiro XML.", "error")
+        return redirect(url_for("portal.cfg_traducoes", codigo=codigo))
+    r = i18n.validar_xml(codigo, f.read(5 * 1024 * 1024 + 1))
+    token = i18n.guardar_pendente(r) if r["ok"] and (r["novas"] or r["mudadas"]) else ""
+    return render_template("config/traducoes_importar.html", l=l, r=r, token=token, ficheiro=f.filename,
+                           tab="portal", sub="appearance", sub2="linguas")
+
+
+@bp.route("/config/portal/appearance/linguas/<codigo>/importar/aplicar", methods=["POST"])
+@auth.requires("config.portal")
+def cfg_traducoes_aplicar(codigo):
+    _lingua_ou_404(codigo)
+    try:
+        n = i18n.aplicar_pendente(codigo, request.form.get("token", ""), g.user.username)
+        flash(f"Importação concluída: {n} tradução(ões) atualizadas.", "ok")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("portal.cfg_traducoes", codigo=codigo))
+
+
+# ====================================================================== Portal: Agendamento
+@bp.route("/config/portal/agendamento", methods=["GET", "POST"])
+@auth.requires("config.portal")
+def cfg_agendamento():
+    if request.method == "POST":
+        ativo = request.form.get("ativo") == "1"
+        store.save_settings({"agendamento_ativo": "1" if ativo else "0"})
+        flash("Agendamentos ativos: as tarefas ativas correm à hora marcada." if ativo
+              else "Agendamentos desativados: nenhuma tarefa corre até voltar a ativar.", "ok")
+        return redirect(url_for("portal.cfg_agendamento"))
+    agendamento.garantir_padrao()
+    tarefas = agendamento.listar()
+    grupos: dict[str, list] = {}
+    for t in tarefas:
+        grupos.setdefault(t["modulo"], []).append(t)
+    return render_template("config/agendamento.html", grupos=grupos, ativo=agendamento.ativo_global(),
+                           agente=agente_info.estado(), historico=agendamento.historico(None, 15),
+                           nomes={t["id"]: t["nome"] for t in tarefas}, cron_backup=_cron_backup(),
+                           tab="portal", sub="agendamento")
+
+
+def _cron_backup() -> bool:
+    """Ha um backup no cron do sistema (instalar.sh)? Para avisar que seriam dois."""
+    try:
+        return any("manage.py backup" in open(os.path.join("/etc/cron.d", f), encoding="utf-8", errors="ignore").read()
+                   for f in os.listdir("/etc/cron.d"))
+    except OSError:
+        return False
+
+
+@bp.route("/config/portal/agendamento/<tid>", methods=["GET", "POST"])
+@auth.requires("config.portal")
+def cfg_tarefa(tid):
+    t = agendamento.obter(tid)
+    if not t:
+        abort(404)
+    if request.method == "POST":
+        dados = request.form.to_dict()
+        dados["dias"] = request.form.getlist("dias")
+        try:
+            agendamento.guardar(tid, dados, g.user.username)
+            flash(f"Agendamento \"{t['nome']}\" guardado.", "ok")
+            return redirect(request.form.get("voltar") or url_for("portal.cfg_agendamento"))
+        except ValueError as exc:
+            flash(str(exc), "error")
+            t = {**t, **{k: v for k, v in dados.items() if k in ("freq", "hora", "intervalo", "notificar")},
+                 "ativo": bool(dados.get("ativo"))}
+    return render_template("config/tarefa.html", t=t, freqs=agendamento.FREQS, dias=agendamento.DIAS,
+                           notificar=agendamento.NOTIFICAR, historico=agendamento.historico(tid, 20),
+                           voltar=request.args.get("voltar", ""), tab="portal", sub="agendamento")
+
+
+@bp.route("/config/portal/agendamento/<tid>/ativar", methods=["POST"])
+@auth.requires("config.portal")
+def cfg_tarefa_ativar(tid):
+    try:
+        t = agendamento.ativar(tid, request.form.get("ativo") == "1", g.user.username)
+        flash(f"\"{t['nome']}\" {'ativada' if t['ativo'] else 'desativada'}.", "ok")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(request.form.get("voltar") or url_for("portal.cfg_agendamento"))
+
+
+@bp.route("/config/portal/agendamento/<tid>/executar", methods=["POST"])
+@auth.requires("config.portal")
+def cfg_tarefa_executar(tid):
+    import threading
+    t = agendamento.obter(tid)
+    if not t:
+        abort(404)
+    if t["a_correr"]:
+        flash("A tarefa já está a correr.", "error")
+    else:
+        threading.Thread(target=agendamento.executar, args=(tid, f"manual ({g.user.username})"), daemon=True).start()
+        flash(f"\"{t['nome']}\" a correr: o resultado aparece no histórico daqui a pouco.", "ok")
+    return redirect(request.form.get("voltar") or url_for("portal.cfg_tarefa", tid=tid))
 
 
 # ====================================================================== Portal: Manutencao
@@ -110,6 +330,56 @@ def cfg_modules():
             com_acesso = [p["name"] for p in perfis if m.acesso in p["permissions"]]
             lista.append({"m": m, "ativo": k in ativos, "perfis": com_acesso})
     return render_template("config/modules.html", lista=lista, tab="portal", sub="modules")
+
+
+@bp.route("/config/portal/modules/<chave>", methods=["GET", "POST"])
+@auth.requires("config.portal")
+def cfg_module_edit(chave):
+    from .. import eventos
+    m = modulos.REGISTO.get(chave) or abort(404)
+    perfis = store.list_profiles()
+    if request.method == "POST":
+        nome = request.form.get("nome", "").strip()[:40]
+        if not nome:
+            flash("O nome não pode ficar vazio.", "error")
+        else:
+            store.save_settings({f"module_nome.{chave}": "" if nome == m.nome_original else nome,
+                                 f"module.{chave}": "1" if request.form.get("ativo") else "0"})
+            escolhidos = {int(x) for x in request.form.getlist("perfis") if x.isdigit()}
+            mudou = 0
+            for p in perfis:
+                perms = set(p["permissions"])
+                tem = m.acesso in perms
+                if p["id"] in escolhidos and not tem:
+                    perms.add(m.acesso)
+                elif p["id"] not in escolhidos and tem:
+                    perms = {x for x in perms if x != m.acesso and not x.startswith(f"{chave}.")}
+                else:
+                    continue
+                store.save_profile({**p, "permissions": sorted(perms)}, p["id"])
+                mudou += 1
+            flash(f"Módulo {nome} guardado{f' ({mudou} perfil(is) alterado(s))' if mudou else ''}.", "ok")
+            return redirect(url_for("portal.cfg_module_edit", chave=chave))
+    evs = set(m.eventos)
+    regras = [r for r in eventos.listar_regras() if r["evento"] in evs]
+    todos = modulos.todos_eventos()
+    for r in regras:
+        r["evento_nome"] = todos.get(r["evento"], {}).get("nome", r["evento"])
+    return render_template("config/module_edit.html", m=m, ativo=chave in modulos.ativos(), perfis=perfis,
+                           tarefas=agendamento.listar(chave), regras=regras, eventos=todos,
+                           smtp_ativo="smtp" in modulos.ativos(), ativo_global=agendamento.ativo_global(),
+                           tab="portal", sub="modules")
+
+
+@bp.route("/config/portal/modules/<chave>/regra/<int:rid>", methods=["POST"])
+@auth.requires("config.portal")
+def cfg_module_regra(chave, rid):
+    from .. import eventos
+    r = eventos.obter_regra(rid) or abort(404)
+    r["ativo"] = not r["ativo"]
+    eventos.guardar_regra(r, rid)
+    flash(f"Regra \"{r['nome']}\" {'ativada' if r['ativo'] else 'desativada'}.", "ok")
+    return redirect(url_for("portal.cfg_module_edit", chave=chave) + "#notificacoes")
 
 
 # ====================================================================== Portal: Armazenamento

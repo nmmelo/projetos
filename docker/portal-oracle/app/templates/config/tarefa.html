@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Configuração · {{ t.nome }}{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<p class="crumbs"><a href="{{ voltar or url_for('portal.cfg_agendamento') }}">{{ 'Módulo' if voltar else 'Agendamento' }}</a> › <span>{{ t.nome }}</span></p>
+<div class="smtp-grid">
+<form method="post" class="card stack">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="voltar" value="{{ voltar }}">
+  <h2>{{ t.nome }} <span class="tag">{{ t.modulo }}</span></h2>
+  <p class="muted">{{ t.descricao }}</p>
+  <label class="inline"><input type="checkbox" name="ativo" value="1" {{ 'checked' if t.ativo }}> Ativa (corre à hora marcada)</label>
+  <div class="grid2">
+    <label>Frequência
+      <select name="freq" id="freq">{% for k, v in freqs.items() %}<option value="{{ k }}" {{ 'selected' if t.freq == k }}>{{ v }}</option>{% endfor %}</select></label>
+    <label data-f="minutos horas">Intervalo <input type="number" name="intervalo" min="1" max="1440" value="{{ t.intervalo }}">
+      <span class="hint" id="unid"></span></label>
+    <label data-f="diario semanal">Hora <input type="time" name="hora" value="{{ t.hora }}"></label>
+    <div data-f="semanal" class="full"><span class="lbl">Dias</span>
+      <div class="dias">{% set sel = (t.dias|string).split(',') %}{% for k, v in dias.items() %}
+        <label class="inline"><input type="checkbox" name="dias" value="{{ k }}" {{ 'checked' if k|string in sel }}> {{ v }}</label>{% endfor %}</div></div>
+    <label>Notificar
+      <select name="notificar">{% for k, v in notificar.items() %}<option value="{{ k }}" {{ 'selected' if t.notificar == k }}>{{ v }}</option>{% endfor %}</select>
+      <span class="hint">Gera o evento "Tarefa agendada terminada"; quem recebe (sininho, email) decide-se nas regras do SMTP.</span></label>
+    {% for p in t.definicao_parametros %}
+    <label class="{{ 'full' if p.tipo != 'int' }}">{{ p.rotulo }}
+      <input name="par_{{ p.chave }}" {% if p.tipo == 'int' %}type="number" min="{{ p.min }}" max="{{ p.max }}"{% endif %} value="{{ t.parametros.get(p.chave, p.padrao) }}"></label>
+    {% endfor %}
+  </div>
+  <div class="buttons"><button class="primary">Guardar</button>
+    <a class="btn" href="{{ voltar or url_for('portal.cfg_agendamento') }}">Cancelar</a></div>
+</form>
+
+<section class="card">
+  <h2>Execuções</h2>
+  <p>{% include "config/_estado_tarefa.html" %}
+    {% if t.ativo and t.proxima %}<span class="muted small"> · Próxima: {{ (t.proxima|string)[:16] }}</span>{% endif %}</p>
+  <form method="post" action="{{ url_for('portal.cfg_tarefa_executar', tid=t.id) }}" class="buttons">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="voltar" value="{{ request.full_path }}">
+    <button {{ 'disabled' if t.a_correr or not t.modulo_ativo }}>▶ Executar agora</button></form>
+  {% if historico %}
+  <div class="lista">
+  {% for h in historico %}{% set c = {'SUCESSO': 'ok', 'AVISO': 'warn', 'A CORRER': 'accent'}.get(h.estado, 'bad') %}
+    <details class="lrow-det"><summary class="lrow"><span class="dot d-{{ c }}"></span>
+      <span class="lrow-t"><b>{{ (h.inicio|string)[:16] }} · {{ h.estado }}</b><small>{{ h.origem }}{% if h.fim %} · fim {{ (h.fim|string)[11:19] }}{% endif %}</small></span></summary>
+      <pre class="mono-area small">{{ h.msg or '—' }}</pre></details>
+  {% endfor %}
+  </div>
+  {% else %}<p class="muted small">Ainda não correu.</p>{% endif %}
+</section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const f = document.getElementById('freq'), u = document.getElementById('unid');
+  function ver() { document.querySelectorAll('[data-f]').forEach(e => e.hidden = !e.dataset.f.split(' ').includes(f.value));
+    u.textContent = f.value === 'horas' ? 'horas (1 a 168)' : 'minutos (5 a 1440)'; }
+  f.onchange = ver; ver();
+  {% if t.a_correr %}setTimeout(() => location.reload(), 4000);{% endif %}
+})();
+</script>
+{% endblock %}

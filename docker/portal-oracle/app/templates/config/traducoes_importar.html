@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Importar traduções{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+{% include "config/_aparencia_tabs.html" %}
+<p class="crumbs"><a href="{{ url_for('portal.cfg_linguas') }}">Linguagem</a> ›
+  <a href="{{ url_for('portal.cfg_traducoes', codigo=l.codigo) }}" translate="no">{{ l.nome }}</a> › Importar</p>
+<section class="card wide-form">
+  <h2>Validação de <code translate="no">{{ ficheiro }}</code></h2>
+  {% if r.ok %}
+  <div class="saude s-{{ 'ok' if (r.novas or r.mudadas) else 'warn' }}"><span class="saude-i">{{ '✓' if (r.novas or r.mudadas) else '!' }}</span>
+    <div><b>{{ 'Ficheiro válido' if (r.novas or r.mudadas) else 'Ficheiro válido, sem alterações' }}</b>
+      <small>Nada foi alterado ainda: reveja e confirme.</small></div></div>
+  {% else %}
+  <div class="saude s-bad"><span class="saude-i">✕</span><div><b>Ficheiro com erros</b><small>Corrija-o e importe-o de novo. Nada foi alterado.</small></div></div>
+  {% endif %}
+  <div class="tiles g3" style="margin-top:12px">
+    <div class="tile num-tile"><span class="tile-l">Textos no ficheiro</span><b class="tile-v">{{ r.total }}</b></div>
+    <div class="tile num-tile"><span class="tile-l">Alterados</span><b class="tile-v c-accent">{{ r.mudadas|length }}</b></div>
+    <div class="tile num-tile"><span class="tile-l">Novos</span><b class="tile-v">{{ r.novas|length }}</b></div>
+    <div class="tile num-tile"><span class="tile-l">Iguais</span><b class="tile-v">{{ r.iguais }}</b></div>
+    <div class="tile num-tile"><span class="tile-l">Sem tradução</span><b class="tile-v">{{ r.vazias }}</b></div>
+    <div class="tile num-tile"><span class="tile-l">Erros</span><b class="tile-v {{ 'c-bad' if r.erros }}">{{ r.erros|length }}</b></div>
+  </div>
+  {% if r.erros %}<h3>Erros</h3><ul class="lista-erros" translate="no">{% for e in r.erros[:100] %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+  {% if r.avisos %}<h3>Avisos</h3><ul class="lista-erros avisos" translate="no">{% for e in r.avisos[:50] %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+  {% if r.mudadas %}
+  <h3>Alterações ({{ r.mudadas|length }})</h3>
+  <div class="table-wrap"><table class="tr-tab" translate="no">
+    <thead><tr><th>Original</th><th>Atual</th><th>No ficheiro</th></tr></thead>
+    <tbody>{% for x in r.mudadas[:300] %}<tr><td class="tr-o">{{ x.origem }}</td><td class="muted">{{ x.antes or '—' }}</td><td><b>{{ x.traducao or '(português)' }}</b></td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if r.mudadas|length > 300 %}<p class="muted small">… e mais {{ r.mudadas|length - 300 }}.</p>{% endif %}
+  {% endif %}
+  <div class="buttons">
+    {% if token %}
+    <form method="post" action="{{ url_for('portal.cfg_traducoes_aplicar', codigo=l.codigo) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="token" value="{{ token }}">
+      <button class="primary">Aplicar {{ r.novas|length + r.mudadas|length }} alteração(ões)</button></form>
+    {% endif %}
+    <a class="btn" href="{{ url_for('portal.cfg_traducoes', codigo=l.codigo) }}">{{ 'Cancelar' if token else 'Voltar' }}</a>
+  </div>
+</section>
+{% endblock %}

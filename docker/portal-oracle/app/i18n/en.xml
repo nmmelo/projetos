@@ -1,0 +1,3989 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
+     Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
+<lingua codigo="en" nome="English" textos="996">
+  <texto>
+    <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
+    <traducao>(no dialogue yet: the message was not sent)</traducao>
+  </texto>
+  <texto>
+    <origem>(com todos os textos), traduzir os</origem>
+    <traducao>(with all the texts), translate the</traducao>
+  </texto>
+  <texto>
+    <origem>(cron). Não afeta os backups manuais.</origem>
+    <traducao>(cron). Does not affect manual backups.</traducao>
+  </texto>
+  <texto>
+    <origem>(cálculo do HWM muito mais rápido). SYSDBA remoto exige password file na BD (</origem>
+    <traducao>(much faster HWM calculation). Remote SYSDBA requires a password file on the DB (</traducao>
+  </texto>
+  <texto>
+    <origem>(evento "Tarefa agendada terminada").</origem>
+    <traducao>(event "Scheduled task finished").</traducao>
+  </texto>
+  <texto>
+    <origem>(incluindo as que forem adicionadas no futuro)</origem>
+    <traducao>(including those added in the future)</traducao>
+  </texto>
+  <texto>
+    <origem>(não fica na base de dados)</origem>
+    <traducao>(not stored in the database)</traducao>
+  </texto>
+  <texto>
+    <origem>(por omissão a cada {n} min, feita pelo agente). Falhas geram o evento "Ligação SMTP".</origem>
+    <traducao>(every {n} min by default, run by the agent). Failures raise the "SMTP connection" event.</traducao>
+  </texto>
+  <texto>
+    <origem>(português)</origem>
+    <traducao>(Portuguese)</traducao>
+  </texto>
+  <texto>
+    <origem>(rápido e exato).</origem>
+    <traducao>(fast and exact).</traducao>
+  </texto>
+  <texto>
+    <origem>(segurança:</origem>
+    <traducao>(security:</traducao>
+  </texto>
+  <texto>
+    <origem>(sem output)</origem>
+    <traducao>(no output)</traducao>
+  </texto>
+  <texto>
+    <origem>(sem perfil)</origem>
+    <traducao>(no profile)</traducao>
+  </texto>
+  <texto>
+    <origem>(sem tradução: mostra o português)</origem>
+    <traducao>(no translation: shows the Portuguese)</traducao>
+  </texto>
+  <texto>
+    <origem>) consegue entrar e navegar. Os outros utilizadores veem a mensagem abaixo, também na página de login.</origem>
+    <traducao>) can sign in and browse. Other users see the message below, also on the login page.</traducao>
+  </texto>
+  <texto>
+    <origem>) ficam sempre em ficheiros locais.</origem>
+    <traducao>) are always kept in local files.</traducao>
+  </texto>
+  <texto>
+    <origem>) não são acessíveis a partir do contentor.</origem>
+    <traducao>) are not accessible from the container.</traducao>
+  </texto>
+  <texto>
+    <origem>), a chave de cifra e esta configuração (</origem>
+    <traducao>), the encryption key and this configuration (</traducao>
+  </texto>
+  <texto>
+    <origem>), no servidor:</origem>
+    <traducao>), on the server:</traducao>
+  </texto>
+  <texto>
+    <origem>). Se ativar o "Backup do portal" aqui, fica com dois: desligue um deles.</origem>
+    <traducao>). If you enable "Portal backup" here, you will have two: turn one of them off.</traducao>
+  </texto>
+  <texto>
+    <origem>+ Nova base de dados</origem>
+    <traducao>+ New database</traducao>
+  </texto>
+  <texto>
+    <origem>+ Nova regra de email</origem>
+    <traducao>+ New email rule</traducao>
+  </texto>
+  <texto>
+    <origem>+ Nova regra de notificação</origem>
+    <traducao>+ New notification rule</traducao>
+  </texto>
+  <texto>
+    <origem>+ Novo perfil</origem>
+    <traducao>+ New profile</traducao>
+  </texto>
+  <texto>
+    <origem>+ Novo utilizador</origem>
+    <traducao>+ New user</traducao>
+  </texto>
+  <texto>
+    <origem>+ Regra de email</origem>
+    <traducao>+ Email rule</traducao>
+  </texto>
+  <texto>
+    <origem>+ Regra de sininho</origem>
+    <traducao>+ Bell rule</traducao>
+  </texto>
+  <texto>
+    <origem>, ...), formulários e iframes são removidos ao guardar.</origem>
+    <traducao>, ...), forms and iframes are removed when saving.</traducao>
+  </texto>
+  <texto>
+    <origem>, certificado</origem>
+    <traducao>, certificate</traducao>
+  </texto>
+  <texto>
+    <origem>, contentor</origem>
+    <traducao>, container</traducao>
+  </texto>
+  <texto>
+    <origem>, do</origem>
+    <traducao>, from</traducao>
+  </texto>
+  <texto>
+    <origem>, instância</origem>
+    <traducao>, instance</traducao>
+  </texto>
+  <texto>
+    <origem>, versão</origem>
+    <traducao>, version</traducao>
+  </texto>
+  <texto>
+    <origem>. Cálculo do HWM:</origem>
+    <traducao>. HWM calculation:</traducao>
+  </texto>
+  <texto>
+    <origem>. Gestor de serviços:</origem>
+    <traducao>. Service manager:</traducao>
+  </texto>
+  <texto>
+    <origem>. Instale-o (requirements.txt) e recrie o contentor.</origem>
+    <traducao>. Install it (requirements.txt) and recreate the container.</traducao>
+  </texto>
+  <texto>
+    <origem>. Não inclui o histórico de execuções nem o administrador local.</origem>
+    <traducao>. Does not include the run history or the local administrator.</traducao>
+  </texto>
+  <texto>
+    <origem>. O administrador tem sempre acesso. Retirar um perfil também lhe retira as ações deste módulo; as ações de cada perfil escolhem-se em</origem>
+    <traducao>. The administrator always has access. Removing a profile also removes its actions in this module; each profile's actions are chosen in</traducao>
+  </texto>
+  <texto>
+    <origem>. Scripts, eventos (</origem>
+    <traducao>. Scripts, events (</traducao>
+  </texto>
+  <texto>
+    <origem>. Se a recebeu, o envio de email (SMTP) está a funcionar. Pedido por:</origem>
+    <traducao>. If you received it, email sending (SMTP) is working. Requested by:</traducao>
+  </texto>
+  <texto>
+    <origem>. Tabelas criadas/verificadas (</origem>
+    <traducao>. Tables created/checked (</traducao>
+  </texto>
+  <texto>
+    <origem>: a página fica indisponível durante uns segundos.</origem>
+    <traducao>: the page is unavailable for a few seconds.</traducao>
+  </texto>
+  <texto>
+    <origem>: ao parar, perde o acesso ao portal até o iniciar no servidor.</origem>
+    <traducao>: if stopped, you lose access to the portal until it is started on the server.</traducao>
+  </texto>
+  <texto>
+    <origem>: tem de ser um número.</origem>
+    <traducao>: must be a number.</traducao>
+  </texto>
+  <texto>
+    <origem>; o ficheiro é validado antes de ser aplicado e pode rever as diferenças.</origem>
+    <traducao>; the file is validated before being applied and you can review the differences.</traducao>
+  </texto>
+  <texto>
+    <origem>; senão, o output completo aparece no fim). O cálculo do HWM pode demorar vários minutos em tablespaces grandes.</origem>
+    <traducao>; otherwise the full output appears at the end). The HWM calculation may take several minutes on large tablespaces.</traducao>
+  </texto>
+  <texto>
+    <origem>a analisar</origem>
+    <traducao>analysing</traducao>
+  </texto>
+  <texto>
+    <origem>A cada</origem>
+    <traducao>Every</traducao>
+  </texto>
+  <texto>
+    <origem>A cada N horas</origem>
+    <traducao>Every N hours</traducao>
+  </texto>
+  <texto>
+    <origem>A cada N minutos</origem>
+    <traducao>Every N minutes</traducao>
+  </texto>
+  <texto>
+    <origem>A cada {n} h</origem>
+    <traducao>Every {n} h</traducao>
+  </texto>
+  <texto>
+    <origem>A cada {n} min</origem>
+    <traducao>Every {n} min</traducao>
+  </texto>
+  <texto>
+    <origem>A carregar…</origem>
+    <traducao>Loading…</traducao>
+  </texto>
+  <texto>
+    <origem>A correr…</origem>
+    <traducao>Running…</traducao>
+  </texto>
+  <texto>
+    <origem>a enviar…</origem>
+    <traducao>sending…</traducao>
+  </texto>
+  <texto>
+    <origem>a executar</origem>
+    <traducao>running</traducao>
+  </texto>
+  <texto>
+    <origem>A iniciar</origem>
+    <traducao>Starting</traducao>
+  </texto>
+  <texto>
+    <origem>a iniciar</origem>
+    <traducao>starting</traducao>
+  </texto>
+  <texto>
+    <origem>A ligar à base de dados…</origem>
+    <traducao>Connecting to the database…</traducao>
+  </texto>
+  <texto>
+    <origem>a ligar…</origem>
+    <traducao>connecting…</traducao>
+  </texto>
+  <texto>
+    <origem>A nova password e a confirmação não coincidem.</origem>
+    <traducao>The new password and the confirmation do not match.</traducao>
+  </texto>
+  <texto>
+    <origem>A parar</origem>
+    <traducao>Stopping</traducao>
+  </texto>
+  <texto>
+    <origem>A password atual está errada.</origem>
+    <traducao>The current password is wrong.</traducao>
+  </texto>
+  <texto>
+    <origem>A password e a confirmação não coincidem.</origem>
+    <traducao>The password and the confirmation do not match.</traducao>
+  </texto>
+  <texto>
+    <origem>A password tem de ter pelo menos</origem>
+    <traducao>The password must have at least</traducao>
+  </texto>
+  <texto>
+    <origem>A password é obrigatória.</origem>
+    <traducao>The password is required.</traducao>
+  </texto>
+  <texto>
+    <origem>a que módulos</origem>
+    <traducao>to which modules</traducao>
+  </texto>
+  <texto>
+    <origem>A recarregar</origem>
+    <traducao>Reloading</traducao>
+  </texto>
+  <texto>
+    <origem>A tarefa já está a correr.</origem>
+    <traducao>The task is already running.</traducao>
+  </texto>
+  <texto>
+    <origem>a tradução tem de manter os marcadores</origem>
+    <traducao>the translation must keep the markers</traducao>
+  </texto>
+  <texto>
+    <origem>a validar a ligação…</origem>
+    <traducao>validating the connection…</traducao>
+  </texto>
+  <texto>
+    <origem>A validação expirou ou falhou: volte a importar o ficheiro.</origem>
+    <traducao>The validation expired or failed: import the file again.</traducao>
+  </texto>
+  <texto>
+    <origem>Abas</origem>
+    <traducao>Tabs</traducao>
+  </texto>
+  <texto>
+    <origem>Abrir</origem>
+    <traducao>Open</traducao>
+  </texto>
+  <texto>
+    <origem>Abrir Oracle</origem>
+    <traducao>Open Oracle</traducao>
+  </texto>
+  <texto>
+    <origem>Abrir página</origem>
+    <traducao>Open page</traducao>
+  </texto>
+  <texto>
+    <origem>Acesso ao módulo</origem>
+    <traducao>Access to the module</traducao>
+  </texto>
+  <texto>
+    <origem>Acesso ao módulo Oracle</origem>
+    <traducao>Access to the Oracle module</traducao>
+  </texto>
+  <texto>
+    <origem>Acesso ao módulo Sistema</origem>
+    <traducao>Access to the System module</traducao>
+  </texto>
+  <texto>
+    <origem>Acesso ao módulo SMTP</origem>
+    <traducao>Access to the SMTP module</traducao>
+  </texto>
+  <texto>
+    <origem>acima de</origem>
+    <traducao>above</traducao>
+  </texto>
+  <texto>
+    <origem>acima de 90%</origem>
+    <traducao>above 90%</traducao>
+  </texto>
+  <texto>
+    <origem>acima de {n}%</origem>
+    <traducao>above {n}%</traducao>
+  </texto>
+  <texto>
+    <origem>Acima do limiar</origem>
+    <traducao>Above the threshold</traducao>
+  </texto>
+  <texto>
+    <origem>Acompanhar o fim</origem>
+    <traducao>Follow the end</traducao>
+  </texto>
+  <texto>
+    <origem>acrescentada (inativa). Traduza os textos ou importe um XML e depois ative-a.</origem>
+    <traducao>added (inactive). Translate the texts or import an XML and then activate it.</traducao>
+  </texto>
+  <texto>
+    <origem>Acrescentar</origem>
+    <traducao>Add</traducao>
+  </texto>
+  <texto>
+    <origem>Acrescentar língua</origem>
+    <traducao>Add language</traducao>
+  </texto>
+  <texto>
+    <origem>Adicionar:</origem>
+    <traducao>Add:</traducao>
+  </texto>
+  <texto>
+    <origem>admin local</origem>
+    <traducao>local admin</traducao>
+  </texto>
+  <texto>
+    <origem>Administrador</origem>
+    <traducao>Administrator</traducao>
+  </texto>
+  <texto>
+    <origem>Administrador (local)</origem>
+    <traducao>Administrator (local)</traducao>
+  </texto>
+  <texto>
+    <origem>Agendamento</origem>
+    <traducao>Scheduling</traducao>
+  </texto>
+  <texto>
+    <origem>Agendamentos</origem>
+    <traducao>Schedules</traducao>
+  </texto>
+  <texto>
+    <origem>Agendamentos ativos: as tarefas ativas correm à hora marcada.</origem>
+    <traducao>Schedules enabled: active tasks run at the scheduled time.</traducao>
+  </texto>
+  <texto>
+    <origem>Agendamentos desativados: nenhuma tarefa corre até voltar a ativar.</origem>
+    <traducao>Schedules disabled: no task runs until you enable them again.</traducao>
+  </texto>
+  <texto>
+    <origem>Agente</origem>
+    <traducao>Agent</traducao>
+  </texto>
+  <texto>
+    <origem>Agente ativo</origem>
+    <traducao>Agent running</traducao>
+  </texto>
+  <texto>
+    <origem>Agente do portal</origem>
+    <traducao>Portal agent</traducao>
+  </texto>
+  <texto>
+    <origem>Agente parado</origem>
+    <traducao>Agent stopped</traducao>
+  </texto>
+  <texto>
+    <origem>agora</origem>
+    <traducao>now</traducao>
+  </texto>
+  <texto>
+    <origem>Ainda não correu nenhuma tarefa.</origem>
+    <traducao>No task has run yet.</traducao>
+  </texto>
+  <texto>
+    <origem>Ainda não correu.</origem>
+    <traducao>Has not run yet.</traducao>
+  </texto>
+  <texto>
+    <origem>Ainda não houve ações.</origem>
+    <traducao>No actions yet.</traducao>
+  </texto>
+  <texto>
+    <origem>Ainda não há backups.</origem>
+    <traducao>No backups yet.</traducao>
+  </texto>
+  <texto>
+    <origem>Ainda não há execuções.</origem>
+    <traducao>No runs yet.</traducao>
+  </texto>
+  <texto>
+    <origem>Ainda não há perfis.</origem>
+    <traducao>No profiles yet.</traducao>
+  </texto>
+  <texto>
+    <origem>Ainda não há regras para os eventos deste módulo.</origem>
+    <traducao>There are no rules for this module's events yet.</traducao>
+  </texto>
+  <texto>
+    <origem>Ainda não há utilizadores.</origem>
+    <traducao>No users yet.</traducao>
+  </texto>
+  <texto>
+    <origem>Alterado</origem>
+    <traducao>Changed</traducao>
+  </texto>
+  <texto>
+    <origem>Alterados</origem>
+    <traducao>Changed</traducao>
+  </texto>
+  <texto>
+    <origem>Alterados no portal</origem>
+    <traducao>Changed in the portal</traducao>
+  </texto>
+  <texto>
+    <origem>alterar</origem>
+    <traducao>change</traducao>
+  </texto>
+  <texto>
+    <origem>alterar em Aparência</origem>
+    <traducao>change in Appearance</traducao>
+  </texto>
+  <texto>
+    <origem>Alterar password</origem>
+    <traducao>Change password</traducao>
+  </texto>
+  <texto>
+    <origem>alteração(ões) apagadas: voltam as traduções do ficheiro do portal.</origem>
+    <traducao>change(s) deleted: the portal file translations are used again.</traducao>
+  </texto>
+  <texto>
+    <origem>Análise</origem>
+    <traducao>Analysis</traducao>
+  </texto>
+  <texto>
+    <origem>ANÁLISE — só mostra os comandos</origem>
+    <traducao>ANALYSIS — only shows the commands</traducao>
+  </texto>
+  <texto>
+    <origem>Apaga notificações lidas, emails enviados ou com erro, execuções de agendamentos e ações sobre serviços mais antigos que N dias.</origem>
+    <traducao>Deletes read notifications, sent or failed emails, scheduled task runs and service actions older than N days.</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar</origem>
+    <traducao>Delete</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar a execução #{n}?</origem>
+    <traducao>Delete run #{n}?</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar execuções terminadas (do histórico)</origem>
+    <traducao>Delete finished runs (from the history)</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar falhadas</origem>
+    <traducao>Delete failed</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar falhadas ({n})</origem>
+    <traducao>Delete failed ({n})</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar registos com</origem>
+    <traducao>Delete records older than</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar selecionadas</origem>
+    <traducao>Delete selected</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar todas as alterações feitas no portal a esta língua?</origem>
+    <traducao>Delete all changes made in the portal to this language?</traducao>
+  </texto>
+  <texto>
+    <origem>Aparece no menu, na Home e nas notificações.</origem>
+    <traducao>Shown in the menu, on the Home page and in notifications.</traducao>
+  </texto>
+  <texto>
+    <origem>Aparência</origem>
+    <traducao>Appearance</traducao>
+  </texto>
+  <texto>
+    <origem>Aparência guardada.</origem>
+    <traducao>Appearance saved.</traducao>
+  </texto>
+  <texto>
+    <origem>Aparência reposta: título, textos, ícone e tema por omissão.</origem>
+    <traducao>Appearance reset: default title, texts, icon and theme.</traducao>
+  </texto>
+  <texto>
+    <origem>Aplicar {n} alteração(ões)</origem>
+    <traducao>Apply {n} change(s)</traducao>
+  </texto>
+  <texto>
+    <origem>Armazenamento</origem>
+    <traducao>Storage</traducao>
+  </texto>
+  <texto>
+    <origem>Armazenamento dos dados do portal</origem>
+    <traducao>Portal data storage</traducao>
+  </texto>
+  <texto>
+    <origem>Arraste os cartões para os reordenar; ✕ esconde um cartão.</origem>
+    <traducao>Drag the cards to reorder them; ✕ hides a card.</traducao>
+  </texto>
+  <texto>
+    <origem>Arraste para mudar a ordem</origem>
+    <traducao>Drag to change the order</traducao>
+  </texto>
+  <texto>
+    <origem>as alterações (MOVE/REBUILD/RESIZE) nesta base de dados.</origem>
+    <traducao>the changes (MOVE/REBUILD/RESIZE) on this database.</traducao>
+  </texto>
+  <texto>
+    <origem>As execuções correm dentro do portal</origem>
+    <traducao>Runs are executed inside the portal</traducao>
+  </texto>
+  <texto>
+    <origem>As linhas aparecem aqui à medida que o PL/SQL as escreve (se o utilizador Oracle tiver</origem>
+    <traducao>Lines appear here as the PL/SQL writes them (if the Oracle user has</traducao>
+  </texto>
+  <texto>
+    <origem>As passwords ficam guardadas cifradas (Fernet / AES) e nunca são mostradas.</origem>
+    <traducao>Passwords are stored encrypted (Fernet / AES) and are never shown.</traducao>
+  </texto>
+  <texto>
+    <origem>As tabelas são criadas automaticamente pelo portal.</origem>
+    <traducao>The tables are created automatically by the portal.</traducao>
+  </texto>
+  <texto>
+    <origem>As tarefas são executadas pelo agente do portal: sem ele não correm à hora marcada.</origem>
+    <traducao>Tasks are run by the portal agent: without it they do not run at the scheduled time.</traducao>
+  </texto>
+  <texto>
+    <origem>Assunto</origem>
+    <traducao>Subject</traducao>
+  </texto>
+  <texto>
+    <origem>Atenção</origem>
+    <traducao>Attention</traducao>
+  </texto>
+  <texto>
+    <origem>Atenção: o backup foi criado com outra chave de cifra (fernet.key). As passwords das bases de dados Oracle não vão poder ser decifradas — volte a introduzi-las.</origem>
+    <traducao>Warning: the backup was created with another encryption key (fernet.key). The Oracle database passwords cannot be decrypted — enter them again.</traducao>
+  </texto>
+  <texto>
+    <origem>Ativa</origem>
+    <traducao>Active</traducao>
+  </texto>
+  <texto>
+    <origem>Ativa (corre à hora marcada)</origem>
+    <traducao>Active (runs at the scheduled time)</traducao>
+  </texto>
+  <texto>
+    <origem>Ativar</origem>
+    <traducao>Enable</traducao>
+  </texto>
+  <texto>
+    <origem>Ativar / desativar</origem>
+    <traducao>Enable / disable</traducao>
+  </texto>
+  <texto>
+    <origem>Ativar o modo de manutenção? Só quem gere o portal vai conseguir entrar.</origem>
+    <traducao>Enable maintenance mode? Only portal managers will be able to sign in.</traducao>
+  </texto>
+  <texto>
+    <origem>Ativo</origem>
+    <traducao>Active</traducao>
+  </texto>
+  <texto>
+    <origem>Ativo — em manutenção</origem>
+    <traducao>Active — under maintenance</traducao>
+  </texto>
+  <texto>
+    <origem>Ativo, só quem gere o portal (administrador e perfis com</origem>
+    <traducao>Active: only portal managers (administrator and profiles with</traducao>
+  </texto>
+  <texto>
+    <origem>Ativos</origem>
+    <traducao>Enabled</traducao>
+  </texto>
+  <texto>
+    <origem>Atual</origem>
+    <traducao>Current</traducao>
+  </texto>
+  <texto>
+    <origem>atualizado {n}:{n}:{n}</origem>
+    <traducao>updated {n}:{n}:{n}</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar agora</origem>
+    <traducao>Refresh now</traducao>
+  </texto>
+  <texto>
+    <origem>atualizar agora</origem>
+    <traducao>refresh now</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar: manual</origem>
+    <traducao>Refresh: manual</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar: pausa</origem>
+    <traducao>Refresh: paused</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar: {n} min</origem>
+    <traducao>Refresh: {n} min</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar: {n} s</origem>
+    <traducao>Refresh: {n} s</traducao>
+  </texto>
+  <texto>
+    <origem>Atualização automática</origem>
+    <traducao>Automatic refresh</traducao>
+  </texto>
+  <texto>
+    <origem>autenticação</origem>
+    <traducao>authentication</traducao>
+  </texto>
+  <texto>
+    <origem>Automático antes de importar (</origem>
+    <traducao>Automatic before importing (</traducao>
+  </texto>
+  <texto>
+    <origem>Autorizado</origem>
+    <traducao>Authorised</traducao>
+  </texto>
+  <texto>
+    <origem>Avisos</origem>
+    <traducao>Warnings</traducao>
+  </texto>
+  <texto>
+    <origem>Azul sobre fundo claro (por omissão)</origem>
+    <traducao>Blue on a light background (default)</traducao>
+  </texto>
+  <texto>
+    <origem>Ação ou serviço inválido.</origem>
+    <traducao>Invalid action or service.</traducao>
+  </texto>
+  <texto>
+    <origem>ação(ões) do módulo</origem>
+    <traducao>module action(s)</traducao>
+  </texto>
+  <texto>
+    <origem>Ações</origem>
+    <traducao>Actions</traducao>
+  </texto>
+  <texto>
+    <origem>backup agendado</origem>
+    <traducao>scheduled backup</traducao>
+  </texto>
+  <texto>
+    <origem>Backup criado.</origem>
+    <traducao>Backup created.</traducao>
+  </texto>
+  <texto>
+    <origem>Backup do portal</origem>
+    <traducao>Portal backup</traducao>
+  </texto>
+  <texto>
+    <origem>Backup e respetivo registo removidos.</origem>
+    <traducao>Backup and its record removed.</traducao>
+  </texto>
+  <texto>
+    <origem>Backup não encontrado.</origem>
+    <traducao>Backup not found.</traducao>
+  </texto>
+  <texto>
+    <origem>Backups</origem>
+    <traducao>Backups</traducao>
+  </texto>
+  <texto>
+    <origem>Backups a manter</origem>
+    <traducao>Backups to keep</traducao>
+  </texto>
+  <texto>
+    <origem>Backups automáticos a manter</origem>
+    <traducao>Automatic backups to keep</traducao>
+  </texto>
+  <texto>
+    <origem>Base de dados</origem>
+    <traducao>Database</traducao>
+  </texto>
+  <texto>
+    <origem>Base de dados :</origem>
+    <traducao>Database :</traducao>
+  </texto>
+  <texto>
+    <origem>Base de dados guardada.</origem>
+    <traducao>Database saved.</traducao>
+  </texto>
+  <texto>
+    <origem>Base de dados removida.</origem>
+    <traducao>Database removed.</traducao>
+  </texto>
+  <texto>
+    <origem>base(s) de dados,</origem>
+    <traducao>database(s),</traducao>
+  </texto>
+  <texto>
+    <origem>Bases de dados</origem>
+    <traducao>Databases</traducao>
+  </texto>
+  <texto>
+    <origem>Bases de dados (nomes separados por vírgulas; vazio = todas)</origem>
+    <traducao>Databases (names separated by commas; empty = all)</traducao>
+  </texto>
+  <texto>
+    <origem>Bases de dados Oracle</origem>
+    <traducao>Oracle databases</traducao>
+  </texto>
+  <texto>
+    <origem>Bases de dados Oracle onde o módulo pode trabalhar. Quem vê cada uma define-se nos perfis.</origem>
+    <traducao>Oracle databases the module can work on. Who sees each one is defined in the profiles.</traducao>
+  </texto>
+  <texto>
+    <origem>Bases de dados Oracle, utilizadores, perfis, execuções e registo de backups ficam nesta base de dados. O administrador (</origem>
+    <traducao>Oracle databases, users, profiles, runs and the backup register are kept in this database. The administrator (</traducao>
+  </texto>
+  <texto>
+    <origem>Bases de dados Oracle: relatório de tablespaces, shrink de datafiles e histórico de execuções.</origem>
+    <traducao>Oracle databases: tablespace report, datafile shrink and run history.</traducao>
+  </texto>
+  <texto>
+    <origem>Bases de dados que pode ver</origem>
+    <traducao>Databases you can see</traducao>
+  </texto>
+  <texto>
+    <origem>BD</origem>
+    <traducao>DB</traducao>
+  </texto>
+  <texto>
+    <origem>BD(s) com erro</origem>
+    <traducao>DB(s) with errors</traducao>
+  </texto>
+  <texto>
+    <origem>BD(s),</origem>
+    <traducao>DB(s),</traducao>
+  </texto>
+  <texto>
+    <origem>Cada módulo ativo acrescenta um menu ao portal. Desativado, o menu desaparece para todos e as páginas do módulo deixam de responder; os dados e as permissões dos perfis mantêm-se. Quem vê cada módulo define-se nos</origem>
+    <traducao>Each active module adds a menu to the portal. When disabled, the menu disappears for everyone and the module pages stop responding; the data and the profile permissions are kept. Who sees each module is defined in the</traducao>
+  </texto>
+  <texto>
+    <origem>Cada módulo pode ter tarefas próprias; aparecem aqui quando o módulo está ativo. A notificação usa as regras de</origem>
+    <traducao>Each module can have its own tasks; they appear here when the module is active. Notification uses the rules in</traducao>
+  </texto>
+  <texto>
+    <origem>Caminho do ficheiro SQLite inválido.</origem>
+    <traducao>Invalid SQLite file path.</traducao>
+  </texto>
+  <texto>
+    <origem>Canal</origem>
+    <traducao>Channel</traducao>
+  </texto>
+  <texto>
+    <origem>cancelada na fila</origem>
+    <traducao>cancelled in the queue</traducao>
+  </texto>
+  <texto>
+    <origem>CANCELADO</origem>
+    <traducao>CANCELLED</traducao>
+  </texto>
+  <texto>
+    <origem>Cancelar</origem>
+    <traducao>Cancel</traducao>
+  </texto>
+  <texto>
+    <origem>Cancelar a execução? A sessão Oracle será terminada (KILL SESSION).</origem>
+    <traducao>Cancel the run? The Oracle session will be terminated (KILL SESSION).</traducao>
+  </texto>
+  <texto>
+    <origem>Carregar</origem>
+    <traducao>Load</traducao>
+  </texto>
+  <texto>
+    <origem>Claro</origem>
+    <traducao>Light</traducao>
+  </texto>
+  <texto>
+    <origem>Com autenticação (utilizador e password)</origem>
+    <traducao>With authentication (user and password)</traducao>
+  </texto>
+  <texto>
+    <origem>com aviso</origem>
+    <traducao>with warning</traducao>
+  </texto>
+  <texto>
+    <origem>Com avisos</origem>
+    <traducao>With warnings</traducao>
+  </texto>
+  <texto>
+    <origem>com avisos</origem>
+    <traducao>with warnings</traducao>
+  </texto>
+  <texto>
+    <origem>Com erro</origem>
+    <traducao>With errors</traducao>
+  </texto>
+  <texto>
+    <origem>Com erro ({n} h)</origem>
+    <traducao>With errors ({n} h)</traducao>
+  </texto>
+  <texto>
+    <origem>com erro,</origem>
+    <traducao>with errors,</traducao>
+  </texto>
+  <texto>
+    <origem>Com erros</origem>
+    <traducao>With errors</traducao>
+  </texto>
+  <texto>
+    <origem>com estes filtros</origem>
+    <traducao>with these filters</traducao>
+  </texto>
+  <texto>
+    <origem>com falha</origem>
+    <traducao>failed</traducao>
+  </texto>
+  <texto>
+    <origem>com sucesso</origem>
+    <traducao>successful</traducao>
+  </texto>
+  <texto>
+    <origem>Com SYSDBA o shrink usa</origem>
+    <traducao>With SYSDBA the shrink uses</traducao>
+  </texto>
+  <texto>
+    <origem>Com TODOS, tablespaces com menos espaço livre são ignorados.</origem>
+    <traducao>With ALL, tablespaces with less free space are skipped.</traducao>
+  </texto>
+  <texto>
+    <origem>Concluir</origem>
+    <traducao>Done</traducao>
+  </texto>
+  <texto>
+    <origem>concluída</origem>
+    <traducao>completed</traducao>
+  </texto>
+  <texto>
+    <origem>concluído</origem>
+    <traducao>completed</traducao>
+  </texto>
+  <texto>
+    <origem>Configurar a ligação SMTP, validar e enviar testes</origem>
+    <traducao>Configure the SMTP connection, validate and send tests</traducao>
+  </texto>
+  <texto>
+    <origem>Configuração</origem>
+    <traducao>Settings</traducao>
+  </texto>
+  <texto>
+    <origem>Configuração guardada.</origem>
+    <traducao>Settings saved.</traducao>
+  </texto>
+  <texto>
+    <origem>Configuração SMTP guardada.</origem>
+    <traducao>SMTP settings saved.</traducao>
+  </texto>
+  <texto>
+    <origem>Configuração →</origem>
+    <traducao>Settings →</traducao>
+  </texto>
+  <texto>
+    <origem>Configuração → Agendamento</origem>
+    <traducao>Settings → Scheduling</traducao>
+  </texto>
+  <texto>
+    <origem>Confirmar nova password</origem>
+    <traducao>Confirm new password</traducao>
+  </texto>
+  <texto>
+    <origem>Confirmar password</origem>
+    <traducao>Confirm password</traducao>
+  </texto>
+  <texto>
+    <origem>Confirme a execução.</origem>
+    <traducao>Confirm the run.</traducao>
+  </texto>
+  <texto>
+    <origem>Confirmo que quero</origem>
+    <traducao>I confirm that I want to</traducao>
+  </texto>
+  <texto>
+    <origem>ConnectionRefusedError: [Errno {n}] Connection refused — servidor ou porta inacessível (firewall?).</origem>
+    <traducao>ConnectionRefusedError: [Errno {n}] Connection refused — server or port unreachable (firewall?).</traducao>
+  </texto>
+  <texto>
+    <origem>Copiar os dados atuais para a nova base de dados (</origem>
+    <traducao>Copy the current data to the new database (</traducao>
+  </texto>
+  <texto>
+    <origem>Corrija-o e importe-o de novo. Nada foi alterado.</origem>
+    <traducao>Fix it and import it again. Nothing was changed.</traducao>
+  </texto>
+  <texto>
+    <origem>CPU</origem>
+    <traducao>CPU</traducao>
+  </texto>
+  <texto>
+    <origem>CPUs</origem>
+    <traducao>CPUs</traducao>
+  </texto>
+  <texto>
+    <origem>Criar perfil</origem>
+    <traducao>Create profile</traducao>
+  </texto>
+  <texto>
+    <origem>Crie primeiro um perfil em</origem>
+    <traducao>First create a profile in</traducao>
+  </texto>
+  <texto>
+    <origem>Cálculo do HWM</origem>
+    <traducao>HWM calculation</traducao>
+  </texto>
+  <texto>
+    <origem>Código</origem>
+    <traducao>Code</traducao>
+  </texto>
+  <texto>
+    <origem>código</origem>
+    <traducao>code</traducao>
+  </texto>
+  <texto>
+    <origem>Código inválido: use o código ISO da língua (ex. es, fr, pt-BR).</origem>
+    <traducao>Invalid code: use the ISO language code (e.g. es, fr, pt-BR).</traducao>
+  </texto>
+  <texto>
+    <origem>Cópia da configuração do portal (BDs, utilizadores, perfis, definições), como em Configuração → Backups. Mantém os N mais recentes.</origem>
+    <traducao>Copy of the portal configuration (DBs, users, profiles, settings), as in Settings → Backups. Keeps the N most recent.</traducao>
+  </texto>
+  <texto>
+    <origem>Dados atualizados.</origem>
+    <traducao>Data updated.</traducao>
+  </texto>
+  <texto>
+    <origem>Dados copiados (</origem>
+    <traducao>Data copied (</traducao>
+  </texto>
+  <texto>
+    <origem>Dados do portal</origem>
+    <traducao>Portal data</traducao>
+  </texto>
+  <texto>
+    <origem>Data</origem>
+    <traducao>Date</traducao>
+  </texto>
+  <texto>
+    <origem>Data:</origem>
+    <traducao>Date:</traducao>
+  </texto>
+  <texto>
+    <origem>Defina o servidor em SMTP → Geral</origem>
+    <traducao>Set the server in SMTP → General</traducao>
+  </texto>
+  <texto>
+    <origem>Definições</origem>
+    <traducao>Settings</traducao>
+  </texto>
+  <texto>
+    <origem>Definições: gerir as bases de dados Oracle</origem>
+    <traducao>Settings: manage the Oracle databases</traducao>
+  </texto>
+  <texto>
+    <origem>Definições: serviços mostrados no módulo</origem>
+    <traducao>Settings: services shown in the module</traducao>
+  </texto>
+  <texto>
+    <origem>deixe vazio para manter a atual</origem>
+    <traducao>leave empty to keep the current one</traducao>
+  </texto>
+  <texto>
+    <origem>depois de ligar. Deixe vazio se o Service Name já for o da PDB ou se a BD não for multitenant.</origem>
+    <traducao>after connecting. Leave empty if the Service Name is already the PDB's or if the DB is not multitenant.</traducao>
+  </texto>
+  <texto>
+    <origem>Desativados</origem>
+    <traducao>Disabled</traducao>
+  </texto>
+  <texto>
+    <origem>Desativar</origem>
+    <traducao>Disable</traducao>
+  </texto>
+  <texto>
+    <origem>Desativar todos</origem>
+    <traducao>Disable all</traducao>
+  </texto>
+  <texto>
+    <origem>Desativar todos os agendamentos?</origem>
+    <traducao>Disable all schedules?</traducao>
+  </texto>
+  <texto>
+    <origem>Descarregar log</origem>
+    <traducao>Download log</traducao>
+  </texto>
+  <texto>
+    <origem>Desconhecido</origem>
+    <traducao>Unknown</traducao>
+  </texto>
+  <texto>
+    <origem>Descrição</origem>
+    <traducao>Description</traducao>
+  </texto>
+  <texto>
+    <origem>Desde</origem>
+    <traducao>Since</traducao>
+  </texto>
+  <texto>
+    <origem>desde</origem>
+    <traducao>since</traducao>
+  </texto>
+  <texto>
+    <origem>Desligado: aceita CA interna/privada (como no monitor RMAN)</origem>
+    <traducao>Off: accepts an internal/private CA (as in the RMAN monitor)</traducao>
+  </texto>
+  <texto>
+    <origem>Destinatários inválidos:</origem>
+    <traducao>Invalid recipients:</traducao>
+  </texto>
+  <texto>
+    <origem>Destinatários por omissão</origem>
+    <traducao>Default recipients</traducao>
+  </texto>
+  <texto>
+    <origem>destinatários por omissão</origem>
+    <traducao>default recipients</traducao>
+  </texto>
+  <texto>
+    <origem>Destinatários por omissão (SMTP → Geral)</origem>
+    <traducao>Default recipients (SMTP → General)</traducao>
+  </texto>
+  <texto>
+    <origem>Deteção</origem>
+    <traducao>Detection</traducao>
+  </texto>
+  <texto>
+    <origem>Diagnóstico</origem>
+    <traducao>Diagnostics</traducao>
+  </texto>
+  <texto>
+    <origem>Dias</origem>
+    <traducao>Days</traducao>
+  </texto>
+  <texto>
+    <origem>Dias a manter</origem>
+    <traducao>Days to keep</traducao>
+  </texto>
+  <texto>
+    <origem>dias apagado(s).</origem>
+    <traducao>days deleted.</traducao>
+  </texto>
+  <texto>
+    <origem>Dias da semana</origem>
+    <traducao>Days of the week</traducao>
+  </texto>
+  <texto>
+    <origem>Disco</origem>
+    <traducao>Disk</traducao>
+  </texto>
+  <texto>
+    <origem>Disco /</origem>
+    <traducao>Disk /</traducao>
+  </texto>
+  <texto>
+    <origem>Disco / a {n}% (limiar {n}%)</origem>
+    <traducao>Disk / at {n}% (threshold {n}%)</traducao>
+  </texto>
+  <texto>
+    <origem>Disco acima de {n} %</origem>
+    <traducao>Disk above {n} %</traducao>
+  </texto>
+  <texto>
+    <origem>Disco acima do limiar</origem>
+    <traducao>Disk above the threshold</traducao>
+  </texto>
+  <texto>
+    <origem>Disco acima do limiar ({n})</origem>
+    <traducao>Disk above the threshold ({n})</traducao>
+  </texto>
+  <texto>
+    <origem>Diálogo com o servidor SMTP</origem>
+    <traducao>Dialogue with the SMTP server</traducao>
+  </texto>
+  <texto>
+    <origem>Dom</origem>
+    <traducao>Sun</traducao>
+  </texto>
+  <texto>
+    <origem>dos dois. Se ambos estiverem preenchidos, é usado o Service Name.</origem>
+    <traducao>of the two. If both are filled in, the Service Name is used.</traducao>
+  </texto>
+  <texto>
+    <origem>Driver Python em falta:</origem>
+    <traducao>Missing Python driver:</traducao>
+  </texto>
+  <texto>
+    <origem>Duração</origem>
+    <traducao>Duration</traducao>
+  </texto>
+  <texto>
+    <origem>Duração da sessão (minutos)</origem>
+    <traducao>Session duration (minutes)</traducao>
+  </texto>
+  <texto>
+    <origem>e o portal deixa de responder até alguém o iniciar no servidor.</origem>
+    <traducao>and the portal stops responding until someone starts it on the server.</traducao>
+  </texto>
+  <texto>
+    <origem>Editar</origem>
+    <traducao>Edit</traducao>
+  </texto>
+  <texto>
+    <origem>Editar base de dados</origem>
+    <traducao>Edit database</traducao>
+  </texto>
+  <texto>
+    <origem>Editar painel</origem>
+    <traducao>Edit dashboard</traducao>
+  </texto>
+  <texto>
+    <origem>Editar painel: adicionar, esconder e reordenar cartões</origem>
+    <traducao>Edit dashboard: add, hide and reorder cards</traducao>
+  </texto>
+  <texto>
+    <origem>Editar regra</origem>
+    <traducao>Edit rule</traducao>
+  </texto>
+  <texto>
+    <origem>Editar regra de notificação no portal</origem>
+    <traducao>Edit portal notification rule</traducao>
+  </texto>
+  <texto>
+    <origem>em</origem>
+    <traducao>on</traducao>
+  </texto>
+  <texto>
+    <origem>em cada um e, no Oracle,</origem>
+    <traducao>in each one and, in Oracle,</traducao>
+  </texto>
+  <texto>
+    <origem>Em curso</origem>
+    <traducao>Running</traducao>
+  </texto>
+  <texto>
+    <origem>em curso</origem>
+    <traducao>running</traducao>
+  </texto>
+  <texto>
+    <origem>em direto (agente)</origem>
+    <traducao>live (agent)</traducao>
+  </texto>
+  <texto>
+    <origem>Em execução</origem>
+    <traducao>Running</traducao>
+  </texto>
+  <texto>
+    <origem>Em falta</origem>
+    <traducao>Missing</traducao>
+  </texto>
+  <texto>
+    <origem>em falta</origem>
+    <traducao>missing</traducao>
+  </texto>
+  <texto>
+    <origem>Em manutenção</origem>
+    <traducao>Under maintenance</traducao>
+  </texto>
+  <texto>
+    <origem>em pausa</origem>
+    <traducao>paused</traducao>
+  </texto>
+  <texto>
+    <origem>Em uso</origem>
+    <traducao>In use</traducao>
+  </texto>
+  <texto>
+    <origem>Em uso e permissões</origem>
+    <traducao>In use and permissions</traducao>
+  </texto>
+  <texto>
+    <origem>Em uso:</origem>
+    <traducao>In use:</traducao>
+  </texto>
+  <texto>
+    <origem>em Ver traduções; ou traduzir no próprio portal.</origem>
+    <traducao>in View translations; or translate in the portal itself.</traducao>
+  </texto>
+  <texto>
+    <origem>Email</origem>
+    <traducao>Email</traducao>
+  </texto>
+  <texto>
+    <origem>Email (SMTP)</origem>
+    <traducao>Email (SMTP)</traducao>
+  </texto>
+  <texto>
+    <origem>Email pelo servidor SMTP interno (TLS): avisos quando uma execução termina ou falha, quando um serviço para, quando um disco enche. Regras por evento, notificações no portal e registo dos envios.</origem>
+    <traducao>Email through the internal SMTP server (TLS): alerts when a run finishes or fails, when a service stops, when a disk fills up. Rules per event, portal notifications and a log of sent messages.</traducao>
+  </texto>
+  <texto>
+    <origem>Emails inválidos:</origem>
+    <traducao>Invalid emails:</traducao>
+  </texto>
+  <texto>
+    <origem>Endereço de destino inválido.</origem>
+    <traducao>Invalid destination address.</traducao>
+  </texto>
+  <texto>
+    <origem>Endereço do portal (ligações nos emails)</origem>
+    <traducao>Portal address (links in the emails)</traducao>
+  </texto>
+  <texto>
+    <origem>Entrar</origem>
+    <traducao>Sign in</traducao>
+  </texto>
+  <texto>
+    <origem>envia e valida</origem>
+    <traducao>sends and validates</traducao>
+  </texto>
+  <texto>
+    <origem>ENVIADO</origem>
+    <traducao>SENT</traducao>
+  </texto>
+  <texto>
+    <origem>Enviados</origem>
+    <traducao>Sent</traducao>
+  </texto>
+  <texto>
+    <origem>Enviar teste</origem>
+    <traducao>Send test</traducao>
+  </texto>
+  <texto>
+    <origem>Enviar uma de teste para mim</origem>
+    <traducao>Send a test one to me</traducao>
+  </texto>
+  <texto>
+    <origem>Envio automático</origem>
+    <traducao>Automatic sending</traducao>
+  </texto>
+  <texto>
+    <origem>Envio automático desligado</origem>
+    <traducao>Automatic sending off</traducao>
+  </texto>
+  <texto>
+    <origem>Envio automático ligado</origem>
+    <traducao>Automatic sending on</traducao>
+  </texto>
+  <texto>
+    <origem>ERRO</origem>
+    <traducao>ERROR</traducao>
+  </texto>
+  <texto>
+    <origem>Erro :</origem>
+    <traducao>Error :</traducao>
+  </texto>
+  <texto>
+    <origem>Erro na importação:</origem>
+    <traducao>Import error:</traducao>
+  </texto>
+  <texto>
+    <origem>Erro na verificação</origem>
+    <traducao>Check error</traducao>
+  </texto>
+  <texto>
+    <origem>Erro {n}</origem>
+    <traducao>Error {n}</traducao>
+  </texto>
+  <texto>
+    <origem>Erro:</origem>
+    <traducao>Error:</traducao>
+  </texto>
+  <texto>
+    <origem>Erros</origem>
+    <traducao>Errors</traducao>
+  </texto>
+  <texto>
+    <origem>erros ou interrompidas</origem>
+    <traducao>errors or interrupted</traducao>
+  </texto>
+  <texto>
+    <origem>Erros:</origem>
+    <traducao>Errors:</traducao>
+  </texto>
+  <texto>
+    <origem>Escolha a base de dados para carregar a lista.</origem>
+    <traducao>Choose the database to load the list.</traducao>
+  </texto>
+  <texto>
+    <origem>Escolha o evento.</origem>
+    <traducao>Choose the event.</traducao>
+  </texto>
+  <texto>
+    <origem>Escolha o ficheiro XML.</origem>
+    <traducao>Choose the XML file.</traducao>
+  </texto>
+  <texto>
+    <origem>Escolha pelo menos um dia da semana.</origem>
+    <traducao>Choose at least one day of the week.</traducao>
+  </texto>
+  <texto>
+    <origem>Escolha pelo menos uma situação.</origem>
+    <traducao>Choose at least one situation.</traducao>
+  </texto>
+  <texto>
+    <origem>Escolha um ficheiro.</origem>
+    <traducao>Choose a file.</traducao>
+  </texto>
+  <texto>
+    <origem>Esconder</origem>
+    <traducao>Hide</traducao>
+  </texto>
+  <texto>
+    <origem>Esconder este cartão</origem>
+    <traducao>Hide this card</traducao>
+  </texto>
+  <texto>
+    <origem>Escuro</origem>
+    <traducao>Dark</traducao>
+  </texto>
+  <texto>
+    <origem>Esse nome está reservado para o administrador local.</origem>
+    <traducao>That name is reserved for the local administrator.</traducao>
+  </texto>
+  <texto>
+    <origem>Estado</origem>
+    <traducao>Status</traducao>
+  </texto>
+  <texto>
+    <origem>Estado :</origem>
+    <traducao>Status :</traducao>
+  </texto>
+  <texto>
+    <origem>Estado:</origem>
+    <traducao>Status:</traducao>
+  </texto>
+  <texto>
+    <origem>Este módulo não gera eventos.</origem>
+    <traducao>This module does not generate events.</traducao>
+  </texto>
+  <texto>
+    <origem>Este módulo não tem tarefas agendadas.</origem>
+    <traducao>This module has no scheduled tasks.</traducao>
+  </texto>
+  <texto>
+    <origem>Este servidor também tem o backup diário no cron (</origem>
+    <traducao>This server also has the daily backup in cron (</traducao>
+  </texto>
+  <texto>
+    <origem>Este é o próprio portal: a página fica indisponível durante uns segundos</origem>
+    <traducao>This is the portal itself: the page will be unavailable for a few seconds</traducao>
+  </texto>
+  <texto>
+    <origem>Evento</origem>
+    <traducao>Event</traducao>
+  </texto>
+  <texto>
+    <origem>Eventos</origem>
+    <traducao>Events</traducao>
+  </texto>
+  <texto>
+    <origem>Eventos do módulo:</origem>
+    <traducao>Module events:</traducao>
+  </texto>
+  <texto>
+    <origem>ex. Equipa de bases de dados — acesso restrito</origem>
+    <traducao>e.g. Database team — restricted access</traducao>
+  </texto>
+  <texto>
+    <origem>ex. © {ano} Empresa · Suporte: extensão {n}</origem>
+    <traducao>e.g. © {ano} Company · Support: extension {n}</traducao>
+  </texto>
+  <texto>
+    <origem>ex.: antes de mudar perfis</origem>
+    <traducao>e.g.: before changing profiles</traducao>
+  </texto>
+  <texto>
+    <origem>ex.: DBA Produção</origem>
+    <traducao>e.g.: Production DBA</traducao>
+  </texto>
+  <texto>
+    <origem>EXECUTAR</origem>
+    <traducao>EXECUTE</traducao>
+  </texto>
+  <texto>
+    <origem>executar</origem>
+    <traducao>execute</traducao>
+  </texto>
+  <texto>
+    <origem>Executar</origem>
+    <traducao>Execute</traducao>
+  </texto>
+  <texto>
+    <origem>Executar agora</origem>
+    <traducao>Run now</traducao>
+  </texto>
+  <texto>
+    <origem>Executar shrink</origem>
+    <traducao>Run shrink</traducao>
+  </texto>
+  <texto>
+    <origem>EXECUTAR — faz o shrink</origem>
+    <traducao>EXECUTE — performs the shrink</traducao>
+  </texto>
+  <texto>
+    <origem>Execução</origem>
+    <traducao>Run</traducao>
+  </texto>
+  <texto>
+    <origem>Execução #{n}</origem>
+    <traducao>Run #{n}</traducao>
+  </texto>
+  <texto>
+    <origem>Execução Oracle (shrink) terminada</origem>
+    <traducao>Oracle run (shrink) finished</traducao>
+  </texto>
+  <texto>
+    <origem>Execução Oracle (shrink) terminada: Sucesso</origem>
+    <traducao>Oracle run (shrink) finished: Success</traducao>
+  </texto>
+  <texto>
+    <origem>Execução Oracle com erros ou falhada</origem>
+    <traducao>Oracle run with errors or failed</traducao>
+  </texto>
+  <texto>
+    <origem>Execução Oracle terminada (avisar quem a lançou)</origem>
+    <traducao>Oracle run finished (notify whoever launched it)</traducao>
+  </texto>
+  <texto>
+    <origem>execução(ões) apagada(s).</origem>
+    <traducao>run(s) deleted.</traducao>
+  </texto>
+  <texto>
+    <origem>Execuções</origem>
+    <traducao>Runs</traducao>
+  </texto>
+  <texto>
+    <origem>Execuções ({n} h)</origem>
+    <traducao>Runs ({n} h)</traducao>
+  </texto>
+  <texto>
+    <origem>Execuções Oracle</origem>
+    <traducao>Oracle runs</traducao>
+  </texto>
+  <texto>
+    <origem>Execuções Oracle, métricas, serviços e emails</origem>
+    <traducao>Oracle runs, metrics, services and emails</traducao>
+  </texto>
+  <texto>
+    <origem>Exportar / importar</origem>
+    <traducao>Export / import</traducao>
+  </texto>
+  <texto>
+    <origem>Exportar XML</origem>
+    <traducao>Export XML</traducao>
+  </texto>
+  <texto>
+    <origem>falha</origem>
+    <traducao>failure</traducao>
+  </texto>
+  <texto>
+    <origem>Falha na ligação SMTP</origem>
+    <traducao>SMTP connection failure</traducao>
+  </texto>
+  <texto>
+    <origem>Falhada</origem>
+    <traducao>Failed</traducao>
+  </texto>
+  <texto>
+    <origem>Falhada (interrompida, cancelada, erro de ligação)</origem>
+    <traducao>Failed (interrupted, cancelled, connection error)</traducao>
+  </texto>
+  <texto>
+    <origem>Falhadas</origem>
+    <traducao>Failed</traducao>
+  </texto>
+  <texto>
+    <origem>Falhou</origem>
+    <traducao>Failed</traducao>
+  </texto>
+  <texto>
+    <origem>falhou —</origem>
+    <traducao>failed —</traducao>
+  </texto>
+  <texto>
+    <origem>Falhou:</origem>
+    <traducao>Failed:</traducao>
+  </texto>
+  <texto>
+    <origem>Fazer backup</origem>
+    <traducao>Back up</traducao>
+  </texto>
+  <texto>
+    <origem>Fazer backup agora</origem>
+    <traducao>Back up now</traducao>
+  </texto>
+  <texto>
+    <origem>Fechar</origem>
+    <traducao>Close</traducao>
+  </texto>
+  <texto>
+    <origem>Feito pelo agente; 0 = nunca. Falhas geram o evento "Ligação SMTP".</origem>
+    <traducao>Done by the agent; 0 = never. Failures raise the "SMTP connection" event.</traducao>
+  </texto>
+  <texto>
+    <origem>Fica inativa até a ativar. Para a traduzir:</origem>
+    <traducao>It stays inactive until you activate it. To translate it:</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiro carregado e registado. Use 'Importar' na lista para o aplicar.</origem>
+    <traducao>File uploaded and registered. Use 'Import' in the list to apply it.</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiro carregado:</origem>
+    <traducao>File uploaded:</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiro com erros</origem>
+    <traducao>File with errors</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiro de backup (.json)</origem>
+    <traducao>Backup file (.json)</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiro maior que {n} MB.</origem>
+    <traducao>File larger than {n} MB.</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiro SQLite (relativo a</origem>
+    <traducao>SQLite file (relative to</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiro válido</origem>
+    <traducao>Valid file</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiro válido, sem alterações</origem>
+    <traducao>Valid file, no changes</traducao>
+  </texto>
+  <texto>
+    <origem>fim {n}:{n}:{n}</origem>
+    <traducao>end {n}:{n}:{n}</traducao>
+  </texto>
+  <texto>
+    <origem>Formatação</origem>
+    <traducao>Formatting</traducao>
+  </texto>
+  <texto>
+    <origem>Formato não suportado: use PNG, ICO ou SVG.</origem>
+    <traducao>Unsupported format: use PNG, ICO or SVG.</traducao>
+  </texto>
+  <texto>
+    <origem>Frequência</origem>
+    <traducao>Frequency</traducao>
+  </texto>
+  <texto>
+    <origem>Frequência inválida.</origem>
+    <traducao>Invalid frequency.</traducao>
+  </texto>
+  <texto>
+    <origem>Fundo escuro, cansa menos a vista em salas de operação</origem>
+    <traducao>Dark background, easier on the eyes in operations rooms</traducao>
+  </texto>
+  <texto>
+    <origem>Ganho mín.</origem>
+    <traducao>Min. gain</traducao>
+  </texto>
+  <texto>
+    <origem>ganho mín. {n} MB</origem>
+    <traducao>min. gain {n} MB</traducao>
+  </texto>
+  <texto>
+    <origem>Ganho mínimo (MB)</origem>
+    <traducao>Minimum gain (MB)</traducao>
+  </texto>
+  <texto>
+    <origem>GB de</origem>
+    <traducao>GB of</traducao>
+  </texto>
+  <texto>
+    <origem>Gera o evento "Tarefa agendada terminada"; quem recebe (sininho, email) decide-se nas regras do SMTP.</origem>
+    <traducao>Raises the "Scheduled task finished" event; who receives it (bell, email) is decided in the SMTP rules.</traducao>
+  </texto>
+  <texto>
+    <origem>gerado a partir do evento</origem>
+    <traducao>generated from the event</traducao>
+  </texto>
+  <texto>
+    <origem>Geral</origem>
+    <traducao>General</traducao>
+  </texto>
+  <texto>
+    <origem>Gerir as regras de email e de notificação</origem>
+    <traducao>Manage the email and notification rules</traducao>
+  </texto>
+  <texto>
+    <origem>Gerir o portal: aparência, manutenção, módulos, utilizadores, perfis e backups (e entrar durante a manutenção)</origem>
+    <traducao>Manage the portal: appearance, maintenance, modules, users, profiles and backups (and sign in during maintenance)</traducao>
+  </texto>
+  <texto>
+    <origem>Gerir serviços</origem>
+    <traducao>Manage services</traducao>
+  </texto>
+  <texto>
+    <origem>Gestor de serviços</origem>
+    <traducao>Service manager</traducao>
+  </texto>
+  <texto>
+    <origem>Gestão de espaço</origem>
+    <traducao>Space management</traducao>
+  </texto>
+  <texto>
+    <origem>Guarda definições, bases de dados Oracle (passwords cifradas), perfis e utilizadores em</origem>
+    <traducao>Saves settings, Oracle databases (encrypted passwords), profiles and users in</traducao>
+  </texto>
+  <texto>
+    <origem>Guardada cifrada em</origem>
+    <traducao>Stored encrypted in</traducao>
+  </texto>
+  <texto>
+    <origem>Guardar</origem>
+    <traducao>Save</traducao>
+  </texto>
+  <texto>
+    <origem>Guardar dados</origem>
+    <traducao>Save data</traducao>
+  </texto>
+  <texto>
+    <origem>Guardar e ativar a manutenção</origem>
+    <traducao>Save and enable maintenance</traducao>
+  </texto>
+  <texto>
+    <origem>Guardar e mudar</origem>
+    <traducao>Save and switch</traducao>
+  </texto>
+  <texto>
+    <origem>Guardar mensagem</origem>
+    <traducao>Save message</traducao>
+  </texto>
+  <texto>
+    <origem>Guarde primeiro as alterações: o teste usa a configuração guardada.</origem>
+    <traducao>Save the changes first: the test uses the saved configuration.</traducao>
+  </texto>
+  <texto>
+    <origem>Home</origem>
+    <traducao>Home</traducao>
+  </texto>
+  <texto>
+    <origem>Hora</origem>
+    <traducao>Time</traducao>
+  </texto>
+  <texto>
+    <origem>Hora inválida (HH:MM).</origem>
+    <traducao>Invalid time (HH:MM).</traducao>
+  </texto>
+  <texto>
+    <origem>horas ({n} a {n})</origem>
+    <traducao>hours ({n} to {n})</traducao>
+  </texto>
+  <texto>
+    <origem>Host</origem>
+    <traducao>Host</traducao>
+  </texto>
+  <texto>
+    <origem>Host, base de dados e utilizador são obrigatórios.</origem>
+    <traducao>Host, database and user are required.</traducao>
+  </texto>
+  <texto>
+    <origem>há {n} h</origem>
+    <traducao>{n} h ago</traducao>
+  </texto>
+  <texto>
+    <origem>há {n} min</origem>
+    <traducao>{n} min ago</traducao>
+  </texto>
+  <texto>
+    <origem>há {n}s</origem>
+    <traducao>{n}s ago</traducao>
+  </texto>
+  <texto>
+    <origem>Iguais</origem>
+    <traducao>Unchanged</traducao>
+  </texto>
+  <texto>
+    <origem>Importar</origem>
+    <traducao>Import</traducao>
+  </texto>
+  <texto>
+    <origem>Importar de ficheiro</origem>
+    <traducao>Import from file</traducao>
+  </texto>
+  <texto>
+    <origem>Importar já</origem>
+    <traducao>Import now</traducao>
+  </texto>
+  <texto>
+    <origem>Importação concluída (</origem>
+    <traducao>Import completed (</traducao>
+  </texto>
+  <texto>
+    <origem>Importação concluída:</origem>
+    <traducao>Import completed:</traducao>
+  </texto>
+  <texto>
+    <origem>Inativa</origem>
+    <traducao>Inactive</traducao>
+  </texto>
+  <texto>
+    <origem>Inativo</origem>
+    <traducao>Inactive</traducao>
+  </texto>
+  <texto>
+    <origem>Inativo — operacional</origem>
+    <traducao>Inactive — operational</traducao>
+  </texto>
+  <texto>
+    <origem>Indique a password.</origem>
+    <traducao>Enter the password.</traducao>
+  </texto>
+  <texto>
+    <origem>Indique o nome da língua (ex. Español).</origem>
+    <traducao>Enter the language name (e.g. Español).</traducao>
+  </texto>
+  <texto>
+    <origem>Indique o SID ou o Service Name.</origem>
+    <traducao>Enter the SID or the Service Name.</traducao>
+  </texto>
+  <texto>
+    <origem>Indique pelo menos um destinatário.</origem>
+    <traducao>Enter at least one recipient.</traducao>
+  </texto>
+  <texto>
+    <origem>Informação</origem>
+    <traducao>Information</traducao>
+  </texto>
+  <texto>
+    <origem>Iniciar</origem>
+    <traducao>Start</traducao>
+  </texto>
+  <texto>
+    <origem>Iniciar, parar e reiniciar serviços</origem>
+    <traducao>Start, stop and restart services</traducao>
+  </texto>
+  <texto>
+    <origem>Iniciar, parar e reiniciar é feito pelo agente, que corre com o utilizador de serviço e só pode gerir os serviços em</origem>
+    <traducao>Start, stop and restart are done by the agent, which runs as the service user and can only manage the services in</traducao>
+  </texto>
+  <texto>
+    <origem>Inicie o serviço:</origem>
+    <traducao>Start the service:</traducao>
+  </texto>
+  <texto>
+    <origem>Instalados neste servidor (clique para acrescentar):</origem>
+    <traducao>Installed on this server (click to add):</traducao>
+  </texto>
+  <texto>
+    <origem>Interrompida</origem>
+    <traducao>Interrupted</traducao>
+  </texto>
+  <texto>
+    <origem>INTERROMPIDO</origem>
+    <traducao>INTERRUPTED</traducao>
+  </texto>
+  <texto>
+    <origem>Intervalo</origem>
+    <traducao>Interval</traducao>
+  </texto>
+  <texto>
+    <origem>Intervalo inválido.</origem>
+    <traducao>Invalid interval.</traducao>
+  </texto>
+  <texto>
+    <origem>Início</origem>
+    <traducao>Start</traducao>
+  </texto>
+  <texto>
+    <origem>Início / fim</origem>
+    <traducao>Start / end</traducao>
+  </texto>
+  <texto>
+    <origem>Início / fim :</origem>
+    <traducao>Start / end :</traducao>
+  </texto>
+  <texto>
+    <origem>Itálico</origem>
+    <traducao>Italic</traducao>
+  </texto>
+  <texto>
+    <origem>Juntar — cria/atualiza pelo nome, mantém o resto</origem>
+    <traducao>Merge — creates/updates by name, keeps the rest</traducao>
+  </texto>
+  <texto>
+    <origem>Já existe um utilizador com esse nome.</origem>
+    <traducao>A user with that name already exists.</traducao>
+  </texto>
+  <texto>
+    <origem>KB, que é o máximo.</origem>
+    <traducao>KB, which is the maximum.</traducao>
+  </texto>
+  <texto>
+    <origem>Kernel</origem>
+    <traducao>Kernel</traducao>
+  </texto>
+  <texto>
+    <origem>Lançado por</origem>
+    <traducao>Launched by</traducao>
+  </texto>
+  <texto>
+    <origem>Lançado por :</origem>
+    <traducao>Launched by :</traducao>
+  </texto>
+  <texto>
+    <origem>leitura direta (agente parado)</origem>
+    <traducao>direct reading (agent stopped)</traducao>
+  </texto>
+  <texto>
+    <origem>Leitura direta pelo portal; sem ações sobre serviços</origem>
+    <traducao>Direct reading by the portal; no service actions</traducao>
+  </texto>
+  <texto>
+    <origem>Lida</origem>
+    <traducao>Read</traducao>
+  </texto>
+  <texto>
+    <origem>Liga a cada base de dados e verifica a ocupação das tablespaces (em relação ao máximo com autoextend). Acima do limiar gera o evento "Tablespace acima do limiar" (sininho/email nas regras).</origem>
+    <traducao>Connects to each database and checks tablespace usage (against the maximum with autoextend). Above the threshold it raises the "Tablespace above the threshold" event (bell/email in the rules).</traducao>
+  </texto>
+  <texto>
+    <origem>Liga ao servidor de email (TLS e autenticação), sem enviar. Se falhar, gera o evento "Ligação SMTP: falhou"; quando volta, "recuperou".</origem>
+    <traducao>Connects to the email server (TLS and authentication) without sending. If it fails it raises the "SMTP connection: failed" event; when it comes back, "recovered".</traducao>
+  </texto>
+  <texto>
+    <origem>Liga, STARTTLS e autentica, sem enviar.</origem>
+    <traducao>Connects, STARTTLS and authenticates, without sending.</traducao>
+  </texto>
+  <texto>
+    <origem>Ligado</origem>
+    <traducao>Up</traducao>
+  </texto>
+  <texto>
+    <origem>Ligação</origem>
+    <traducao>Connection</traducao>
+  </texto>
+  <texto>
+    <origem>Ligação ao servidor SMTP</origem>
+    <traducao>Connection to the SMTP server</traducao>
+  </texto>
+  <texto>
+    <origem>Ligação com falha</origem>
+    <traducao>Connection failing</traducao>
+  </texto>
+  <texto>
+    <origem>Ligação e autenticação OK</origem>
+    <traducao>Connection and authentication OK</traducao>
+  </texto>
+  <texto>
+    <origem>Ligação OK a</origem>
+    <traducao>Connection OK to</traducao>
+  </texto>
+  <texto>
+    <origem>Ligação SMTP</origem>
+    <traducao>SMTP connection</traducao>
+  </texto>
+  <texto>
+    <origem>Ligação SMTP (validação periódica pelo agente)</origem>
+    <traducao>SMTP connection (periodic validation by the agent)</traducao>
+  </texto>
+  <texto>
+    <origem>Ligação SMTP com falha</origem>
+    <traducao>SMTP connection failing</traducao>
+  </texto>
+  <texto>
+    <origem>Limiar (%)</origem>
+    <traducao>Threshold (%)</traducao>
+  </texto>
+  <texto>
+    <origem>Limiar de ocupação (%)</origem>
+    <traducao>Usage threshold (%)</traducao>
+  </texto>
+  <texto>
+    <origem>Limiar inválido ({n} a {n}).</origem>
+    <traducao>Invalid threshold ({n} to {n}).</traducao>
+  </texto>
+  <texto>
+    <origem>Limpar</origem>
+    <traducao>Clean up</traducao>
+  </texto>
+  <texto>
+    <origem>Limpar filtros</origem>
+    <traducao>Clear filters</traducao>
+  </texto>
+  <texto>
+    <origem>Limpeza do histórico</origem>
+    <traducao>History clean-up</traducao>
+  </texto>
+  <texto>
+    <origem>Linguagem</origem>
+    <traducao>Language</traducao>
+  </texto>
+  <texto>
+    <origem>Linha</origem>
+    <traducao>Line</traducao>
+  </texto>
+  <texto>
+    <origem>Linha de comandos</origem>
+    <traducao>Command line</traducao>
+  </texto>
+  <texto>
+    <origem>Linhas :</origem>
+    <traducao>Lines :</traducao>
+  </texto>
+  <texto>
+    <origem>linhas com aviso</origem>
+    <traducao>lines with warnings</traducao>
+  </texto>
+  <texto>
+    <origem>linhas com erro</origem>
+    <traducao>lines with errors</traducao>
+  </texto>
+  <texto>
+    <origem>Linhas com erro:</origem>
+    <traducao>Lines with errors:</traducao>
+  </texto>
+  <texto>
+    <origem>Lista</origem>
+    <traducao>List</traducao>
+  </texto>
+  <texto>
+    <origem>Lista vazia: são usados os serviços por omissão.</origem>
+    <traducao>Empty list: the default services are used.</traducao>
+  </texto>
+  <texto>
+    <origem>livre {n}%</origem>
+    <traducao>free {n}%</traducao>
+  </texto>
+  <texto>
+    <origem>load {n} / {n} / {n}</origem>
+    <traducao>load {n} / {n} / {n}</traducao>
+  </texto>
+  <texto>
+    <origem>localhost ou servidor remoto</origem>
+    <traducao>localhost or remote server</traducao>
+  </texto>
+  <texto>
+    <origem>Logs</origem>
+    <traducao>Logs</traducao>
+  </texto>
+  <texto>
+    <origem>Língua</origem>
+    <traducao>Language</traducao>
+  </texto>
+  <texto>
+    <origem>Língua desconhecida.</origem>
+    <traducao>Unknown language.</traducao>
+  </texto>
+  <texto>
+    <origem>Língua original</origem>
+    <traducao>Original language</traducao>
+  </texto>
+  <texto>
+    <origem>língua por omissão</origem>
+    <traducao>default language</traducao>
+  </texto>
+  <texto>
+    <origem>Línguas</origem>
+    <traducao>Languages</traducao>
+  </texto>
+  <texto>
+    <origem>Línguas guardadas.</origem>
+    <traducao>Languages saved.</traducao>
+  </texto>
+  <texto>
+    <origem>mais de {n} dias</origem>
+    <traducao>more than {n} days</traducao>
+  </texto>
+  <texto>
+    <origem>Manutenção</origem>
+    <traducao>Maintenance</traducao>
+  </texto>
+  <texto>
+    <origem>Marcar todas como lidas</origem>
+    <traducao>Mark all as read</traducao>
+  </texto>
+  <texto>
+    <origem>Margem</origem>
+    <traducao>Margin</traducao>
+  </texto>
+  <texto>
+    <origem>Margem livre por datafile (%)</origem>
+    <traducao>Free margin per datafile (%)</traducao>
+  </texto>
+  <texto>
+    <origem>margem {n}%</origem>
+    <traducao>margin {n}%</traducao>
+  </texto>
+  <texto>
+    <origem>memória</origem>
+    <traducao>memory</traducao>
+  </texto>
+  <texto>
+    <origem>Memória RAM</origem>
+    <traducao>RAM</traducao>
+  </texto>
+  <texto>
+    <origem>Mensagem</origem>
+    <traducao>Message</traducao>
+  </texto>
+  <texto>
+    <origem>Mensagem de teste do</origem>
+    <traducao>Test message from</traducao>
+  </texto>
+  <texto>
+    <origem>Mensagem guardada.</origem>
+    <traducao>Message saved.</traducao>
+  </texto>
+  <texto>
+    <origem>Mensagem reposta.</origem>
+    <traducao>Message reset.</traducao>
+  </texto>
+  <texto>
+    <origem>Menu</origem>
+    <traducao>Menu</traducao>
+  </texto>
+  <texto>
+    <origem>Minha área</origem>
+    <traducao>My area</traducao>
+  </texto>
+  <texto>
+    <origem>minutos ({n} a {n})</origem>
+    <traducao>minutes ({n} to {n})</traducao>
+  </texto>
+  <texto>
+    <origem>minúsculas, números, '.', '_' ou '-'</origem>
+    <traducao>lowercase letters, numbers, '.', '_' or '-'</traducao>
+  </texto>
+  <texto>
+    <origem>Modo</origem>
+    <traducao>Mode</traducao>
+  </texto>
+  <texto>
+    <origem>Modo :</origem>
+    <traducao>Mode :</traducao>
+  </texto>
+  <texto>
+    <origem>Modo de importação inválido.</origem>
+    <traducao>Invalid import mode.</traducao>
+  </texto>
+  <texto>
+    <origem>Modo de manutenção</origem>
+    <traducao>Maintenance mode</traducao>
+  </texto>
+  <texto>
+    <origem>Modo de manutenção ATIVO: só quem gere o portal consegue entrar.</origem>
+    <traducao>Maintenance mode ON: only portal managers can sign in.</traducao>
+  </texto>
+  <texto>
+    <origem>Modo de manutenção desativado: o portal está disponível para todos.</origem>
+    <traducao>Maintenance mode off: the portal is available to everyone.</traducao>
+  </texto>
+  <texto>
+    <origem>Monitor de recursos</origem>
+    <traducao>Resource monitor</traducao>
+  </texto>
+  <texto>
+    <origem>Mostrar o ícone ao lado do título (cabeçalho e login)</origem>
+    <traducao>Show the icon next to the title (header and login)</traducao>
+  </texto>
+  <texto>
+    <origem>Mudar o armazenamento do portal?</origem>
+    <traducao>Change the portal storage?</traducao>
+  </texto>
+  <texto>
+    <origem>Mínimo de {n} caracteres. A password do administrador fica no ficheiro local</origem>
+    <traducao>Minimum {n} characters. The administrator password is kept in the local file</traducao>
+  </texto>
+  <texto>
+    <origem>mínimo {n} caracteres</origem>
+    <traducao>minimum {n} characters</traducao>
+  </texto>
+  <texto>
+    <origem>Módulo</origem>
+    <traducao>Module</traducao>
+  </texto>
+  <texto>
+    <origem>Módulo ativo</origem>
+    <traducao>Module active</traducao>
+  </texto>
+  <texto>
+    <origem>módulo inativo</origem>
+    <traducao>module inactive</traducao>
+  </texto>
+  <texto>
+    <origem>Módulo Oracle</origem>
+    <traducao>Oracle module</traducao>
+  </texto>
+  <texto>
+    <origem>Módulo Sistema</origem>
+    <traducao>System module</traducao>
+  </texto>
+  <texto>
+    <origem>Módulo SMTP</origem>
+    <traducao>SMTP module</traducao>
+  </texto>
+  <texto>
+    <origem>Módulos</origem>
+    <traducao>Modules</traducao>
+  </texto>
+  <texto>
+    <origem>Módulos ativos</origem>
+    <traducao>Active modules</traducao>
+  </texto>
+  <texto>
+    <origem>Na fila</origem>
+    <traducao>Queued</traducao>
+  </texto>
+  <texto>
+    <origem>na fila</origem>
+    <traducao>queued</traducao>
+  </texto>
+  <texto>
+    <origem>na fila do agente</origem>
+    <traducao>in the agent queue</traducao>
+  </texto>
+  <texto>
+    <origem>na fila…</origem>
+    <traducao>queued…</traducao>
+  </texto>
+  <texto>
+    <origem>na PDB</origem>
+    <traducao>in the PDB</traducao>
+  </texto>
+  <texto>
+    <origem>Nada apagado (execuções em curso não podem ser apagadas).</origem>
+    <traducao>Nothing deleted (running runs cannot be deleted).</traducao>
+  </texto>
+  <texto>
+    <origem>Nada foi alterado ainda: reveja e confirme.</origem>
+    <traducao>Nothing has been changed yet: review and confirm.</traducao>
+  </texto>
+  <texto>
+    <origem>Negrito</origem>
+    <traducao>Bold</traducao>
+  </texto>
+  <texto>
+    <origem>nenhum</origem>
+    <traducao>none</traducao>
+  </texto>
+  <texto>
+    <origem>nenhum (só o administrador)</origem>
+    <traducao>none (administrator only)</traducao>
+  </texto>
+  <texto>
+    <origem>nenhum acessível</origem>
+    <traducao>none accessible</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhum texto.</origem>
+    <traducao>No texts.</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhuma (sem cifra)</origem>
+    <traducao>None (no encryption)</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhuma base de dados para verificar.</origem>
+    <traducao>No database to check.</traducao>
+  </texto>
+  <texto>
+    <origem>nenhuma em curso</origem>
+    <traducao>none running</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhuma selecionada</origem>
+    <traducao>None selected</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhuma tarefa corre à hora marcada (pode correr à mão).</origem>
+    <traducao>No task runs at the scheduled time (you can run them manually).</traducao>
+  </texto>
+  <texto>
+    <origem>No cabeçalho, no login e no separador do browser.</origem>
+    <traducao>In the header, on the login page and in the browser tab.</traducao>
+  </texto>
+  <texto>
+    <origem>No Docker, o agente gere os programas do supervisord do contentor (nginx, gunicorn, agente, sshd, cron).</origem>
+    <traducao>In Docker, the agent manages the container's supervisord programs (nginx, gunicorn, agent, sshd, cron).</traducao>
+  </texto>
+  <texto>
+    <origem>No ficheiro</origem>
+    <traducao>In the file</traducao>
+  </texto>
+  <texto>
+    <origem>Nome</origem>
+    <traducao>Name</traducao>
+  </texto>
+  <texto>
+    <origem>Nome (identificação no portal)</origem>
+    <traducao>Name (identification in the portal)</traducao>
+  </texto>
+  <texto>
+    <origem>Nome (opcional)</origem>
+    <traducao>Name (optional)</traducao>
+  </texto>
+  <texto>
+    <origem>Nome de ficheiro inválido.</origem>
+    <traducao>Invalid file name.</traducao>
+  </texto>
+  <texto>
+    <origem>Nome do remetente</origem>
+    <traducao>Sender name</traducao>
+  </texto>
+  <texto>
+    <origem>nome do servidor (FQDN)</origem>
+    <traducao>server name (FQDN)</traducao>
+  </texto>
+  <texto>
+    <origem>Nome no EHLO (opcional)</origem>
+    <traducao>EHLO name (optional)</traducao>
+  </texto>
+  <texto>
+    <origem>Nome no menu</origem>
+    <traducao>Name in the menu</traducao>
+  </texto>
+  <texto>
+    <origem>Nome original:</origem>
+    <traducao>Original name:</traducao>
+  </texto>
+  <texto>
+    <origem>Nome original: Oracle. Aparece no menu, na Home e nas notificações.</origem>
+    <traducao>Original name: Oracle. Shown in the menu, on the Home page and in notifications.</traducao>
+  </texto>
+  <texto>
+    <origem>Nome original: Sistema. Aparece no menu, na Home e nas notificações.</origem>
+    <traducao>Original name: System. Shown in the menu, on the Home page and in notifications.</traducao>
+  </texto>
+  <texto>
+    <origem>Nome original: SMTP. Aparece no menu, na Home e nas notificações.</origem>
+    <traducao>Original name: SMTP. Shown in the menu, on the Home page and in notifications.</traducao>
+  </texto>
+  <texto>
+    <origem>Nome, host e utilizador são obrigatórios.</origem>
+    <traducao>Name, host and user are required.</traducao>
+  </texto>
+  <texto>
+    <origem>Nomes inválidos:</origem>
+    <traducao>Invalid names:</traducao>
+  </texto>
+  <texto>
+    <origem>Normal</origem>
+    <traducao>Normal</traducao>
+  </texto>
+  <texto>
+    <origem>Nota (opcional)</origem>
+    <traducao>Note (optional)</traducao>
+  </texto>
+  <texto>
+    <origem>Notificar</origem>
+    <traducao>Notify</traducao>
+  </texto>
+  <texto>
+    <origem>Notificação</origem>
+    <traducao>Notification</traducao>
+  </texto>
+  <texto>
+    <origem>Notificação de teste</origem>
+    <traducao>Test notification</traducao>
+  </texto>
+  <texto>
+    <origem>Notificação de teste criada: veja o sininho no topo.</origem>
+    <traducao>Test notification created: check the bell at the top.</traducao>
+  </texto>
+  <texto>
+    <origem>Notificação inválida.</origem>
+    <traducao>Invalid notification.</traducao>
+  </texto>
+  <texto>
+    <origem>notificação no portal</origem>
+    <traducao>portal notification</traducao>
+  </texto>
+  <texto>
+    <origem>Notificações</origem>
+    <traducao>Notifications</traducao>
+  </texto>
+  <texto>
+    <origem>Notificações no portal (o</origem>
+    <traducao>Portal notifications (the</traducao>
+  </texto>
+  <texto>
+    <origem>Nova</origem>
+    <traducao>New</traducao>
+  </texto>
+  <texto>
+    <origem>Nova base de dados</origem>
+    <traducao>New database</traducao>
+  </texto>
+  <texto>
+    <origem>Nova password</origem>
+    <traducao>New password</traducao>
+  </texto>
+  <texto>
+    <origem>Nova regra</origem>
+    <traducao>New rule</traducao>
+  </texto>
+  <texto>
+    <origem>Nova regra de email</origem>
+    <traducao>New email rule</traducao>
+  </texto>
+  <texto>
+    <origem>Nova regra de notificação no portal</origem>
+    <traducao>New portal notification rule</traducao>
+  </texto>
+  <texto>
+    <origem>Novo</origem>
+    <traducao>New</traducao>
+  </texto>
+  <texto>
+    <origem>Novo perfil</origem>
+    <traducao>New profile</traducao>
+  </texto>
+  <texto>
+    <origem>Novo utilizador</origem>
+    <traducao>New user</traducao>
+  </texto>
+  <texto>
+    <origem>Novo ícone</origem>
+    <traducao>New icon</traducao>
+  </texto>
+  <texto>
+    <origem>Novos</origem>
+    <traducao>New</traducao>
+  </texto>
+  <texto>
+    <origem>Nunca correu</origem>
+    <traducao>Never ran</traducao>
+  </texto>
+  <texto>
+    <origem>não</origem>
+    <traducao>no</traducao>
+  </texto>
+  <texto>
+    <origem>Não</origem>
+    <traducao>No</traducao>
+  </texto>
+  <texto>
+    <origem>Não existe</origem>
+    <traducao>Does not exist</traducao>
+  </texto>
+  <texto>
+    <origem>Não foi possível cancelar:</origem>
+    <traducao>Could not cancel:</traducao>
+  </texto>
+  <texto>
+    <origem>Não foi possível obter estes dados.</origem>
+    <traducao>Could not get this data.</traducao>
+  </texto>
+  <texto>
+    <origem>Não foi possível pedir a ação.</origem>
+    <traducao>Could not request the action.</traducao>
+  </texto>
+  <texto>
+    <origem>Não pode remover o seu próprio utilizador.</origem>
+    <traducao>You cannot remove your own user.</traducao>
+  </texto>
+  <texto>
+    <origem>Não tem permissão para esta página ou base de dados.</origem>
+    <traducao>You do not have permission for this page or database.</traducao>
+  </texto>
+  <texto>
+    <origem>não validado</origem>
+    <traducao>not validated</traducao>
+  </texto>
+  <texto>
+    <origem>O administrador</origem>
+    <traducao>The administrator</traducao>
+  </texto>
+  <texto>
+    <origem>O agente corre as tarefas ativas à hora marcada.</origem>
+    <traducao>The agent runs the active tasks at the scheduled time.</traducao>
+  </texto>
+  <texto>
+    <origem>O agente corre como root: pode gerir qualquer serviço da lista.</origem>
+    <traducao>The agent runs as root: it can manage any service in the list.</traducao>
+  </texto>
+  <texto>
+    <origem>O agente do portal está parado: as ações sobre serviços são feitas por ele.</origem>
+    <traducao>The portal agent is stopped: service actions are carried out by it.</traducao>
+  </texto>
+  <texto>
+    <origem>O agente e o portal são reiniciados.</origem>
+    <traducao>The agent and the portal are restarted.</traducao>
+  </texto>
+  <texto>
+    <origem>O agente faz as execuções Oracle e estas métricas: as execuções em curso ficam INTERROMPIDO.</origem>
+    <traducao>The agent carries out the Oracle runs and these metrics: running runs become INTERRUPTED.</traducao>
+  </texto>
+  <texto>
+    <origem>O agente não tem permissão (sudoers). Ver Sistema → Definições.</origem>
+    <traducao>The agent has no permission (sudoers). See System → Settings.</traducao>
+  </texto>
+  <texto>
+    <origem>O ficheiro está vazio.</origem>
+    <traducao>The file is empty.</traducao>
+  </texto>
+  <texto>
+    <origem>O ficheiro fica registado na lista. Antes de qualquer importação é feito um backup automático.</origem>
+    <traducao>The file is registered in the list. An automatic backup is made before any import.</traducao>
+  </texto>
+  <texto>
+    <origem>O ficheiro não é um backup deste portal.</origem>
+    <traducao>The file is not a backup of this portal.</traducao>
+  </texto>
+  <texto>
+    <origem>O ficheiro não é um JSON válido.</origem>
+    <traducao>The file is not valid JSON.</traducao>
+  </texto>
+  <texto>
+    <origem>O intervalo em horas tem de estar entre {n} e {n}.</origem>
+    <traducao>The interval in hours must be between {n} and {n}.</traducao>
+  </texto>
+  <texto>
+    <origem>O intervalo em minutos tem de estar entre {n} e {n}.</origem>
+    <traducao>The interval in minutes must be between {n} and {n}.</traducao>
+  </texto>
+  <texto>
+    <origem>O módulo SMTP está inativo.</origem>
+    <traducao>The SMTP module is inactive.</traducao>
+  </texto>
+  <texto>
+    <origem>O Nginx serve o portal</origem>
+    <traducao>Nginx serves the portal</traducao>
+  </texto>
+  <texto>
+    <origem>O nome do perfil é obrigatório.</origem>
+    <traducao>The profile name is required.</traducao>
+  </texto>
+  <texto>
+    <origem>O nome não pode ficar vazio.</origem>
+    <traducao>The name cannot be empty.</traducao>
+  </texto>
+  <texto>
+    <origem>O perfil está atribuído a utilizadores.</origem>
+    <traducao>The profile is assigned to users.</traducao>
+  </texto>
+  <texto>
+    <origem>O portal passou a usar</origem>
+    <traducao>The portal now uses</traducao>
+  </texto>
+  <texto>
+    <origem>O portal é escrito em português. As outras línguas traduzem os {n} textos do portal; um texto sem tradução aparece em português. Cada utilizador escolhe a língua nas bandeiras ao lado do sininho; a</origem>
+    <traducao>The portal is written in Portuguese. The other languages translate the portal's {n} texts; an untranslated text is shown in Portuguese. Each user chooses the language with the flags next to the bell; the</traducao>
+  </texto>
+  <texto>
+    <origem>O português e o inglês não podem ser removidos (pode desativar o inglês).</origem>
+    <traducao>Portuguese and English cannot be removed (you can disable English).</traducao>
+  </texto>
+  <texto>
+    <origem>O português é a língua original do portal: não tem traduções.</origem>
+    <traducao>Portuguese is the portal's original language: it has no translations.</traducao>
+  </texto>
+  <texto>
+    <origem>o que lá existir)</origem>
+    <traducao>whatever is there)</traducao>
+  </texto>
+  <texto>
+    <origem>o que pode fazer</origem>
+    <traducao>what it can do</traducao>
+  </texto>
+  <texto>
+    <origem>O servidor não anuncia STARTTLS: use outra porta (ex. {n}) ou a segurança 'nenhuma'.</origem>
+    <traducao>The server does not announce STARTTLS: use another port (e.g. {n}) or security 'none'.</traducao>
+  </texto>
+  <texto>
+    <origem>O seu perfil não permite o modo</origem>
+    <traducao>Your profile does not allow the mode</traducao>
+  </texto>
+  <texto>
+    <origem>O sininho do portal está a funcionar.</origem>
+    <traducao>The portal bell is working.</traducao>
+  </texto>
+  <texto>
+    <origem>O SVG tem scripts ou eventos, que não são permitidos.</origem>
+    <traducao>The SVG has scripts or events, which are not allowed.</traducao>
+  </texto>
+  <texto>
+    <origem>O tema aplica-se a todos os utilizadores.</origem>
+    <traducao>The theme applies to all users.</traducao>
+  </texto>
+  <texto>
+    <origem>o utilizador tem acesso,</origem>
+    <traducao>the user has access,</traducao>
+  </texto>
+  <texto>
+    <origem>o XML não pode ter DOCTYPE nem ENTITY</origem>
+    <traducao>the XML cannot have DOCTYPE or ENTITY</traducao>
+  </texto>
+  <texto>
+    <origem>O XML tem todos os textos. Altere só o</origem>
+    <traducao>The XML has all the texts. Change only the</traducao>
+  </texto>
+  <texto>
+    <origem>O ícone tem mais de</origem>
+    <traducao>The icon is larger than</traducao>
+  </texto>
+  <texto>
+    <origem>Ocorreu um erro inesperado (referência</origem>
+    <traducao>An unexpected error occurred (reference</traducao>
+  </texto>
+  <texto>
+    <origem>Ocupado:</origem>
+    <traducao>Used:</traducao>
+  </texto>
+  <texto>
+    <origem>OK</origem>
+    <traducao>OK</traducao>
+  </texto>
+  <texto>
+    <origem>Olá,</origem>
+    <traducao>Hello,</traducao>
+  </texto>
+  <texto>
+    <origem>Opcional. Aparece em todas as páginas, incluindo o login.</origem>
+    <traducao>Optional. Shown on every page, including the login page.</traducao>
+  </texto>
+  <texto>
+    <origem>Opcional. Aparece por baixo do título, na página de entrada.</origem>
+    <traducao>Optional. Shown below the title, on the sign-in page.</traducao>
+  </texto>
+  <texto>
+    <origem>Operações ONLINE (requer Enterprise Edition)</origem>
+    <traducao>ONLINE operations (requires Enterprise Edition)</traducao>
+  </texto>
+  <texto>
+    <origem>Oracle</origem>
+    <traducao>Oracle</traducao>
+  </texto>
+  <texto>
+    <origem>Original</origem>
+    <traducao>Original</traducao>
+  </texto>
+  <texto>
+    <origem>Original do portal</origem>
+    <traducao>Portal original</traducao>
+  </texto>
+  <texto>
+    <origem>Os agendamentos estão desativados em</origem>
+    <traducao>Schedules are disabled in</traducao>
+  </texto>
+  <texto>
+    <origem>Os meus dados</origem>
+    <traducao>My details</traducao>
+  </texto>
+  <texto>
+    <origem>Os serviços do anfitrião (ex.</origem>
+    <traducao>The host's services (e.g.</traducao>
+  </texto>
+  <texto>
+    <origem>Os utilizadores só recebem se tiverem email (Minha área / Utilizadores).</origem>
+    <traducao>Users only receive it if they have an email address (My area / Users).</traducao>
+  </texto>
+  <texto>
+    <origem>Output</origem>
+    <traducao>Output</traducao>
+  </texto>
+  <texto>
+    <origem>Outros emails</origem>
+    <traducao>Other emails</traducao>
+  </texto>
+  <texto>
+    <origem>Painel</origem>
+    <traducao>Dashboard</traducao>
+  </texto>
+  <texto>
+    <origem>Para</origem>
+    <traducao>To</traducao>
+  </texto>
+  <texto>
+    <origem>Para autorizar um serviço (ex.</origem>
+    <traducao>To authorise a service (e.g.</traducao>
+  </texto>
+  <texto>
+    <origem>Para criar ou editar regras, ative o módulo SMTP (as regras de sininho funcionam na mesma).</origem>
+    <traducao>To create or edit rules, enable the SMTP module (bell rules still work).</traducao>
+  </texto>
+  <texto>
+    <origem>Para EXECUTAR tem de confirmar a operação.</origem>
+    <traducao>To EXECUTE you must confirm the operation.</traducao>
+  </texto>
+  <texto>
+    <origem>Parado</origem>
+    <traducao>Stopped</traducao>
+  </texto>
+  <texto>
+    <origem>Parado (leitura direta)</origem>
+    <traducao>Stopped (direct reading)</traducao>
+  </texto>
+  <texto>
+    <origem>Parar</origem>
+    <traducao>Stop</traducao>
+  </texto>
+  <texto>
+    <origem>Parou</origem>
+    <traducao>Stopped</traducao>
+  </texto>
+  <texto>
+    <origem>Parágrafo</origem>
+    <traducao>Paragraph</traducao>
+  </texto>
+  <texto>
+    <origem>Parâmetros</origem>
+    <traducao>Parameters</traducao>
+  </texto>
+  <texto>
+    <origem>Passo atual:</origem>
+    <traducao>Current step:</traducao>
+  </texto>
+  <texto>
+    <origem>Password</origem>
+    <traducao>Password</traducao>
+  </texto>
+  <texto>
+    <origem>Password alterada.</origem>
+    <traducao>Password changed.</traducao>
+  </texto>
+  <texto>
+    <origem>Password atual</origem>
+    <traducao>Current password</traducao>
+  </texto>
+  <texto>
+    <origem>pausa</origem>
+    <traducao>paused</traducao>
+  </texto>
+  <texto>
+    <origem>PDB (opcional)</origem>
+    <traducao>PDB (optional)</traducao>
+  </texto>
+  <texto>
+    <origem>Pedido de cancelamento enviado (KILL SESSION).</origem>
+    <traducao>Cancellation request sent (KILL SESSION).</traducao>
+  </texto>
+  <texto>
+    <origem>Pedido…</origem>
+    <traducao>Requested…</traducao>
+  </texto>
+  <texto>
+    <origem>pendente(s)</origem>
+    <traducao>pending</traducao>
+  </texto>
+  <texto>
+    <origem>Perfil</origem>
+    <traducao>Profile</traducao>
+  </texto>
+  <texto>
+    <origem>Perfil guardado.</origem>
+    <traducao>Profile saved.</traducao>
+  </texto>
+  <texto>
+    <origem>Perfil removido.</origem>
+    <traducao>Profile removed.</traducao>
+  </texto>
+  <texto>
+    <origem>perfil(is) alterado(s))</origem>
+    <traducao>profile(s) changed)</traducao>
+  </texto>
+  <texto>
+    <origem>Perfis</origem>
+    <traducao>Profiles</traducao>
+  </texto>
+  <texto>
+    <origem>perfis</origem>
+    <traducao>profiles</traducao>
+  </texto>
+  <texto>
+    <origem>Perfis com a permissão</origem>
+    <traducao>Profiles with the permission</traducao>
+  </texto>
+  <texto>
+    <origem>Perfis com acesso</origem>
+    <traducao>Profiles with access</traducao>
+  </texto>
+  <texto>
+    <origem>Permissões</origem>
+    <traducao>Permissions</traducao>
+  </texto>
+  <texto>
+    <origem>Permitido: títulos, parágrafos, negrito, itálico, listas, ligações, imagens, tabelas e</origem>
+    <traducao>Allowed: headings, paragraphs, bold, italic, lists, links, images, tables and</traducao>
+  </texto>
+  <texto>
+    <origem>PNG, ICO ou SVG, até {n} KB. Recomendado: quadrado, {n}×{n} ou {n}×{n} px (ou SVG).</origem>
+    <traducao>PNG, ICO or SVG, up to {n} KB. Recommended: square, {n}×{n} or {n}×{n} px (or SVG).</traducao>
+  </texto>
+  <texto>
+    <origem>Por</origem>
+    <traducao>By</traducao>
+  </texto>
+  <texto>
+    <origem>por admin</origem>
+    <traducao>by admin</traducao>
+  </texto>
+  <texto>
+    <origem>Por configurar</origem>
+    <traducao>Not configured</traducao>
+  </texto>
+  <texto>
+    <origem>por enviar</origem>
+    <traducao>to be sent</traducao>
+  </texto>
+  <texto>
+    <origem>Por omissão</origem>
+    <traducao>Default</traducao>
+  </texto>
+  <texto>
+    <origem>Por:</origem>
+    <traducao>By:</traducao>
+  </texto>
+  <texto>
+    <origem>Porta</origem>
+    <traducao>Port</traducao>
+  </texto>
+  <texto>
+    <origem>Porta inválida.</origem>
+    <traducao>Invalid port.</traducao>
+  </texto>
+  <texto>
+    <origem>Portal</origem>
+    <traducao>Portal</traducao>
+  </texto>
+  <texto>
+    <origem>Portal a funcionar</origem>
+    <traducao>Portal running</traducao>
+  </texto>
+  <texto>
+    <origem>portal em manutenção</origem>
+    <traducao>portal under maintenance</traducao>
+  </texto>
+  <texto>
+    <origem>Portal em manutenção.</origem>
+    <traducao>Portal under maintenance.</traducao>
+  </texto>
+  <texto>
+    <origem>Português</origem>
+    <traducao>Português</traducao>
+  </texto>
+  <texto>
+    <origem>Preencha</origem>
+    <traducao>Fill in</traducao>
+  </texto>
+  <texto>
+    <origem>Prefixo do assunto</origem>
+    <traducao>Subject prefix</traducao>
+  </texto>
+  <texto>
+    <origem>Preparar a base de dados remota</origem>
+    <traducao>Prepare the remote database</traducao>
+  </texto>
+  <texto>
+    <origem>Processos</origem>
+    <traducao>Processes</traducao>
+  </texto>
+  <texto>
+    <origem>Procurar destinatário, assunto, regra ou erro</origem>
+    <traducao>Search recipient, subject, rule or error</traducao>
+  </texto>
+  <texto>
+    <origem>Procurar no texto original ou na tradução</origem>
+    <traducao>Search the original text or the translation</traducao>
+  </texto>
+  <texto>
+    <origem>Procurar tablespace, BD, utilizador ou texto do output (ex. ORA-{n})</origem>
+    <traducao>Search tablespace, DB, user or output text (e.g. ORA-{n})</traducao>
+  </texto>
+  <texto>
+    <origem>programa do supervisord</origem>
+    <traducao>supervisord program</traducao>
+  </texto>
+  <texto>
+    <origem>Pré-visualização</origem>
+    <traducao>Preview</traducao>
+  </texto>
+  <texto>
+    <origem>Pré-visualização da mensagem</origem>
+    <traducao>Message preview</traducao>
+  </texto>
+  <texto>
+    <origem>Próxima</origem>
+    <traducao>Next</traducao>
+  </texto>
+  <texto>
+    <origem>Próxima:</origem>
+    <traducao>Next:</traducao>
+  </texto>
+  <texto>
+    <origem>PURGE da recyclebin do tablespace</origem>
+    <traducao>PURGE of the tablespace recycle bin</traducao>
+  </texto>
+  <texto>
+    <origem>Página não encontrada (ou módulo desativado).</origem>
+    <traducao>Page not found (or module disabled).</traducao>
+  </texto>
+  <texto>
+    <origem>Qua</origem>
+    <traducao>Wed</traducao>
+  </texto>
+  <texto>
+    <origem>Quando</origem>
+    <traducao>When</traducao>
+  </texto>
+  <texto>
+    <origem>que bases de dados</origem>
+    <traducao>which databases</traducao>
+  </texto>
+  <texto>
+    <origem>Que emails enviar quando acontece algo num módulo. Ex.: uma execução Oracle</origem>
+    <traducao>Which emails to send when something happens in a module. E.g.: an Oracle run</traducao>
+  </texto>
+  <texto>
+    <origem>Quebra de linha</origem>
+    <traducao>Line break</traducao>
+  </texto>
+  <texto>
+    <origem>quem gere o portal</origem>
+    <traducao>portal managers</traducao>
+  </texto>
+  <texto>
+    <origem>Quem gere o portal (administrador e perfis com</origem>
+    <traducao>Portal managers (administrator and profiles with</traducao>
+  </texto>
+  <texto>
+    <origem>quem lançou</origem>
+    <traducao>whoever launched it</traducao>
+  </texto>
+  <texto>
+    <origem>Quem lançou (ex. a execução)</origem>
+    <traducao>Whoever launched it (e.g. the run)</traducao>
+  </texto>
+  <texto>
+    <origem>Quem lançou (ex. a execução) — o email do utilizador</origem>
+    <traducao>Whoever launched it (e.g. the run) — the user's email</traducao>
+  </texto>
+  <texto>
+    <origem>Quem tem acesso</origem>
+    <traducao>Who has access</traducao>
+  </texto>
+  <texto>
+    <origem>quem tem acesso ao módulo</origem>
+    <traducao>whoever has access to the module</traducao>
+  </texto>
+  <texto>
+    <origem>Quem tem acesso ao módulo do evento</origem>
+    <traducao>Whoever has access to the event's module</traducao>
+  </texto>
+  <texto>
+    <origem>Qui</origem>
+    <traducao>Thu</traducao>
+  </texto>
+  <texto>
+    <origem>Recuperados {n} MB</origem>
+    <traducao>{n} MB recovered</traducao>
+  </texto>
+  <texto>
+    <origem>Recuperou</origem>
+    <traducao>Recovered</traducao>
+  </texto>
+  <texto>
+    <origem>Recursos de hardware</origem>
+    <traducao>Hardware resources</traducao>
+  </texto>
+  <texto>
+    <origem>Reenviar</origem>
+    <traducao>Resend</traducao>
+  </texto>
+  <texto>
+    <origem>Registo de backups</origem>
+    <traducao>Backup register</traducao>
+  </texto>
+  <texto>
+    <origem>registo(s) com mais de</origem>
+    <traducao>record(s) older than</traducao>
+  </texto>
+  <texto>
+    <origem>registo(s) já existentes).</origem>
+    <traducao>record(s) already existing).</traducao>
+  </texto>
+  <texto>
+    <origem>Regra</origem>
+    <traducao>Rule</traducao>
+  </texto>
+  <texto>
+    <origem>Regra apagada.</origem>
+    <traducao>Rule deleted.</traducao>
+  </texto>
+  <texto>
+    <origem>Regra ativa</origem>
+    <traducao>Rule active</traducao>
+  </texto>
+  <texto>
+    <origem>Regra guardada.</origem>
+    <traducao>Rule saved.</traducao>
+  </texto>
+  <texto>
+    <origem>Regras</origem>
+    <traducao>Rules</traducao>
+  </texto>
+  <texto>
+    <origem>Regras de notificação</origem>
+    <traducao>Notification rules</traducao>
+  </texto>
+  <texto>
+    <origem>Regras de notificação →</origem>
+    <traducao>Notification rules →</traducao>
+  </texto>
+  <texto>
+    <origem>Reiniciar</origem>
+    <traducao>Restart</traducao>
+  </texto>
+  <texto>
+    <origem>Remetente (From)</origem>
+    <traducao>Sender (From)</traducao>
+  </texto>
+  <texto>
+    <origem>Remetente inválido.</origem>
+    <traducao>Invalid sender.</traducao>
+  </texto>
+  <texto>
+    <origem>Remetente não configurado (SMTP &gt; Geral).</origem>
+    <traducao>Sender not configured (SMTP &gt; General).</traducao>
+  </texto>
+  <texto>
+    <origem>Remover</origem>
+    <traducao>Remove</traducao>
+  </texto>
+  <texto>
+    <origem>Remover o backup #{n} (ficheiro e registo)?</origem>
+    <traducao>Remove backup #{n} (file and record)?</traducao>
+  </texto>
+  <texto>
+    <origem>Removidos registos com mais de</origem>
+    <traducao>Removed records older than</traducao>
+  </texto>
+  <texto>
+    <origem>Reorganização</origem>
+    <traducao>Reorganisation</traducao>
+  </texto>
+  <texto>
+    <origem>Repetido (fica o último):</origem>
+    <traducao>Repeated (the last one is kept):</traducao>
+  </texto>
+  <texto>
+    <origem>Repor</origem>
+    <traducao>Reset</traducao>
+  </texto>
+  <texto>
+    <origem>Repor a mensagem por omissão?</origem>
+    <traducao>Reset the default message?</traducao>
+  </texto>
+  <texto>
+    <origem>Repor as traduções do portal ({n} alteração(ões))</origem>
+    <traducao>Reset to the portal translations ({n} change(s))</traducao>
+  </texto>
+  <texto>
+    <origem>Repor disposição</origem>
+    <traducao>Reset layout</traducao>
+  </texto>
+  <texto>
+    <origem>Repor mensagem</origem>
+    <traducao>Reset message</traducao>
+  </texto>
+  <texto>
+    <origem>Repor o título, os textos, o ícone e o tema por omissão?</origem>
+    <traducao>Reset the default title, texts, icon and theme?</traducao>
+  </texto>
+  <texto>
+    <origem>Repor por omissão</origem>
+    <traducao>Reset to defaults</traducao>
+  </texto>
+  <texto>
+    <origem>Resultado</origem>
+    <traducao>Result</traducao>
+  </texto>
+  <texto>
+    <origem>Retirar:</origem>
+    <traducao>Remove:</traducao>
+  </texto>
+  <texto>
+    <origem>Rodapé</origem>
+    <traducao>Footer</traducao>
+  </texto>
+  <texto>
+    <origem>Sair</origem>
+    <traducao>Sign out</traducao>
+  </texto>
+  <texto>
+    <origem>Saudável</origem>
+    <traducao>Healthy</traducao>
+  </texto>
+  <texto>
+    <origem>Se não conseguir entrar no portal (no servidor, na pasta do portal, com o utilizador de serviço):</origem>
+    <traducao>If you cannot sign in to the portal (on the server, in the portal folder, as the service user):</traducao>
+  </texto>
+  <texto>
+    <origem>Se preenchido, o portal faz</origem>
+    <traducao>If filled in, the portal runs</traducao>
+  </texto>
+  <texto>
+    <origem>Seg</origem>
+    <traducao>Mon</traducao>
+  </texto>
+  <texto>
+    <origem>Seguinte ›</origem>
+    <traducao>Next ›</traducao>
+  </texto>
+  <texto>
+    <origem>Segurança</origem>
+    <traducao>Security</traducao>
+  </texto>
+  <texto>
+    <origem>Segurança inválida.</origem>
+    <traducao>Invalid security.</traducao>
+  </texto>
+  <texto>
+    <origem>Selecionar todas as visíveis</origem>
+    <traducao>Select all visible</traducao>
+  </texto>
+  <texto>
+    <origem>Sem atividade durante este tempo, o utilizador tem de voltar a entrar.</origem>
+    <traducao>After this time without activity, the user has to sign in again.</traducao>
+  </texto>
+  <texto>
+    <origem>Sem destinatários.</origem>
+    <traducao>No recipients.</traducao>
+  </texto>
+  <texto>
+    <origem>sem erros</origem>
+    <traducao>no errors</traducao>
+  </texto>
+  <texto>
+    <origem>sem ligação ao portal</origem>
+    <traducao>no connection to the portal</traducao>
+  </texto>
+  <texto>
+    <origem>Sem notificações.</origem>
+    <traducao>No notifications.</traducao>
+  </texto>
+  <texto>
+    <origem>Sem serviços configurados.</origem>
+    <traducao>No services configured.</traducao>
+  </texto>
+  <texto>
+    <origem>Sem serviços: escolha-os nas Definições.</origem>
+    <traducao>No services: choose them in Settings.</traducao>
+  </texto>
+  <texto>
+    <origem>Sem sudoers</origem>
+    <traducao>No sudoers</traducao>
+  </texto>
+  <texto>
+    <origem>sem swap</origem>
+    <traducao>no swap</traducao>
+  </texto>
+  <texto>
+    <origem>Sem systemd nem supervisord neste servidor.</origem>
+    <traducao>No systemd or supervisord on this server.</traducao>
+  </texto>
+  <texto>
+    <origem>sem TLS</origem>
+    <traducao>no TLS</traducao>
+  </texto>
+  <texto>
+    <origem>Sem tradução</origem>
+    <traducao>Untranslated</traducao>
+  </texto>
+  <texto>
+    <origem>Sempre</origem>
+    <traducao>Always</traducao>
+  </texto>
+  <texto>
+    <origem>Service Name</origem>
+    <traducao>Service Name</traducao>
+  </texto>
+  <texto>
+    <origem>Servidor</origem>
+    <traducao>Server</traducao>
+  </texto>
+  <texto>
+    <origem>Servidor a funcionar corretamente</origem>
+    <traducao>Server working correctly</traducao>
+  </texto>
+  <texto>
+    <origem>Servidor onde o portal corre: CPU, RAM, discos e serviços (Nginx, portal, agente), com iniciar, parar e reiniciar. Atualizado a cada {n} s pelo agente do portal.</origem>
+    <traducao>Server where the portal runs: CPU, RAM, disks and services (Nginx, portal, agent), with start, stop and restart. Updated every {n} s by the portal agent.</traducao>
+  </texto>
+  <texto>
+    <origem>Servidor SMTP não configurado (SMTP &gt; Geral).</origem>
+    <traducao>SMTP server not configured (SMTP &gt; General).</traducao>
+  </texto>
+  <texto>
+    <origem>Servidor SMTP por configurar (SMTP → Geral).</origem>
+    <traducao>SMTP server not yet configured (SMTP → General).</traducao>
+  </texto>
+  <texto>
+    <origem>Servidor:</origem>
+    <traducao>Server:</traducao>
+  </texto>
+  <texto>
+    <origem>Serviço</origem>
+    <traducao>Service</traducao>
+  </texto>
+  <texto>
+    <origem>Serviço (detetado pelo agente)</origem>
+    <traducao>Service (detected by the agent)</traducao>
+  </texto>
+  <texto>
+    <origem>Serviço não está na lista do módulo Sistema.</origem>
+    <traducao>The service is not in the System module list.</traducao>
+  </texto>
+  <texto>
+    <origem>Serviço ou ação inválida.</origem>
+    <traducao>Invalid service or action.</traducao>
+  </texto>
+  <texto>
+    <origem>Serviço parado ou com falha</origem>
+    <traducao>Service stopped or failed</traducao>
+  </texto>
+  <texto>
+    <origem>serviço(s) parado(s):</origem>
+    <traducao>service(s) stopped:</traducao>
+  </texto>
+  <texto>
+    <origem>Serviço:</origem>
+    <traducao>Service:</traducao>
+  </texto>
+  <texto>
+    <origem>Serviços</origem>
+    <traducao>Services</traducao>
+  </texto>
+  <texto>
+    <origem>Serviços guardados.</origem>
+    <traducao>Services saved.</traducao>
+  </texto>
+  <texto>
+    <origem>Serviços mostrados no painel</origem>
+    <traducao>Services shown on the dashboard</traducao>
+  </texto>
+  <texto>
+    <origem>Sex</origem>
+    <traducao>Fri</traducao>
+  </texto>
+  <texto>
+    <origem>Shrink</origem>
+    <traducao>Shrink</traducao>
+  </texto>
+  <texto>
+    <origem>Shrink de tablespaces</origem>
+    <traducao>Tablespace shrink</traducao>
+  </texto>
+  <texto>
+    <origem>Shrink direto</origem>
+    <traducao>Direct shrink</traducao>
+  </texto>
+  <texto>
+    <origem>Shrink final</origem>
+    <traducao>Final shrink</traducao>
+  </texto>
+  <texto>
+    <origem>Shrink — modo ANÁLISE</origem>
+    <traducao>Shrink — ANALYSIS mode</traducao>
+  </texto>
+  <texto>
+    <origem>Shrink — modo EXECUTAR (e cancelar execuções)</origem>
+    <traducao>Shrink — EXECUTE mode (and cancel runs)</traducao>
+  </texto>
+  <texto>
+    <origem>SID / Service Name</origem>
+    <traducao>SID / Service Name</traducao>
+  </texto>
+  <texto>
+    <origem>sim</origem>
+    <traducao>yes</traducao>
+  </texto>
+  <texto>
+    <origem>sininho</origem>
+    <traducao>bell</traducao>
+  </texto>
+  <texto>
+    <origem>Sininho = notificação no portal; Email = enviado pelo módulo SMTP.</origem>
+    <traducao>Bell = portal notification; Email = sent by the SMTP module.</traducao>
+  </texto>
+  <texto>
+    <origem>Sistema</origem>
+    <traducao>System</traducao>
+  </texto>
+  <texto>
+    <origem>Sistema de ficheiros:</origem>
+    <traducao>File system:</traducao>
+  </texto>
+  <texto>
+    <origem>Sistemas de ficheiros</origem>
+    <traducao>File systems</traducao>
+  </texto>
+  <texto>
+    <origem>Situações</origem>
+    <traducao>Situations</traducao>
+  </texto>
+  <texto>
+    <origem>SMTP → Notificações</origem>
+    <traducao>SMTP → Notifications</traducao>
+  </texto>
+  <texto>
+    <origem>Sob pressão</origem>
+    <traducao>Under pressure</traducao>
+  </texto>
+  <texto>
+    <origem>SQLite (ficheiro local)</origem>
+    <traducao>SQLite (local file)</traducao>
+  </texto>
+  <texto>
+    <origem>SSL/TLS direto (SMTPS, porta {n})</origem>
+    <traducao>Direct SSL/TLS (SMTPS, port {n})</traducao>
+  </texto>
+  <texto>
+    <origem>Start, stop e restart pelo agente</origem>
+    <traducao>Start, stop and restart by the agent</traducao>
+  </texto>
+  <texto>
+    <origem>STARTTLS (TLS na porta {n} ou {n})</origem>
+    <traducao>STARTTLS (TLS on port {n} or {n})</traducao>
+  </texto>
+  <texto>
+    <origem>substitui</origem>
+    <traducao>replaces</traducao>
+  </texto>
+  <texto>
+    <origem>Substituir — apaga BDs, perfis e utilizadores atuais</origem>
+    <traducao>Replace — deletes current DBs, profiles and users</traducao>
+  </texto>
+  <texto>
+    <origem>Sucesso</origem>
+    <traducao>Success</traducao>
+  </texto>
+  <texto>
+    <origem>SUCESSO</origem>
+    <traducao>SUCCESS</traducao>
+  </texto>
+  <texto>
+    <origem>Suporte: extensão {n}</origem>
+    <traducao>Support: extension {n}</traducao>
+  </texto>
+  <texto>
+    <origem>Swap</origem>
+    <traducao>Swap</traducao>
+  </texto>
+  <texto>
+    <origem>Sáb</origem>
+    <traducao>Sat</traducao>
+  </texto>
+  <texto>
+    <origem>Só linhas com erro/aviso</origem>
+    <traducao>Only lines with error/warning</traducao>
+  </texto>
+  <texto>
+    <origem>Só o estado: sem permissão no sudoers</origem>
+    <traducao>Status only: no permission in sudoers</traducao>
+  </texto>
+  <texto>
+    <origem>Só os administradores conseguem entrar</origem>
+    <traducao>Only administrators can sign in</traducao>
+  </texto>
+  <texto>
+    <origem>Só se falhar</origem>
+    <traducao>Only on failure</traducao>
+  </texto>
+  <texto>
+    <origem>Tablespace</origem>
+    <traducao>Tablespace</traducao>
+  </texto>
+  <texto>
+    <origem>Tablespace :</origem>
+    <traducao>Tablespace :</traducao>
+  </texto>
+  <texto>
+    <origem>Tablespace acima do limiar</origem>
+    <traducao>Tablespace above the threshold</traducao>
+  </texto>
+  <texto>
+    <origem>Tablespace acima do limiar (verificação agendada)</origem>
+    <traducao>Tablespace above the threshold (scheduled check)</traducao>
+  </texto>
+  <texto>
+    <origem>tablespace(s) acima de</origem>
+    <traducao>tablespace(s) above</traducao>
+  </texto>
+  <texto>
+    <origem>tablespace(s) verificadas;</origem>
+    <traducao>tablespace(s) checked;</traducao>
+  </texto>
+  <texto>
+    <origem>Tablespaces</origem>
+    <traducao>Tablespaces</traducao>
+  </texto>
+  <texto>
+    <origem>Tarefa</origem>
+    <traducao>Task</traducao>
+  </texto>
+  <texto>
+    <origem>Tarefa agendada falhou</origem>
+    <traducao>Scheduled task failed</traducao>
+  </texto>
+  <texto>
+    <origem>Tarefa agendada terminada</origem>
+    <traducao>Scheduled task finished</traducao>
+  </texto>
+  <texto>
+    <origem>Tarefa desconhecida.</origem>
+    <traducao>Unknown task.</traducao>
+  </texto>
+  <texto>
+    <origem>Tem utilizadores</origem>
+    <traducao>Has users</traducao>
+  </texto>
+  <texto>
+    <origem>Tema</origem>
+    <traducao>Theme</traducao>
+  </texto>
+  <texto>
+    <origem>Tema inválido.</origem>
+    <traducao>Invalid theme.</traducao>
+  </texto>
+  <texto>
+    <origem>Tempo decorrido</origem>
+    <traducao>Elapsed time</traducao>
+  </texto>
+  <texto>
+    <origem>Ter</origem>
+    <traducao>Tue</traducao>
+  </texto>
+  <texto>
+    <origem>terminou com avisos</origem>
+    <traducao>finished with warnings</traducao>
+  </texto>
+  <texto>
+    <origem>terminou com erros</origem>
+    <traducao>finished with errors</traducao>
+  </texto>
+  <texto>
+    <origem>terminou com sucesso</origem>
+    <traducao>finished successfully</traducao>
+  </texto>
+  <texto>
+    <origem>Testar</origem>
+    <traducao>Test</traducao>
+  </texto>
+  <texto>
+    <origem>Testar ligação</origem>
+    <traducao>Test connection</traducao>
+  </texto>
+  <texto>
+    <origem>teste</origem>
+    <traducao>test</traducao>
+  </texto>
+  <texto>
+    <origem>Teste de email —</origem>
+    <traducao>Email test —</traducao>
+  </texto>
+  <texto>
+    <origem>Testes</origem>
+    <traducao>Tests</traducao>
+  </texto>
+  <texto>
+    <origem>Texto n.º</origem>
+    <traducao>Text no.</traducao>
+  </texto>
+  <texto>
+    <origem>Texto no login</origem>
+    <traducao>Login text</traducao>
+  </texto>
+  <texto>
+    <origem>Texto original (português)</origem>
+    <traducao>Original text (Portuguese)</traducao>
+  </texto>
+  <texto>
+    <origem>Texto pequeno</origem>
+    <traducao>Small text</traducao>
+  </texto>
+  <texto>
+    <origem>texto(s) não existem no portal (são guardados, mas não aparecem).</origem>
+    <traducao>text(s) do not exist in the portal (they are saved but not shown).</traducao>
+  </texto>
+  <texto>
+    <origem>Textos</origem>
+    <traducao>Texts</traducao>
+  </texto>
+  <texto>
+    <origem>Textos no ficheiro</origem>
+    <traducao>Texts in the file</traducao>
+  </texto>
+  <texto>
+    <origem>Timeout (s)</origem>
+    <traducao>Timeout (s)</traducao>
+  </texto>
+  <texto>
+    <origem>Tipo</origem>
+    <traducao>Type</traducao>
+  </texto>
+  <texto>
+    <origem>Tipo / regra</origem>
+    <traducao>Type / rule</traducao>
+  </texto>
+  <texto>
+    <origem>Tipo de ligação</origem>
+    <traducao>Connection type</traducao>
+  </texto>
+  <texto>
+    <origem>Tipo inválido.</origem>
+    <traducao>Invalid type.</traducao>
+  </texto>
+  <texto>
+    <origem>todas</origem>
+    <traducao>all</traducao>
+  </texto>
+  <texto>
+    <origem>Todas</origem>
+    <traducao>All</traducao>
+  </texto>
+  <texto>
+    <origem>Todas ({n})</origem>
+    <traducao>All ({n})</traducao>
+  </texto>
+  <texto>
+    <origem>Todas as BDs</origem>
+    <traducao>All DBs</traducao>
+  </texto>
+  <texto>
+    <origem>Todas as execuções</origem>
+    <traducao>All runs</traducao>
+  </texto>
+  <texto>
+    <origem>TODOS</origem>
+    <traducao>ALL</traducao>
+  </texto>
+  <texto>
+    <origem>Todos</origem>
+    <traducao>All</traducao>
+  </texto>
+  <texto>
+    <origem>TODOS (exceto SYSTEM, SYSAUX, UNDO e TEMP)</origem>
+    <traducao>ALL (except SYSTEM, SYSAUX, UNDO and TEMP)</traducao>
+  </texto>
+  <texto>
+    <origem>Todos os cartões estão visíveis.</origem>
+    <traducao>All cards are visible.</traducao>
+  </texto>
+  <texto>
+    <origem>Todos os dias</origem>
+    <traducao>Every day</traducao>
+  </texto>
+  <texto>
+    <origem>Todos os dias às</origem>
+    <traducao>Every day at</traducao>
+  </texto>
+  <texto>
+    <origem>Todos os dias às {n}:{n}</origem>
+    <traducao>Every day at {n}:{n}</traducao>
+  </texto>
+  <texto>
+    <origem>Traduzido</origem>
+    <traducao>Translated</traducao>
+  </texto>
+  <texto>
+    <origem>Traduzidos</origem>
+    <traducao>Translated</traducao>
+  </texto>
+  <texto>
+    <origem>Tradução demasiado longa (&gt; {n}):</origem>
+    <traducao>Translation too long (&gt; {n}):</traducao>
+  </texto>
+  <texto>
+    <origem>tradução(ões) atualizadas.</origem>
+    <traducao>translation(s) updated.</traducao>
+  </texto>
+  <texto>
+    <origem>Traduções</origem>
+    <traducao>Translations</traducao>
+  </texto>
+  <texto>
+    <origem>Título</origem>
+    <traducao>Title</traducao>
+  </texto>
+  <texto>
+    <origem>Título do portal</origem>
+    <traducao>Portal title</traducao>
+  </texto>
+  <texto>
+    <origem>Título e tema</origem>
+    <traducao>Title and theme</traducao>
+  </texto>
+  <texto>
+    <origem>Um perfil define</origem>
+    <traducao>A profile defines</traducao>
+  </texto>
+  <texto>
+    <origem>Um por linha (ou separados por espaços). Vazio = os do portal:</origem>
+    <traducao>One per line (or separated by spaces). Empty = the portal's:</traducao>
+  </texto>
+  <texto>
+    <origem>Usado por</origem>
+    <traducao>Used by</traducao>
+  </texto>
+  <texto>
+    <origem>Usado {n} GB de {n} GB</origem>
+    <traducao>Used {n} GB of {n} GB</traducao>
+  </texto>
+  <texto>
+    <origem>Usados nas regras com "destinatários por omissão".</origem>
+    <traducao>Used in rules with "default recipients".</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizador</origem>
+    <traducao>User</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizador ativo</origem>
+    <traducao>Active user</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizador guardado.</origem>
+    <traducao>User saved.</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizador inválido: {n}-{n} caracteres, minúsculas, números, '.', '_' ou '-'.</origem>
+    <traducao>Invalid user: {n}-{n} characters, lowercase letters, numbers, '.', '_' or '-'.</traducao>
+  </texto>
+  <texto>
+    <origem>utilizador local em</origem>
+    <traducao>local user in</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizador normal</origem>
+    <traducao>Normal user</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizador ou password inválidos.</origem>
+    <traducao>Invalid user or password.</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizador removido.</origem>
+    <traducao>User removed.</traducao>
+  </texto>
+  <texto>
+    <origem>utilizador(es) ·</origem>
+    <traducao>user(s) ·</traducao>
+  </texto>
+  <texto>
+    <origem>utilizador(es). Foi criado um backup automático antes da importação.</origem>
+    <traducao>user(s). An automatic backup was created before the import.</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizadores</origem>
+    <traducao>Users</traducao>
+  </texto>
+  <texto>
+    <origem>Validar e importar</origem>
+    <traducao>Validate and import</traducao>
+  </texto>
+  <texto>
+    <origem>Validar ligação</origem>
+    <traducao>Validate connection</traducao>
+  </texto>
+  <texto>
+    <origem>Validar o certificado TLS</origem>
+    <traducao>Validate the TLS certificate</traducao>
+  </texto>
+  <texto>
+    <origem>Validação da ligação SMTP</origem>
+    <traducao>SMTP connection validation</traducao>
+  </texto>
+  <texto>
+    <origem>Validação de</origem>
+    <traducao>Validation of</traducao>
+  </texto>
+  <texto>
+    <origem>Validação periódica</origem>
+    <traducao>Periodic validation</traducao>
+  </texto>
+  <texto>
+    <origem>Valor inválido em</origem>
+    <traducao>Invalid value in</traducao>
+  </texto>
+  <texto>
+    <origem>Valores exatos (DBA_FREE_SPACE — pode ser lento)</origem>
+    <traducao>Exact values (DBA_FREE_SPACE — may be slow)</traducao>
+  </texto>
+  <texto>
+    <origem>Valores fora dos limites.</origem>
+    <traducao>Values out of range.</traducao>
+  </texto>
+  <texto>
+    <origem>Ver</origem>
+    <traducao>View</traducao>
+  </texto>
+  <texto>
+    <origem>Ver a lista atual e os serviços detetados:</origem>
+    <traducao>See the current list and the detected services:</traducao>
+  </texto>
+  <texto>
+    <origem>Ver execuções</origem>
+    <traducao>View runs</traducao>
+  </texto>
+  <texto>
+    <origem>Ver no portal:</origem>
+    <traducao>View in the portal:</traducao>
+  </texto>
+  <texto>
+    <origem>Ver o painel</origem>
+    <traducao>View the dashboard</traducao>
+  </texto>
+  <texto>
+    <origem>Ver o sistema</origem>
+    <traducao>View the system</traducao>
+  </texto>
+  <texto>
+    <origem>Ver os envios</origem>
+    <traducao>View sent messages</traducao>
+  </texto>
+  <texto>
+    <origem>Ver tablespaces (tamanho, usado, livre)</origem>
+    <traducao>View tablespaces (size, used, free)</traducao>
+  </texto>
+  <texto>
+    <origem>Ver traduções</origem>
+    <traducao>View translations</traducao>
+  </texto>
+  <texto>
+    <origem>Verificação de tablespaces</origem>
+    <traducao>Tablespace check</traducao>
+  </texto>
+  <texto>
+    <origem>Verificação de tablespaces:</origem>
+    <traducao>Tablespace check:</traducao>
+  </texto>
+  <texto>
+    <origem>Vermelho e grafite</origem>
+    <traducao>Red and graphite</traducao>
+  </texto>
+  <texto>
+    <origem>Versão / PID</origem>
+    <traducao>Version / PID</traducao>
+  </texto>
+  <texto>
+    <origem>versão {n}</origem>
+    <traducao>version {n}</traducao>
+  </texto>
+  <texto>
+    <origem>visíveis no perfil</origem>
+    <traducao>visible in the profile</traducao>
+  </texto>
+  <texto>
+    <origem>Voltar</origem>
+    <traducao>Back</traducao>
+  </texto>
+  <texto>
+    <origem>Voltar à Home</origem>
+    <traducao>Back to Home</traducao>
+  </texto>
+  <texto>
+    <origem>Voltou a correr</origem>
+    <traducao>Running again</traducao>
+  </texto>
+  <texto>
+    <origem>voltou a correr</origem>
+    <traducao>running again</traducao>
+  </texto>
+  <texto>
+    <origem>vê.</origem>
+    <traducao>sees.</traducao>
+  </texto>
+  <texto>
+    <origem>XML inválido:</origem>
+    <traducao>Invalid XML:</traducao>
+  </texto>
+  <texto>
+    <origem>{n} (acesso + {n} ações)</origem>
+    <traducao>{n} (access + {n} actions)</traducao>
+  </texto>
+  <texto>
+    <origem>{n} a {n} caracteres: minúsculas, números, ".", "_" ou "-".</origem>
+    <traducao>{n} to {n} characters: lowercase letters, numbers, ".", "_" or "-".</traducao>
+  </texto>
+  <texto>
+    <origem>{n} alterada(s)</origem>
+    <traducao>{n} changed</traducao>
+  </texto>
+  <texto>
+    <origem>{n} aviso(s)</origem>
+    <traducao>{n} warning(s)</traducao>
+  </texto>
+  <texto>
+    <origem>{n} com sucesso</origem>
+    <traducao>{n} successful</traducao>
+  </texto>
+  <texto>
+    <origem>{n} de {n} (erros e avisos)</origem>
+    <traducao>{n} of {n} (errors and warnings)</traducao>
+  </texto>
+  <texto>
+    <origem>{n} dia(s) {n}:{n}</origem>
+    <traducao>{n} day(s) {n}:{n}</traducao>
+  </texto>
+  <texto>
+    <origem>{n} em falta</origem>
+    <traducao>{n} missing</traducao>
+  </texto>
+  <texto>
+    <origem>{n} erro(s)</origem>
+    <traducao>{n} error(s)</traducao>
+  </texto>
+  <texto>
+    <origem>{n} GB livres</origem>
+    <traducao>{n} GB free</traducao>
+  </texto>
+  <texto>
+    <origem>{n}–{n} de {n}</origem>
+    <traducao>{n}–{n} of {n}</traducao>
+  </texto>
+  <texto>
+    <origem>{n}–{n} de {n} ({n} no total)</origem>
+    <traducao>{n}–{n} of {n} ({n} in total)</traducao>
+  </texto>
+  <texto>
+    <origem>· enviado {n}-{n}-{n} {n}:{n}:{n}</origem>
+    <traducao>· sent {n}-{n}-{n} {n}:{n}:{n}</traducao>
+  </texto>
+  <texto>
+    <origem>· Próxima: {n}-{n}-{n} {n}:{n}</origem>
+    <traducao>· Next: {n}-{n}-{n} {n}:{n}</traducao>
+  </texto>
+  <texto>
+    <origem>· versão</origem>
+    <traducao>· version</traducao>
+  </texto>
+  <texto>
+    <origem>é a da página de entrada e de quem ainda não escolheu.</origem>
+    <traducao>is the one used on the sign-in page and by those who have not chosen yet.</traducao>
+  </texto>
+  <texto>
+    <origem>É a tarefa "Validação da ligação SMTP" em</origem>
+    <traducao>It is the "SMTP connection validation" task in</traducao>
+  </texto>
+  <texto>
+    <origem>é local (ficheiro) e não aparece aqui.</origem>
+    <traducao>is local (a file) and does not appear here.</traducao>
+  </texto>
+  <texto>
+    <origem>é substituído pelo ano atual.</origem>
+    <traducao>is replaced by the current year.</traducao>
+  </texto>
+  <texto>
+    <origem>Ícone (favicon)</origem>
+    <traducao>Icon (favicon)</traducao>
+  </texto>
+  <texto>
+    <origem>Ícone atual</origem>
+    <traducao>Current icon</traducao>
+  </texto>
+  <texto>
+    <origem>Ícone personalizado</origem>
+    <traducao>Custom icon</traducao>
+  </texto>
+  <texto>
+    <origem>Ícone por omissão</origem>
+    <traducao>Default icon</traducao>
+  </texto>
+  <texto>
+    <origem>Índices</origem>
+    <traducao>Indexes</traducao>
+  </texto>
+  <texto>
+    <origem>Última execução</origem>
+    <traducao>Last run</traducao>
+  </texto>
+  <texto>
+    <origem>Última validação</origem>
+    <traducao>Last validation</traducao>
+  </texto>
+  <texto>
+    <origem>Última validação: {n}-{n}-{n} {n}:{n}:{n}</origem>
+    <traducao>Last validation: {n}-{n}-{n} {n}:{n}:{n}</traducao>
+  </texto>
+  <texto>
+    <origem>Últimas ações sobre serviços</origem>
+    <traducao>Latest service actions</traducao>
+  </texto>
+  <texto>
+    <origem>Últimas execuções</origem>
+    <traducao>Latest runs</traducao>
+  </texto>
+  <texto>
+    <origem>Últimas notificações enviadas</origem>
+    <traducao>Latest notifications sent</traducao>
+  </texto>
+  <texto>
+    <origem>últimas {n} h</origem>
+    <traducao>last {n} h</traducao>
+  </texto>
+  <texto>
+    <origem>Último backup</origem>
+    <traducao>Last backup</traducao>
+  </texto>
+  <texto>
+    <origem>Último sinal</origem>
+    <traducao>Last heartbeat</traducao>
+  </texto>
+  <texto>
+    <origem>— base de dados —</origem>
+    <traducao>— database —</traducao>
+  </texto>
+  <texto>
+    <origem>— escolher —</origem>
+    <traducao>— choose —</traducao>
+  </texto>
+  <texto>
+    <origem>— mostra o menu Oracle</origem>
+    <traducao>— shows the Oracle menu</traducao>
+  </texto>
+  <texto>
+    <origem>— mostra o menu Sistema</origem>
+    <traducao>— shows the System menu</traducao>
+  </texto>
+  <texto>
+    <origem>— mostra o menu SMTP</origem>
+    <traducao>— shows the SMTP menu</traducao>
+  </texto>
+  <texto>
+    <origem>— o certificado não é reconhecido (CA interna?): desligue 'Validar certificado' ou instale a CA.</origem>
+    <traducao>— the certificate is not recognised (internal CA?): turn off 'Validate certificate' or install the CA.</traducao>
+  </texto>
+  <texto>
+    <origem>— o email do utilizador</origem>
+    <traducao>— the user's email</traducao>
+  </texto>
+  <texto>
+    <origem>— o servidor exige autenticação (use STARTTLS na porta {n} com utilizador).</origem>
+    <traducao>— the server requires authentication (use STARTTLS on port {n} with a user).</traducao>
+  </texto>
+  <texto>
+    <origem>— sem perfil (sem acessos) —</origem>
+    <traducao>— no profile (no access) —</traducao>
+  </texto>
+  <texto>
+    <origem>— servidor ou porta inacessível (firewall?).</origem>
+    <traducao>— server or port unreachable (firewall?).</traducao>
+  </texto>
+  <texto>
+    <origem>— utilizador ou password errados.</origem>
+    <traducao>— wrong user or password.</traducao>
+  </texto>
+  <texto>
+    <origem>• Lista</origem>
+    <traducao>• List</traducao>
+  </texto>
+  <texto>
+    <origem>•••••• (guardada; vazio = manter)</origem>
+    <traducao>•••••• (saved; empty = keep)</traducao>
+  </texto>
+  <texto>
+    <origem>… e mais {n}.</origem>
+    <traducao>… and {n} more.</traducao>
+  </texto>
+  <texto>
+    <origem>‹ Anterior</origem>
+    <traducao>‹ Previous</traducao>
+  </texto>
+  <texto>
+    <origem>↑ anterior</origem>
+    <traducao>↑ previous</traducao>
+  </texto>
+  <texto>
+    <origem>→ email para os destinatários por omissão e para quem a lançou.</origem>
+    <traducao>→ email to the default recipients and to whoever launched it.</traducao>
+  </texto>
+  <texto>
+    <origem>↓ seguinte</origem>
+    <traducao>↓ next</traducao>
+  </texto>
+  <texto>
+    <origem>▶ Agora</origem>
+    <traducao>▶ Now</traducao>
+  </texto>
+  <texto>
+    <origem>▶ Executar agora</origem>
+    <traducao>▶ Run now</traducao>
+  </texto>
+  <texto>
+    <origem>● em direto</origem>
+    <traducao>● live</traducao>
+  </texto>
+  <texto>
+    <origem>✉️ Email</origem>
+    <traducao>✉️ Email</traducao>
+  </texto>
+  <texto>
+    <origem>✎ Editar</origem>
+    <traducao>✎ Edit</traducao>
+  </texto>
+  <texto>
+    <origem>⬇ Exportar XML</origem>
+    <traducao>⬇ Export XML</traducao>
+  </texto>
+  <texto>
+    <origem>🔒 sem sudoers</origem>
+    <traducao>🔒 no sudoers</traducao>
+  </texto>
+  <texto>
+    <origem>🔔 no topo, com o número das que ainda não leu). Cada regra diz que evento gera uma notificação e para quem. Funcionam mesmo sem servidor SMTP.</origem>
+    <traducao>🔔 at the top, with the number still unread). Each rule says which event creates a notification and for whom. They work even without an SMTP server.</traducao>
+  </texto>
+  <texto>
+    <origem>🔔 Sininho</origem>
+    <traducao>🔔 Bell</traducao>
+  </texto>
+  <texto>
+    <origem>e</origem>
+    <traducao>and</traducao>
+  </texto>
+  <texto>
+    <origem>ou</origem>
+    <traducao>or</traducao>
+  </texto>
+  <texto>
+    <origem>ANALISE</origem>
+    <traducao>ANALYSIS</traducao>
+  </texto>
+  <texto>
+    <origem>PENDENTE</origem>
+    <traducao>PENDING</traducao>
+  </texto>
+  <texto>
+    <origem>A CORRER</origem>
+    <traducao>RUNNING</traducao>
+  </texto>
+  <texto>
+    <origem>EM CURSO</origem>
+    <traducao>RUNNING</traducao>
+  </texto>
+  <texto>
+    <origem>A ENVIAR</origem>
+    <traducao>SENDING</traducao>
+  </texto>
+</lingua>

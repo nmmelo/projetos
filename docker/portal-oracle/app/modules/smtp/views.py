@@ -27,7 +27,7 @@ def index():
 
 # ====================================================================== Geral
 CAMPOS = ("smtp_host", "smtp_porta", "smtp_seguranca", "smtp_utilizador", "smtp_remetente", "smtp_remetente_nome",
-          "smtp_destinatarios", "smtp_prefixo", "smtp_timeout", "smtp_validar_min", "smtp_url_portal", "smtp_helo")
+          "smtp_destinatarios", "smtp_prefixo", "smtp_timeout", "smtp_url_portal", "smtp_helo")
 
 
 def _emails(texto: str) -> list[str]:
@@ -47,7 +47,7 @@ def geral():
                 raise ValueError("Porta inválida.")
             if v["smtp_seguranca"] not in ("nenhuma", "starttls", "ssl"):
                 raise ValueError("Segurança inválida.")
-            for k, lim in (("smtp_timeout", (3, 300)), ("smtp_validar_min", (0, 10080))):
+            for k, lim in (("smtp_timeout", (3, 300)),):
                 if not v[k].isdigit() or not lim[0] <= int(v[k]) <= lim[1]:
                     raise ValueError(f"Valor inválido em {k.replace('smtp_', '')}.")
             if v["smtp_remetente"] and not EMAIL_RE.match(v["smtp_remetente"]):
@@ -187,6 +187,8 @@ def regra_form(canal, rid=None):
                              "modulo": bool(request.form.get("modulo")), "padrao": bool(request.form.get("padrao")),
                              "perfis": [int(i) for i in request.form.getlist("perfis") if i.isdigit()],
                              "emails": _emails(request.form.get("emails", ""))}}
+    if not r and request.args.get("evento") in modulos.todos_eventos():
+        r = {"ativo": True, "situacoes": [], "destino": {}, "evento": request.args["evento"]}
     return render_template("smtp/regra_form.html", r=r or {"ativo": True, "situacoes": [], "destino": {}},
                            canal=canal, eventos_def=modulos.todos_eventos(), perfis=store.list_profiles(),
                            editing=bool(rid))

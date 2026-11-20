@@ -1,0 +1,7 @@
+{# pill do ultimo estado de uma tarefa (t) #}
+{% set e = (t.ultimo_estado or '')|upper %}
+{% if t.a_correr %}<span class="sys-pill warn">A correr…</span>
+{% elif e == 'SUCESSO' %}<span class="sys-pill ok">Sucesso</span>
+{% elif e == 'AVISO' %}<span class="sys-pill warn">Com avisos</span>
+{% elif e in ('ERRO', 'INTERROMPIDO') %}<span class="sys-pill bad">{{ 'Falhou' if e == 'ERRO' else 'Interrompida' }}</span>
+{% else %}<span class="muted small">Nunca correu</span>{% endif %}
