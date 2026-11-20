@@ -387,3 +387,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > o modulo de firewall está um pouco lento a carregar as rules, ipsets, melhorar mais. nos clientes podemos criar alarmisticas, por exemplo se tiver com o disco A ou B a 90% avisar por notificação e/ou por email, isso podemos definir na criação da regra de alarmistica. No futuro pode integrar com a plataforma zabbix., podemos deixar tudo mais ou menos preparado.
 
 **Resposta:** Firewall: `firewall-cmd` em paralelo, todas as zonas numa chamada, um `--info-ipset` por ipset (já traz as entradas), cache de 15 s limpa a cada alteração e botão Atualizar; várias entradas de ipset de uma vez. Clientes → Alarmes: disco (pontos de montagem com `*`), CPU, memória, carga e sem contacto, com limiar, ciclos, severidade e canais próprios (portal e/ou email). Zabbix: API só de leitura com token (descoberta LLD, métricas com chaves Zabbix, alarmes como triggers), host Zabbix por cliente, endereço/token da API guardados e `agente-portal valor <chave>`.
+
+## 27. Cache das bases de dados e tarefas em segundo plano
+
+**Pergunta:**
+> no dba portal, quando seleciono uma base de dados aparece sempre a fazer ligação a base de dados, pode ser uma barra a dizer oracle a carregar, é um processo demorado, podemos fazer cache para o portal [...] pode ficar uma barra em baixo [...] podemos sair e isso continua, até podemos ter mais de que uma tarefa a realizar. depois de feito atualiza a cache ou se tivermos na janela da base de dados faz um auto refresh dos dados..
+
+**Resposta:** Cache no portal (`cache_dados`) para o estado das BDs, a janela de cada BD, Tablespaces e a lista do Shrink: mostra logo a cache e atualiza em segundo plano; "Oracle a carregar…" quando não há dados; barra em baixo com as tarefas em curso (várias, continua noutras páginas); a vista aberta atualiza-se sozinha quando a tarefa acaba; ↻ Atualizar força a leitura.

@@ -48,9 +48,11 @@ def _t_limpeza(par: dict) -> tuple[str, str]:
         n3 = t.run("DELETE FROM agendamento_execucoes WHERE inicio < ?", (limite,))
         n4 = t.run("DELETE FROM system_actions WHERE requested_at < ?", (limite,))
         n5 = t.run("DELETE FROM auth_log WHERE quando < ?", (limite,))
-    total = sum(max(x or 0, 0) for x in (n1, n2, n3, n4, n5))
+    from . import tarefas_bg
+    n6 = tarefas_bg.limpar(min(dias, 7))
+    total = sum(max(x or 0, 0) for x in (n1, n2, n3, n4, n5, n6))
     return "sucesso", (f"Removidos registos com mais de {dias} dias: notificações lidas, emails, execuções de "
-                       f"agendamentos, ações sobre serviços e acessos ({total} no total).")
+                       f"agendamentos, ações sobre serviços, acessos e dados em cache antigos ({total} no total).")
 
 
 TAREFAS_PORTAL = {

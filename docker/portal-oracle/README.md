@@ -77,6 +77,23 @@ Tudo é só leitura (`SELECT ANY DICTIONARY` chega). Cada consulta tem o coment�
 |---|---|---|
 | ![Bases de dados](docs/oracle-bds.png) | ![Geral](docs/oracle-bd-geral.png) | ![Recyclebin](docs/oracle-bd-recyclebin.png) |
 
+#### Cache e atualização em segundo plano
+
+As consultas às bases de dados (estado, janela de cada BD, Tablespaces e a lista de tablespaces do Shrink) ficam **em cache** no portal (tabela `cache_dados`):
+
+| Situação | O que acontece |
+|---|---|
+| Há dados em cache | Aparecem logo, com "Dados de HH:MM:SS (há N s)". Se tiverem mais de 30 s (60 s nas janelas e Tablespaces), o portal atualiza-os em segundo plano |
+| Não há dados | "Oracle a carregar…" com uma barra; a consulta corre em segundo plano |
+| Atualização terminada | A vista aberta (janela da BD, linha da tabela, página de Tablespaces, lista do Shrink) atualiza-se sozinha |
+| Erro | Ficam os dados anteriores e a mensagem "Última atualização falhou" |
+| **↻ Atualizar** | Força a leitura (ignora a idade da cache) |
+
+A **barra em baixo** mostra as tarefas em curso do utilizador (várias ao mesmo tempo), com o tempo decorrido; ao acabar mostra ✓ ou ✕ e desaparece. Continua noutras páginas (o estado está no servidor) e clicar numa tarefa abre a vista correspondente. Se a BD responder em menos de ~1 s, os dados vêm logo no mesmo pedido. A cache de uma BD é apagada quando a sua definição é alterada; as entradas com mais de 7 dias saem com a tarefa **Limpeza do histórico**.
+
+![Oracle a carregar em segundo plano](docs/oracle-cache-a-carregar.png)
+![Dados em cache](docs/oracle-cache.png)
+
 ### Histórico de execuções (Oracle → Execuções)
 
 | Elemento | Descrição |

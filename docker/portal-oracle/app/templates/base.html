@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ 'pt-PT' if lingua == 'pt' else lingua }}" data-tema="{{ theme }}"{% if lingua != 'pt' %} class="i18n"{% endif %}>
+<html lang="{{ 'pt-PT' if lingua == 'pt' else lingua }}" data-tema="{{ theme }}"{% if user and not pagina_minima %} data-api-tarefas="{{ url_for('portal.api_tarefas') }}"{% endif %}{% if lingua != 'pt' %} class="i18n"{% endif %}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -126,5 +126,6 @@ document.querySelectorAll('[data-lingua]').forEach(b => b.onclick = async () => 
   pinta();
 })();
 </script>
+<script src="{{ url_for('static', filename='tarefas.js', v=static_v) }}"></script>
 </body>
 </html>

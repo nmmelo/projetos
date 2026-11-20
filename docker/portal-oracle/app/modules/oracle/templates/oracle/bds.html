@@ -58,17 +58,25 @@
   const $ = id => document.getElementById(id), T = s => (window.t ? window.t(s) : s);
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
   const num = v => v == null || v === '' ? '—' : Number(v).toLocaleString('pt-PT');
-  const res = {}; let filtro = '', atual = null, cache = {};
+  const res = {}; let filtro = '', atual = null, parteAtual = null;
+  const hora = ts => (ts || '').slice(11, 19);
+  const idade = s => s == null ? '' : s < 60 ? T('há {n} s').replace('{n}', s) : s < 3600 ? T('há {n} min').replace('{n}', Math.round(s / 60)) : T('há {n} h').replace('{n}', Math.round(s / 3600));
+  const info = c => !c ? '' : `<div class="cache-info">${c.atualizado ? `<span>${T('Dados de')} ${hora(c.atualizado)} (${idade(c.idade)})</span>` : ''}
+    ${c.a_atualizar ? `<span class="a">${T('a atualizar em segundo plano…')}</span>` : ''}${c.erro ? `<span class="e" title="${esc(c.erro)}">${T('Última atualização falhou')}: ${esc(c.erro.slice(0, 90))}</span>` : ''}
+    ${!c.a_atualizar ? `<a href="#" data-forcar>↻ ${T('Atualizar')}</a>` : ''}</div>`;
   const COR = {ok: 'b-verde', warn: 'b-laranja', bad: 'b-vermelha'};
 
-  async function uma(tr) {
+  async function uma(tr, forcar) {
     const id = tr.dataset.id, b = tr.querySelector('.bola');
-    b.className = 'bola b-cinza a-pulsar'; b.title = T('A verificar…');
+    if (!res[id]) { b.className = 'bola b-cinza a-pulsar'; b.title = T('A verificar…'); }
     let d;
-    try { d = await (await fetch(API.replace('{id}', id), {cache: 'no-store'})).json(); }
+    try { d = await (await fetch(API.replace('{id}', id) + (forcar ? '?atualizar=1' : ''), {cache: 'no-store'})).json(); }
     catch (e) { d = {ok: false, cor: 'bad', estado_txt: String(e)}; }
-    res[id] = d;
-    b.className = 'bola ' + (COR[d.cor] || 'b-cinza'); b.title = T(d.estado_txt || '');
+    if (d.cache && d.cache.a_atualizar) window.PortalTarefas && PortalTarefas.vigiar(d.cache.chave);
+    if (d.pendente) { tr.classList.add('bd-pend'); return; }
+    res[id] = d; tr.classList.toggle('bd-pend', !!(d.cache && d.cache.a_atualizar));
+    b.className = 'bola ' + (COR[d.cor] || 'b-cinza') + (d.cache && d.cache.a_atualizar ? ' a-pulsar' : '');
+    b.title = T(d.estado_txt || '') + (d.cache && d.cache.atualizado ? ` · ${T('Dados de')} ${hora(d.cache.atualizado)}` : '');
     const c = k => tr.querySelector(`[data-c="${k}"]`);
     if (d.ok) {
       c('db').innerHTML = `<b>${esc(d.db_unique_name)}</b>${d.contentor && d.contentor !== d.db_name ? `<br><small class="muted">${esc(d.contentor)}</small>` : ''}${d.cdb ? ' <span class="tag">CDB</span>' : ''}`;
@@ -82,15 +90,21 @@
       ['versao', 'papel', 'log'].forEach(k => c(k).textContent = '—');
     }
     if (d.ligacao && d.ligacao.portal) c('lig').innerHTML += ` <span class="tag portal-user" title="${esc(T('Utilizador criado pelo portal'))}">portal</span>`;
+    if (String(atual) === String(id) && $('dbd').open) cabecalho(id);
     contar(); filtrar();
+  }
+  function cabecalho(id) {
+    const tr = document.querySelector(`.bd-linha[data-id="${id}"]`), d = res[id] || {};
+    $('dt').textContent = tr.querySelector('b').textContent;
+    $('ds').innerHTML = `${esc(tr.querySelector('small').textContent)} · <span class="bola ${COR[d.cor] || 'b-cinza'}"></span> ${esc(T(d.estado_txt || ''))}`;
   }
   function contar() { const v = Object.values(res); document.querySelectorAll('#chips b').forEach(b => b.textContent = b.dataset.n ? v.filter(x => x.cor === b.dataset.n).length : document.querySelectorAll('.bd-linha').length); }
   function filtrar() { const q = $('q').value.trim().toLowerCase();
     document.querySelectorAll('.bd-linha').forEach(tr => { const d = res[tr.dataset.id] || {};
       tr.hidden = (filtro && d.cor !== filtro) || (q && !tr.textContent.toLowerCase().includes(q)); }); }
-  function todas() { document.querySelectorAll('.bd-linha').forEach(uma); }
+  function todas(forcar) { document.querySelectorAll('.bd-linha').forEach(tr => uma(tr, forcar)); }
   $('chips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; document.querySelectorAll('#chips .chip').forEach(x => x.classList.toggle('on', x === b)); filtro = b.dataset.f; filtrar(); };
-  $('q').oninput = filtrar; $('agora').onclick = todas; todas();
+  $('q').oninput = filtrar; $('agora').onclick = () => todas(true); todas();
 
   // ---------------------------------------------------------------- janela
   const tabela = (linhas, cols, cls = '') => linhas && linhas.length ? `<div class="table-wrap"><table class="small-tab ${cls}" translate="no"><thead><tr>${cols.map(c => `<th>${esc(T(c[1]))}</th>`).join('')}</tr></thead><tbody>${
@@ -140,19 +154,29 @@
       `<h3>${T('Diretórios')}</h3>` + tabela(x.diretorios, [['directory_name', 'Diretório'], ['directory_path', 'Caminho']]) +
       `<p class="hint">${T('O histórico dos expdp/impdp terminados não fica no dicionário: está nos ficheiros .log destes diretórios.')}</p>`,
   };
-  async function parte(p) {
+  async function parte(p, forcar, silencioso) {
     document.querySelectorAll('#dtabs a').forEach(a => a.classList.toggle('on', a.dataset.p === p));
-    const corpo = $('dcorpo'), k = atual + ':' + p;
-    if (!cache[k]) {
-      corpo.innerHTML = `<p class="muted">${T('A ligar à base de dados…')}</p>`;
-      try { cache[k] = await (await fetch(DET.replace('{id}', atual).replace('{p}', p), {cache: 'no-store'})).json(); }
-      catch (e) { cache[k] = {ok: false, error: String(e)}; }
-    }
-    const x = cache[k];
-    corpo.innerHTML = x.ok ? R[p](x, res[atual] || {}) : `<div class="flash error">${esc(x.error)}</div>`;
+    const corpo = $('dcorpo'), id = atual; parteAtual = p;
+    if (!silencioso) corpo.innerHTML = `<div class="carregar-bg">${T('A obter os dados…')}</div>`;
+    let x;
+    try { x = await (await fetch(DET.replace('{id}', id).replace('{p}', p) + (forcar ? '?atualizar=1' : ''), {cache: 'no-store'})).json(); }
+    catch (e) { x = {ok: false, error: String(e)}; }
+    if (atual !== id || parteAtual !== p) return;            // entretanto mudou de BD ou de aba
+    if (x.cache && x.cache.a_atualizar) window.PortalTarefas && PortalTarefas.vigiar(x.cache.chave);
+    const top = corpo.scrollTop;
+    if (x.pendente) corpo.innerHTML = info(x.cache) + `<div class="carregar-bg"><b>${T('Oracle a carregar…')}</b><br>
+        <small>${T('A consulta corre em segundo plano: pode fechar esta janela ou mudar de página; os dados ficam em cache e esta vista atualiza-se quando chegarem.')}</small></div>`;
+    else corpo.innerHTML = info(x.cache) + (x.ok ? R[p](x, res[id] || {}) : `<div class="flash error">${esc(x.error)}</div>`);
+    corpo.scrollTop = top;
   }
+  window.addEventListener('portal:tarefa', e => {
+    const m = /^oracle:(\d+):(.+)$/.exec(e.detail.chave || ''); if (!m) return;
+    if (m[2] === 'resumo') { const tr = document.querySelector(`.bd-linha[data-id="${m[1]}"]`); if (tr) uma(tr); return; }
+    if ($('dbd').open && String(atual) === m[1] && parteAtual === m[2]) parte(m[2], false, true);
+  });
   $('dtabs').onclick = e => { const a = e.target.closest('a'); if (!a) return; e.preventDefault(); parte(a.dataset.p); };
   $('dcorpo').addEventListener('click', async e => {
+    if (e.target.closest('[data-forcar]')) { e.preventDefault(); parte(parteAtual, true, true); return; }
     const tr = e.target.closest('tr[data-owner]'); if (tr) {
       const o = tr.dataset.owner, box = $('rbowner'); box.innerHTML = `<p class="muted">${T('A carregar…')}</p>`;
       const x = await (await fetch(DET.replace('{id}', atual).replace('{p}', 'recyclebin_owner') + '?owner=' + encodeURIComponent(o))).json();
@@ -164,16 +188,17 @@
       document.querySelectorAll('#schips .chip').forEach(x => x.classList.toggle('on', x === b));
       document.querySelectorAll('.schemas-tab tbody tr').forEach(r => r.hidden = b.dataset.s === 'portal' && !r.classList.contains('portal-linha')); }
   });
-  function abrir(id) {
-    atual = id; const tr = document.querySelector(`.bd-linha[data-id="${id}"]`), d = res[id] || {};
-    $('dt').textContent = tr.querySelector('b').textContent;
-    $('ds').innerHTML = `${esc(tr.querySelector('small').textContent)} · <span class="bola ${COR[d.cor] || 'b-cinza'}"></span> ${esc(T(d.estado_txt || ''))}`;
+  function abrir(id, p) {
+    atual = id; cabecalho(id);
     if ($('dlts')) $('dlts').href = TS + '?db=' + id; if ($('dluser')) $('dluser').href = USR.replace('/0/', '/' + id + '/');
-    Object.keys(cache).forEach(k => { if (k.startsWith(id + ':')) delete cache[k]; });
-    $('dbd').showModal(); parte('geral');
+    $('dbd').showModal(); parte(p || 'geral');
   }
   document.querySelectorAll('.bd-linha').forEach(tr => { tr.onclick = () => abrir(tr.dataset.id); tr.onkeydown = e => { if (e.key === 'Enter') abrir(tr.dataset.id); }; });
   $('dfechar').onclick = () => $('dbd').close();
+  const h = /#bd=(\d+):(\w+)/.exec(location.hash);
+  if (h && document.querySelector(`.bd-linha[data-id="${h[1]}"]`)) abrir(h[1], h[2]);
+  window.addEventListener('hashchange', () => { const m = /#bd=(\d+):(\w+)/.exec(location.hash);
+    if (m && document.querySelector(`.bd-linha[data-id="${m[1]}"]`)) { if ($('dbd').open && String(atual) === m[1]) parte(m[2]); else abrir(m[1], m[2]); } });
 })();
 </script>
 {% endblock %}

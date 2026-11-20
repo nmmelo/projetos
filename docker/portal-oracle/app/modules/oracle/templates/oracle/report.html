@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Oracle · Tablespaces{% endblock %}
+
 {% block content %}
 {% include "oracle/_tabs.html" %}
 <form method="get" class="toolbar">
@@ -12,7 +13,14 @@
   <button class="primary">Ver</button>
 </form>
 
-{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+{% if meta %}<div class="cache-info" id="cinfo" data-chave="{{ meta.chave }}">
+  {% if meta.atualizado %}<span>Dados de {{ meta.atualizado[11:19] }} ({{ 'há ' ~ meta.idade ~ ' s' if meta.idade < 120 else 'há ' ~ (meta.idade // 60) ~ ' min' }})</span>{% endif %}
+  {% if meta.a_atualizar %}<span class="a">a atualizar em segundo plano…</span>{% else %}
+  <a href="{{ url_for('oracle.report', db=db_id, exact=1 if exact else None, atualizar=1) }}">↻ Atualizar</a>{% endif %}</div>{% endif %}
+{% if error %}<div class="flash error">{% if rows is not none %}Última atualização falhou: {% endif %}{{ error }}</div>{% endif %}
+{% if rows is none and meta and meta.a_atualizar %}
+<div class="carregar-bg"><b>Oracle a carregar…</b><br><small>A consulta corre em segundo plano: pode mudar de página; os dados ficam em cache e esta página atualiza-se quando chegarem.</small></div>
+{% endif %}
 
 {% if rows is not none %}
 <p class="muted small">Exclui SYSTEM, SYSAUX, UNDO e TEMP. Ordenado do maior para o mais pequeno.
@@ -38,5 +46,17 @@
   {% endfor %}
   </tbody>
 </table>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if meta %}
+<script>
+(() => {
+  const ci = document.getElementById('cinfo'); if (!ci) return;
+  {% if meta.a_atualizar %}window.PortalTarefas && PortalTarefas.vigiar(ci.dataset.chave);{% endif %}
+  window.addEventListener('portal:tarefa', e => { if (e.detail.chave === ci.dataset.chave) {
+    const u = new URL(location.href); u.searchParams.delete('atualizar'); location.replace(u); } });
+})();
+</script>
 {% endif %}
 {% endblock %}

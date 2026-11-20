@@ -61,11 +61,13 @@ async function loadTs() {
   if (!ts) return;
   ts.length = 1; ts.disabled = true;
   if (!db.value) { st.textContent = 'Escolha a base de dados para carregar a lista.'; return; }
-  st.textContent = 'A ligar à base de dados…';
+  st.textContent = (window.t || (x => x))('A obter os dados…');
   try {
     const r = await fetch(API_TS.replace('/0/', `/${db.value}/`));
     const j = await r.json();
     if (!j.ok) throw new Error(j.error);
+    if (j.cache && j.cache.a_atualizar) { tsChave = j.cache.chave; window.PortalTarefas && PortalTarefas.vigiar(j.cache.chave); }
+    if (j.pendente) { st.textContent = (window.t || (x => x))('Oracle a carregar… (em segundo plano; a lista aparece quando chegar)'); return; }
     for (const t of j.tablespaces) {
       const o = new Option(t.name + (t.status !== 'ONLINE' ? ` (${t.status})` : ''), t.name);
       o.disabled = t.status !== 'ONLINE';
@@ -73,9 +75,11 @@ async function loadTs() {
     }
     ts.disabled = false;
     if (ts.dataset.pre) { ts.value = ts.dataset.pre; ts.dataset.pre = ''; }
-    st.textContent = `${j.tablespaces.length} tablespace(s) elegível(eis).`;
+    st.textContent = `${j.tablespaces.length} tablespace(s) elegível(eis).` + (j.cache && j.cache.idade > 60 ? ` (${(window.t || (x => x))('dados de')} ${j.cache.atualizado.slice(11, 16)})` : '');
   } catch (e) { st.textContent = 'Erro: ' + e.message; }
 }
+let tsChave = null;
+window.addEventListener('portal:tarefa', e => { if (e.detail.chave === tsChave && db && ts && ts.length <= 1) loadTs(); });
 db?.addEventListener('change', loadTs);
 if (db?.value) loadTs();
 

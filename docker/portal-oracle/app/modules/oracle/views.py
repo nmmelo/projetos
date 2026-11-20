@@ -2,7 +2,7 @@
 import oracledb
 from flask import Response, abort, flash, g, jsonify, redirect, render_template, request, url_for
 
-from ... import auth, crypto, store
+from ... import auth, crypto, store, tarefas_bg
 from . import bd as oracle
 from . import bp, jobs, MODULO
 
@@ -46,14 +46,33 @@ def api_tablespaces(db_id):
     if not (_can_shrink() or g.user.can("oracle.tablespaces")):
         abort(403)
     db = _db_or_403(db_id)
-    try:
+
+    def ler():
         conn = oracle.connect(db, crypto.decrypt(db["password_enc"]))
         try:
-            return jsonify(ok=True, tablespaces=oracle.list_tablespaces(conn))
+            return oracle.list_tablespaces(conn)
         finally:
             conn.close()
-    except Exception as exc:  # noqa: BLE001
-        return jsonify(ok=False, error=str(exc)), 502
+    r = _cache(db, "lista_ts", "lista de tablespaces", ler, url_for("oracle.shrink", db=db_id))
+    if r["dados"] is None and r["erro"] and not r["a_atualizar"]:
+        return jsonify(ok=False, error=r["erro"], **_meta(r)), 502
+    return jsonify(ok=True, tablespaces=r["dados"], pendente=r["dados"] is None, **_meta(r))
+
+
+def _cache(db: dict, parte: str, rotulo: str, funcao, link: str = "", max_idade: int = 30, espera: float = 1.2) -> dict:
+    """Dados em cache da BD e atualizacao em segundo plano (barra "A atualizar" em baixo). Espera ate 'espera' s
+    para que, se a BD responder depressa, venham logo os dados novos."""
+    chave = f"oracle:{db['id']}:{parte}"
+    r = tarefas_bg.pedir(chave, f"Oracle {db['name']} · {rotulo}", funcao, g.user.username, max_idade,
+                         forcar=request.args.get("atualizar") == "1", link=link)
+    if r["a_atualizar"] and espera:
+        r = {**tarefas_bg.esperar(chave, espera), "chave": chave}
+    return r
+
+
+def _meta(r: dict) -> dict:
+    return {"cache": {"chave": r["chave"], "atualizado": r["atualizado"], "idade": r["idade"],
+                      "a_atualizar": r["a_atualizar"], "erro": r["erro"]}}
 
 
 @bp.route("/tablespaces")
@@ -62,18 +81,22 @@ def report():
     dbs = g.user.visible_dbs(store.list_dbs())
     db_id = request.args.get("db", type=int)
     exact = request.args.get("exact") == "1"
-    rows, error = None, None
+    rows, error, meta = None, None, None
     if db_id:
         db = _db_or_403(db_id)
-        try:
+
+        def ler():
             conn = oracle.connect(db, crypto.decrypt(db["password_enc"]))
             try:
-                rows = oracle.tablespace_report(conn, exact)
+                return oracle.tablespace_report(conn, exact)
             finally:
                 conn.close()
-        except (oracledb.Error, RuntimeError) as exc:
-            error = str(exc)
-    return render_template("oracle/report.html", dbs=dbs, db_id=db_id, rows=rows, error=error, exact=exact)
+        r = _cache(db, "ts_exato" if exact else "ts", "tablespaces" + (" (exato)" if exact else ""), ler,
+                   url_for("oracle.report", db=db_id, exact=1 if exact else None), max_idade=60, espera=2)
+        rows, meta = r["dados"], _meta(r)["cache"]
+        if r["erro"]:
+            error = r["erro"]
+    return render_template("oracle/report.html", dbs=dbs, db_id=db_id, rows=rows, error=error, exact=exact, meta=meta)
 
 
 # ====================================================================== Shrink
@@ -247,6 +270,7 @@ def cfg_db_form(db_id=None):
             if not db and not pwd:
                 raise ValueError("A password é obrigatória.")
             new_id = store.save_db(data, crypto.encrypt(pwd) if pwd else None, db_id)
+            tarefas_bg.apagar_prefixo(f"oracle:{new_id}:")
             flash("Base de dados guardada.", "ok")
             return redirect(url_for("oracle.cfg_dbs", _anchor=f"db{new_id}"))
         except Exception as exc:  # noqa: BLE001 - validacao, nome duplicado, ...
@@ -259,6 +283,7 @@ def cfg_db_form(db_id=None):
 @auth.requires("oracle.definicoes")
 def cfg_db_delete(db_id):
     store.delete_db(db_id)
+    tarefas_bg.apagar_prefixo(f"oracle:{db_id}:")
     flash("Base de dados removida.", "ok")
     return redirect(url_for("oracle.cfg_dbs"))
 
@@ -311,10 +336,15 @@ def bds():
 @auth.requires("oracle.bds")
 def api_bd_resumo(db_id):
     db = _db_visivel(db_id)
-    try:
-        r = inspecao.resumo(db, crypto.decrypt(db["password_enc"]))
-    except Exception as exc:  # noqa: BLE001
-        r = {"ok": False, "estado": "erro", "cor": "bad", "estado_txt": f"Erro: {exc}", "erro": str(exc)}
+
+    def ler():
+        try:
+            return inspecao.resumo(db, crypto.decrypt(db["password_enc"]))
+        except Exception as exc:  # noqa: BLE001 - o estado "sem ligacao" tambem e um resultado
+            return {"ok": False, "estado": "erro", "cor": "bad", "estado_txt": f"Erro: {exc}", "erro": str(exc).splitlines()[0][:400]}
+    c = _cache(db, "resumo", "estado", ler, url_for("oracle.bds"), max_idade=30, espera=0)
+    r = dict(c["dados"] or {"ok": None, "cor": "", "estado_txt": "A verificar…", "pendente": True})
+    r.update(_meta(c))
     r["ligacao"] = {"utilizador": db["username"], "role": db["role"], "portal": db["username"].upper() in
                     {u["username"].upper() for u in _portal_users(db_id)}}
     return jsonify(r)
@@ -325,12 +355,25 @@ def api_bd_resumo(db_id):
 def api_bd_detalhe(db_id, parte):
     db = _db_visivel(db_id)
     extra = {"owner": request.args.get("owner", ""), "portal": [u["username"] for u in _portal_users(db_id)]}
-    try:
-        return jsonify(ok=True, **inspecao.detalhe(db, crypto.decrypt(db["password_enc"]), parte, extra))
-    except ValueError as exc:
-        return jsonify(ok=False, error=str(exc)), 400
-    except Exception as exc:  # noqa: BLE001
-        return jsonify(ok=False, error=str(exc).splitlines()[0][:400])
+    if parte not in inspecao.PARTES and parte != "recyclebin_owner":
+        return jsonify(ok=False, error="Parte desconhecida."), 400
+    if parte == "recyclebin_owner":            # pequeno e por owner: direto
+        try:
+            return jsonify(ok=True, **inspecao.detalhe(db, crypto.decrypt(db["password_enc"]), parte, extra))
+        except Exception as exc:  # noqa: BLE001
+            return jsonify(ok=False, error=str(exc).splitlines()[0][:400])
+    rotulos = {"geral": "geral", "asm": "ASM", "dataguard": "Data Guard", "jobs": "jobs", "recyclebin": "recyclebin",
+               "schemas": "schemas", "rman": "backups RMAN", "datapump": "Data Pump"}
+    c = _cache(db, parte, rotulos.get(parte, parte),
+               lambda: inspecao.detalhe(db, crypto.decrypt(db["password_enc"]), parte, extra),
+               url_for("oracle.bds") + f"#bd={db_id}:{parte}", max_idade=60, espera=1.2)
+    if c["dados"] is None:
+        return jsonify(ok=bool(c["a_atualizar"]), pendente=bool(c["a_atualizar"]), error=c["erro"] or "", **_meta(c))
+    if parte == "schemas":                     # marca os criados pelo portal com a lista atual
+        p = {u.upper() for u in extra["portal"]}
+        for s_ in c["dados"].get("schemas", []):
+            s_["portal"] = s_.get("username", "").upper() in p
+    return jsonify(ok=True, **c["dados"], **_meta(c))
 
 
 # ====================================================================== Utilizador dedicado do portal
@@ -355,6 +398,7 @@ def cfg_dboperator(db_id):
                                                          "created_at": store.now(), "created_by": g.user.username})
                 if request.form.get("usar"):
                     store.save_db({**db, "username": resultado["nome"], "role": "NORMAL"}, crypto.encrypt(pw), db_id)
+                    tarefas_bg.apagar_prefixo(f"oracle:{db_id}:")
                     flash(f"Utilizador {resultado['nome']} criado; a ligação {db['name']} passou a usá-lo (Normal).", "ok")
                     return redirect(url_for("oracle.cfg_dbs", _anchor=f"db{db_id}"))
                 flash(f"Utilizador {resultado['nome']} criado com os privilégios do portal.", "ok")

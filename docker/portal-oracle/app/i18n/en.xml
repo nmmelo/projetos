@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1416">
+<lingua codigo="en" nome="English" textos="1433">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -5665,5 +5665,73 @@
   <texto>
     <origem>Integração Zabbix guardada.</origem>
     <traducao>Zabbix integration saved.</traducao>
+  </texto>
+  <texto>
+    <origem>a atualizar</origem>
+    <traducao>updating</traducao>
+  </texto>
+  <texto>
+    <origem>atualizado</origem>
+    <traducao>updated</traducao>
+  </texto>
+  <texto>
+    <origem>erro</origem>
+    <traducao>error</traducao>
+  </texto>
+  <texto>
+    <origem>tarefa(s)</origem>
+    <traducao>task(s)</traducao>
+  </texto>
+  <texto>
+    <origem>Dados de</origem>
+    <traducao>Data from</traducao>
+  </texto>
+  <texto>
+    <origem>a atualizar em segundo plano…</origem>
+    <traducao>updating in the background…</traducao>
+  </texto>
+  <texto>
+    <origem>Última atualização falhou</origem>
+    <traducao>Last update failed</traducao>
+  </texto>
+  <texto>
+    <origem>A obter os dados…</origem>
+    <traducao>Fetching the data…</traducao>
+  </texto>
+  <texto>
+    <origem>Oracle a carregar…</origem>
+    <traducao>Oracle loading…</traducao>
+  </texto>
+  <texto>
+    <origem>A consulta corre em segundo plano: pode fechar esta janela ou mudar de página; os dados ficam em cache e esta vista atualiza-se quando chegarem.</origem>
+    <traducao>The query runs in the background: you can close this window or change page; the data is cached and this view refreshes when it arrives.</traducao>
+  </texto>
+  <texto>
+    <origem>A consulta corre em segundo plano: pode mudar de página; os dados ficam em cache e esta página atualiza-se quando chegarem.</origem>
+    <traducao>The query runs in the background: you can change page; the data is cached and this page refreshes when it arrives.</traducao>
+  </texto>
+  <texto>
+    <origem>Oracle a carregar… (em segundo plano; a lista aparece quando chegar)</origem>
+    <traducao>Oracle loading… (in the background; the list appears when it arrives)</traducao>
+  </texto>
+  <texto>
+    <origem>dados de</origem>
+    <traducao>data from</traducao>
+  </texto>
+  <texto>
+    <origem>Dados de {n}:{n}:{n} (há {n} s)</origem>
+    <traducao>Data from {n}:{n}:{n} ({n} s ago)</traducao>
+  </texto>
+  <texto>
+    <origem>Dados de {n}:{n}:{n} (há {n} min)</origem>
+    <traducao>Data from {n}:{n}:{n} ({n} min ago)</traducao>
+  </texto>
+  <texto>
+    <origem>Última atualização falhou:</origem>
+    <traducao>Last update failed:</traducao>
+  </texto>
+  <texto>
+    <origem>há {n} s</origem>
+    <traducao>{n} s ago</traducao>
   </texto>
 </lingua>

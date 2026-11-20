@@ -201,6 +201,19 @@ _SCHEMA = [
         origem VARCHAR(10),
         mensagem TEXT
     ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS cache_dados (
+        chave VARCHAR(200) NOT NULL PRIMARY KEY,
+        titulo VARCHAR(200),
+        dados {LONGTEXT},
+        atualizado VARCHAR(19),
+        estado VARCHAR(12),
+        inicio VARCHAR(19),
+        fim VARCHAR(19),
+        duracao REAL,
+        erro TEXT,
+        utilizador VARCHAR(64),
+        link VARCHAR(255)
+    ){SUFFIX}""",
     """CREATE TABLE IF NOT EXISTS firewall_acoes (
         id {ID},
         quando VARCHAR(19) NOT NULL,

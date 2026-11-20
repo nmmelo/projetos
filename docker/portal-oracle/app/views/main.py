@@ -164,6 +164,14 @@ def _ctx_portal(user) -> dict:
             "utilizadores": len([u for u in store.list_users() if u.get("active")]) + 1}
 
 
+# Barra "A atualizar": tarefas em segundo plano (cache de dados lentos) do utilizador
+@bp.route("/api/tarefas")
+@auth.login_required
+def api_tarefas():
+    from .. import tarefas_bg
+    return jsonify(tarefas=tarefas_bg.tarefas(g.user.username))
+
+
 # Sininho: notificacoes do utilizador (regras em SMTP > Notificacoes)
 @bp.route("/notificacoes/api")
 @auth.login_required
