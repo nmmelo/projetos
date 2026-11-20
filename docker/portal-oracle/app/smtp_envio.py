@@ -31,7 +31,7 @@ def config() -> dict:
             pw = crypto.decrypt(s["smtp_password_enc"])
         except Exception:  # noqa: BLE001 - chave mudou
             pw = ""
-    return {"host": s.get("smtp_host", ""), "porta": int(s.get("smtp_porta") or 25),
+    return {"host": _host(s.get("smtp_host", "")), "porta": int(s.get("smtp_porta") or 25),
             "seguranca": s.get("smtp_seguranca") or "starttls", "verificar": s.get("smtp_verificar") == "1",
             "utilizador": s.get("smtp_utilizador", ""), "password": pw,
             "remetente": s.get("smtp_remetente", ""), "remetente_nome": s.get("smtp_remetente_nome", ""),
@@ -65,6 +65,18 @@ class Registo:
 
     def texto(self) -> str:
         return "\n".join(self.linhas)
+
+
+def _host(h: str) -> str:
+    """'smtp://mail.empresa.pt:587/' ou ' mail.empresa.pt. ' -> 'mail.empresa.pt' (a porta e um campo a parte)."""
+    h = (h or "").strip()
+    for pre in ("smtps://", "smtp://"):
+        if h.lower().startswith(pre):
+            h = h[len(pre):]
+    h = h.split("/")[0].strip()
+    if h.count(":") == 1:
+        h = h.split(":")[0]
+    return h.strip(".")
 
 
 def _classe(base):
@@ -102,6 +114,9 @@ def ligar(cfg: dict, reg: Registo):
         s = SMTP(timeout=cfg["timeout"], local_hostname=cfg["helo"])
     s.registo = reg
     s.set_debuglevel(1)
+    # o nome do servidor tem de ficar em _host antes do connect: e o que o smtplib usa no TLS (SNI e validacao do
+    # certificado). Criado sem host, fica "" e o STARTTLS/SSL falha com "server_hostname cannot be an empty string"
+    s._host = cfg["host"]
     s.connect(cfg["host"], cfg["porta"])
     s.ehlo()
     if seg == "starttls":

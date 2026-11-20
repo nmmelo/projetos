@@ -416,9 +416,14 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 
 **Resposta:** Utilizador com Nome próprio, Último nome e E-mail; na configuração LDAP, "Correspondência de atributos": Atributo utilizador (obrigatório; AD sAMAccountName), nome próprio (givenName), último nome (sn) e e-mail (mail), mais um filtro de objetos opcional. Preenchidos no login, na criação automática e com o botão "Preencher a partir do LDAP / AD".
 
-## 31. Erro TLS no LDAP
+## 31. Erro TLS (SMTP)
 
 **Pergunta:**
 > ERRO: ValueError: server_hostname cannot be an empty string or start with a leading dot.
 
 **Resposta:** O TLS (STARTTLS/LDAPS) passa a receber o nome do servidor (SNI) de cada host; os servidores aceitam `ldaps://host:porta`, `[IPv6]:porta` e separação por vírgulas, ponto e vírgula ou espaços; nomes inválidos dão uma mensagem clara.
+
+**Pergunta:**
+> isto era no smtp
+
+**Resposta:** No SMTP a ligação era criada sem o nome do servidor (smtplib usa-o no STARTTLS/SSL): passa a ser indicado antes de ligar; o campo Servidor aceita `smtp://host:porta` (fica só o nome). A alteração no LDAP mantém-se (também indica o nome ao TLS).
