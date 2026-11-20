@@ -311,6 +311,15 @@ def cfg_autenticacao():
                            admin=settings.admin(), tab="portal", sub="autenticacao", **{k: v for k, v in ctx.items() if k != "cont"})
 
 
+# ====================================================================== Portal: Clientes (agente)
+@bp.route("/config/portal/clientes")
+@auth.requires("config.portal")
+def cfg_clientes():
+    if "clientes" in modulos.ativos() and g.user.can("modulo.clientes") and g.user.can("clientes.gerir"):
+        return redirect(url_for("clientes.gerir"))
+    return render_template("config/clientes_off.html", ativo="clientes" in modulos.ativos(), tab="portal", sub="clientes")
+
+
 # ====================================================================== Portal: Manutencao
 @bp.route("/config/portal/maintenance", methods=["GET", "POST"])
 @auth.requires("config.portal")

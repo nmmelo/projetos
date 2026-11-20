@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "clientes/_macros.html" import bola, dur %}
+{% block title %}Configuração · Clientes{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<div class="modulo-head"><p class="muted">Servidores com o agente do portal. O estado, as regras de notificação e os eventos estão no módulo
+  <a href="{{ url_for('clientes.painel') }}">Clientes</a>.</p>
+  <a class="btn primary" href="{{ url_for('clientes.gerir_cliente') }}">+ Novo cliente</a></div>
+<div class="table-wrap"><table class="small-tab">
+  <thead><tr><th></th><th>Nome</th><th>IP / DNS</th><th>Tipo</th><th>Linux</th><th>Utilizador SSH</th><th>Id</th><th>Último contacto</th><th></th></tr></thead>
+  <tbody>{% for c in clientes %}<tr>
+    <td>{{ bola(c) }}</td><td><a href="{{ url_for('clientes.gerir_cliente', cid=c.id) }}"><b translate="no">{{ c.nome }}</b></a></td>
+    <td translate="no">{{ c.endereco }}{% if c.ssh_porta and c.ssh_porta != 22 %}:{{ c.ssh_porta }}{% endif %}</td>
+    <td>{{ 'VM' if c.vm else 'Físico' }}</td><td>{{ familias.get(c.familia, c.familia) }}</td>
+    <td translate="no">{{ c.ssh_utilizador or '—' }}</td><td><code translate="no">{{ c.codigo }}</code></td>
+    <td>{{ c.ultimo_contacto or '—' }}{% if c.intervalo %}<br><small class="muted">intervalo {{ c.intervalo }} s</small>{% endif %}</td>
+    <td><a class="btn small" href="{{ url_for('clientes.gerir_cliente', cid=c.id) }}">✎ Editar</a></td></tr>
+  {% else %}<tr><td colspan="9" class="muted">Ainda não há clientes.</td></tr>{% endfor %}</tbody></table></div>
+
+<div class="smtp-grid" style="margin-top:16px">
+<section class="card">
+  <h2>Definições</h2>
+  <form method="post" action="{{ url_for('clientes.gerir_definicoes') }}" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label>Endereço do portal visto pelos clientes <input name="url" value="{{ cfg.url_guardado }}" placeholder="{{ cfg.url }}" translate="no">
+      <span class="hint">Usado nos comandos de instalação. Vazio = o endereço desta página ({{ cfg.url }}).</span></label>
+    <label>Utilizador SSH por omissão <input name="ssh" value="{{ cfg.ssh_padrao }}" translate="no">
+      <span class="hint">Ex. o utilizador do Ansible, que já existe nos servidores.</span></label>
+    <label class="inline"><input type="checkbox" name="inseguro" value="1" {{ 'checked' if cfg.inseguro }}> O certificado HTTPS do portal é autoassinado (o agente não valida)</label>
+    <div class="buttons"><button class="primary">Guardar</button></div>
+  </form>
+</section>
+<section class="card">
+  <h2>Chave SSH do portal</h2>
+  {% if erro_chave %}<div class="flash error">{{ erro_chave }}</div>{% endif %}
+  <p class="small">Chave pública que o setup do agente acrescenta ao <code>authorized_keys</code> do utilizador SSH de cada cliente
+    (usada no teste de ligação). Os servidores conhecidos ficam num <code>known_hosts</code> próprio do portal.</p>
+  <pre class="mono-area small cmd" translate="no">{{ chave or '—' }}</pre>
+  <p class="hint">Também em <code translate="no">{{ cfg.url }}/clientes/agente/chave.pub</code>.</p>
+</section>
+</div>
+{% endblock %}

@@ -14,7 +14,7 @@ LIVRES_MANUTENCAO = {"static", "portal.login", "portal.logout", "portal.favicon"
 @bp.before_app_request
 def before():
     g.user = auth.load_current_user()
-    if request.method == "POST":
+    if request.method == "POST" and not request.path.startswith("/clientes/agente/api/"):   # agente: token
         sent = request.form.get("csrf") or request.headers.get("X-CSRF", "")
         if not session.get("csrf") or not hmac.compare_digest(sent, session["csrf"]):
             abort(400, "Token CSRF invalido. Recarregue a pagina.")

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% from "clientes/_macros.html" import ev_pill %}
+{% block title %}Clientes · Regras de notificação{% endblock %}
+{% block content %}
+{% include "clientes/_tabs.html" %}
+<p class="muted">Cada regra tem um <b>id</b> gerado pelo portal. Os scripts no cliente (rman, shrink, ...) notificam com
+  <code translate="no">agente-portal notificar &lt;ID&gt; [ok|aviso|erro|info] "mensagem"</code>. Com um <b>log</b>, o agente lê a
+  última linha a cada sincronização e envia-a quando muda (erro se tiver ORA-/RMAN-/ERRO/ERROR/FAIL, ou o padrão indicado).
+  Os emails e avisos no portal configuram-se no SMTP / regras de notificação com o evento "Notificação de um cliente".</p>
+{% if pode %}<div class="buttons"><button type="button" class="primary" id="bnova">+ Nova regra</button></div>{% endif %}
+<div class="table-wrap"><table class="small-tab" id="tab" style="margin-top:12px">
+  <thead><tr><th>Id</th><th>Nome</th><th>Cliente</th><th>Log</th><th>Último evento</th><th>Estado</th><th></th></tr></thead>
+  <tbody>{% for r in regras %}<tr>
+    <td><code translate="no">{{ r.codigo }}</code></td>
+    <td><b>{{ r.nome }}</b>{% if r.descricao %}<br><small class="muted">{{ r.descricao }}</small>{% endif %}</td>
+    <td>{% if r.cliente_id %}<a href="{{ url_for('clientes.detalhe', cid=r.cliente_id) }}" translate="no">{{ r.cliente_nome }}</a>{% else %}<span class="tag">todos</span>{% endif %}</td>
+    <td><code translate="no">{{ r.log_path or '—' }}</code>{% if r.padrao_erro %}<br><small class="muted">erro: <code translate="no">{{ r.padrao_erro }}</code></small>{% endif %}</td>
+    <td>{% if r.ultimo %}{{ ev_pill(r.ultimo.estado) }} <small>{{ r.ultimo.recebido }}</small><br><small class="muted" translate="no">{{ (r.ultimo.mensagem or '')|truncate(70) }}</small>{% else %}—{% endif %}</td>
+    <td><span class="sys-pill {{ 'ok' if r.ativo else 'off' }}">{{ 'Ativa' if r.ativo else 'Inativa' }}</span></td>
+    <td class="nowrap">
+      <button type="button" class="small" data-ex="{{ r.codigo }}" data-log="{{ r.log_path or '' }}" title="Exemplos de uso">⌨</button>
+      {% if pode %}<button type="button" class="small" data-ed='{{ r|tojson|forceescape }}' title="Editar">✎</button>
+      <form method="post" action="{{ url_for('clientes.regra_apagar', rid=r.id) }}" class="inline-form" onsubmit="return confirm('Apagar a regra {{ r.codigo }}?')">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="small danger" aria-label="Apagar">✕</button></form>{% endif %}</td>
+  </tr>{% else %}<tr><td colspan="7" class="muted">Ainda não há regras.</td></tr>{% endfor %}</tbody></table></div>
+
+<dialog id="dreg" class="jx-dlg">
+  <div class="jx-dlg-head"><div><h2 id="dtit">Nova regra</h2><div class="muted small">O id é gerado ao guardar.</div></div>
+    <button type="button" class="small" data-fechar aria-label="Fechar">✕</button></div>
+  <form method="post" class="stack dlg-corpo">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="id">
+    <label>Nome <input name="nome" required maxlength="100" placeholder="Backup RMAN diário"></label>
+    <label>Descrição <input name="descricao" maxlength="500" placeholder="Script /u01/scripts/rman_full.sh (cron 01:00)"></label>
+    <label>Cliente <select name="cliente_id"><option value="">Todos os clientes</option>
+      {% for c in clientes %}<option value="{{ c.id }}" translate="no">{{ c.nome }}</option>{% endfor %}</select></label>
+    <label>Log (opcional) <input name="log_path" maxlength="500" placeholder="/u01/scripts/logs/rman_full.log" translate="no">
+      <span class="hint">O agente envia a última linha quando o ficheiro muda. Vazio = só notificações pelo comando.</span></label>
+    <div class="grid2">
+      <label>Padrão de erro (regex, opcional) <input name="padrao_erro" maxlength="200" placeholder="ORA-|RMAN-|FALHOU" translate="no"></label>
+      <label>Padrão de aviso (regex, opcional) <input name="padrao_aviso" maxlength="200" placeholder="WARNING" translate="no"></label>
+    </div>
+    <label class="inline"><input type="checkbox" name="ativo" value="1" checked> Ativa</label>
+    <input type="hidden" name="ativo" value="0" disabled id="ativo0">
+    <div class="buttons"><button class="primary">Guardar</button><button type="button" data-fechar>Cancelar</button></div>
+  </form>
+</dialog>
+
+<dialog id="dex" class="jx-dlg dlg-largo">
+  <div class="jx-dlg-head"><div><h2>Como usar a regra <code id="exid" translate="no"></code></h2></div>
+    <button type="button" class="small" data-fechar aria-label="Fechar">✕</button></div>
+  <div class="dlg-corpo">
+    <h3>Na linha de comandos</h3>
+<pre class="mono-area small cmd" translate="no" id="ex1"></pre>
+    <h3>No fim de um script (ex. RMAN)</h3>
+<pre class="mono-area small cmd" translate="no" id="ex2"></pre>
+    <h3>Por log</h3>
+    <p class="small" id="ex3"></p>
+    <p class="hint">Quem não é root tem de estar no grupo <code>agente-portal</code> (setup: <code>--grupo "oracle"</code>, ou
+      <code>usermod -aG agente-portal oracle</code>). Sem o agente a correr, o root envia diretamente; se o portal não
+      responder, a notificação fica em fila e segue na sincronização seguinte.</p>
+  </div>
+</dialog>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const d = document.getElementById('dreg'), f = d.querySelector('form'), x = document.getElementById('dex');
+  document.querySelectorAll('[data-fechar]').forEach(b => b.onclick = () => b.closest('dialog').close());
+  const abrir = r => { f.reset(); f.id.value = r ? r.id : ''; document.getElementById('dtit').textContent = r ? r.nome + ' (' + r.codigo + ')' : (window.t || (s => s))('Nova regra');
+    if (r) for (const k of ['nome', 'descricao', 'log_path', 'padrao_erro', 'padrao_aviso']) f[k].value = r[k] || '';
+    f.cliente_id.value = r && r.cliente_id ? r.cliente_id : ''; f.querySelector('[type=checkbox][name=ativo]').checked = !r || !!r.ativo; d.showModal(); };
+  f.onsubmit = () => { document.getElementById('ativo0').disabled = f.querySelector('[type=checkbox][name=ativo]').checked; };
+  const bn = document.getElementById('bnova'); if (bn) bn.onclick = () => abrir(null);
+  document.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => abrir(JSON.parse(b.dataset.ed)));
+  document.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => {
+    const id = b.dataset.ex; document.getElementById('exid').textContent = id;
+    document.getElementById('ex1').textContent = `agente-portal notificar ${id} ok "Backup terminado"\nagente-portal notificar ${id} erro "Falhou: ORA-19502"\necho "texto longo" | agente-portal notificar ${id} aviso`;
+    document.getElementById('ex2').textContent = `rman target / cmdfile=/u01/scripts/rman_full.rcv log=/u01/scripts/logs/rman_full.log\nif [ $? -eq 0 ]; then\n  agente-portal notificar ${id} ok "RMAN full OK em $(hostname)"\nelse\n  agente-portal notificar ${id} erro "$(grep -E 'RMAN-|ORA-' /u01/scripts/logs/rman_full.log | tail -3)"\nfi`;
+    document.getElementById('ex3').textContent = b.dataset.log ? `O agente lê a última linha de ${b.dataset.log} a cada sincronização e envia-a quando muda.` : 'Sem log definido (edite a regra para indicar um).';
+    x.showModal(); });
+})();
+</script>
+{% endblock %}

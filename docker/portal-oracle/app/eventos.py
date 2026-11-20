@@ -9,6 +9,7 @@ Regras em SMTP > Regras (email) e SMTP > Notificacoes (portal).
 """
 import json
 import logging
+import re
 import threading
 
 from . import modulos, settings, store
@@ -16,7 +17,7 @@ from . import modulos, settings, store
 log = logging.getLogger("eventos")
 
 NIVEL = {"sucesso": "ok", "aviso": "aviso", "erro": "erro", "falhado": "erro", "parado": "aviso",
-         "falhou": "erro", "iniciado": "ok", "acima": "aviso", "recuperou": "ok"}
+         "falhou": "erro", "iniciado": "ok", "acima": "aviso", "recuperou": "ok", "perdido": "erro", "info": "info"}
 
 # Destinos possiveis de uma regra (chaves do JSON "destino")
 #   emails: [..]   padrao: bool (destinatarios por omissao do SMTP)   lancador: bool (quem lancou)
@@ -89,6 +90,7 @@ def regras_iniciais() -> None:
 def regras_iniciais_2() -> None:
     """Regras das tarefas agendadas e da verificacao de tablespaces (versao com agendamentos)."""
     if store.get_setting("regras_iniciais_2"):
+        regras_iniciais_3()
         return
     base = [
         ("Tarefa agendada falhou", "portal", "portal.agendamento", ["erro"], None, {"admins": True}),
@@ -100,6 +102,23 @@ def regras_iniciais_2() -> None:
         guardar_regra({"nome": nome, "canal": canal, "evento": ev, "situacoes": sit, "parametro": par,
                        "destino": dest, "ativo": True})
     store.save_settings({"regras_iniciais_2": "1"})
+    regras_iniciais_3()
+
+
+def regras_iniciais_3() -> None:
+    """Regras do modulo Clientes (agente cliente)."""
+    if store.get_setting("regras_iniciais_3"):
+        return
+    base = [
+        ("Cliente: erro ou aviso de um script", "portal", "clientes.notificacao", ["erro", "aviso"], None, {"modulo": True}),
+        ("Cliente: erro de um script", "email", "clientes.notificacao", ["erro"], None, {"padrao": True}),
+        ("Cliente sem contacto do agente", "portal", "clientes.contacto", ["perdido", "recuperou"], None, {"admins": True}),
+        ("Cliente sem contacto do agente", "email", "clientes.contacto", ["perdido"], None, {"padrao": True}),
+    ]
+    for nome, canal, ev, sit, par, dest in base:
+        guardar_regra({"nome": nome, "canal": canal, "evento": ev, "situacoes": sit, "parametro": par,
+                       "destino": dest, "ativo": True})
+    store.save_settings({"regras_iniciais_3": "1"})
 
 
 # ============================================================================ destinatarios
@@ -157,6 +176,9 @@ def _emitir(evento, situacao, titulo, texto, link, autor, dados):
     if evento == "sistema.disco":            # cada regra de disco tem o seu limiar
         regras = [r for r in regras if r["parametro"] not in (None, "")
                   and str(dados.get("limiar")).strip() == str(r["parametro"]).strip()]
+    if evento == "clientes.notificacao":     # parametro = IDs das regras do agente (vazio = todas)
+        regras = [r for r in regras if not (r["parametro"] or "").strip()
+                  or str(dados.get("regra", "")) in re.split(r"[\s,;]+", r["parametro"].strip())]
     if not regras:
         return
     nivel = NIVEL.get(situacao, "info")

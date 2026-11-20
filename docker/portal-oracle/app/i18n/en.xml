@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="996">
+<lingua codigo="en" nome="English" textos="1328">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -3985,5 +3985,1333 @@
   <texto>
     <origem>A ENVIAR</origem>
     <traducao>SENDING</traducao>
+  </texto>
+  <texto>
+    <origem>"Pacotes recusados" vem do registo do kernel e só tem linhas com o LogDenied ligado (Definições) ou, no ufw, com o registo ligado.</origem>
+    <traducao>"Denied packets" comes from the kernel log and only has lines with LogDenied on (Settings) or, with ufw, with logging on.</traducao>
+  </texto>
+  <texto>
+    <origem>(600, token cifrado com uma chave local ligada à máquina) e o serviço</origem>
+    <traducao>(600, token encrypted with a local key tied to the machine) and the service</traducao>
+  </texto>
+  <texto>
+    <origem>(Configuração → Utilizadores):</origem>
+    <traducao>(Configuration → Users):</traducao>
+  </texto>
+  <texto>
+    <origem>(comandos exatos), autorizados em</origem>
+    <traducao>(exact commands), authorised in</traducao>
+  </texto>
+  <texto>
+    <origem>(desligado: aceita qualquer certificado — só para testes)</origem>
+    <traducao>(off: accepts any certificate — for tests only)</traducao>
+  </texto>
+  <texto>
+    <origem>(ex. o utilizador</origem>
+    <traducao>(e.g. the user</traducao>
+  </texto>
+  <texto>
+    <origem>(o portal mostra-o na sincronização seguinte).</origem>
+    <traducao>(the portal shows it at the next sync).</traducao>
+  </texto>
+  <texto>
+    <origem>(password no portal) ou</origem>
+    <traducao>(password in the portal) or</traducao>
+  </texto>
+  <texto>
+    <origem>(setup:</origem>
+    <traducao>(setup:</traducao>
+  </texto>
+  <texto>
+    <origem>) e último contacto do agente.</origem>
+    <traducao>) and last contact from the agent.</traducao>
+  </texto>
+  <texto>
+    <origem>) ou em regras ricas (</origem>
+    <traducao>) or in rich rules (</traducao>
+  </texto>
+  <texto>
+    <origem>) usadas em origens (</origem>
+    <traducao>) used in sources (</traducao>
+  </texto>
+  <texto>
+    <origem>). As alterações vão para a configuração permanente e para a em execução.</origem>
+    <traducao>). Changes go to the permanent and the runtime configuration.</traducao>
+  </texto>
+  <texto>
+    <origem>). Sem o agente a correr, o root envia diretamente; se o portal não responder, a notificação fica em fila e segue na sincronização seguinte.</origem>
+    <traducao>). Without the agent running, root sends directly; if the portal does not answer, the notification is queued and sent at the next sync.</traducao>
+  </texto>
+  <texto>
+    <origem>+ Acrescentar</origem>
+    <traducao>+ Add</traducao>
+  </texto>
+  <texto>
+    <origem>+ Nova regra</origem>
+    <traducao>+ New rule</traducao>
+  </texto>
+  <texto>
+    <origem>+ Novo cliente</origem>
+    <traducao>+ New client</traducao>
+  </texto>
+  <texto>
+    <origem>+ Origem</origem>
+    <traducao>+ Source</traducao>
+  </texto>
+  <texto>
+    <origem>+ Porta</origem>
+    <traducao>+ Port</traducao>
+  </texto>
+  <texto>
+    <origem>+ Regra rica</origem>
+    <traducao>+ Rich rule</traducao>
+  </texto>
+  <texto>
+    <origem>+ Serviço</origem>
+    <traducao>+ Service</traducao>
+  </texto>
+  <texto>
+    <origem>+ o administrador</origem>
+    <traducao>+ the administrator</traducao>
+  </texto>
+  <texto>
+    <origem>, o agente lê a última linha a cada sincronização e envia-a quando muda (erro se tiver ORA-/RMAN-/ERRO/ERROR/FAIL, ou o padrão indicado). Os emails e avisos no portal configuram-se no SMTP / regras de notificação com o evento "Notificação de um cliente".</origem>
+    <traducao>, the agent reads the last line at each sync and sends it when it changes (error if it has ORA-/RMAN-/ERRO/ERROR/FAIL, or the given pattern). Emails and portal alerts are set in SMTP / notification rules with the event "Notification from a client".</traducao>
+  </texto>
+  <texto>
+    <origem>, os pacotes recusados aparecem em Logs → Pacotes recusados.</origem>
+    <traducao>, denied packets appear in Logs → Denied packets.</traducao>
+  </texto>
+  <texto>
+    <origem>. Clique para configurar e testar.</origem>
+    <traducao>. Click to configure and test.</traducao>
+  </texto>
+  <texto>
+    <origem>. Instala em</origem>
+    <traducao>. Installs in</traducao>
+  </texto>
+  <texto>
+    <origem>. O administrador é sempre local.</origem>
+    <traducao>. The administrator is always local.</traducao>
+  </texto>
+  <texto>
+    <origem>. Vazio = anónimo.</origem>
+    <traducao>. Empty = anonymous.</traducao>
+  </texto>
+  <texto>
+    <origem>: o agente, o</origem>
+    <traducao>: the agent, the</traducao>
+  </texto>
+  <texto>
+    <origem>A testar…</origem>
+    <traducao>Testing…</traducao>
+  </texto>
+  <texto>
+    <origem>Abertas</origem>
+    <traducao>Open</traducao>
+  </texto>
+  <texto>
+    <origem>Acessos</origem>
+    <traducao>Logins</traducao>
+  </texto>
+  <texto>
+    <origem>Active Directory (Microsoft)</origem>
+    <traducao>Active Directory (Microsoft)</traducao>
+  </texto>
+  <texto>
+    <origem>Ainda não houve alterações pelo portal.</origem>
+    <traducao>No changes made through the portal yet.</traducao>
+  </texto>
+  <texto>
+    <origem>Ainda não há clientes.</origem>
+    <traducao>There are no clients yet.</traducao>
+  </texto>
+  <texto>
+    <origem>Ainda não há regras.</origem>
+    <traducao>There are no rules yet.</traducao>
+  </texto>
+  <texto>
+    <origem>Alterar a firewall: regras, portas, serviços, ipsets, recarregar</origem>
+    <traducao>Change the firewall: rules, ports, services, ipsets, reload</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar o cliente</origem>
+    <traducao>Delete the client</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar o ipset</origem>
+    <traducao>Delete the ipset</traducao>
+  </texto>
+  <texto>
+    <origem>Aplica a configuração permanente</origem>
+    <traducao>Applies the permanent configuration</traducao>
+  </texto>
+  <texto>
+    <origem>Aplicar</origem>
+    <traducao>Apply</traducao>
+  </texto>
+  <texto>
+    <origem>Arquitetura</origem>
+    <traducao>Architecture</traducao>
+  </texto>
+  <texto>
+    <origem>As alterações são feitas na permanente e em execução ao mesmo tempo.</origem>
+    <traducao>Changes are made to the permanent and runtime configuration at the same time.</traducao>
+  </texto>
+  <texto>
+    <origem>Ative o módulo</origem>
+    <traducao>Activate the module</traducao>
+  </texto>
+  <texto>
+    <origem>Atrasado</origem>
+    <traducao>Late</traducao>
+  </texto>
+  <texto>
+    <origem>Atrasados</origem>
+    <traducao>Late</traducao>
+  </texto>
+  <texto>
+    <origem>Atributo do email</origem>
+    <traducao>Email attribute</traducao>
+  </texto>
+  <texto>
+    <origem>Atributo do nome</origem>
+    <traducao>Name attribute</traducao>
+  </texto>
+  <texto>
+    <origem>Atualiza a cada 30 s.</origem>
+    <traducao>Refreshes every 30 s.</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar</origem>
+    <traducao>Refresh</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar o nome e o email do utilizador a partir do diretório em cada login</origem>
+    <traducao>Update the user name and email from the directory at each login</traducao>
+  </texto>
+  <texto>
+    <origem>Autenticação</origem>
+    <traducao>Authentication</traducao>
+  </texto>
+  <texto>
+    <origem>Autenticação dos utilizadores por LDAP: OpenLDAP ou Active Directory (Microsoft), com TLS e certificado da CA, grupo obrigatório e criação automática no primeiro login. O administrador é sempre local.</origem>
+    <traducao>User authentication by LDAP: OpenLDAP or Active Directory (Microsoft), with TLS and CA certificate, required group and automatic creation at first login. The administrator is always local.</traducao>
+  </texto>
+  <texto>
+    <origem>Aviso</origem>
+    <traducao>Warning</traducao>
+  </texto>
+  <texto>
+    <origem>Backup RMAN diário</origem>
+    <traducao>Daily RMAN backup</traducao>
+  </texto>
+  <texto>
+    <origem>Backups RMAN</origem>
+    <traducao>RMAN backups</traducao>
+  </texto>
+  <texto>
+    <origem>Base de procura (base DN)</origem>
+    <traducao>Search base (base DN)</traducao>
+  </texto>
+  <texto>
+    <origem>Cada login fica no registo de</origem>
+    <traducao>Each login is recorded in</traducao>
+  </texto>
+  <texto>
+    <origem>Cada regra tem um</origem>
+    <traducao>Each rule has an</traducao>
+  </texto>
+  <texto>
+    <origem>Cada utilizador tem um</origem>
+    <traducao>Each user has an</traducao>
+  </texto>
+  <texto>
+    <origem>Carga (1/5/15 min)</origem>
+    <traducao>Load (1/5/15 min)</traducao>
+  </texto>
+  <texto>
+    <origem>Certificado da CA (PEM)</origem>
+    <traducao>CA certificate (PEM)</traducao>
+  </texto>
+  <texto>
+    <origem>Chave SSH do portal</origem>
+    <traducao>Portal SSH key</traducao>
+  </texto>
+  <texto>
+    <origem>Chave pública que o setup do agente acrescenta ao</origem>
+    <traducao>Public key that the agent setup adds to the</traducao>
+  </texto>
+  <texto>
+    <origem>Cliente</origem>
+    <traducao>Client</traducao>
+  </texto>
+  <texto>
+    <origem>Clientes</origem>
+    <traducao>Clients</traducao>
+  </texto>
+  <texto>
+    <origem>Clientes (agente do portal)</origem>
+    <traducao>Clients (portal agent)</traducao>
+  </texto>
+  <texto>
+    <origem>Com sucesso</origem>
+    <traducao>Successful</traducao>
+  </texto>
+  <texto>
+    <origem>Como funciona</origem>
+    <traducao>How it works</traducao>
+  </texto>
+  <texto>
+    <origem>Como os utilizadores entram no portal. O tipo de cada utilizador escolhe-se em</origem>
+    <traducao>How users sign in to the portal. Each user's type is chosen in</traducao>
+  </texto>
+  <texto>
+    <origem>Como usar a regra</origem>
+    <traducao>How to use rule</traducao>
+  </texto>
+  <texto>
+    <origem>Conta de serviço (bind DN)</origem>
+    <traducao>Service account (bind DN)</traducao>
+  </texto>
+  <texto>
+    <origem>Conta só de leitura para procurar os utilizadores. No AD pode ser</origem>
+    <traducao>Read-only account to search for users. In AD it can be</traducao>
+  </texto>
+  <texto>
+    <origem>Contacta a partir de</origem>
+    <traducao>Contacts from</traducao>
+  </texto>
+  <texto>
+    <origem>Contacto do agente cliente</origem>
+    <traducao>Client agent contact</traducao>
+  </texto>
+  <texto>
+    <origem>Criar</origem>
+    <traducao>Create</traducao>
+  </texto>
+  <texto>
+    <origem>Criar o utilizador no portal no primeiro login (se não existir)</origem>
+    <traducao>Create the user in the portal at first login (if it does not exist)</traducao>
+  </texto>
+  <texto>
+    <origem>Criar, editar e apagar clientes, ver o token e testar a ligação (Configuração → Clientes)</origem>
+    <traducao>Create, edit and delete clients, view the token and test the connection (Configuration → Clients)</traducao>
+  </texto>
+  <texto>
+    <origem>Criar, editar e apagar regras de notificação</origem>
+    <traducao>Create, edit and delete notification rules</traducao>
+  </texto>
+  <texto>
+    <origem>DNS, porta SSH, SSH com a chave do portal (</origem>
+    <traducao>DNS, SSH port, SSH with the portal key (</traducao>
+  </texto>
+  <texto>
+    <origem>Debian / Ubuntu</origem>
+    <traducao>Debian / Ubuntu</traducao>
+  </texto>
+  <texto>
+    <origem>Desligado</origem>
+    <traducao>Off</traducao>
+  </texto>
+  <texto>
+    <origem>Desligar o modo pânico</origem>
+    <traducao>Turn panic mode off</traducao>
+  </texto>
+  <texto>
+    <origem>Disco (maior)</origem>
+    <traducao>Disk (highest)</traducao>
+  </texto>
+  <texto>
+    <origem>Download:</origem>
+    <traducao>Download:</traducao>
+  </texto>
+  <texto>
+    <origem>Driver</origem>
+    <traducao>Driver</traducao>
+  </texto>
+  <texto>
+    <origem>Driver, servidor, certificado, conta de serviço e filtro</origem>
+    <traducao>Driver, server, certificate, service account and filter</traducao>
+  </texto>
+  <texto>
+    <origem>Endereço do portal visto pelos clientes</origem>
+    <traducao>Portal address as seen by the clients</traducao>
+  </texto>
+  <texto>
+    <origem>Erro</origem>
+    <traducao>Error</traducao>
+  </texto>
+  <texto>
+    <origem>Esquecer a chave do servidor</origem>
+    <traducao>Forget the server key</traducao>
+  </texto>
+  <texto>
+    <origem>Eventos 24 h</origem>
+    <traducao>Events 24 h</traducao>
+  </texto>
+  <texto>
+    <origem>Eventos recentes</origem>
+    <traducao>Recent events</traducao>
+  </texto>
+  <texto>
+    <origem>Ex. o utilizador do Ansible, que já existe nos servidores.</origem>
+    <traducao>E.g. the Ansible user, which already exists on the servers.</traducao>
+  </texto>
+  <texto>
+    <origem>Exemplos de uso</origem>
+    <traducao>Usage examples</traducao>
+  </texto>
+  <texto>
+    <origem>Exemplos:</origem>
+    <traducao>Examples:</traducao>
+  </texto>
+  <texto>
+    <origem>Falhados</origem>
+    <traducao>Failed</traducao>
+  </texto>
+  <texto>
+    <origem>Família</origem>
+    <traducao>Family</traducao>
+  </texto>
+  <texto>
+    <origem>Fechadas / sem ligação</origem>
+    <traducao>Closed / no connection</traducao>
+  </texto>
+  <texto>
+    <origem>Filtrar</origem>
+    <traducao>Filter</traducao>
+  </texto>
+  <texto>
+    <origem>Filtrar (IP, porta, zona, texto)</origem>
+    <traducao>Filter (IP, port, zone, text)</traducao>
+  </texto>
+  <texto>
+    <origem>Filtro do utilizador</origem>
+    <traducao>User filter</traducao>
+  </texto>
+  <texto>
+    <origem>Firewall</origem>
+    <traducao>Firewall</traducao>
+  </texto>
+  <texto>
+    <origem>Firewall do servidor do portal (firewalld ou ufw): estado, zonas, serviços, portas, regras ricas, ipsets e registo; criar e apagar regras e ipsets.</origem>
+    <traducao>Firewall of the portal server (firewalld or ufw): state, zones, services, ports, rich rules, ipsets and log; create and delete rules and ipsets.</traducao>
+  </texto>
+  <texto>
+    <origem>Forward</origem>
+    <traducao>Forward</traducao>
+  </texto>
+  <texto>
+    <origem>Físico</origem>
+    <traducao>Physical</traducao>
+  </texto>
+  <texto>
+    <origem>Físico ·</origem>
+    <traducao>Physical ·</traducao>
+  </texto>
+  <texto>
+    <origem>Gera o evento "Contacto do agente cliente: sem contacto" quando um cliente passa mais de 10 intervalos sem sincronizar (e "voltou" quando regressa). Apaga eventos antigos.</origem>
+    <traducao>Raises the event "Client agent contact: no contact" when a client goes more than 10 intervals without syncing (and "back" when it returns). Deletes old events.</traducao>
+  </texto>
+  <texto>
+    <origem>Gerar token novo</origem>
+    <traducao>Generate new token</traducao>
+  </texto>
+  <texto>
+    <origem>Gerir clientes</origem>
+    <traducao>Manage clients</traducao>
+  </texto>
+  <texto>
+    <origem>Grupo obrigatório (DN, opcional)</origem>
+    <traducao>Required group (DN, optional)</traducao>
+  </texto>
+  <texto>
+    <origem>Hora no cliente</origem>
+    <traducao>Time on the client</traducao>
+  </texto>
+  <texto>
+    <origem>Hostname</origem>
+    <traducao>Hostname</traducao>
+  </texto>
+  <texto>
+    <origem>IDs das regras (vazio = todas)</origem>
+    <traducao>Rule IDs (empty = all)</traducao>
+  </texto>
+  <texto>
+    <origem>IP ou DNS</origem>
+    <traducao>IP or DNS</traducao>
+  </texto>
+  <texto>
+    <origem>IPsets</origem>
+    <traducao>IPsets</traducao>
+  </texto>
+  <texto>
+    <origem>Id do cliente</origem>
+    <traducao>Client id</traducao>
+  </texto>
+  <texto>
+    <origem>Iniciar em Sistema</origem>
+    <traducao>Start in System</traducao>
+  </texto>
+  <texto>
+    <origem>Iniciar, parar e reiniciar o serviço</origem>
+    <traducao>Starting, stopping and restarting the service</traducao>
+  </texto>
+  <texto>
+    <origem>Inicie-o no servidor:</origem>
+    <traducao>Start it on the server:</traducao>
+  </texto>
+  <texto>
+    <origem>Instalar o agente no cliente</origem>
+    <traducao>Install the agent on the client</traducao>
+  </texto>
+  <texto>
+    <origem>Instância (SID)</origem>
+    <traducao>Instance (SID)</traducao>
+  </texto>
+  <texto>
+    <origem>Interfaces</origem>
+    <traducao>Interfaces</traducao>
+  </texto>
+  <texto>
+    <origem>Intervalo de sincronização</origem>
+    <traducao>Sync interval</traducao>
+  </texto>
+  <texto>
+    <origem>LDAP / Active Directory</origem>
+    <traducao>LDAP / Active Directory</traducao>
+  </texto>
+  <texto>
+    <origem>LDAP desligado</origem>
+    <traducao>LDAP off</traducao>
+  </texto>
+  <texto>
+    <origem>LDAP desligado (módulo Autenticação)</origem>
+    <traducao>LDAP off (Authentication module)</traducao>
+  </texto>
+  <texto>
+    <origem>LDAP ligado</origem>
+    <traducao>LDAP on</traducao>
+  </texto>
+  <texto>
+    <origem>LDAP: a conta de serviço procura o utilizador com o filtro; depois o portal confirma a password com um bind do próprio utilizador.</origem>
+    <traducao>LDAP: the service account searches for the user with the filter; then the portal checks the password with a bind as the user.</traducao>
+  </texto>
+  <texto>
+    <origem>LDAP: o nome de utilizador tem de ser o do diretório (ex.</origem>
+    <traducao>LDAP: the user name must be the directory one (e.g.</traducao>
+  </texto>
+  <texto>
+    <origem>LDAPS (porta 636)</origem>
+    <traducao>LDAPS (port 636)</traducao>
+  </texto>
+  <texto>
+    <origem>Ligado há</origem>
+    <traducao>Up for</traducao>
+  </texto>
+  <texto>
+    <origem>Ligar o modo pânico</origem>
+    <traducao>Turn panic mode on</traducao>
+  </texto>
+  <texto>
+    <origem>Ligação LDAP</origem>
+    <traducao>LDAP connection</traducao>
+  </texto>
+  <texto>
+    <origem>Linux</origem>
+    <traducao>Linux</traducao>
+  </texto>
+  <texto>
+    <origem>Listas de endereços (</origem>
+    <traducao>Address lists (</traducao>
+  </texto>
+  <texto>
+    <origem>Local</origem>
+    <traducao>Local</traducao>
+  </texto>
+  <texto>
+    <origem>Local (password no portal)</origem>
+    <traducao>Local (password in the portal)</traducao>
+  </texto>
+  <texto>
+    <origem>Log (opcional)</origem>
+    <traducao>Log (optional)</traducao>
+  </texto>
+  <texto>
+    <origem>Log (última linha)</origem>
+    <traducao>Log (last line)</traducao>
+  </texto>
+  <texto>
+    <origem>Masquerade</origem>
+    <traducao>Masquerade</traducao>
+  </texto>
+  <texto>
+    <origem>Memória</origem>
+    <traducao>Memory</traducao>
+  </texto>
+  <texto>
+    <origem>Modo pânico</origem>
+    <traducao>Panic mode</traducao>
+  </texto>
+  <texto>
+    <origem>Montadas / a mudar</origem>
+    <traducao>Mounted / changing</traducao>
+  </texto>
+  <texto>
+    <origem>Mostrar</origem>
+    <traducao>Show</traducao>
+  </texto>
+  <texto>
+    <origem>Motivo</origem>
+    <traducao>Reason</traducao>
+  </texto>
+  <texto>
+    <origem>Máquina virtual</origem>
+    <traducao>Virtual machine</traducao>
+  </texto>
+  <texto>
+    <origem>Método</origem>
+    <traducao>Method</traducao>
+  </texto>
+  <texto>
+    <origem>Na linha de comandos</origem>
+    <traducao>On the command line</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhum.</origem>
+    <traducao>None.</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhuma (a zona aplica-se às interfaces).</origem>
+    <traducao>None (the zone applies to the interfaces).</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhuma zona ativa.</origem>
+    <traducao>No active zone.</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhuma.</origem>
+    <traducao>None.</traducao>
+  </texto>
+  <texto>
+    <origem>No fim de um script (ex. RMAN)</origem>
+    <traducao>At the end of a script (e.g. RMAN)</traducao>
+  </texto>
+  <texto>
+    <origem>No servidor:</origem>
+    <traducao>On the server:</traducao>
+  </texto>
+  <texto>
+    <origem>Notificação de um cliente (agente)</origem>
+    <traducao>Notification from a client (agent)</traducao>
+  </texto>
+  <texto>
+    <origem>Novo cliente</origem>
+    <traducao>New client</traducao>
+  </texto>
+  <texto>
+    <origem>Novo ipset</origem>
+    <traducao>New ipset</traducao>
+  </texto>
+  <texto>
+    <origem>Novos perfis</origem>
+    <traducao>New profiles</traducao>
+  </texto>
+  <texto>
+    <origem>Nunca contactaram</origem>
+    <traducao>Never contacted</traducao>
+  </texto>
+  <texto>
+    <origem>Nunca contactou</origem>
+    <traducao>Never contacted</traducao>
+  </texto>
+  <texto>
+    <origem>Não há ipsets.</origem>
+    <traducao>There are no ipsets.</traducao>
+  </texto>
+  <texto>
+    <origem>O agente envia a última linha quando o ficheiro muda. Vazio = só notificações pelo comando.</origem>
+    <traducao>The agent sends the last line when the file changes. Empty = notifications by command only.</traducao>
+  </texto>
+  <texto>
+    <origem>O certificado HTTPS do portal é autoassinado (o agente não valida)</origem>
+    <traducao>The portal HTTPS certificate is self-signed (the agent does not validate)</traducao>
+  </texto>
+  <texto>
+    <origem>O firewalld está parado.</origem>
+    <traducao>firewalld is stopped.</traducao>
+  </texto>
+  <texto>
+    <origem>O id é gerado ao guardar.</origem>
+    <traducao>The id is generated when saving.</traducao>
+  </texto>
+  <texto>
+    <origem>O intervalo muda-se no cliente:</origem>
+    <traducao>The interval is changed on the client:</traducao>
+  </texto>
+  <texto>
+    <origem>O perfil (o que pode fazer) é sempre o do portal.</origem>
+    <traducao>The profile (what the user can do) is always the portal one.</traducao>
+  </texto>
+  <texto>
+    <origem>O portal (utilizador de serviço) usa</origem>
+    <traducao>The portal (service user) uses</traducao>
+  </texto>
+  <texto>
+    <origem>O portal não tem permissão para ler a firewall.</origem>
+    <traducao>The portal has no permission to read the firewall.</traducao>
+  </texto>
+  <texto>
+    <origem>O seu perfil não tem a ação</origem>
+    <traducao>Your profile does not have the action</traducao>
+  </texto>
+  <texto>
+    <origem>Online</origem>
+    <traducao>Online</traducao>
+  </texto>
+  <texto>
+    <origem>Online · há {n} min</origem>
+    <traducao>Online · {n} min ago</traducao>
+  </texto>
+  <texto>
+    <origem>Online · há {n} s</origem>
+    <traducao>Online · {n} s ago</traducao>
+  </texto>
+  <texto>
+    <origem>OpenLDAP / Active Directory</origem>
+    <traducao>OpenLDAP / Active Directory</traducao>
+  </texto>
+  <texto>
+    <origem>Opções</origem>
+    <traducao>Options</traducao>
+  </texto>
+  <texto>
+    <origem>Origem</origem>
+    <traducao>Source</traducao>
+  </texto>
+  <texto>
+    <origem>Origens (sources)</origem>
+    <traducao>Sources</traducao>
+  </texto>
+  <texto>
+    <origem>Os eventos com mais de 90 dias são apagados pela tarefa "Verificar o contacto dos clientes" (Configuração → Agendamento).</origem>
+    <traducao>Events older than 90 days are deleted by the task "Check client contact" (Configuration → Scheduling).</traducao>
+  </texto>
+  <texto>
+    <origem>Os utilizadores do tipo LDAP não conseguem entrar</origem>
+    <traducao>LDAP users cannot sign in</traducao>
+  </texto>
+  <texto>
+    <origem>Os últimos 500. Os registos com mais de N dias são apagados pela tarefa "Limpeza do histórico" (Configuração → Agendamento).</origem>
+    <traducao>The last 500. Records older than N days are deleted by the task "History cleanup" (Configuration → Scheduling).</traducao>
+  </texto>
+  <texto>
+    <origem>Outros</origem>
+    <traducao>Other</traducao>
+  </texto>
+  <texto>
+    <origem>Pacotes recusados</origem>
+    <traducao>Denied packets</traducao>
+  </texto>
+  <texto>
+    <origem>Padrão de aviso (regex, opcional)</origem>
+    <traducao>Warning pattern (regex, optional)</traducao>
+  </texto>
+  <texto>
+    <origem>Padrão de erro (regex, opcional)</origem>
+    <traducao>Error pattern (regex, optional)</traducao>
+  </texto>
+  <texto>
+    <origem>Papel / Data Guard</origem>
+    <traducao>Role / Data Guard</traducao>
+  </texto>
+  <texto>
+    <origem>Parada</origem>
+    <traducao>Stopped</traducao>
+  </texto>
+  <texto>
+    <origem>Password (opcional)</origem>
+    <traducao>Password (optional)</traducao>
+  </texto>
+  <texto>
+    <origem>Password da conta de serviço</origem>
+    <traducao>Service account password</traducao>
+  </texto>
+  <texto>
+    <origem>Password guardada no portal (hash). Inclui o administrador</origem>
+    <traducao>Password stored in the portal (hash). Includes the administrator</traducao>
+  </texto>
+  <texto>
+    <origem>Perfil dos utilizadores criados</origem>
+    <traducao>Profile of created users</traducao>
+  </texto>
+  <texto>
+    <origem>Permanente</origem>
+    <traducao>Permanent</traducao>
+  </texto>
+  <texto>
+    <origem>Permissões do portal</origem>
+    <traducao>Portal permissions</traducao>
+  </texto>
+  <texto>
+    <origem>Por log</origem>
+    <traducao>By log</traducao>
+  </texto>
+  <texto>
+    <origem>Porta SSH</origem>
+    <traducao>SSH port</traducao>
+  </texto>
+  <texto>
+    <origem>Portas</origem>
+    <traducao>Ports</traducao>
+  </texto>
+  <texto>
+    <origem>Procurar na mensagem</origem>
+    <traducao>Search in the message</traducao>
+  </texto>
+  <texto>
+    <origem>Procurar nome, endereço ou sistema</origem>
+    <traducao>Search name, address or system</traducao>
+  </texto>
+  <texto>
+    <origem>Procurar nome, host, versão ou service name</origem>
+    <traducao>Search name, host, version or service name</traducao>
+  </texto>
+  <texto>
+    <origem>Procurar utilizador, IP ou motivo</origem>
+    <traducao>Search user, IP or reason</traducao>
+  </texto>
+  <texto>
+    <origem>Quem não é root tem de estar no grupo</origem>
+    <traducao>Non-root users must be in the group</traducao>
+  </texto>
+  <texto>
+    <origem>Recarregar a firewall</origem>
+    <traducao>Reload the firewall</traducao>
+  </texto>
+  <texto>
+    <origem>Recebe a chave pública do portal (ex. o do Ansible).</origem>
+    <traducao>Receives the portal public key (e.g. the Ansible one).</traducao>
+  </texto>
+  <texto>
+    <origem>Recebido</origem>
+    <traducao>Received</traducao>
+  </texto>
+  <texto>
+    <origem>Recursos</origem>
+    <traducao>Resources</traducao>
+  </texto>
+  <texto>
+    <origem>Red Hat / Rocky / Alma / Oracle Linux</origem>
+    <traducao>Red Hat / Rocky / Alma / Oracle Linux</traducao>
+  </texto>
+  <texto>
+    <origem>Registar pacotes recusados (LogDenied)</origem>
+    <traducao>Log denied packets (LogDenied)</traducao>
+  </texto>
+  <texto>
+    <origem>Registo</origem>
+    <traducao>Logging</traducao>
+  </texto>
+  <texto>
+    <origem>Registo de pacotes recusados (LogDenied)</origem>
+    <traducao>Denied packet logging (LogDenied)</traducao>
+  </texto>
+  <texto>
+    <origem>Regras de notificação deste cliente</origem>
+    <traducao>Notification rules of this client</traducao>
+  </texto>
+  <texto>
+    <origem>Regras ricas</origem>
+    <traducao>Rich rules</traducao>
+  </texto>
+  <texto>
+    <origem>Retirar</origem>
+    <traducao>Remove</traducao>
+  </texto>
+  <texto>
+    <origem>STARTTLS (porta 389)</origem>
+    <traducao>STARTTLS (port 389)</traducao>
+  </texto>
+  <texto>
+    <origem>Sem acesso</origem>
+    <traducao>No access</traducao>
+  </texto>
+  <texto>
+    <origem>Sem cifra (porta 389)</origem>
+    <traducao>No encryption (port 389)</traducao>
+  </texto>
+  <texto>
+    <origem>Sem contacto</origem>
+    <traducao>No contact</traducao>
+  </texto>
+  <texto>
+    <origem>Sem contacto · há {n} min</origem>
+    <traducao>No contact · {n} min ago</traducao>
+  </texto>
+  <texto>
+    <origem>Sem contacto · há {n} s</origem>
+    <traducao>No contact · {n} s ago</traducao>
+  </texto>
+  <texto>
+    <origem>Sem dados (o agente ainda não sincronizou).</origem>
+    <traducao>No data (the agent has not synced yet).</traducao>
+  </texto>
+  <texto>
+    <origem>Sem eventos.</origem>
+    <traducao>No events.</traducao>
+  </texto>
+  <texto>
+    <origem>Sem permissão para alterar (firewall.alterar).</origem>
+    <traducao>No permission to change (firewall.alterar).</traducao>
+  </texto>
+  <texto>
+    <origem>Sempre ativo</origem>
+    <traducao>Always on</traducao>
+  </texto>
+  <texto>
+    <origem>Service name</origem>
+    <traducao>Service name</traducao>
+  </texto>
+  <texto>
+    <origem>Servidor físico</origem>
+    <traducao>Physical server</traducao>
+  </texto>
+  <texto>
+    <origem>Servidor(es)</origem>
+    <traducao>Server(s)</traducao>
+  </texto>
+  <texto>
+    <origem>Servidores com o agente do portal instalado (como um agente Zabbix): estado (SO, CPU, memória, discos), último contacto, regras de notificação com id (scripts rman, shrink, ...) e eventos.</origem>
+    <traducao>Servers with the portal agent installed (like a Zabbix agent): state (OS, CPU, memory, disks), last contact, notification rules with id (rman, shrink, ... scripts) and events.</traducao>
+  </texto>
+  <texto>
+    <origem>Servidores com o agente do portal instalado (como um agente Zabbix): estado, último contacto, regras de notificação e eventos dos scripts (rman, shrink, ...).</origem>
+    <traducao>Servers with the portal agent installed (like a Zabbix agent): state, last contact, notification rules and script events (rman, shrink, ...).</traducao>
+  </texto>
+  <texto>
+    <origem>Servidores com o agente do portal. O estado, as regras de notificação e os eventos estão no módulo</origem>
+    <traducao>Servers with the portal agent. State, notification rules and events are in the module</traducao>
+  </texto>
+  <texto>
+    <origem>Serviço firewalld</origem>
+    <traducao>firewalld service</traducao>
+  </texto>
+  <texto>
+    <origem>Serviços conhecidos</origem>
+    <traducao>Known services</traducao>
+  </texto>
+  <texto>
+    <origem>Serviços predefinidos</origem>
+    <traducao>Predefined services</traducao>
+  </texto>
+  <texto>
+    <origem>Shrink semanal</origem>
+    <traducao>Weekly shrink</traducao>
+  </texto>
+  <texto>
+    <origem>Só entram os membros deste grupo (no AD inclui grupos dentro de grupos).</origem>
+    <traducao>Only members of this group can sign in (in AD includes nested groups).</traducao>
+  </texto>
+  <texto>
+    <origem>Também em</origem>
+    <traducao>Also at</traducao>
+  </texto>
+  <texto>
+    <origem>Target</origem>
+    <traducao>Target</traducao>
+  </texto>
+  <texto>
+    <origem>Testa os valores do formulário (mesmo sem guardar): ligação, TLS, conta de serviço e base de procura. Com um utilizador, procura-o e confirma o grupo; com a password, confirma-a também.</origem>
+    <traducao>Tests the form values (even without saving): connection, TLS, service account and search base. With a user, searches for it and checks the group; with the password, checks it too.</traducao>
+  </texto>
+  <texto>
+    <origem>Teste</origem>
+    <traducao>Test</traducao>
+  </texto>
+  <texto>
+    <origem>Teste de ligação</origem>
+    <traducao>Connection test</traducao>
+  </texto>
+  <texto>
+    <origem>Tipos ICMP</origem>
+    <traducao>ICMP types</traducao>
+  </texto>
+  <texto>
+    <origem>Tipos de ipset</origem>
+    <traducao>Ipset types</traducao>
+  </texto>
+  <texto>
+    <origem>Todos os clientes</origem>
+    <traducao>All clients</traducao>
+  </texto>
+  <texto>
+    <origem>Token:</origem>
+    <traducao>Token:</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizador SSH</origem>
+    <traducao>SSH user</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizador SSH por omissão</origem>
+    <traducao>Default SSH user</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizador de teste (opcional)</origem>
+    <traducao>Test user (optional)</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizador do portal</origem>
+    <traducao>Portal user</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizadores LDAP</origem>
+    <traducao>LDAP users</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizadores locais</origem>
+    <traducao>Local users</traducao>
+  </texto>
+  <texto>
+    <origem>VM</origem>
+    <traducao>VM</traducao>
+  </texto>
+  <texto>
+    <origem>Validar o certificado do servidor</origem>
+    <traducao>Validate the server certificate</traducao>
+  </texto>
+  <texto>
+    <origem>Vazio.</origem>
+    <traducao>Empty.</traducao>
+  </texto>
+  <texto>
+    <origem>Ver os clientes</origem>
+    <traducao>View clients</traducao>
+  </texto>
+  <texto>
+    <origem>Ver todos</origem>
+    <traducao>View all</traducao>
+  </texto>
+  <texto>
+    <origem>Verde = aberta · laranja = MOUNT / a abrir · vermelho = fechada ou sem ligação. Passe o rato pela bola para ver o estado.</origem>
+    <traducao>Green = open · orange = MOUNT / opening · red = closed or no connection. Hover the dot to see the state.</traducao>
+  </texto>
+  <texto>
+    <origem>Verde = sincronizou dentro do intervalo · laranja = atrasado · vermelho = sem contacto (mais de 10 intervalos).</origem>
+    <traducao>Green = synced within the interval · orange = late · red = no contact (more than 10 intervals).</traducao>
+  </texto>
+  <texto>
+    <origem>Verificar o contacto dos clientes</origem>
+    <traducao>Check client contact</traducao>
+  </texto>
+  <texto>
+    <origem>Versão</origem>
+    <traducao>Version</traducao>
+  </texto>
+  <texto>
+    <origem>Versão do agente</origem>
+    <traducao>Agent version</traducao>
+  </texto>
+  <texto>
+    <origem>Virtualização</origem>
+    <traducao>Virtualisation</traducao>
+  </texto>
+  <texto>
+    <origem>Voltou a contactar</origem>
+    <traducao>Contacting again</traducao>
+  </texto>
+  <texto>
+    <origem>Vários separados por vírgulas (usa o primeiro que responder).</origem>
+    <traducao>Several separated by commas (uses the first that answers).</traducao>
+  </texto>
+  <texto>
+    <origem>Zona</origem>
+    <traducao>Zone</traducao>
+  </texto>
+  <texto>
+    <origem>Zona por omissão</origem>
+    <traducao>Default zone</traducao>
+  </texto>
+  <texto>
+    <origem>Zonas</origem>
+    <traducao>Zones</traducao>
+  </texto>
+  <texto>
+    <origem>Zonas ativas</origem>
+    <traducao>Active zones</traducao>
+  </texto>
+  <texto>
+    <origem>administrador</origem>
+    <traducao>administrator</traducao>
+  </texto>
+  <texto>
+    <origem>apagar a guardada</origem>
+    <traducao>delete the saved one</traducao>
+  </texto>
+  <texto>
+    <origem>comando</origem>
+    <traducao>command</traducao>
+  </texto>
+  <texto>
+    <origem>criado no primeiro login</origem>
+    <traducao>created at first login</traducao>
+  </texto>
+  <texto>
+    <origem>desligado</origem>
+    <traducao>off</traducao>
+  </texto>
+  <texto>
+    <origem>do utilizador SSH de cada cliente (usada no teste de ligação). Os servidores conhecidos ficam num</origem>
+    <traducao>of each client's SSH user (used in the connection test). Known servers are kept in a</traducao>
+  </texto>
+  <texto>
+    <origem>dos scripts RMAN). O intervalo de sincronização muda-se só no cliente.</origem>
+    <traducao>of the RMAN scripts). The sync interval is changed only on the client.</traducao>
+  </texto>
+  <texto>
+    <origem>e lê o registo com</origem>
+    <traducao>and reads the log with</traducao>
+  </texto>
+  <texto>
+    <origem>endereços;</origem>
+    <traducao>addresses;</traducao>
+  </texto>
+  <texto>
+    <origem>erro:</origem>
+    <traducao>error:</traducao>
+  </texto>
+  <texto>
+    <origem>faz-se no módulo Sistema (</origem>
+    <traducao>is done in the System module (</traducao>
+  </texto>
+  <texto>
+    <origem>gerado pelo portal. Os scripts no cliente (rman, shrink, ...) notificam com</origem>
+    <traducao>generated by the portal. Scripts on the client (rman, shrink, ...) notify with</traducao>
+  </texto>
+  <texto>
+    <origem>indica quem pode usar</origem>
+    <traducao>sets who can use</traducao>
+  </texto>
+  <texto>
+    <origem>intervalo {n} s</origem>
+    <traducao>interval {n} s</traducao>
+  </texto>
+  <texto>
+    <origem>não pertence ao grupo obrigatório</origem>
+    <traducao>is not in the required group</traducao>
+  </texto>
+  <texto>
+    <origem>para outra porta.</origem>
+    <traducao>for another port.</traducao>
+  </texto>
+  <texto>
+    <origem>próprio do portal.</origem>
+    <traducao>of the portal's own.</traducao>
+  </texto>
+  <texto>
+    <origem>redes (CIDR).</origem>
+    <traducao>networks (CIDR).</traducao>
+  </texto>
+  <texto>
+    <origem>regra desconhecida</origem>
+    <traducao>unknown rule</traducao>
+  </texto>
+  <texto>
+    <origem>tipo de autenticação</origem>
+    <traducao>authentication type</traducao>
+  </texto>
+  <texto>
+    <origem>todos</origem>
+    <traducao>all</traducao>
+  </texto>
+  <texto>
+    <origem>Últimas alterações</origem>
+    <traducao>Latest changes</traducao>
+  </texto>
+  <texto>
+    <origem>Último contacto</origem>
+    <traducao>Last contact</traducao>
+  </texto>
+  <texto>
+    <origem>Último evento</origem>
+    <traducao>Last event</traducao>
+  </texto>
+  <texto>
+    <origem>é o nome escrito no login. Vazio = o filtro do driver.</origem>
+    <traducao>is the name typed at login. Empty = the driver filter.</traducao>
+  </texto>
+  <texto>
+    <origem>é sempre local (ficheiro</origem>
+    <traducao>is always local (file</traducao>
+  </texto>
+  <texto>
+    <origem>— os utilizadores do tipo LDAP autenticam-se no diretório</origem>
+    <traducao>— LDAP users authenticate in the directory</traducao>
+  </texto>
+  <texto>
+    <origem>← Clientes</origem>
+    <traducao>← Clients</traducao>
+  </texto>
+  <texto>
+    <origem>▶ Testar</origem>
+    <traducao>▶ Test</traducao>
+  </texto>
+  <texto>
+    <origem>⚙ Gerir clientes</origem>
+    <traducao>⚙ Manage clients</traducao>
+  </texto>
+  <texto>
+    <origem>✎ Editar / instalar / testar</origem>
+    <traducao>✎ Edit / install / test</traducao>
+  </texto>
+  <texto>
+    <origem>⟳ Recarregar a firewall</origem>
+    <traducao>⟳ Reload the firewall</traducao>
+  </texto>
+  <texto>
+    <origem>🔌 Testar ligação</origem>
+    <traducao>🔌 Test connection</traducao>
+  </texto>
+  <texto>
+    <origem>(o shrink usa a estimativa).</origem>
+    <traducao>(the shrink uses the estimate).</traducao>
+  </texto>
+  <texto>
+    <origem>), que tem de poder criar utilizadores e dar estes privilégios (SYSDBA, ou DBA com</origem>
+    <traducao>), which must be able to create users and grant these privileges (SYSDBA, or DBA with</traducao>
+  </texto>
+  <texto>
+    <origem>), trocando</origem>
+    <traducao>), replacing</traducao>
+  </texto>
+  <texto>
+    <origem>, use este utilizador com o tipo de ligação</origem>
+    <traducao>, use this user with the connection type</traducao>
+  </texto>
+  <texto>
+    <origem>. Depois, em</origem>
+    <traducao>. Then, in</traducao>
+  </texto>
+  <texto>
+    <origem>Aparecem destacados em Bases de dados → Schemas.</origem>
+    <traducao>They are highlighted in Databases → Schemas.</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar o SQL</origem>
+    <traducao>Update the SQL</traducao>
+  </texto>
+  <texto>
+    <origem>Corra como SYSDBA (ex.</origem>
+    <traducao>Run as SYSDBA (e.g.</traducao>
+  </texto>
+  <texto>
+    <origem>Criar por esta ligação</origem>
+    <traducao>Create through this connection</traducao>
+  </texto>
+  <texto>
+    <origem>Criar utilizador</origem>
+    <traducao>Create user</traducao>
+  </texto>
+  <texto>
+    <origem>Em vez do SYS/SYSTEM, o portal pode ligar-se com um utilizador próprio só com o que precisa. Os privilégios:</origem>
+    <traducao>Instead of SYS/SYSTEM, the portal can connect with its own user with only what it needs. The privileges:</traducao>
+  </texto>
+  <texto>
+    <origem>IP / DNS</origem>
+    <traducao>IP / DNS</traducao>
+  </texto>
+  <texto>
+    <origem>Id:</origem>
+    <traducao>Id:</traducao>
+  </texto>
+  <texto>
+    <origem>Mínimo 12 caracteres, com letras e números, sem aspas.</origem>
+    <traducao>At least 12 characters, with letters and digits, no quotes.</traducao>
+  </texto>
+  <texto>
+    <origem>No CDB$ROOT (utilizador comum, em todas as PDB)</origem>
+    <traducao>In CDB$ROOT (common user, in all PDBs)</traducao>
+  </texto>
+  <texto>
+    <origem>No CDB$ROOT passa a</origem>
+    <traducao>In CDB$ROOT it becomes</traducao>
+  </texto>
+  <texto>
+    <origem>Numa PDB ou numa BD sem multitenant</origem>
+    <traducao>In a PDB or a non-multitenant DB</traducao>
+  </texto>
+  <texto>
+    <origem>Para quê</origem>
+    <traducao>What for</traducao>
+  </texto>
+  <texto>
+    <origem>Passar a usar este utilizador nesta ligação (tipo Normal)</origem>
+    <traducao>Start using this user in this connection (Normal type)</traducao>
+  </texto>
+  <texto>
+    <origem>Password do novo utilizador</origem>
+    <traducao>New user password</traducao>
+  </texto>
+  <texto>
+    <origem>Privilégio</origem>
+    <traducao>Privilege</traducao>
+  </texto>
+  <texto>
+    <origem>Sem SYSDBA não é criada a vista</origem>
+    <traducao>Without SYSDBA the view is not created</traducao>
+  </texto>
+  <texto>
+    <origem>Usa a ligação guardada (</origem>
+    <traducao>Uses the saved connection (</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizador dedicado do portal</origem>
+    <traducao>Dedicated portal user</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizadores criados pelo portal nesta BD</origem>
+    <traducao>Users created by the portal in this DB</traducao>
+  </texto>
+  <texto>
+    <origem>ativo</origem>
+    <traducao>active</traducao>
+  </texto>
+  <texto>
+    <origem>cancelar uma execução (ALTER SYSTEM KILL SESSION)</origem>
+    <traducao>cancel a run (ALTER SYSTEM KILL SESSION)</traducao>
+  </texto>
+  <texto>
+    <origem>ler as vistas V$ e DBA_ (tablespaces, estado, ASM, Data Guard, jobs, recyclebin, schemas, RMAN)</origem>
+    <traducao>read the V$ and DBA_ views (tablespaces, state, ASM, Data Guard, jobs, recyclebin, schemas, RMAN)</traducao>
+  </texto>
+  <texto>
+    <origem>ligar à base de dados</origem>
+    <traducao>connect to the database</traducao>
+  </texto>
+  <texto>
+    <origem>shrink: MOVE de tabelas, partições e LOBs</origem>
+    <traducao>shrink: MOVE of tables, partitions and LOBs</traducao>
+  </texto>
+  <texto>
+    <origem>shrink: REBUILD de índices</origem>
+    <traducao>shrink: index REBUILD</traducao>
+  </texto>
+  <texto>
+    <origem>shrink: RESIZE dos datafiles</origem>
+    <traducao>shrink: datafile RESIZE</traducao>
+  </texto>
+  <texto>
+    <origem>shrink: cálculo rápido do HWM (a vista é criada como SYS)</origem>
+    <traducao>shrink: fast HWM calculation (the view is created as SYS)</traducao>
+  </texto>
+  <texto>
+    <origem>shrink: output em direto (DBMS_PIPE)</origem>
+    <traducao>shrink: live output (DBMS_PIPE)</traducao>
+  </texto>
+  <texto>
+    <origem>Último login</origem>
+    <traducao>Last login</traducao>
   </texto>
 </lingua>

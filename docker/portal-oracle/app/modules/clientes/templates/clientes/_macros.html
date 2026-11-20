@@ -1,0 +1,3 @@
+{% macro bola(c) -%}<span class="bola b-{{ {'vermelho': 'vermelha'}.get(c.contacto.cor, c.contacto.cor) }}{{ ' a-pulsar' if c.contacto.cor == 'vermelho' }}" title="{{ c.contacto.texto }}{% if c.contacto.seg is not none %} · há {{ c.contacto.seg }} s{% endif %}"></span>{%- endmacro %}
+{% macro dur(s) -%}{% if s is none %}—{% elif s < 120 %}{{ s }} s{% elif s < 7200 %}{{ (s // 60) }} min{% elif s < 172800 %}{{ (s // 3600) }} h{% else %}{{ (s // 86400) }} dias{% endif %}{%- endmacro %}
+{% macro ev_pill(e) -%}<span class="sys-pill {{ {'ok': 'ok', 'aviso': 'warn', 'erro': 'bad'}.get(e, 'off') }}">{{ {'ok': 'OK', 'aviso': 'Aviso', 'erro': 'Erro', 'info': 'Info'}.get(e, e) }}</span>{%- endmacro %}

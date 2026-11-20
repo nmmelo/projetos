@@ -368,6 +368,66 @@ Sem isto, as abas mostram o comando a correr. Iniciar, parar e reiniciar o `fire
 
 ---
 
+## Módulo Clientes (agente cliente)
+
+Servidores com o **agente do portal** instalado, como um agente Zabbix: o agente envia o estado do servidor a cada N segundos e as notificações dos scripts (RMAN, shrink, montagens, ...). Ative o módulo em **Configuração → Módulos**; ações nos perfis: `clientes.gerir` (clientes, token, teste) e `clientes.regras` (regras de notificação).
+
+| Onde | Conteúdo |
+|---|---|
+| Configuração → Clientes | Lista e **Novo cliente**: nome, IP ou DNS, descrição, VM ou físico, Linux (Debian/Ubuntu ou Red Hat/Rocky/Alma/Oracle Linux), utilizador e porta SSH. Por cliente: id, token (mostrar / gerar novo), comandos de instalação por distribuição, download do `setup.sh` e do agente, **Testar** (DNS, porta SSH, SSH com a chave do portal, último contacto) e **Esquecer a chave do servidor**. Definições: endereço do portal visto pelos clientes, utilizador SSH por omissão (ex. o do Ansible), certificado autoassinado. Chave SSH pública do portal |
+| Clientes → Clientes | Estado de cada cliente (verde = sincronizou dentro do intervalo, laranja = atrasado, vermelho = sem contacto há mais de 10 intervalos, cinza = nunca), sistema, CPU, memória, disco mais cheio, último contacto, intervalo e eventos das últimas 24 h. Detalhe por cliente: agente, sistema, recursos (discos), regras e eventos |
+| Clientes → Regras de notificação | Regras com **id gerado** (ex. `R3F09A1C2`), nome, descrição, cliente (ou todos), log opcional (o agente envia a última linha quando muda) e padrões de erro/aviso (regex). Exemplos de uso por regra |
+| Clientes → Eventos | Notificações recebidas, com filtros por cliente, regra, estado e texto |
+
+**Instalar no cliente** (comandos prontos na página do cliente, com o id e o token):
+
+```bash
+sudo dnf install -y curl python3        # Debian/Ubuntu: sudo apt-get install -y curl python3
+curl -fsS https://<portal>/clientes/agente/setup.sh -o /tmp/setup-agente.sh
+sudo bash /tmp/setup-agente.sh --portal https://<portal> --id <ID> --token <TOKEN> --utilizador ansible --grupo "oracle"
+```
+
+O `setup.sh` (em `agente-cliente/` no repositório):
+
+| Passo | O que faz |
+|---|---|
+| Sistema | Deteta a distribuição e a virtualização; instala `python3`/`curl` se faltarem |
+| Utilizador SSH (`--utilizador`) | Confirma que existe, a shell, a home sem escrita para outros, `~/.ssh` 700, `authorized_keys` 600 e o dono, e acrescenta a chave pública do portal (se ainda não estiver). SELinux: `restorecon`. Avisa se o `sshd` não aceitar chaves ou tiver `AllowUsers` sem o utilizador. Só as verificações: `--verificar` |
+| Agente | `/opt/agente-portal/agente-portal.py` (só biblioteca padrão do Python 3.6+), `.env` 600 com o **token cifrado** (chave local `.chave` 400 ligada ao `/etc/machine-id`: o `.env` copiado para outra máquina não serve), comando `agente-portal` |
+| Grupo `agente-portal` (`--grupo`) | Quem pode notificar pelo socket local `/run/agente-portal/agente.sock` (ex. o utilizador `oracle` dos scripts RMAN) |
+| Serviço | `agente-portal.service` (systemd, reinício automático) e teste final |
+
+Outras opções: `--intervalo 60`, `--inseguro` (certificado autoassinado), `--ca /caminho/ca.pem`, `--sem-ssh`, `--desinstalar`.
+
+**No cliente:**
+
+| Comando | Para quê |
+|---|---|
+| `agente-portal estado` | Versão, portal, id, intervalo, último ciclo, socket e fila |
+| `agente-portal intervalo 120` | Muda o intervalo de sincronização (só no cliente; o portal mostra-o na sincronização seguinte) |
+| `agente-portal notificar <ID> ok "Backup terminado"` | Notifica o portal (estados `ok`, `aviso`, `erro`, `info`; o texto também pode vir do stdin) |
+| `agente-portal testar` | Testa a ligação e lista as regras deste cliente |
+| `journalctl -u agente-portal -f` | Registo do serviço |
+
+Exemplo no fim de um script RMAN:
+
+```bash
+rman target / cmdfile=/u01/scripts/rman_full.rcv log=/u01/scripts/logs/rman_full.log
+if [ $? -eq 0 ]; then agente-portal notificar <ID> ok "RMAN full OK"
+else agente-portal notificar <ID> erro "$(grep -E 'RMAN-|ORA-' /u01/scripts/logs/rman_full.log | tail -3)"; fi
+```
+
+Se o portal não responder, as notificações ficam em fila (`/opt/agente-portal/fila.jsonl`) e seguem na sincronização seguinte. As notificações geram o evento **Notificação de um cliente** (o parâmetro da regra filtra por ids) e a tarefa agendada **Verificar o contacto dos clientes** gera **Contacto do agente cliente** (sem contacto / voltou); as regras por omissão avisam no portal e por email.
+
+API usada pelo agente (sem sessão, autenticada pelo id e token): `POST /clientes/agente/api/sync` e `/clientes/agente/api/evento`; downloads em `/clientes/agente/setup.sh`, `agente-portal.py` e `chave.pub`.
+
+![Clientes](docs/clientes.png)
+![Cliente - detalhe](docs/clientes-detalhe.png)
+![Cliente - instalar e testar](docs/clientes-instalar.png)
+![Regras de notificação](docs/clientes-regras.png)
+
+---
+
 ## Agendamento
 
 Em **Configuração → Agendamento**: as tarefas periódicas do portal e dos módulos ativos, executadas pelo **agente** (sem o agente não correm à hora marcada; podem correr à mão com **▶ Agora**).
@@ -1365,6 +1425,8 @@ O driver é o **python-oracledb** em modo *thin* (sem Instant Client). Requer Or
 | O `portal-docker.sh` volta a pôr as portas 8080 e 2222 | As portas foram alteradas no `docker-compose.yml`, que é substituído em cada atualização. Ponha-as no `.env` (`PORTAL_HTTP_PORT`, `PORTAL_SSH_PORT`) ou use `-H`/`-S` |
 | Um serviço aparece com 🔒 "sem sudoers" no Sistema | O agente não tem permissão para esse serviço: `sudo ./instalar.sh --servicos <nome> +<servico>` |
 | Firewall: "O portal não tem permissão para ler a firewall" | Falta o `sudoers`: `sudo ./instalar.sh --firewall <nome> on`. Se a firewall estiver parada, inicie-a no Sistema |
+| Cliente a vermelho (sem contacto) | No cliente: `agente-portal estado` e `journalctl -u agente-portal -n 30`. `HTTP 401`: id ou token errados (token novo: `agente-portal configurar --token <novo>`). Erro de certificado: `agente-portal configurar --inseguro` ou `--ca`. Firewall entre o cliente e o portal (porta HTTPS) |
+| Teste de ligação: `Permission denied (publickey)` | A chave do portal não está no `authorized_keys` do utilizador SSH: `sudo bash setup.sh --verificar --utilizador <utilizador> --portal https://<portal>` |
 | Uma tarefa agendada não corre | Confirme em Configuração → Agendamento: interruptor geral **Ativos**, tarefa ativa, módulo ativo e agente ativo (`systemctl status <nome>-agente`). O resultado de cada execução fica no histórico da tarefa |
 | Textos em português com a língua inglesa | São textos sem tradução: traduza-os em Configuração → Aparência → Linguagem (filtro **Em falta**) ou exporte/importe o XML. Dados, código e notificações já criadas não são traduzidos |
 | `Internal Server Error` | O erro fica no log do serviço com uma referência que aparece na página: `journalctl -u <nome> \| grep <referência>`. Na versão anterior acontecia em Oracle → Execuções quando havia uma execução em curso (corrigido) |

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% from "clientes/_macros.html" import bola, dur %}
+{% block title %}Clientes{% endblock %}
+{% block content %}
+{% include "clientes/_tabs.html" %}
+<section class="jx-filtros">
+  <div class="jx-toolbar">
+    <label class="jx-search"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 2a8 8 0 0 1 6.32 12.9l5.39 5.4-1.42 1.4-5.39-5.38A8 8 0 1 1 10 2Zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z"/></svg>
+      <input type="search" id="q" placeholder="Procurar nome, endereço ou sistema" autocomplete="off"></label>
+    <span class="muted small">Atualiza a cada 30 s.</span>
+  </div>
+  <div class="jx-linha2"><div class="jx-chips" id="chips">
+    {% set n = {'verde': 0, 'laranja': 0, 'vermelho': 0, 'cinza': 0} %}{% for c in clientes %}{% set _ = n.update({c.contacto.cor: n[c.contacto.cor] + 1}) %}{% endfor %}
+    {% for k, r, cl in [('', 'Todos', 'todas'), ('verde', 'Online', 'sucesso'), ('laranja', 'Atrasados', 'aviso'), ('vermelho', 'Sem contacto', 'erro'), ('cinza', 'Nunca contactaram', 'todas')] %}
+    <button type="button" class="chip r-{{ cl }} {{ 'on' if not k }}" data-f="{{ k }}"><i></i>{{ r }} <b>{{ n[k] if k else clientes|length }}</b></button>{% endfor %}
+  </div><span class="muted small">Verde = sincronizou dentro do intervalo · laranja = atrasado · vermelho = sem contacto (mais de 10 intervalos).</span></div>
+</section>
+{% if not clientes %}
+<p class="muted">Ainda não há clientes.{% if user.can('clientes.gerir') %} Crie em <a href="{{ url_for('clientes.gerir') }}">Configuração → Clientes</a>.{% endif %}</p>
+{% else %}
+<div class="table-wrap"><table class="bd-tab" id="tab">
+  <thead><tr><th></th><th>Cliente</th><th>Sistema</th><th>CPU</th><th>Memória</th><th>Disco (maior)</th><th>Último contacto</th><th>Intervalo</th><th>Eventos 24 h</th></tr></thead>
+  <tbody>{% for c in clientes %}{% set i = c.info %}{% set dmax = (i.discos or [])|sort(attribute='pct', reverse=True)|first %}
+  <tr class="bd-linha" tabindex="0" data-cor="{{ c.contacto.cor }}" data-href="{{ url_for('clientes.detalhe', cid=c.id) }}"
+      data-txt="{{ (c.nome ~ ' ' ~ c.endereco ~ ' ' ~ (i.so or '') ~ ' ' ~ (i.hostname or ''))|lower }}">
+    <td>{{ bola(c) }}</td>
+    <td><b translate="no">{{ c.nome }}</b><br><small class="muted" translate="no">{{ c.endereco }}{% if i.hostname and i.hostname != c.endereco %} · {{ i.hostname }}{% endif %}</small></td>
+    <td><span translate="no">{{ i.so or '—' }}</span><br><small class="muted">{{ 'VM' if c.vm else 'Físico' }}{% if i.virtual and i.virtual != 'none' %} ({{ i.virtual }}){% endif %} · <span translate="no">{{ familias.get(c.familia, c.familia)|truncate(22) }}</span></small></td>
+    <td>{% if i.cpu is number %}<span class="c-{{ 'bad' if i.cpu >= 90 else 'warn' if i.cpu >= 75 else 'ok' }}">{{ '%.0f'|format(i.cpu) }}%</span>{% else %}—{% endif %}<br><small class="muted">{{ i.cpus or '' }}{{ ' CPU' if i.cpus }}</small></td>
+    <td>{% if i.mem and i.mem.pct is not none %}<span class="c-{{ 'bad' if i.mem.pct >= 90 else 'warn' if i.mem.pct >= 75 else 'ok' }}">{{ '%.0f'|format(i.mem.pct) }}%</span><br><small class="muted">{{ i.mem.total|filesizeformat(true) }}</small>{% else %}—{% endif %}</td>
+    <td>{% if dmax %}<span class="c-{{ 'bad' if dmax.pct >= 90 else 'warn' if dmax.pct >= 75 else 'ok' }}">{{ '%.0f'|format(dmax.pct) }}%</span><br><small class="muted" translate="no">{{ dmax.ponto }}</small>{% else %}—{% endif %}</td>
+    <td>{{ c.ultimo_contacto or '—' }}<br><small class="muted">{{ c.contacto.texto }}{% if c.contacto.seg is not none %} · há {{ dur(c.contacto.seg) }}{% endif %}</small></td>
+    <td>{{ c.intervalo or '—' }} s<br><small class="muted" translate="no">v{{ c.versao or '?' }}</small></td>
+    <td>{{ c.ev24 }}{% if c.erros24 %} <span class="sys-pill bad">{{ c.erros24 }} erro(s)</span>{% endif %}</td>
+  </tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  let f = '';
+  const filtrar = () => { const q = document.getElementById('q').value.toLowerCase();
+    document.querySelectorAll('#tab tbody tr').forEach(tr => tr.hidden = (f && tr.dataset.cor !== f) || (q && !tr.dataset.txt.includes(q))); };
+  document.getElementById('q').oninput = filtrar;
+  document.getElementById('chips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return;
+    document.querySelectorAll('#chips .chip').forEach(x => x.classList.toggle('on', x === b)); f = b.dataset.f; filtrar(); };
+  document.querySelectorAll('#tab tbody tr').forEach(tr => { tr.onclick = () => location.href = tr.dataset.href;
+    tr.onkeydown = e => { if (e.key === 'Enter') location.href = tr.dataset.href; }; });
+  setTimeout(() => { if (!document.getElementById('q').value) location.reload(); }, 30000);
+})();
+</script>
+{% endblock %}

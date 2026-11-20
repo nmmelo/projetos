@@ -6,6 +6,7 @@
   <a href="{{ url_for('portal.cfg_modules') }}" class="{{ 'on' if sub == 'modules' }}">Módulos</a>
   <a href="{{ url_for('portal.cfg_agendamento') }}" class="{{ 'on' if sub == 'agendamento' }}">Agendamento</a>
   <a href="{{ url_for('portal.cfg_autenticacao') }}" class="{{ 'on' if sub == 'autenticacao' }}">Autenticação</a>
+  <a href="{{ url_for('portal.cfg_clientes') }}" class="{{ 'on' if sub == 'clientes' }}">Clientes</a>
   {% if user.is_admin %}<a href="{{ url_for('portal.cfg_storage') }}" class="{{ 'on' if sub == 'storage' }}">Armazenamento</a>{% endif %}
   <a href="{{ url_for('portal.cfg_users') }}" class="{{ 'on' if sub == 'users' }}">Utilizadores</a>
   <a href="{{ url_for('portal.cfg_profiles') }}" class="{{ 'on' if sub == 'profiles' }}">Perfis</a>

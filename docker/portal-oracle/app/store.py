@@ -14,7 +14,7 @@ from . import aparencia, crypto, modulos, settings
 
 TABLES = ("settings", "oracle_dbs", "profiles", "users", "jobs", "backups", "system_actions",
           "notification_rules", "notifications", "email_queue", "traducoes", "agendamentos",
-          "agendamento_execucoes", "oracle_utilizadores")
+          "agendamento_execucoes", "oracle_utilizadores", "clientes", "cliente_regras")
 
 # Definicoes volateis (escritas pelo agente a cada poucos segundos): fora dos backups
 VOLATEIS = ("agente_estado", "sistema_metricas", "smtp_estado", "regras_iniciais", "regras_iniciais_2", "i18n_rev")
@@ -126,6 +126,50 @@ _SCHEMA = [
         finalidade VARCHAR(200),
         created_at VARCHAR(19) NOT NULL,
         created_by VARCHAR(64)
+    ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS clientes (
+        id {ID},
+        nome VARCHAR(100) NOT NULL UNIQUE,
+        codigo VARCHAR(40) NOT NULL UNIQUE,
+        endereco VARCHAR(255) NOT NULL,
+        descricao VARCHAR(500),
+        vm INTEGER NOT NULL DEFAULT 1,
+        familia VARCHAR(10),
+        ssh_utilizador VARCHAR(64),
+        ssh_porta INTEGER,
+        token_enc TEXT,
+        token_hash VARCHAR(64),
+        criado_em VARCHAR(19),
+        criado_por VARCHAR(64),
+        ultimo_contacto VARCHAR(19),
+        intervalo INTEGER,
+        versao VARCHAR(20),
+        ip_origem VARCHAR(64),
+        estado_contacto VARCHAR(10),
+        info {LONGTEXT}
+    ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS cliente_regras (
+        id {ID},
+        codigo VARCHAR(40) NOT NULL UNIQUE,
+        nome VARCHAR(100) NOT NULL,
+        descricao VARCHAR(500),
+        cliente_id INTEGER,
+        log_path VARCHAR(500),
+        padrao_erro VARCHAR(200),
+        padrao_aviso VARCHAR(200),
+        ativo INTEGER NOT NULL DEFAULT 1,
+        criado_em VARCHAR(19),
+        criado_por VARCHAR(64)
+    ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS cliente_eventos (
+        id {ID},
+        cliente_id INTEGER NOT NULL,
+        regra VARCHAR(40),
+        quando VARCHAR(19),
+        recebido VARCHAR(19) NOT NULL,
+        estado VARCHAR(10),
+        origem VARCHAR(10),
+        mensagem TEXT
     ){SUFFIX}""",
     """CREATE TABLE IF NOT EXISTS firewall_acoes (
         id {ID},

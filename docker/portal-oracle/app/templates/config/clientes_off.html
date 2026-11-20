@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Clientes{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<section class="card">
+  <h2>Clientes (agente do portal)</h2>
+  <p>Servidores com o agente do portal instalado (como um agente Zabbix): estado, último contacto, regras de notificação
+    e eventos dos scripts (rman, shrink, ...).</p>
+  {% if not ativo %}<p>Ative o módulo <b>Clientes</b> em <a href="{{ url_for('portal.cfg_modules') }}">Módulos</a>.</p>
+  {% else %}<p class="muted">O seu perfil não tem a ação <b>clientes.gerir</b> (Perfis).</p>{% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% from "_cartoes.html" import numero %}
+{% from "clientes/_macros.html" import bola, ev_pill %}
+<div class="tiles g3">
+  {{ numero('Online', ctx.cont.verde, 'de ' ~ ctx.clientes|length, 'c-ok' if ctx.cont.verde else '') }}
+  {{ numero('Atrasados', ctx.cont.laranja, '', 'c-warn' if ctx.cont.laranja else '') }}
+  {{ numero('Sem contacto', ctx.cont.vermelho, '', 'c-bad' if ctx.cont.vermelho else '') }}
+</div>
+<div class="lista">{% for c in ctx.clientes if c.contacto.cor in ('vermelho', 'laranja') %}
+  <a class="lrow" href="{{ url_for('clientes.detalhe', cid=c.id) }}">{{ bola(c) }}<span class="lrow-t"><b translate="no">{{ c.nome }}</b><small>{{ c.contacto.texto }} · {{ c.ultimo_contacto or '—' }}</small></span></a>
+{% endfor %}
+{% for e in ctx.eventos[:4] %}<a class="lrow" href="{{ url_for('clientes.detalhe', cid=e.cliente_id) }}">{{ ev_pill(e.estado) }}
+  <span class="lrow-t"><b translate="no">{{ e.cliente_nome }} · {{ e.regra_nome or e.regra }}</b><small translate="no">{{ e.recebido }} · {{ (e.mensagem or '')|truncate(60) }}</small></span></a>{% endfor %}</div>

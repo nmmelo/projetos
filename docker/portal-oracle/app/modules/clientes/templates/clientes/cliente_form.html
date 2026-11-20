@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% from "clientes/_macros.html" import bola %}
+{% block title %}Configuração · Clientes · {{ c.nome if c and c.id else 'Novo' }}{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+<p><a href="{{ url_for('clientes.gerir') }}">← Clientes</a></p>
+<div class="smtp-grid">
+<section class="card">
+  <h2>{% if c and c.id %}{{ bola(c) }} <span translate="no">{{ c.nome }}</span>{% else %}Novo cliente{% endif %}</h2>
+  <form method="post" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <div class="grid2">
+      <label>Nome <input name="nome" value="{{ c.nome if c }}" required maxlength="100" placeholder="srv-bd01"></label>
+      <label>IP ou DNS <input name="endereco" value="{{ c.endereco if c }}" required placeholder="srv-bd01.exemplo.local" translate="no"></label>
+    </div>
+    <label>Descrição <input name="descricao" value="{{ c.descricao if c and c.descricao }}" maxlength="500" placeholder="Oracle 19c produção"></label>
+    <div class="grid2">
+      <label>Tipo <select name="vm"><option value="1" {{ 'selected' if not c or c.vm|string in ('1', 'True') }}>Máquina virtual</option>
+        <option value="0" {{ 'selected' if c and c.vm|string in ('0', 'False') }}>Servidor físico</option></select></label>
+      <label>Linux <select name="familia">{% for k, v in familias.items() %}<option value="{{ k }}" {{ 'selected' if c and c.familia == k }}>{{ v }}</option>{% endfor %}</select></label>
+    </div>
+    <div class="grid2">
+      <label>Utilizador SSH <input name="ssh_utilizador" value="{{ c.ssh_utilizador if c and c.ssh_utilizador is not none else cfg.ssh_padrao }}" translate="no">
+        <span class="hint">Recebe a chave pública do portal (ex. o do Ansible).</span></label>
+      <label>Porta SSH <input name="ssh_porta" type="number" min="1" max="65535" value="{{ c.ssh_porta if c and c.ssh_porta else 22 }}"></label>
+    </div>
+    <div class="buttons"><button class="primary">{{ 'Guardar' if c and c.id else 'Criar' }}</button></div>
+  </form>
+  {% if c and c.id %}
+  <form method="post" action="{{ url_for('clientes.gerir_apagar', cid=c.id) }}" onsubmit="return confirm('Apagar o cliente {{ c.nome }} e os seus eventos?')" style="margin-top:12px">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="small danger">Apagar o cliente</button></form>
+  {% endif %}
+</section>
+
+{% if c and c.id %}
+<section class="card">
+  <h2>Teste de ligação</h2>
+  <p class="small muted">DNS, porta SSH, SSH com a chave do portal (<span translate="no">{{ c.ssh_utilizador or '—' }}</span>) e último contacto do agente.</p>
+  <div class="buttons"><button type="button" class="primary" id="btestar">▶ Testar</button>
+    <form method="post" action="{{ url_for('clientes.gerir_esquecer', cid=c.id) }}" class="inline-form" onsubmit="return confirm('Esquecer a chave guardada deste servidor? O próximo teste aceita a que ele apresentar.')">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="small">Esquecer a chave do servidor</button></form></div>
+  {% if fp %}<p class="hint">Chave do servidor em known_hosts: <code translate="no">{{ fp }}</code></p>{% endif %}
+  <div id="passos" class="lista" style="margin-top:10px"></div>
+</section>
+{% endif %}
+</div>
+
+{% if c and c.id %}
+{% set url = cfg.url %}{% set k = ' -k' if cfg.inseguro else '' %}
+{% set extra = (' --utilizador ' ~ c.ssh_utilizador if c.ssh_utilizador else '') ~ (' --inseguro' if cfg.inseguro else '') %}
+<section class="card full" style="margin-top:16px">
+  <h2>Instalar o agente no cliente</h2>
+  {{ '' }}<div class="kvl-inline">
+    <span>Id: <code translate="no">{{ c.codigo }}</code></span>
+    <span>Token: <code translate="no" id="tk" data-t="{{ token }}">••••••••••••</code>
+      <button type="button" class="small" id="vtk">Mostrar</button></span>
+    <form method="post" action="{{ url_for('clientes.gerir_token', cid=c.id) }}" class="inline-form" onsubmit="return confirm('Gerar um token novo? O agente deixa de sincronizar até ser reconfigurado.')">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="small">Gerar token novo</button></form>
+  </div>
+  <div class="jx-chips" id="fam" style="margin:12px 0">{% for f, r in familias.items() %}<button type="button" class="chip {{ 'on' if f == (c.familia or 'redhat') }}" data-f="{{ f }}">{{ r }}</button>{% endfor %}</div>
+  {% for f in familias %}
+<pre class="mono-area small cmd inst" data-f="{{ f }}" translate="no" {{ 'hidden' if f != (c.familia or 'redhat') }}># 1. Pré-requisitos ({{ familias[f] }})
+sudo {{ 'apt-get install -y curl python3' if f == 'debian' else 'dnf install -y curl python3     # RHEL/OL 7: yum install -y curl python3' }}
+
+# 2. Descarregar e correr o setup (verifica o utilizador SSH, acrescenta a chave do portal, instala o serviço)
+curl -fsS{{ k }} {{ url }}/clientes/agente/setup.sh -o /tmp/setup-agente.sh
+sudo bash /tmp/setup-agente.sh --portal {{ url }} --id {{ c.codigo }} --token <span class="tok">TOKEN</span>{{ extra }} --grupo "oracle"
+
+# Outros
+sudo bash /tmp/setup-agente.sh --verificar --utilizador {{ c.ssh_utilizador or '<utilizador>' }}   # só as verificações de SSH
+agente-portal estado ; agente-portal intervalo 120 ; journalctl -u agente-portal -f
+sudo bash /tmp/setup-agente.sh --desinstalar</pre>{% endfor %}
+  <p class="hint">Download: <a href="{{ url_for('clientes.agente_ficheiro', nome='setup.sh', download=1) }}">setup.sh</a> ·
+    <a href="{{ url_for('clientes.agente_ficheiro', nome='agente-portal.py', download=1) }}">agente-portal.py</a>.
+    Instala em <code>/opt/agente-portal/</code>: o agente, o <code>.env</code> (600, token cifrado com uma chave local ligada à máquina) e o serviço
+    <code>agente-portal</code>. O <code>--grupo</code> indica quem pode usar <code>agente-portal notificar</code> (ex. o utilizador <code>oracle</code> dos scripts RMAN).
+    O intervalo de sincronização muda-se só no cliente.</p>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if c and c.id %}
+<script>
+(() => {
+  const tk = document.getElementById('tk'); let vis = false;
+  const pinta = () => { tk.textContent = vis ? tk.dataset.t : '••••••••••••';
+    document.querySelectorAll('.inst .tok').forEach(s => s.textContent = vis ? tk.dataset.t : 'TOKEN'); };
+  document.getElementById('vtk').onclick = e => { vis = !vis; e.target.textContent = (window.t || (s => s))(vis ? 'Esconder' : 'Mostrar'); pinta(); };
+  document.getElementById('fam').onclick = e => { const b = e.target.closest('.chip'); if (!b) return;
+    document.querySelectorAll('#fam .chip').forEach(x => x.classList.toggle('on', x === b));
+    document.querySelectorAll('.inst').forEach(p => p.hidden = p.dataset.f !== b.dataset.f); };
+  const bt = document.getElementById('btestar'), box = document.getElementById('passos');
+  bt.onclick = async () => {
+    bt.disabled = true; box.innerHTML = '<p class="muted small">' + (window.t || (s => s))('A testar…') + '</p>';
+    try {
+      const r = await fetch("{{ url_for('clientes.gerir_testar', cid=c.id) }}", {method: 'POST', headers: {'X-CSRF': '{{ csrf_token }}'}});
+      const d = await r.json(); box.innerHTML = '';
+      for (const p of d.passos) {
+        const row = document.createElement('div'); row.className = 'lrow';
+        const dot = document.createElement('span'); dot.className = 'dot d-' + (p.ok === true ? 'ok' : p.ok === false ? 'bad' : 'warn');
+        const t = document.createElement('span'); t.className = 'lrow-t';
+        const b = document.createElement('b'); b.textContent = p.passo; const s = document.createElement('small'); s.textContent = p.detalhe; s.style.whiteSpace = 'pre-wrap';
+        t.append(b, s); row.append(dot, t); box.append(row);
+      }
+    } catch (e) { box.textContent = String(e); }
+    bt.disabled = false;
+  };
+})();
+</script>
+{% endif %}
+{% endblock %}

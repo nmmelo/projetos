@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Clientes · Eventos{% endblock %}
+{% block content %}
+{% include "clientes/_tabs.html" %}
+<section class="jx-filtros">
+  <form method="get" class="jx-toolbar">
+    <label class="jx-search"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 2a8 8 0 0 1 6.32 12.9l5.39 5.4-1.42 1.4-5.39-5.38A8 8 0 1 1 10 2Zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z"/></svg>
+      <input type="search" name="q" value="{{ f.q }}" placeholder="Procurar na mensagem"></label>
+    <label class="jx-sel"><span>Cliente</span><select name="cliente" onchange="this.form.submit()"><option value="">Todos</option>
+      {% for c in clientes %}<option value="{{ c.id }}" {{ 'selected' if f.cliente == c.id|string }} translate="no">{{ c.nome }}</option>{% endfor %}</select></label>
+    <label class="jx-sel"><span>Regra</span><select name="regra" onchange="this.form.submit()"><option value="">Todas</option>
+      {% for r in regras %}<option value="{{ r.codigo }}" {{ 'selected' if f.regra == r.codigo }}>{{ r.nome }} ({{ r.codigo }})</option>{% endfor %}</select></label>
+    <label class="jx-sel"><span>Estado</span><select name="estado" onchange="this.form.submit()"><option value="">Todos</option>
+      {% for k, v in estados.items() %}<option value="{{ k }}" {{ 'selected' if f.estado == k }}>{{ v }}</option>{% endfor %}</select></label>
+    <button>Filtrar</button>
+  </form>
+</section>
+{% set c = None %}
+{% include "clientes/_eventos_tab.html" %}
+<p class="hint">Os eventos com mais de {{ 90 }} dias são apagados pela tarefa "Verificar o contacto dos clientes" (Configuração → Agendamento).</p>
+{% endblock %}

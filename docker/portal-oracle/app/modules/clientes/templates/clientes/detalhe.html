@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "_cartoes.html" import kv, barra, saude %}
+{% from "clientes/_macros.html" import bola, dur, ev_pill %}
+{% block title %}Clientes · {{ c.nome }}{% endblock %}
+{% block content %}
+{% include "clientes/_tabs.html" %}
+{% set i = c.info %}
+<div class="modulo-head"><h2 translate="no">{{ bola(c) }} {{ c.nome }} <small class="muted">{{ c.endereco }}</small></h2>
+  {% if user.can('clientes.gerir') %}<a class="btn small" href="{{ url_for('clientes.gerir_cliente', cid=c.id) }}">✎ Editar / instalar / testar</a>{% endif %}</div>
+{% if c.descricao %}<p class="muted">{{ c.descricao }}</p>{% endif %}
+<div class="fw-grid">
+<section class="card">
+  <h2>Agente</h2>
+  {% set ct = c.contacto %}
+  {{ saude({'verde': 'ok', 'laranja': 'warn', 'vermelho': 'bad', 'cinza': 'warn'}[ct.cor], ct.texto,
+           ('último contacto ' ~ c.ultimo_contacto ~ ' (há ' ~ dur(ct.seg) ~ ')') if c.ultimo_contacto else 'instale o agente (Gerir clientes)') }}
+  {{ kv([('Id do cliente', c.codigo), ('Versão do agente', c.versao), ('Intervalo de sincronização', (c.intervalo ~ ' s') if c.intervalo),
+         ('Contacta a partir de', c.ip_origem), ('Utilizador SSH', c.ssh_utilizador), ('Tipo', 'Máquina virtual' if c.vm else 'Servidor físico')]) }}
+  <p class="hint">O intervalo muda-se no cliente: <code>agente-portal intervalo 120</code> (o portal mostra-o na sincronização seguinte).</p>
+</section>
+<section class="card">
+  <h2>Sistema</h2>
+  {% if i %}
+  {{ kv([('Hostname', i.hostname), ('Sistema', i.so), ('Família', familias.get(i.familia or c.familia, i.familia)), ('Kernel', i.kernel),
+         ('Arquitetura', i.arquitetura), ('CPUs', i.cpus), ('Carga (1/5/15 min)', (i.load or [])|join(' / ')),
+         ('Ligado há', dur(i.uptime) if i.uptime else ''), ('Virtualização', i.virtual), ('Python', i.python)]) }}
+  {% else %}<p class="muted">Sem dados (o agente ainda não sincronizou).</p>{% endif %}
+</section>
+<section class="card">
+  <h2>Recursos</h2>
+  {% if i %}<div class="tiles">
+    {{ barra('CPU', i.cpu, (i.cpus ~ ' CPU') if i.cpus else '') }}
+    {% if i.mem %}{{ barra('Memória', i.mem.pct, (i.mem.total - i.mem.livre)|filesizeformat(true) ~ ' usados', i.mem.total|filesizeformat(true)) }}{% endif %}
+    {% for d in i.discos or [] %}{{ barra(d.ponto, d.pct, (d.total - d.livre)|filesizeformat(true) ~ ' / ' ~ d.total|filesizeformat(true), d.fs) }}{% endfor %}
+  </div>{% else %}<p class="muted">—</p>{% endif %}
+</section>
+</div>
+<section class="card full" style="margin-top:16px">
+  <h2>Regras de notificação deste cliente</h2>
+  <div class="table-wrap"><table class="small-tab">
+    <thead><tr><th>Id</th><th>Nome</th><th>Log (última linha)</th><th>Último evento</th></tr></thead>
+    <tbody>{% for r in regras if r.ativo %}<tr><td><code translate="no">{{ r.codigo }}</code></td><td><b>{{ r.nome }}</b>{% if not r.cliente_id %} <span class="tag">todos</span>{% endif %}</td>
+      <td><code translate="no">{{ r.log_path or '—' }}</code></td>
+      <td>{% if r.ultimo %}{{ ev_pill(r.ultimo.estado) }} <small>{{ r.ultimo.recebido }}</small>{% else %}—{% endif %}</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">Nenhuma. Crie em <a href="{{ url_for('clientes.regras') }}">Regras de notificação</a>.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+<section class="card full" style="margin-top:16px">
+  <div class="modulo-head"><h2>Eventos recentes</h2><a class="btn small" href="{{ url_for('clientes.eventos', cliente=c.id) }}">Ver todos</a></div>
+  {% include "clientes/_eventos_tab.html" %}
+</section>
+{% endblock %}

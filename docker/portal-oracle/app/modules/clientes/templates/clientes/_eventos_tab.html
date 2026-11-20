@@ -1,0 +1,11 @@
+{% from "clientes/_macros.html" import ev_pill %}
+<div class="table-wrap"><table class="small-tab">
+  <thead><tr><th>Recebido</th><th>Estado</th>{% if not c %}<th>Cliente</th>{% endif %}<th>Regra</th><th>Origem</th><th>Mensagem</th></tr></thead>
+  <tbody>{% for e in eventos %}<tr>
+    <td><small>{{ e.recebido }}</small>{% if e.quando and e.quando != e.recebido %}<br><small class="muted" title="Hora no cliente">{{ e.quando }}</small>{% endif %}</td>
+    <td>{{ ev_pill(e.estado) }}</td>
+    {% if not c %}<td><a href="{{ url_for('clientes.detalhe', cid=e.cliente_id) }}" translate="no">{{ e.cliente_nome }}</a></td>{% endif %}
+    <td><code translate="no">{{ e.regra }}</code>{% if e.regra_nome %}<br><small>{{ e.regra_nome }}</small>{% else %}<br><small class="c-warn">regra desconhecida</small>{% endif %}</td>
+    <td><small>{{ {'log': 'log', 'comando': 'comando', 'desconhecida': '—'}.get(e.origem, e.origem) }}</small></td>
+    <td class="ev-msg" translate="no">{{ e.mensagem }}</td></tr>
+  {% else %}<tr><td colspan="6" class="muted">Sem eventos.</td></tr>{% endfor %}</tbody></table></div>
