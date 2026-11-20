@@ -352,7 +352,7 @@ Ver e alterar a firewall do servidor do portal. Ative-o em **Configuração → 
 | Logs | Registo do serviço `firewalld` e pacotes recusados (registo do kernel), com filtro |
 | Definições | Versão, ficheiros de configuração, serviços predefinidos, LogDenied, modo pânico e as permissões do portal |
 
-As alterações são feitas na configuração permanente e na em execução ao mesmo tempo (não é preciso recarregar). Os valores são validados (zona, serviço, porta 1-65535, IP/rede, regra rica a começar por `rule `) e o comando é executado sem shell.
+As alterações são feitas na configuração permanente e na em execução ao mesmo tempo (não é preciso recarregar). Para ser rápido, o portal corre os `firewall-cmd` em paralelo, lê todas as zonas numa só chamada e guarda os dados 15 s em cache (limpa a cada alteração; **↻ Atualizar** força a leitura); muitas entradas de um ipset vão de uma vez (`--add-entries-from-file`). Os valores são validados (zona, serviço, porta 1-65535, IP/rede, regra rica a começar por `rule `) e o comando é executado sem shell.
 
 **Permissões** (instalação sem Docker): o portal corre como utilizador de serviço e usa `sudo -n firewall-cmd`/`ufw` e `journalctl` com comandos exatos, autorizados por um ficheiro `sudoers` próprio (validado com `visudo`):
 
@@ -379,6 +379,7 @@ Servidores com o **agente do portal** instalado, como um agente Zabbix: o agente
 |---|---|
 | Configuração → Clientes | Lista e **Novo cliente**: nome, IP ou DNS, descrição, VM ou físico, Linux (Debian/Ubuntu ou Red Hat/Rocky/Alma/Oracle Linux), utilizador e porta SSH. Por cliente: id, token (mostrar / gerar novo), comandos de instalação por distribuição, download do `setup.sh` e do agente, **Testar** (DNS, porta SSH, SSH com a chave do portal, último contacto) e **Esquecer a chave do servidor**. Definições: endereço do portal visto pelos clientes, utilizador SSH por omissão (ex. o do Ansible), certificado autoassinado. Chave SSH pública do portal |
 | Clientes → Clientes | Estado de cada cliente (verde = sincronizou dentro do intervalo, laranja = atrasado, vermelho = sem contacto há mais de 10 intervalos, cinza = nunca), sistema, CPU, memória, disco mais cheio, último contacto, intervalo e eventos das últimas 24 h. Detalhe por cliente: agente, sistema, recursos (discos), regras e eventos |
+| Clientes → Alarmes | Limiares sobre as métricas do agente: **disco** (% usado, por pontos de montagem, aceita `*`, ex. `/u02*`), **CPU**, **memória**, **carga** (por CPU) e **sem contacto** (minutos). Ciclos seguidos antes de disparar, severidade (aviso/crítico), cliente (ou todos) e **canais próprios**: notificação no portal (administradores ou quem tem acesso ao módulo) e/ou email (destinatários por omissão do SMTP e outros). Opcionalmente avisa quando volta ao normal. Lista dos alarmes disparados agora |
 | Clientes → Regras de notificação | Regras com **id gerado** (ex. `R3F09A1C2`), nome, descrição, cliente (ou todos), log opcional (o agente envia a última linha quando muda) e padrões de erro/aviso (regex). Exemplos de uso por regra |
 | Clientes → Eventos | Notificações recebidas, com filtros por cliente, regra, estado e texto |
 
@@ -422,12 +423,26 @@ else agente-portal notificar <ID> erro "$(grep -E 'RMAN-|ORA-' /u01/scripts/logs
 
 Se o portal não responder, as notificações ficam em fila (`/opt/agente-portal/fila.jsonl`) e seguem na sincronização seguinte. As notificações geram o evento **Notificação de um cliente** (o parâmetro da regra filtra por ids) e a tarefa agendada **Verificar o contacto dos clientes** gera **Contacto do agente cliente** (sem contacto / voltou); as regras por omissão avisam no portal e por email.
 
+**Alarmes:** avaliados em cada sincronização do agente (o "sem contacto" pela tarefa *Verificar o contacto dos clientes*). Os disparos e regressos aparecem em Eventos (regra `A<n>`) e no painel do cliente; os emails precisam do SMTP ativo.
+
+**Integração Zabbix (preparada)**, em Configuração → Clientes:
+
+| Peça | Para quê |
+|---|---|
+| API só de leitura (ligar + token) | `GET /clientes/api/zabbix/descoberta` (LLD: `{#CLIENTE}`, `{#HOST}`, `{#FSNAME}`, `{#FSTYPE}`), `.../metricas?cliente=<nome>` (JSON com as chaves de um agente Zabbix: `vfs.fs.size[/u01,pused]`, `system.cpu.util`, `vm.memory.utilization`, `system.cpu.load[percpu,avg1]`, `agent.ping`, ...) e `.../alarmes` (alarmes como triggers, com a expressão sugerida). Header `Authorization: Bearer <token>`: itens HTTP agent e itens dependentes com JSONPath |
+| Host no Zabbix (por cliente) | Nome do host no Zabbix (vazio = nome do cliente) |
+| Endereço e token da API do Zabbix | Guardados para a fase seguinte (criar hosts e ler problemas no Zabbix) |
+| `agente-portal valor <chave>` no cliente | Mesmas chaves, para um agente Zabbix no mesmo servidor: `UserParameter=portal.metrica[*],agente-portal valor "$1"` (`agente-portal valor todas` lista-as) |
+
 API usada pelo agente (sem sessão, autenticada pelo id e token): `POST /clientes/agente/api/sync` e `/clientes/agente/api/evento`; downloads em `/clientes/agente/setup.sh`, `agente-portal.py` e `chave.pub`.
 
 ![Clientes](docs/clientes.png)
 ![Cliente - detalhe](docs/clientes-detalhe.png)
 ![Cliente - instalar e testar](docs/clientes-instalar.png)
 ![Regras de notificação](docs/clientes-regras.png)
+![Alarmes](docs/clientes-alarmes.png)
+![Novo alarme](docs/clientes-alarme.png)
+![Integração Zabbix](docs/clientes-zabbix.png)
 
 ---
 

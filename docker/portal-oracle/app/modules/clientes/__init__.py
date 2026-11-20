@@ -12,7 +12,8 @@ def _home_context(user) -> dict:
     cont = {"verde": 0, "laranja": 0, "vermelho": 0, "cinza": 0}
     for c in cs:
         cont[c["contacto"]["cor"]] += 1
-    return {"clientes": cs, "cont": cont, "eventos": clientes.listar_eventos(limite=6)}
+    from ... import clientes_alarmes
+    return {"clientes": cs, "cont": cont, "eventos": clientes.listar_eventos(limite=6), "alarmes": clientes_alarmes.ativos()}
 
 
 MODULO = modulos.registar(modulos.Modulo(
@@ -23,9 +24,11 @@ MODULO = modulos.registar(modulos.Modulo(
     acoes={
         "clientes.gerir": "Criar, editar e apagar clientes, ver o token e testar a ligação (Configuração → Clientes)",
         "clientes.regras": "Criar, editar e apagar regras de notificação",
+        "clientes.alarmes": "Criar, editar e apagar alarmes (limiares de disco, CPU, memória, carga, contacto)",
     },
     abas=[
         ("clientes.painel", "Clientes", None),
+        ("clientes.alarmes", "Alarmes", None),
         ("clientes.regras", "Regras de notificação", None),
         ("clientes.eventos", "Eventos", None),
     ],
@@ -50,7 +53,7 @@ MODULO = modulos.registar(modulos.Modulo(
 def _guard():
     if MODULO.chave not in modulos.ativos():
         abort(404)
-    if request.path.startswith("/clientes/agente/"):     # API do agente: autenticada pelo token
+    if request.path.startswith(("/clientes/agente/", "/clientes/api/zabbix/")):     # APIs: autenticadas por token
         return None
     if g.get("user") and not g.user.can(MODULO.acesso):
         abort(403)

@@ -13,7 +13,7 @@ Outros scripts (rman, shrink, ...) notificam o portal com:
 So usa a biblioteca padrao do Python 3 (3.6+). O .env tem os valores sensiveis cifrados com uma
 chave local (.chave, so o root le) ligada a esta maquina (/etc/machine-id).
 
-Comandos: run | configurar | notificar | testar | estado | intervalo | versao
+Comandos: run | configurar | notificar | testar | estado | intervalo | valor | versao
 """
 import argparse
 import base64
@@ -35,7 +35,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.0.0"
+VERSAO = "1.1.0"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -499,6 +499,37 @@ def cmd_estado(a):
           f"fila         {sum(1 for _ in open(FILA)) if os.path.exists(FILA) else 0} evento(s) por enviar")
 
 
+def chaves_zabbix(i: dict) -> dict:
+    """As metricas do agente com as chaves de um agente Zabbix (o portal usa as mesmas)."""
+    m = {"system.hostname": i["hostname"], "system.sw.os": i["so"], "system.uname": i["kernel"], "system.cpu.num": i["cpus"],
+         "system.uptime": i["uptime"], "vm.memory.size[total]": i["mem"]["total"], "vm.memory.size[available]": i["mem"]["livre"],
+         "vm.memory.utilization": i["mem"]["pct"]}
+    for k, v in zip(("avg1", "avg5", "avg15"), i["load"]):
+        m[f"system.cpu.load[all,{k}]"] = v
+        m[f"system.cpu.load[percpu,{k}]"] = round(v / max(1, i["cpus"] or 1), 2)
+    for d in i["discos"]:
+        p = d["ponto"]
+        m.update({f"vfs.fs.size[{p},total]": d["total"], f"vfs.fs.size[{p},free]": d["livre"],
+                  f"vfs.fs.size[{p},used]": d["total"] - d["livre"], f"vfs.fs.size[{p},pused]": d["pct"]})
+    return m
+
+
+def cmd_valor(a):
+    """Para um agente Zabbix no mesmo servidor (UserParameter=portal.metrica[*],agente-portal valor "$1")."""
+    cfg = {"INTERVALO": 60}
+    try:
+        cfg = ler_env(decifrado=False)
+    except OSError:
+        pass
+    m = chaves_zabbix(recolher(cfg))
+    if a.chave == "todas":
+        print(json.dumps(m, indent=1))
+    elif a.chave in m:
+        print(m[a.chave])
+    else:
+        sys.exit("chave desconhecida (agente-portal valor todas)")
+
+
 def main():
     p = argparse.ArgumentParser(prog="agente-portal", description="Agente cliente do portal")
     sp = p.add_subparsers(dest="cmd")
@@ -515,6 +546,8 @@ def main():
     e.add_argument("--curto", action="store_true"), e.set_defaults(f=cmd_estado)
     i = sp.add_parser("intervalo", help="muda o intervalo de sincronizacao (s)")
     i.add_argument("segundos", type=int), i.set_defaults(f=cmd_intervalo)
+    v = sp.add_parser("valor", help="valor de uma metrica com a chave Zabbix (ou 'todas')")
+    v.add_argument("chave"), v.set_defaults(f=cmd_valor)
     sp.add_parser("versao").set_defaults(f=lambda _a: print(VERSAO))
     a = p.parse_args()
     if not getattr(a, "f", None):

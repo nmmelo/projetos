@@ -2,7 +2,7 @@
 from flask import (Response, abort, flash, g, jsonify, redirect, render_template, request, send_file,
                    url_for)
 
-from ... import auth, clientes, store
+from ... import auth, clientes, clientes_alarmes, crypto, store
 from . import bp, MODULO
 
 
@@ -17,7 +17,17 @@ def _url_portal() -> str:
 def _cfg() -> dict:
     return {"url": _url_portal(), "url_guardado": store.get_setting("clientes_url_portal") or "",
             "inseguro": store.get_setting("clientes_tls_inseguro") == "1",
-            "ssh_padrao": store.get_setting("clientes_ssh_utilizador") or "ansible"}
+            "ssh_padrao": store.get_setting("clientes_ssh_utilizador") or "ansible",
+            "zbx_ativa": store.get_setting("zabbix_api_ativa") == "1", "zbx_token": _zbx_token(),
+            "zbx_url": store.get_setting("zabbix_url") or "", "zbx_api_guardado": bool(store.get_setting("zabbix_api_token"))}
+
+
+def _zbx_token() -> str:
+    v = store.get_setting("zabbix_token_portal") or ""
+    try:
+        return crypto.decrypt(v) if v else ""
+    except RuntimeError:
+        return ""
 
 
 # ============================================================ paginas
@@ -30,7 +40,10 @@ def index():
 @bp.route("/painel")
 @auth.requires(MODULO.acesso)
 def painel():
-    return render_template("clientes/painel.html", clientes=clientes.listar(), familias=clientes.FAMILIAS)
+    por = {}
+    for e in clientes_alarmes.ativos():
+        por.setdefault(e["cliente_id"], []).append(e)
+    return render_template("clientes/painel.html", clientes=clientes.listar(), familias=clientes.FAMILIAS, alarmes_por=por)
 
 
 @bp.route("/cliente/<int:cid>")
@@ -39,7 +52,7 @@ def detalhe(cid):
     c = clientes.obter(cid) or abort(404)
     return render_template("clientes/detalhe.html", c=c, regras=clientes.regras(cid),
                            eventos=clientes.listar_eventos(cliente_id=cid, limite=50), familias=clientes.FAMILIAS,
-                           estados=clientes.ESTADOS_EV)
+                           estados=clientes.ESTADOS_EV, alarmes=clientes_alarmes.ativos(cid))
 
 
 @bp.route("/regras", methods=["GET", "POST"])
@@ -77,6 +90,34 @@ def eventos():
                                                            a.get("estado", ""), a.get("q", "")))
 
 
+@bp.route("/alarmes", methods=["GET", "POST"])
+@auth.requires(MODULO.acesso)
+def alarmes():
+    A = clientes_alarmes
+    if request.method == "POST":
+        if not g.user.can("clientes.alarmes"):
+            abort(403)
+        try:
+            A.guardar(request.form, g.user.username, request.form.get("id") or None)
+            flash("Alarme guardado; é avaliado na próxima sincronização de cada cliente.", "ok")
+        except ValueError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("clientes.alarmes"))
+    from ... import modulos
+    return render_template("clientes/alarmes.html", alarmes=A.listar(), ativos=A.ativos(), clientes=clientes.listar(),
+                           metricas=A.METRICAS, severidades=A.SEVERIDADES, destinos=A.DESTINOS, zbx=A.CHAVES_ZABBIX,
+                           pode=g.user.can("clientes.alarmes"),
+                           smtp_ok="smtp" in modulos.ativos() and store.get_setting("smtp_ativo") == "1")
+
+
+@bp.route("/alarmes/<int:aid>/apagar", methods=["POST"])
+@auth.requires("clientes.alarmes")
+def alarme_apagar(aid):
+    clientes_alarmes.apagar(aid)
+    flash("Alarme apagado.", "ok")
+    return redirect(url_for("clientes.alarmes"))
+
+
 # ============================================================ gestao (Configuracao > Clientes)
 @bp.route("/gerir")
 @auth.requires(MODULO.acesso, "clientes.gerir")
@@ -103,6 +144,24 @@ def gerir_definicoes():
                              "clientes_ssh_utilizador": (f.get("ssh") or "ansible").strip()})
         flash("Definições guardadas.", "ok")
     return redirect(url_for("clientes.gerir"))
+
+
+@bp.route("/gerir/zabbix", methods=["POST"])
+@auth.requires(MODULO.acesso, "clientes.gerir")
+def gerir_zabbix():
+    import secrets
+    f = request.form
+    novos = {"zabbix_api_ativa": "1" if f.get("ativa") else "0", "zabbix_url": (f.get("url") or "").strip()}
+    if novos["zabbix_url"] and not novos["zabbix_url"].startswith(("http://", "https://")):
+        flash("O endereço do Zabbix começa por http:// ou https://.", "error")
+        return redirect(url_for("clientes.gerir") + "#zabbix")
+    if f.get("api_token"):
+        novos["zabbix_api_token"] = crypto.encrypt(f["api_token"].strip())
+    if f.get("novo_token") or (novos["zabbix_api_ativa"] == "1" and not _zbx_token()):
+        novos["zabbix_token_portal"] = crypto.encrypt(secrets.token_urlsafe(32))
+    store.save_settings(novos)
+    flash("Integração Zabbix guardada.", "ok")
+    return redirect(url_for("clientes.gerir") + "#zabbix")
 
 
 @bp.route("/gerir/novo", methods=["GET", "POST"])
@@ -210,3 +269,43 @@ def agente_evento():
     n = clientes.receber_eventos(c, d.get("eventos") if isinstance(d.get("eventos"), list) else [],
                                  url_for("clientes.detalhe", cid=c["id"]))
     return jsonify(ok=True, recebidos=n)
+
+
+# ============================================================ API para o Zabbix (HTTP agent), token do portal
+def _zbx_ok() -> bool:
+    if store.get_setting("zabbix_api_ativa") != "1":
+        return False
+    tk = request.headers.get("Authorization", "")
+    tk = tk[7:] if tk.startswith("Bearer ") else request.args.get("token", "")
+    esperado = _zbx_token()
+    import hmac
+    return bool(esperado and tk) and hmac.compare_digest(tk, esperado)
+
+
+def _zbx_negado():
+    r = jsonify(ok=False, error="API Zabbix desligada ou token inválido (Configuração → Clientes → Integração Zabbix)")
+    r.status_code = 401
+    return r
+
+
+@bp.route("/api/zabbix/descoberta")
+def zbx_descoberta():
+    return jsonify(clientes_alarmes.zabbix_descoberta()) if _zbx_ok() else _zbx_negado()
+
+
+@bp.route("/api/zabbix/metricas")
+def zbx_metricas():
+    if not _zbx_ok():
+        return _zbx_negado()
+    nome = request.args.get("cliente", "")
+    c = next((x for x in clientes.listar() if nome in (x["nome"], x.get("zabbix_host"), x["codigo"])), None)
+    if not c:
+        r = jsonify(ok=False, error="cliente desconhecido (?cliente=<nome, host Zabbix ou id>)")
+        r.status_code = 404
+        return r
+    return jsonify(clientes_alarmes.zabbix_metricas(c))
+
+
+@bp.route("/api/zabbix/alarmes")
+def zbx_alarmes():
+    return jsonify(clientes_alarmes.zabbix_alarmes()) if _zbx_ok() else _zbx_negado()

@@ -1,6 +1,6 @@
 <div class="modulo-head"><h1>Clientes</h1>
   {% if user.can('clientes.gerir') %}<a class="btn small" href="{{ url_for('clientes.gerir') }}">⚙ Gerir clientes</a>{% endif %}</div>
 <nav class="tabs">
-  {% for ep, r in [('clientes.painel', 'Clientes'), ('clientes.regras', 'Regras de notificação'), ('clientes.eventos', 'Eventos')] %}
+  {% for ep, r in [('clientes.painel', 'Clientes'), ('clientes.alarmes', 'Alarmes'), ('clientes.regras', 'Regras de notificação'), ('clientes.eventos', 'Eventos')] %}
   <a href="{{ url_for(ep) }}" class="{{ 'on' if request.endpoint == ep or (ep == 'clientes.painel' and request.endpoint == 'clientes.detalhe') }}">{{ r }}</a>{% endfor %}
 </nav>

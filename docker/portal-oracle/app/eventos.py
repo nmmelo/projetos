@@ -181,6 +181,10 @@ def _emitir(evento, situacao, titulo, texto, link, autor, dados):
                   or str(dados.get("regra", "")) in re.split(r"[\s,;]+", r["parametro"].strip())]
     if not regras:
         return
+    _entregar(regras, evento, situacao, titulo, texto, link, autor)
+
+
+def _entregar(regras, evento, situacao, titulo, texto, link, autor) -> None:
     nivel = NIVEL.get(situacao, "info")
     smtp_on = "smtp" in modulos.ativos() and store.get_setting("smtp_ativo") == "1"
     novos_emails = 0
@@ -202,6 +206,15 @@ def _emitir(evento, situacao, titulo, texto, link, autor, dados):
                 novos_emails += 1
     if novos_emails:
         enviar_ja_se_sem_agente()
+
+
+def entregar(evento: str, situacao: str, titulo: str, texto: str, link: str, canais: list[dict]) -> None:
+    """Entrega direta (sem passar pelas regras de SMTP > Regras), ex. alarmes dos clientes, que definem os
+    seus proprios canais: [{"canal": "portal"|"email", "nome": ..., "destino": {...}}]. Nunca levanta excecoes."""
+    try:
+        _entregar(canais, evento, situacao, titulo, texto, link, None)
+    except Exception:  # noqa: BLE001
+        log.exception("erro ao entregar %s/%s", evento, situacao)
 
 
 def corpo_email(titulo: str, texto: str, link: str) -> str:

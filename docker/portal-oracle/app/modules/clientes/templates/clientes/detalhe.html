@@ -8,6 +8,9 @@
 <div class="modulo-head"><h2 translate="no">{{ bola(c) }} {{ c.nome }} <small class="muted">{{ c.endereco }}</small></h2>
   {% if user.can('clientes.gerir') %}<a class="btn small" href="{{ url_for('clientes.gerir_cliente', cid=c.id) }}">✎ Editar / instalar / testar</a>{% endif %}</div>
 {% if c.descricao %}<p class="muted">{{ c.descricao }}</p>{% endif %}
+{% if alarmes %}<div class="flash error"><b>Alarmes disparados:</b>
+  {% for e in alarmes %}<span translate="no">{{ e.nome }}{{ (' ' ~ e.item) if e.metrica == 'disco' }} = {{ '%g'|format(e.valor) }}{{ e.unidade }}</span>{{ ' · ' if not loop.last }}{% endfor %}
+  — <a href="{{ url_for('clientes.alarmes') }}">Alarmes</a></div>{% endif %}
 <div class="fw-grid">
 <section class="card">
   <h2>Agente</h2>

@@ -380,3 +380,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > o smtp tem que ficar quando ativo dentro do configuração, e não no menu principal. e aautenticação também dentro de configuração
 
 **Resposta:** SMTP e Autenticação saem do menu principal e passam a abas de Configuração, com as sub-abas de cada um (SMTP: Geral, Regras, Notificações, Logs; Autenticação: Utilizadores e métodos, LDAP, Acessos).
+
+## 26. Firewall mais rápida, alarmes nos clientes e preparação para o Zabbix
+
+**Pergunta:**
+> o modulo de firewall está um pouco lento a carregar as rules, ipsets, melhorar mais. nos clientes podemos criar alarmisticas, por exemplo se tiver com o disco A ou B a 90% avisar por notificação e/ou por email, isso podemos definir na criação da regra de alarmistica. No futuro pode integrar com a plataforma zabbix., podemos deixar tudo mais ou menos preparado.
+
+**Resposta:** Firewall: `firewall-cmd` em paralelo, todas as zonas numa chamada, um `--info-ipset` por ipset (já traz as entradas), cache de 15 s limpa a cada alteração e botão Atualizar; várias entradas de ipset de uma vez. Clientes → Alarmes: disco (pontos de montagem com `*`), CPU, memória, carga e sem contacto, com limiar, ciclos, severidade e canais próprios (portal e/ou email). Zabbix: API só de leitura com token (descoberta LLD, métricas com chaves Zabbix, alarmes como triggers), host Zabbix por cliente, endereço/token da API guardados e `agente-portal valor <chave>`.

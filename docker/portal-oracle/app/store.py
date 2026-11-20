@@ -14,7 +14,7 @@ from . import aparencia, crypto, modulos, settings
 
 TABLES = ("settings", "oracle_dbs", "profiles", "users", "jobs", "backups", "system_actions",
           "notification_rules", "notifications", "email_queue", "traducoes", "agendamentos",
-          "agendamento_execucoes", "oracle_utilizadores", "clientes", "cliente_regras")
+          "agendamento_execucoes", "oracle_utilizadores", "clientes", "cliente_regras", "cliente_alarmes")
 
 # Definicoes volateis (escritas pelo agente a cada poucos segundos): fora dos backups
 VOLATEIS = ("agente_estado", "sistema_metricas", "smtp_estado", "regras_iniciais", "regras_iniciais_2", "i18n_rev")
@@ -160,6 +160,36 @@ _SCHEMA = [
         ativo INTEGER NOT NULL DEFAULT 1,
         criado_em VARCHAR(19),
         criado_por VARCHAR(64)
+    ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS cliente_alarmes (
+        id {ID},
+        nome VARCHAR(100) NOT NULL,
+        cliente_id INTEGER,
+        metrica VARCHAR(20) NOT NULL,
+        filtro VARCHAR(500),
+        limiar REAL NOT NULL,
+        ciclos INTEGER NOT NULL DEFAULT 1,
+        severidade VARCHAR(10) NOT NULL DEFAULT 'aviso',
+        portal INTEGER NOT NULL DEFAULT 1,
+        portal_destino VARCHAR(20),
+        email INTEGER NOT NULL DEFAULT 0,
+        emails TEXT,
+        email_padrao INTEGER NOT NULL DEFAULT 1,
+        recuperacao INTEGER NOT NULL DEFAULT 1,
+        ativo INTEGER NOT NULL DEFAULT 1,
+        criado_em VARCHAR(19),
+        criado_por VARCHAR(64)
+    ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS cliente_alarmes_estado (
+        id {ID},
+        alarme_id INTEGER NOT NULL,
+        cliente_id INTEGER NOT NULL,
+        item VARCHAR(255) NOT NULL,
+        estado VARCHAR(10) NOT NULL,
+        contagem INTEGER NOT NULL DEFAULT 0,
+        valor REAL,
+        desde VARCHAR(19),
+        atualizado VARCHAR(19)
     ){SUFFIX}""",
     """CREATE TABLE IF NOT EXISTS cliente_eventos (
         id {ID},
@@ -366,6 +396,7 @@ class Store:
         self._add_column("jobs", "n_erros", "INTEGER")
         self._add_column("jobs", "n_avisos", "INTEGER")
         self._add_column("users", "auth_tipo", "VARCHAR(10)")
+        self._add_column("clientes", "zabbix_host", "VARCHAR(128)")
 
     def _add_column(self, table: str, col: str, ddl: str) -> None:
         """Acrescenta uma coluna a uma tabela ja existente (versoes anteriores do portal)."""

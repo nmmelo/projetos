@@ -5,7 +5,9 @@
   {{ numero('Atrasados', ctx.cont.laranja, '', 'c-warn' if ctx.cont.laranja else '') }}
   {{ numero('Sem contacto', ctx.cont.vermelho, '', 'c-bad' if ctx.cont.vermelho else '') }}
 </div>
-<div class="lista">{% for c in ctx.clientes if c.contacto.cor in ('vermelho', 'laranja') %}
+<div class="lista">{% for e in ctx.alarmes[:4] %}<a class="lrow" href="{{ url_for('clientes.detalhe', cid=e.cliente_id) }}"><span class="dot d-{{ 'bad' if e.severidade == 'erro' else 'warn' }}"></span>
+  <span class="lrow-t"><b translate="no">{{ e.cliente_nome }} · {{ e.nome }}</b><small translate="no">{{ e.item if e.metrica == 'disco' }} {{ '%g'|format(e.valor) }}{{ e.unidade }} desde {{ e.desde }}</small></span></a>{% endfor %}
+{% for c in ctx.clientes if c.contacto.cor in ('vermelho', 'laranja') %}
   <a class="lrow" href="{{ url_for('clientes.detalhe', cid=c.id) }}">{{ bola(c) }}<span class="lrow-t"><b translate="no">{{ c.nome }}</b><small>{{ c.contacto.texto }} · {{ c.ultimo_contacto or '—' }}</small></span></a>
 {% endfor %}
 {% for e in ctx.eventos[:4] %}<a class="lrow" href="{{ url_for('clientes.detalhe', cid=e.cliente_id) }}">{{ ev_pill(e.estado) }}

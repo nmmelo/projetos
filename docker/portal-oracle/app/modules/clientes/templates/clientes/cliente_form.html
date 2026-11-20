@@ -24,6 +24,8 @@
         <span class="hint">Recebe a chave pública do portal (ex. o do Ansible).</span></label>
       <label>Porta SSH <input name="ssh_porta" type="number" min="1" max="65535" value="{{ c.ssh_porta if c and c.ssh_porta else 22 }}"></label>
     </div>
+    <label>Host no Zabbix (opcional) <input name="zabbix_host" value="{{ c.zabbix_host if c and c.zabbix_host }}" maxlength="128" placeholder="igual ao nome" translate="no">
+      <span class="hint">Para a integração com o Zabbix: o nome do host lá (vazio = o nome do cliente).</span></label>
     <div class="buttons"><button class="primary">{{ 'Guardar' if c and c.id else 'Criar' }}</button></div>
   </form>
   {% if c and c.id %}

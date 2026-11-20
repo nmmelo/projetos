@@ -39,4 +39,35 @@
   <p class="hint">Também em <code translate="no">{{ cfg.url }}/clientes/agente/chave.pub</code>.</p>
 </section>
 </div>
+
+<section class="card full" id="zabbix" style="margin-top:16px">
+  <h2>Integração Zabbix <span class="tag">preparada</span></h2>
+  <p class="small">O portal pode servir as métricas dos clientes ao Zabbix com as chaves de um agente Zabbix
+    (<code>vfs.fs.size[/u01,pused]</code>, <code>system.cpu.util</code>, <code>vm.memory.utilization</code>, <code>agent.ping</code>, ...)
+    e exportar os alarmes como triggers. Mais tarde, o portal poderá também criar hosts e ler problemas pela API do Zabbix (endereço e token abaixo).</p>
+  <form method="post" action="{{ url_for('clientes.gerir_zabbix') }}" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label class="inline"><input type="checkbox" name="ativa" value="1" {{ 'checked' if cfg.zbx_ativa }}> Ativar a API para o Zabbix (só leitura, com token)</label>
+    {% if cfg.zbx_token %}
+    <div class="kvl-inline"><span>Token: <code translate="no" id="ztk" data-t="{{ cfg.zbx_token }}">••••••••••••</code>
+      <button type="button" class="small" onclick="const c=document.getElementById('ztk');c.textContent=c.textContent.startsWith('•')?c.dataset.t:'••••••••••••'">Mostrar</button></span>
+      <label class="inline"><input type="checkbox" name="novo_token" value="1"> Gerar token novo</label></div>
+    {% endif %}
+    <div class="grid2">
+      <label>Endereço do Zabbix (uso futuro) <input name="url" value="{{ cfg.zbx_url }}" placeholder="https://zabbix.exemplo.local" translate="no"></label>
+      <label>Token da API do Zabbix (uso futuro) <input name="api_token" type="password" autocomplete="new-password"
+        placeholder="{{ '•••••• (guardado; vazio = manter)' if cfg.zbx_api_guardado else 'API token (Zabbix 5.4+)' }}"></label>
+    </div>
+    <div class="buttons"><button class="primary">Guardar</button></div>
+  </form>
+  {% if cfg.zbx_ativa %}
+  <h3>No Zabbix (item do tipo HTTP agent, header <code>Authorization: Bearer &lt;token&gt;</code>)</h3>
+<pre class="mono-area small cmd" translate="no"># Descoberta (LLD) de clientes e sistemas de ficheiros: {% raw %}{#CLIENTE} {#HOST} {#FSNAME} {#FSTYPE}{% endraw %}
+{{ cfg.url }}/clientes/api/zabbix/descoberta
+# Métricas de um cliente (JSON; itens dependentes com JSONPath, ex. $["vfs.fs.size[/u01,pused]"])
+{{ cfg.url }}/clientes/api/zabbix/metricas?cliente=&lt;nome ou host Zabbix&gt;
+# Alarmes do portal como triggers (expressão sugerida)
+{{ cfg.url }}/clientes/api/zabbix/alarmes</pre>
+  {% endif %}
+</section>
 {% endblock %}

@@ -119,7 +119,8 @@ def guardar(d: dict, utilizador: str, cid=None) -> int:
     fam = d.get("familia") if d.get("familia") in FAMILIAS else "redhat"
     dados = {"nome": nome, "endereco": end, "descricao": (d.get("descricao") or "").strip()[:500],
              "vm": 1 if d.get("vm") in ("1", "on", 1, True) else 0, "familia": fam,
-             "ssh_utilizador": util, "ssh_porta": porta}
+             "ssh_utilizador": util, "ssh_porta": porta,
+             "zabbix_host": (d.get("zabbix_host") or "").strip()[:128]}
     with store.tx() as t:
         outro = t.one("SELECT id FROM clientes WHERE nome = ?", (nome,))
         if outro and str(outro["id"]) != str(cid or ""):
@@ -143,6 +144,8 @@ def novo_token(cid) -> str:
 def apagar(cid) -> None:
     with store.tx() as t:
         t.run("DELETE FROM cliente_eventos WHERE cliente_id = ?", (cid,))
+        t.run("DELETE FROM cliente_alarmes_estado WHERE cliente_id = ?", (cid,))
+        t.run("DELETE FROM cliente_alarmes WHERE cliente_id = ?", (cid,))
         t.run("DELETE FROM cliente_regras WHERE cliente_id = ?", (cid,))
         t.run("DELETE FROM clientes WHERE id = ?", (cid,))
 
@@ -237,6 +240,12 @@ def sync(c: dict, info: dict, ip: str, link: str = "") -> dict:
         t.update("clientes", c["id"], {"ultimo_contacto": store.now(), "intervalo": iv, "info": texto,
                                        "versao": str(info.get("versao", ""))[:20], "ip_origem": ip[:64],
                                        "estado_contacto": "ok"})
+    try:
+        from . import clientes_alarmes
+        clientes_alarmes.avaliar(obter(c["id"]))
+    except Exception:  # noqa: BLE001 - um alarme com problemas nao pode impedir a sincronizacao
+        import logging
+        logging.getLogger("portal").exception("alarmes do cliente %s", c["nome"])
     if c.get("estado_contacto") == "perdido":
         eventos.emitir("clientes.contacto", "recuperou", f"Cliente {c['nome']}: o agente voltou a contactar",
                        f"Último contacto anterior: {c.get('ultimo_contacto')}.", link, dados={"cliente": c["nome"]})
@@ -283,6 +292,8 @@ def verificar_contactos(_par=None) -> tuple[str, str]:
             eventos.emitir("clientes.contacto", "perdido", f"Cliente {c['nome']}: sem contacto do agente",
                            f"Último contacto: {c['ultimo_contacto']} (intervalo {c.get('intervalo')} s).",
                            "/clientes/painel", dados={"cliente": c["nome"]})
+    from . import clientes_alarmes
+    clientes_alarmes.avaliar_contacto()
     with store.tx() as t:
         t.run("DELETE FROM cliente_eventos WHERE recebido < ?", (store.ago(days=int(store.get_setting("clientes_dias_eventos") or 90)),))
     if perdidos:

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Clientes · Alarmes{% endblock %}
+{% block content %}
+{% include "clientes/_tabs.html" %}
+<p class="muted">Limiares sobre o que o agente envia (ex. disco <code>/u01</code> ou <code>/u02*</code> acima de 90 %). São avaliados em cada
+  sincronização; o "sem contacto" pela tarefa <i>Verificar o contacto dos clientes</i>. Cada alarme define os seus canais: notificação no portal e/ou email.</p>
+{% if ativos %}
+<section class="card full" style="margin-bottom:16px">
+  <h2>Disparados agora <span class="sys-pill bad">{{ ativos|length }}</span></h2>
+  <div class="table-wrap"><table class="small-tab">
+    <thead><tr><th>Desde</th><th>Cliente</th><th>Alarme</th><th>Item</th><th class="num">Valor</th><th class="num">Limiar</th></tr></thead>
+    <tbody>{% for e in ativos %}<tr><td><small>{{ e.desde }}</small></td>
+      <td><a href="{{ url_for('clientes.detalhe', cid=e.cliente_id) }}" translate="no">{{ e.cliente_nome }}</a></td>
+      <td><span class="sys-pill {{ 'bad' if e.severidade == 'erro' else 'warn' }}">{{ severidades[e.severidade] }}</span> {{ e.nome }}</td>
+      <td translate="no"><code>{{ e.item }}</code></td><td class="num"><b>{{ '%g'|format(e.valor) }}{{ e.unidade }}</b></td><td class="num">{{ '%g'|format(e.limiar) }}{{ e.unidade }}</td></tr>{% endfor %}</tbody></table></div>
+</section>
+{% endif %}
+{% if pode %}<div class="buttons"><button type="button" class="primary" id="bnovo">+ Novo alarme</button></div>{% endif %}
+<div class="table-wrap" style="margin-top:12px"><table class="small-tab">
+  <thead><tr><th>Nome</th><th>Cliente</th><th>Condição</th><th>Canais</th><th>Severidade</th><th>Estado</th><th></th></tr></thead>
+  <tbody>{% for a in alarmes %}<tr>
+    <td><b>{{ a.nome }}</b><br><small class="muted" translate="no" title="Chave equivalente no Zabbix">zabbix: {{ a.chave_zabbix }}</small></td>
+    <td>{% if a.cliente_id %}<span translate="no">{{ a.cliente_nome }}</span>{% else %}<span class="tag">todos</span>{% endif %}</td>
+    <td>{{ a.metrica_nome }}{% if a.filtro %} <code translate="no">{{ a.filtro }}</code>{% endif %} ≥ <b>{{ '%g'|format(a.limiar) }}{{ a.unidade }}</b>
+      {% if a.ciclos > 1 %}<br><small class="muted">{{ a.ciclos }} ciclos seguidos</small>{% endif %}</td>
+    <td><small>{% if a.portal %}🔔 {{ destinos[a.portal_destino or 'modulo'] }}{% endif %}{% if a.portal and a.email %}<br>{% endif %}
+      {% if a.email %}✉ {{ 'destinatários SMTP' if a.email_padrao }}{{ ', ' if a.email_padrao and a.emails }}<span translate="no">{{ a.emails }}</span>{% endif %}
+      {% if a.recuperacao %}<br><span class="muted">avisa quando normaliza</span>{% endif %}</small></td>
+    <td><span class="sys-pill {{ 'bad' if a.severidade == 'erro' else 'warn' }}">{{ severidades[a.severidade] }}</span></td>
+    <td><span class="sys-pill {{ 'off' if not a.ativo else ('bad' if a.disparados else 'ok') }}">{{ 'Inativo' if not a.ativo else ((a.disparados ~ ' disparado(s)') if a.disparados else 'OK') }}</span></td>
+    <td class="nowrap">{% if pode %}<button type="button" class="small" data-ed='{{ a|tojson|forceescape }}' title="Editar">✎</button>
+      <form method="post" action="{{ url_for('clientes.alarme_apagar', aid=a.id) }}" class="inline-form" onsubmit="return confirm('Apagar o alarme?')">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="small danger" aria-label="Apagar">✕</button></form>{% endif %}</td>
+  </tr>{% else %}<tr><td colspan="7" class="muted">Ainda não há alarmes.</td></tr>{% endfor %}</tbody></table></div>
+
+<dialog id="dal" class="jx-dlg dlg-largo">
+  <div class="jx-dlg-head"><div><h2 id="dtit">Novo alarme</h2><div class="muted small">Condição, para quem e como avisar</div></div>
+    <button type="button" class="small" data-fechar aria-label="Fechar">✕</button></div>
+  <form method="post" class="stack dlg-corpo ldap-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="id">
+    <div class="grid2">
+      <label>Nome <input name="nome" required maxlength="100" placeholder="Disco de dados acima de 90 %"></label>
+      <label>Cliente <select name="cliente_id"><option value="">Todos os clientes</option>
+        {% for c in clientes %}<option value="{{ c.id }}" translate="no">{{ c.nome }}</option>{% endfor %}</select></label>
+    </div>
+    <div class="grid2">
+      <label>Métrica <select name="metrica" id="met">{% for k, m in metricas.items() %}<option value="{{ k }}">{{ m.nome }}</option>{% endfor %}</select>
+        <span class="hint">Zabbix: <code id="zbx" translate="no"></code></span></label>
+      <label id="lfiltro">Sistemas de ficheiros <input name="filtro" placeholder="/u01, /u02*  (vazio = todos)" translate="no">
+        <span class="hint">Pontos de montagem separados por vírgulas; aceita * (ex. <code>/u0*</code>).</span></label>
+    </div>
+    <div class="grid2">
+      <label>Limiar (≥) <input name="limiar" required value="90" inputmode="decimal"><span class="hint" id="hlim">%</span></label>
+      <label>Ciclos seguidos acima do limiar <input name="ciclos" type="number" min="1" max="100" value="1">
+        <span class="hint">1 = dispara logo; 3 = só se durar 3 sincronizações (evita picos).</span></label>
+    </div>
+    <div class="grid2">
+      <label>Severidade <select name="severidade">{% for k, v in severidades.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+      <label>Estado <select name="ativo"><option value="1">Ativo</option><option value="0">Inativo</option></select></label>
+    </div>
+    <fieldset class="al-canal"><legend>Notificação no portal (sino)</legend>
+      <label class="inline"><input type="checkbox" name="portal" value="1" checked> Avisar no portal</label>
+      <label>Para <select name="portal_destino">{% for k, v in destinos.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+    </fieldset>
+    <fieldset class="al-canal"><legend>Email</legend>
+      <label class="inline"><input type="checkbox" name="email" value="1"> Enviar email</label>
+      {% if not smtp_ok %}<span class="hint c-warn">O SMTP não está ativo (Configuração → SMTP): os emails só seguem depois de o ativar.</span>{% endif %}
+      <label class="inline"><input type="checkbox" name="email_padrao" value="1" checked> Destinatários por omissão do SMTP</label>
+      <label>Outros emails <input name="emails" placeholder="dba@exemplo.pt, sistemas@exemplo.pt" translate="no"></label>
+    </fieldset>
+    <label class="inline"><input type="checkbox" name="recuperacao" value="1" checked> Avisar também quando volta ao normal</label>
+    <div class="buttons"><button class="primary">Guardar</button><button type="button" data-fechar>Cancelar</button></div>
+  </form>
+</dialog>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const d = document.getElementById('dal'), f = d.querySelector('form'), ZBX = {{ zbx|tojson }}, M = {{ metricas|tojson }};
+  const met = () => { const m = f.metrica.value; document.getElementById('lfiltro').hidden = m !== 'disco';
+    document.getElementById('zbx').textContent = ZBX[m]; document.getElementById('hlim').textContent = (M[m].unidade || '').trim() || (window.t || (s => s))('valor'); };
+  f.metrica.onchange = () => { met(); if (!f.id.value) f.limiar.value = {disco: 90, cpu: 95, memoria: 95, carga: 2, contacto: 15}[f.metrica.value]; };
+  document.querySelectorAll('[data-fechar]').forEach(b => b.onclick = () => d.close());
+  const abrir = a => { f.reset(); f.id.value = a ? a.id : '';
+    document.getElementById('dtit').textContent = a ? a.nome : (window.t || (s => s))('Novo alarme');
+    if (a) { for (const k of ['nome', 'metrica', 'filtro', 'limiar', 'ciclos', 'severidade', 'portal_destino', 'emails']) f[k].value = a[k] ?? '';
+      f.cliente_id.value = a.cliente_id || ''; f.ativo.value = a.ativo ? '1' : '0';
+      for (const k of ['portal', 'email', 'email_padrao', 'recuperacao']) f[k].checked = !!a[k]; }
+    met(); d.showModal(); };
+  const bn = document.getElementById('bnovo'); if (bn) bn.onclick = () => abrir(null);
+  document.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => abrir(JSON.parse(b.dataset.ed)));
+})();
+</script>
+{% endblock %}

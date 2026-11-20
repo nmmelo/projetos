@@ -9,7 +9,9 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from . import store
 
@@ -19,6 +21,31 @@ PORTA_RE = re.compile(r"^\d{1,5}(-\d{1,5})?$")
 PROTOS = ("tcp", "udp", "sctp", "dccp")
 TIPOS_IPSET = ("hash:ip", "hash:net", "hash:ip,port", "hash:net,port", "hash:mac")
 _cache: dict = {}
+_trava = threading.Lock()
+TTL = 15            # s: estado, ipsets e zonas ficam em cache (cada firewall-cmd demora ~0,3-1 s); limpo ao alterar
+
+
+def _em_cache(chave: str, funcao, ttl: int = TTL):
+    with _trava:
+        v = _cache.get(chave)
+        if v and time.time() - v[0] < ttl:
+            return v[1]
+    r = funcao()
+    with _trava:
+        _cache[chave] = (time.time(), r)
+    return r
+
+
+def invalidar() -> None:
+    with _trava:
+        _cache.clear()
+
+
+def _paralelo(chamadas: dict) -> dict:
+    """{chave: (args...)} -> {chave: saida} com os firewall-cmd em paralelo."""
+    with ThreadPoolExecutor(max_workers=min(8, max(1, len(chamadas)))) as ex:
+        fut = {k: ex.submit(fc, *a) for k, a in chamadas.items()}
+        return {k: f.result()[1] for k, f in fut.items()}
 
 
 def _bin(nome: str) -> str | None:
@@ -63,6 +90,7 @@ def ufw(*args, timeout: int = 30) -> tuple[int, str]:
 
 
 def registar(utilizador: str, comando: str, ok: bool, resultado: str) -> None:
+    invalidar()
     with store.tx() as t:
         t.insert("firewall_acoes", {"quando": store.now(), "utilizador": utilizador, "comando": comando[:500],
                                     "ok": 1 if ok else 0, "resultado": resultado[:2000]})
@@ -78,7 +106,13 @@ def _lista(texto: str) -> list[str]:
     return [x for x in texto.split() if x]
 
 
-def estado() -> dict:
+def estado(fresco: bool = False) -> dict:
+    if fresco:
+        invalidar()
+    return _em_cache("estado", _estado)
+
+
+def _estado() -> dict:
     b = backend()
     if not b:
         return {"backend": "", "ok": False, "msg": "Nem firewalld nem ufw instalados neste servidor."}
@@ -99,15 +133,15 @@ def estado() -> dict:
         return {"backend": b, "ok": False, "permissao": False, "msg": st}
     ativo = st.strip() == "running"
     d = {"backend": b, "ok": True, "ativo": ativo, "estado": st.strip()}
-    d["versao"] = fc("--version")[1].strip()
     if not ativo:
+        d["versao"] = fc("--version")[1].strip()
         return d
-    d["zona_padrao"] = fc("--get-default-zone")[1].strip()
-    d["log_denied"] = fc("--get-log-denied")[1].strip()
-    d["panico"] = fc("--query-panic")[1].strip() == "yes"
-    rc, out = fc("--get-active-zones")
+    r = _paralelo({"versao": ("--version",), "zona_padrao": ("--get-default-zone",), "log_denied": ("--get-log-denied",),
+                   "panico": ("--query-panic",), "ativas": ("--get-active-zones",), "zonas": ("--get-zones",)})
+    d["versao"], d["zona_padrao"], d["log_denied"] = r["versao"].strip(), r["zona_padrao"].strip(), r["log_denied"].strip()
+    d["panico"] = r["panico"].strip() == "yes"
     zonas, atual = [], None
-    for l in out.splitlines():
+    for l in r["ativas"].splitlines():
         if not l.startswith((" ", "\t")) and l.strip():
             atual = {"nome": l.strip().split()[0], "interfaces": [], "sources": []}
             zonas.append(atual)
@@ -115,20 +149,13 @@ def estado() -> dict:
             k, v = l.strip().split(":", 1)
             atual["interfaces" if k.strip() == "interfaces" else "sources"] = _lista(v)
     d["zonas_ativas"] = zonas
-    d["zonas"] = _lista(fc("--get-zones")[1])
+    d["zonas"] = _lista(r["zonas"])
     return d
 
 
-def zona(nome: str, permanente: bool = False) -> dict:
-    """Configuracao de uma zona (firewall-cmd --list-all)."""
-    if not ZONA_RE.match(nome):
-        raise ValueError("Zona inválida.")
-    args = ["--zone", nome, "--list-all"] + (["--permanent"] if permanente else [])
-    rc, out = fc(*args)
-    if rc != 0:
-        raise ValueError(out)
+def _parse_zona(nome: str, linhas: list[str]) -> dict:
     d, chave = {"nome": nome, "rich rules": []}, None
-    for l in out.splitlines()[1:]:
+    for l in linhas:
         if chave == "rich rules" and (l.startswith("\t") or l.startswith("    ")) and l.strip():
             d["rich rules"].append(l.strip())
             continue
@@ -143,35 +170,68 @@ def zona(nome: str, permanente: bool = False) -> dict:
     return d
 
 
+def todas_zonas(permanente: bool = True) -> dict:
+    """{zona: config} numa so chamada (--list-all-zones)."""
+    def ler():
+        rc, out = fc("--list-all-zones", *(["--permanent"] if permanente else []))
+        if rc != 0:
+            raise ValueError(out)
+        res, nome, bloco = {}, None, []
+        for l in out.splitlines():
+            if l.strip() and not l.startswith((" ", "\t")):
+                if nome:
+                    res[nome] = _parse_zona(nome, bloco)
+                nome, bloco = l.split()[0], []
+            elif nome:
+                bloco.append(l)
+        if nome:
+            res[nome] = _parse_zona(nome, bloco)
+        return res
+    return _em_cache(f"zonas:{permanente}", ler)
+
+
+def zona(nome: str, permanente: bool = False) -> dict:
+    """Configuracao de uma zona (firewall-cmd --list-all)."""
+    if not ZONA_RE.match(nome):
+        raise ValueError("Zona inválida.")
+
+    def ler():
+        rc, out = fc("--zone", nome, "--list-all", *(["--permanent"] if permanente else []))
+        if rc != 0:
+            raise ValueError(out)
+        return _parse_zona(nome, out.splitlines()[1:])
+    return _em_cache(f"zona:{nome}:{permanente}", ler)
+
+
 def ipsets() -> list[dict]:
-    rc, out = fc("--permanent", "--get-ipsets")
-    if rc != 0:
-        raise ValueError(out)
-    lista = []
-    for n in _lista(out):
-        rc, info = fc("--permanent", f"--info-ipset={n}")
-        tipo, opcoes = "", ""
-        for l in info.splitlines():
-            l = l.strip()
-            if l.startswith("type:"):
-                tipo = l.split(":", 1)[1].strip()
-            elif l.startswith("options:"):
-                opcoes = l.split(":", 1)[1].strip()
-        rc, ent = fc("--permanent", f"--ipset={n}", "--get-entries")
-        entradas = [x for x in ent.splitlines() if x.strip()]
-        lista.append({"nome": n, "tipo": tipo, "opcoes": opcoes, "entradas": entradas, "n": len(entradas),
-                      "ficheiro": f"/etc/firewalld/ipsets/{n}.xml"})
-    return lista
+    """Ipsets (permanentes) com tipo, opcoes e entradas: um --info-ipset por ipset, em paralelo."""
+    def ler():
+        rc, out = fc("--permanent", "--get-ipsets")
+        if rc != 0:
+            raise ValueError(out)
+        nomes = _lista(out)
+        infos = _paralelo({n: ("--permanent", f"--info-ipset={n}") for n in nomes}) if nomes else {}
+        lista = []
+        for n in nomes:
+            tipo, opcoes, entradas = "", "", []
+            for l in infos.get(n, "").splitlines():
+                l = l.strip()
+                if l.startswith("type:"):
+                    tipo = l.split(":", 1)[1].strip()
+                elif l.startswith("options:"):
+                    opcoes = l.split(":", 1)[1].strip()
+                elif l.startswith("entries:"):
+                    entradas = l.split(":", 1)[1].split()
+            lista.append({"nome": n, "tipo": tipo, "opcoes": opcoes, "entradas": entradas, "n": len(entradas),
+                          "ficheiro": f"/etc/firewalld/ipsets/{n}.xml"})
+        return lista
+    return _em_cache("ipsets", ler)
 
 
-def uso_ipsets(zonas: list) -> dict:
+def uso_ipsets(zonas: list | None = None) -> dict:
     """{ipset: [onde e usado]}: origens (ipset:nome) e regras ricas (ipset="nome"), por zona (permanente)."""
     out: dict = {}
-    for z in zonas:
-        try:
-            d = zona(z, True)
-        except ValueError:
-            continue
+    for z, d in todas_zonas(True).items():
         for src in d.get("sources", []):
             if src.startswith("ipset:"):
                 out.setdefault(src[6:], []).append(f"{z}: origem {src}")
@@ -277,13 +337,27 @@ def aplicar(utilizador: str, acao: str, d: dict) -> tuple[bool, str]:
         entradas = [x.strip() for x in re.split(r"[\s,;]+", d.get("entrada", "")) if x.strip()]
         if not entradas or len(entradas) > 500:
             raise ValueError("Indique de 1 a 500 endereços.")
+        entradas = [_ip(e) if "," not in e else e for e in entradas]
+        op = "add" if acao.endswith("add") else "remove"
+        if len(entradas) > 3:              # muitas: um ficheiro, 2 chamadas em vez de 2 por endereco
+            import tempfile
+            from . import settings
+            fd, tmp = tempfile.mkstemp(prefix="ipset-", suffix=".txt", dir=settings.DATA_DIR)
+            try:
+                with os.fdopen(fd, "w") as f:
+                    f.write("\n".join(entradas) + "\n")
+                os.chmod(tmp, 0o644)
+                ok, out = _exec(utilizador, ["--permanent", f"--ipset={d['ipset']}", f"--{op}-entries-from-file={tmp}"])
+                if ok:
+                    fc(f"--ipset={d['ipset']}", f"--{op}-entries-from-file={tmp}")
+            finally:
+                os.unlink(tmp)
+            return ok, f"{len(entradas)} endereço(s): {out}"
         res = []
         for e in entradas:
-            e = _ip(e) if "," not in e else e
-            ok, out = _exec(utilizador, ["--permanent", f"--ipset={d['ipset']}",
-                                         f"--{'add' if acao.endswith('add') else 'remove'}-entry={e}"])
+            ok, out = _exec(utilizador, ["--permanent", f"--ipset={d['ipset']}", f"--{op}-entry={e}"])
             if ok:
-                fc(f"--ipset={d['ipset']}", f"--{'add' if acao.endswith('add') else 'remove'}-entry={e}")
+                fc(f"--ipset={d['ipset']}", f"--{op}-entry={e}")
             res.append((ok, f"{e}: {out}"))
         return all(r[0] for r in res), "\n".join(r[1] for r in res)
     elif acao == "reload":

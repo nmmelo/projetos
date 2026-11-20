@@ -1,4 +1,6 @@
-<h1>Firewall {% if est.backend %}<span class="tag">{{ est.backend }}</span>{% endif %}</h1>
+<div class="modulo-head"><h1>Firewall {% if est.backend %}<span class="tag">{{ est.backend }}</span>{% endif %}</h1>
+  <a class="btn small" href="{{ url_atualizar }}"
+     title="Os dados da firewall ficam em cache 15 s (ou até uma alteração)">↻ Atualizar</a></div>
 <nav class="tabs">
   {% for ep, r in [('firewall.geral', 'Geral'), ('firewall.regras', 'Regras'), ('firewall.ipsets', 'IPsets'), ('firewall.logs', 'Logs'), ('firewall.definicoes', 'Definições')] %}
   <a href="{{ url_for(ep) }}" class="{{ 'on' if request.endpoint == ep }}">{{ r }}</a>{% endfor %}

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1353">
+<lingua codigo="en" nome="English" textos="1416">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -5413,5 +5413,257 @@
   <texto>
     <origem>Utilizadores e métodos</origem>
     <traducao>Users and methods</traducao>
+  </texto>
+  <texto>
+    <origem>+ Novo alarme</origem>
+    <traducao>+ New alarm</traducao>
+  </texto>
+  <texto>
+    <origem>, ...) e exportar os alarmes como triggers. Mais tarde, o portal poderá também criar hosts e ler problemas pela API do Zabbix (endereço e token abaixo).</origem>
+    <traducao>, ...) and export the alarms as triggers. Later, the portal may also create hosts and read problems through the Zabbix API (address and token below).</traducao>
+  </texto>
+  <texto>
+    <origem>. Cada alarme define os seus canais: notificação no portal e/ou email.</origem>
+    <traducao>. Each alarm sets its own channels: portal notification and/or email.</traducao>
+  </texto>
+  <texto>
+    <origem>Administradores do portal</origem>
+    <traducao>Portal administrators</traducao>
+  </texto>
+  <texto>
+    <origem>Alarme</origem>
+    <traducao>Alarm</traducao>
+  </texto>
+  <texto>
+    <origem>Alarmes</origem>
+    <traducao>Alarms</traducao>
+  </texto>
+  <texto>
+    <origem>Alarmes disparados:</origem>
+    <traducao>Triggered alarms:</traducao>
+  </texto>
+  <texto>
+    <origem>Ativar a API para o Zabbix (só leitura, com token)</origem>
+    <traducao>Enable the API for Zabbix (read-only, with token)</traducao>
+  </texto>
+  <texto>
+    <origem>Avisar no portal</origem>
+    <traducao>Alert in the portal</traducao>
+  </texto>
+  <texto>
+    <origem>Avisar também quando volta ao normal</origem>
+    <traducao>Also alert when it returns to normal</traducao>
+  </texto>
+  <texto>
+    <origem>CPU (% usado)</origem>
+    <traducao>CPU (% used)</traducao>
+  </texto>
+  <texto>
+    <origem>Canais</origem>
+    <traducao>Channels</traducao>
+  </texto>
+  <texto>
+    <origem>Carga (1 min, por CPU)</origem>
+    <traducao>Load (1 min, per CPU)</traducao>
+  </texto>
+  <texto>
+    <origem>Ciclos seguidos acima do limiar</origem>
+    <traducao>Consecutive cycles above the threshold</traducao>
+  </texto>
+  <texto>
+    <origem>Condição</origem>
+    <traducao>Condition</traducao>
+  </texto>
+  <texto>
+    <origem>Condição, para quem e como avisar</origem>
+    <traducao>Condition, whom and how to alert</traducao>
+  </texto>
+  <texto>
+    <origem>Crítico</origem>
+    <traducao>Critical</traducao>
+  </texto>
+  <texto>
+    <origem>Destinatários por omissão do SMTP</origem>
+    <traducao>SMTP default recipients</traducao>
+  </texto>
+  <texto>
+    <origem>Disco (% usado)</origem>
+    <traducao>Disk (% used)</traducao>
+  </texto>
+  <texto>
+    <origem>Disparados agora</origem>
+    <traducao>Triggered now</traducao>
+  </texto>
+  <texto>
+    <origem>Endereço do Zabbix (uso futuro)</origem>
+    <traducao>Zabbix address (future use)</traducao>
+  </texto>
+  <texto>
+    <origem>Enviar email</origem>
+    <traducao>Send email</traducao>
+  </texto>
+  <texto>
+    <origem>Host no Zabbix (opcional)</origem>
+    <traducao>Zabbix host (optional)</traducao>
+  </texto>
+  <texto>
+    <origem>Integração Zabbix</origem>
+    <traducao>Zabbix integration</traducao>
+  </texto>
+  <texto>
+    <origem>Item</origem>
+    <traducao>Item</traducao>
+  </texto>
+  <texto>
+    <origem>Limiar</origem>
+    <traducao>Threshold</traducao>
+  </texto>
+  <texto>
+    <origem>Limiar (≥)</origem>
+    <traducao>Threshold (≥)</traducao>
+  </texto>
+  <texto>
+    <origem>Limiares sobre o que o agente envia (ex. disco</origem>
+    <traducao>Thresholds on what the agent sends (e.g. disk</traducao>
+  </texto>
+  <texto>
+    <origem>Memória (% usada)</origem>
+    <traducao>Memory (% used)</traducao>
+  </texto>
+  <texto>
+    <origem>Memória (% usada) ≥</origem>
+    <traducao>Memory (% used) ≥</traducao>
+  </texto>
+  <texto>
+    <origem>Métrica</origem>
+    <traducao>Metric</traducao>
+  </texto>
+  <texto>
+    <origem>No Zabbix (item do tipo HTTP agent, header</origem>
+    <traducao>In Zabbix (HTTP agent item, header</traducao>
+  </texto>
+  <texto>
+    <origem>Notificação no portal (sino)</origem>
+    <traducao>Portal notification (bell)</traducao>
+  </texto>
+  <texto>
+    <origem>Novo alarme</origem>
+    <traducao>New alarm</traducao>
+  </texto>
+  <texto>
+    <origem>O portal pode servir as métricas dos clientes ao Zabbix com as chaves de um agente Zabbix (</origem>
+    <traducao>The portal can serve the client metrics to Zabbix with the keys of a Zabbix agent (</traducao>
+  </texto>
+  <texto>
+    <origem>Os dados da firewall ficam em cache 15 s (ou até uma alteração)</origem>
+    <traducao>Firewall data is cached for 15 s (or until a change)</traducao>
+  </texto>
+  <texto>
+    <origem>Para a integração com o Zabbix: o nome do host lá (vazio = o nome do cliente).</origem>
+    <traducao>For the Zabbix integration: the host name there (empty = the client name).</traducao>
+  </texto>
+  <texto>
+    <origem>Pontos de montagem separados por vírgulas; aceita * (ex.</origem>
+    <traducao>Mount points separated by commas; accepts * (e.g.</traducao>
+  </texto>
+  <texto>
+    <origem>Quem tem acesso ao módulo Clientes</origem>
+    <traducao>Users with access to the Clients module</traducao>
+  </texto>
+  <texto>
+    <origem>Sem contacto do agente (minutos)</origem>
+    <traducao>No contact from the agent (minutes)</traducao>
+  </texto>
+  <texto>
+    <origem>Sem contacto do agente (minutos) ≥</origem>
+    <traducao>No contact from the agent (minutes) ≥</traducao>
+  </texto>
+  <texto>
+    <origem>Severidade</origem>
+    <traducao>Severity</traducao>
+  </texto>
+  <texto>
+    <origem>Token da API do Zabbix (uso futuro)</origem>
+    <traducao>Zabbix API token (future use)</traducao>
+  </texto>
+  <texto>
+    <origem>Valor</origem>
+    <traducao>Value</traducao>
+  </texto>
+  <texto>
+    <origem>Zabbix:</origem>
+    <traducao>Zabbix:</traducao>
+  </texto>
+  <texto>
+    <origem>acima de 90 %). São avaliados em cada sincronização; o "sem contacto" pela tarefa</origem>
+    <traducao>above 90 %). They are evaluated at each sync; "no contact" by the task</traducao>
+  </texto>
+  <texto>
+    <origem>avisa quando normaliza</origem>
+    <traducao>alerts when back to normal</traducao>
+  </texto>
+  <texto>
+    <origem>✉ destinatários SMTP</origem>
+    <traducao>✉ SMTP recipients</traducao>
+  </texto>
+  <texto>
+    <origem>✉ destinatários SMTP,</origem>
+    <traducao>✉ SMTP recipients,</traducao>
+  </texto>
+  <texto>
+    <origem>🔔 Administradores do portal</origem>
+    <traducao>🔔 Portal administrators</traducao>
+  </texto>
+  <texto>
+    <origem>🔔 Quem tem acesso ao módulo Clientes</origem>
+    <traducao>🔔 Users with access to the Clients module</traducao>
+  </texto>
+  <texto>
+    <origem>↻ Atualizar</origem>
+    <traducao>↻ Refresh</traducao>
+  </texto>
+  <texto>
+    <origem>Largura automática (aproveita ecrãs grandes) · clique para mudar</origem>
+    <traducao>Automatic width (uses large screens) · click to change</traducao>
+  </texto>
+  <texto>
+    <origem>Toda a largura da janela · clique para mudar</origem>
+    <traducao>Full window width · click to change</traducao>
+  </texto>
+  <texto>
+    <origem>Largura normal (centrada) · clique para mudar</origem>
+    <traducao>Normal width (centred) · click to change</traducao>
+  </texto>
+  <texto>
+    <origem>Disparados</origem>
+    <traducao>Triggered</traducao>
+  </texto>
+  <texto>
+    <origem>valor</origem>
+    <traducao>value</traducao>
+  </texto>
+  <texto>
+    <origem>Disco de dados acima de 90 %</origem>
+    <traducao>Data disk above 90 %</traducao>
+  </texto>
+  <texto>
+    <origem>Memória alta</origem>
+    <traducao>High memory</traducao>
+  </texto>
+  <texto>
+    <origem>Criar, editar e apagar alarmes (limiares de disco, CPU, memória, carga, contacto)</origem>
+    <traducao>Create, edit and delete alarms (disk, CPU, memory, load, contact thresholds)</traducao>
+  </texto>
+  <texto>
+    <origem>Alarme guardado; é avaliado na próxima sincronização de cada cliente.</origem>
+    <traducao>Alarm saved; it is evaluated at the next sync of each client.</traducao>
+  </texto>
+  <texto>
+    <origem>Alarme apagado.</origem>
+    <traducao>Alarm deleted.</traducao>
+  </texto>
+  <texto>
+    <origem>Integração Zabbix guardada.</origem>
+    <traducao>Zabbix integration saved.</traducao>
   </texto>
 </lingua>

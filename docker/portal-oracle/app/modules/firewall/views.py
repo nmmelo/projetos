@@ -6,9 +6,11 @@ from . import bp, MODULO
 
 
 def _ctx() -> dict:
-    est = firewall.estado()
+    est = firewall.estado(fresco=bool(request.args.get("atualizar")))
     return {"est": est, "pode": g.user.can("firewall.alterar"), "instancia": sistema_info.instancia() or "<nome>",
-            "docker": sistema_info.servicos_backend() == "supervisor"}
+            "docker": sistema_info.servicos_backend() == "supervisor",
+            "url_atualizar": url_for(request.endpoint, **(request.view_args or {}),
+                                     **{k: v for k, v in request.args.items() if k != "atualizar"}, atualizar=1)}
 
 
 @bp.route("/")
@@ -92,9 +94,10 @@ def definicoes():
     c = _ctx()
     extra = {}
     if c["est"].get("backend") == "firewalld" and c["est"].get("ativo"):
-        extra = {k: firewall.fc(arg)[1].split() for k, arg in
-                 (("servicos", "--get-services"), ("icmp", "--get-icmptypes"), ("helpers", "--get-helpers"))}
-        extra["conf"] = firewall.fc("--permanent", "--get-ipset-types")[1].split()
+        r = firewall._em_cache("definicoes", lambda: firewall._paralelo({
+            "servicos": ("--get-services",), "icmp": ("--get-icmptypes",), "helpers": ("--get-helpers",),
+            "conf": ("--permanent", "--get-ipset-types")}), ttl=300)
+        extra = {k: v.split() for k, v in r.items()}
     return render_template("firewall/definicoes.html", extra=extra, **c)
 
 
@@ -105,6 +108,7 @@ def acao():
     voltar = d.pop("voltar", "") or url_for("firewall.geral")
     try:
         ok, out = firewall.aplicar(g.user.username, d.pop("acao", ""), d)
+        firewall.invalidar()
         flash(("Feito. " if ok else "A firewall recusou: ") + (out.strip().splitlines()[-1] if out.strip() else ""),
               "ok" if ok else "error")
     except ValueError as exc:
