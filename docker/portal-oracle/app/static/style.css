@@ -619,3 +619,30 @@ dialog.dlg-largo .dlg-corpo { overflow-x: hidden; }
 .ldap-form .grid2 > .full, .ldap-form .grid2 > label.inline { grid-column: 1 / -1; }
 .ldap-form .grid2 > [hidden] { display: none; }
 @media (max-width: 700px) { .ldap-form .grid2 { grid-template-columns: 1fr; } }
+
+/* Oracle > Bases de dados */
+.bola { display: inline-block; width: 13px; height: 13px; border-radius: 50%; vertical-align: middle; box-shadow: 0 0 0 3px rgba(0,0,0,.04); }
+.b-verde { background: #1f9d55; box-shadow: 0 0 0 3px rgba(31,157,85,.2); }
+.b-laranja { background: #e8890c; box-shadow: 0 0 0 3px rgba(232,137,12,.22); }
+.b-vermelha { background: #d64545; box-shadow: 0 0 0 3px rgba(214,69,69,.22); }
+.b-cinza { background: var(--line); }
+.a-pulsar { animation: pulsar 1s ease-in-out infinite; }
+@keyframes pulsar { 50% { opacity: .35; } }
+.bd-tab tr.bd-linha { cursor: pointer; }
+.bd-tab tr.bd-linha:hover td { background: var(--hover); }
+.bd-tab td { vertical-align: middle; }
+.tag.dg { background: var(--info-bg); color: var(--accent); }
+.tag.portal-user, tr.portal-linha td:first-child { color: #7c3aed; }
+.tag.portal-user { background: #ede9fe; }
+tr.portal-linha td { background: rgba(124, 58, 237, .06); }
+.bd-sub { padding: 0 20px 8px; flex-wrap: wrap; }
+.small-tab { font-size: 12.5px; }
+.small-tab td { vertical-align: top; }
+tr.clicavel { cursor: pointer; }
+tr.clicavel:hover td { background: var(--hover); }
+.mini-bar { display: inline-block; width: 70px; height: 6px; border-radius: 4px; background: var(--chip); vertical-align: middle; overflow: hidden; }
+.mini-bar span { display: block; height: 100%; }
+.small-v { font-size: 15px; }
+#dcorpo h3 { margin: 18px 0 8px; font-size: 14px; }
+.dica-dbop { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--info-bg); font-size: 13px; }
+#dbd { height: min(880px, 92vh); }

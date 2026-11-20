@@ -282,3 +282,95 @@ def cfg_db_test(db_id):
     except Exception as exc:  # noqa: BLE001
         flash(f"{db['name']}: falha na ligação — {exc}", "error")
     return redirect(url_for("oracle.cfg_dbs"))
+
+
+# ====================================================================== Bases de dados (estado e detalhe)
+from . import inspecao  # noqa: E402
+
+
+def _db_visivel(db_id: int) -> dict:
+    db = store.get_db(db_id) or abort(404)
+    if not g.user.can_db(db_id):
+        abort(403)
+    return db
+
+
+def _portal_users(db_id: int) -> list[dict]:
+    with store.tx() as t:
+        return t.all("SELECT * FROM oracle_utilizadores WHERE db_id = ? ORDER BY username", (db_id,))
+
+
+@bp.route("/bds")
+@auth.requires("oracle.bds")
+def bds():
+    dbs = g.user.visible_dbs(store.list_dbs())
+    return render_template("oracle/bds.html", dbs=dbs, estados=inspecao.ESTADOS)
+
+
+@bp.route("/api/bds/<int:db_id>/resumo")
+@auth.requires("oracle.bds")
+def api_bd_resumo(db_id):
+    db = _db_visivel(db_id)
+    try:
+        r = inspecao.resumo(db, crypto.decrypt(db["password_enc"]))
+    except Exception as exc:  # noqa: BLE001
+        r = {"ok": False, "estado": "erro", "cor": "bad", "estado_txt": f"Erro: {exc}", "erro": str(exc)}
+    r["ligacao"] = {"utilizador": db["username"], "role": db["role"], "portal": db["username"].upper() in
+                    {u["username"].upper() for u in _portal_users(db_id)}}
+    return jsonify(r)
+
+
+@bp.route("/api/bds/<int:db_id>/detalhe/<parte>")
+@auth.requires("oracle.bds")
+def api_bd_detalhe(db_id, parte):
+    db = _db_visivel(db_id)
+    extra = {"owner": request.args.get("owner", ""), "portal": [u["username"] for u in _portal_users(db_id)]}
+    try:
+        return jsonify(ok=True, **inspecao.detalhe(db, crypto.decrypt(db["password_enc"]), parte, extra))
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+    except Exception as exc:  # noqa: BLE001
+        return jsonify(ok=False, error=str(exc).splitlines()[0][:400])
+
+
+# ====================================================================== Utilizador dedicado do portal
+@bp.route("/definicoes/<int:db_id>/utilizador", methods=["GET", "POST"])
+@auth.requires("oracle.definicoes")
+def cfg_dboperator(db_id):
+    db = store.get_db(db_id) or abort(404)
+    resultado = None
+    nome = (request.form.get("nome") or request.args.get("nome") or "DBOPERATOR").strip().upper()
+    if request.method == "POST":
+        pw, rep = request.form.get("password", ""), request.form.get("repeat", "")
+        try:
+            if pw != rep:
+                raise ValueError("A password e a confirmação não coincidem.")
+            resultado = inspecao.criar_dboperator(db, crypto.decrypt(db["password_enc"]), nome, pw)
+            if resultado["ok"]:
+                with store.tx() as t:
+                    if not t.val("SELECT COUNT(*) FROM oracle_utilizadores WHERE db_id = ? AND username = ?",
+                                 (db_id, resultado["nome"])):
+                        t.insert("oracle_utilizadores", {"db_id": db_id, "username": resultado["nome"],
+                                                         "finalidade": "ligação do portal (dboperator)",
+                                                         "created_at": store.now(), "created_by": g.user.username})
+                if request.form.get("usar"):
+                    store.save_db({**db, "username": resultado["nome"], "role": "NORMAL"}, crypto.encrypt(pw), db_id)
+                    flash(f"Utilizador {resultado['nome']} criado; a ligação {db['name']} passou a usá-lo (Normal).", "ok")
+                    return redirect(url_for("oracle.cfg_dbs", _anchor=f"db{db_id}"))
+                flash(f"Utilizador {resultado['nome']} criado com os privilégios do portal.", "ok")
+            else:
+                flash("Alguns comandos falharam: veja o resultado abaixo.", "error")
+        except ValueError as exc:
+            flash(str(exc), "error")
+        except Exception as exc:  # noqa: BLE001
+            flash(f"Falha na ligação: {str(exc).splitlines()[0][:300]}", "error")
+    try:
+        script_cdb = inspecao.texto_script(inspecao.script_dboperator(nome, True))
+        script_pdb = inspecao.texto_script(inspecao.script_dboperator(nome, False))
+    except ValueError as exc:
+        flash(str(exc), "error")
+        nome = "DBOPERATOR"
+        script_cdb = inspecao.texto_script(inspecao.script_dboperator(nome, True))
+        script_pdb = inspecao.texto_script(inspecao.script_dboperator(nome, False))
+    return render_template("oracle/dboperator.html", db=db, nome=nome, grants=inspecao.GRANTS, script_cdb=script_cdb,
+                           script_pdb=script_pdb, resultado=resultado, portal_users=_portal_users(db_id))

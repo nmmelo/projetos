@@ -33,8 +33,10 @@ MODULO = modulos.registar(modulos.Modulo(
         "oracle.shrink.executar": "Shrink — modo EXECUTAR (e cancelar execuções)",
         "oracle.execucoes.apagar": "Apagar execuções terminadas (do histórico)",
         "oracle.definicoes": "Definições: gerir as bases de dados Oracle",
+        "oracle.bds": "Bases de dados: estado, versão, Data Guard, ASM, jobs, recyclebin, schemas e backups",
     },
     abas=[
+        ("oracle.bds", "Bases de dados", "oracle.bds"),
         ("oracle.report", "Tablespaces", "oracle.tablespaces"),
         ("oracle.shrink", "Shrink", ("oracle.shrink.analise", "oracle.shrink.executar")),
         ("oracle.jobs_list", "Execuções", None),

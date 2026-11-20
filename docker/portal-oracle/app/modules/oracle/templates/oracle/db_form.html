@@ -33,6 +33,11 @@
       <label class="inline"><input type="radio" name="role" value="SYSDBA" {{ 'checked' if db.role == 'SYSDBA' }}> <span>SYSDBA</span></label>
       <span class="hint">Com SYSDBA o shrink usa <code>X$KTFBUE</code> (cálculo do HWM muito mais rápido). SYSDBA remoto
       exige password file na BD (<code>remote_login_passwordfile = EXCLUSIVE</code>).</span>
+      <div class="dica-dbop">
+        <b>Recomendado: um utilizador próprio do portal</b> (ex. <code>DBOPERATOR</code>), com os privilégios mínimos, em vez do SYS/SYSTEM.
+        {% if editing and db.id %}<a href="{{ url_for('oracle.cfg_dboperator', db_id=db.id) }}">Ver o SQL e criar →</a>
+        {% else %}Depois de guardar, use <b>Utilizador do portal</b> na lista para ver o SQL ou criá-lo por esta ligação.{% endif %}
+      </div>
     </fieldset>
 
     <div class="full buttons">

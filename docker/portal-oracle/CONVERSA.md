@@ -361,3 +361,5 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 
 **Resposta — fase 1, módulo Autenticação:** tipo de autenticação por utilizador (Local ou LDAP; o administrador é sempre local), Configuração → Autenticação com os cartões Local e LDAP (número de utilizadores) e a janela de configuração (driver OpenLDAP ou Active Directory, STARTTLS/LDAPS, certificado da CA ou sem validação, conta de serviço, filtro, grupo obrigatório, criação no primeiro login) com **Testar ligação** passo a passo; registo de acessos.
 
+**Resposta — fase 2, Oracle → Bases de dados:** tabela com estado (verde aberta, laranja MOUNT/a mudar, vermelho fechada/sem ligação, com o texto ao passar o rato), versão, SID, service name, Data Guard e log mode; janela por BD com Geral, ASM, Data Guard, Jobs, Recyclebin (por schema, com detalhe), Schemas (criados pelo portal a roxo, com filtro), Backups RMAN e Data Pump. Utilizador dedicado `DBOPERATOR`: privilégios com o motivo, SQL para PDB e CDB$ROOT e botão **Criar** pela ligação guardada (e passar a usá-lo).
+

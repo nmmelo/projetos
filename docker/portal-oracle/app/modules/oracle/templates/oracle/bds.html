@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Oracle · Bases de dados{% endblock %}
+{% block content %}
+{% include "oracle/_tabs.html" %}
+<section class="jx-filtros">
+  <div class="jx-toolbar">
+    <label class="jx-search"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 2a8 8 0 0 1 6.32 12.9l5.39 5.4-1.42 1.4-5.39-5.38A8 8 0 1 1 10 2Zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z"/></svg>
+      <input type="search" id="q" placeholder="Procurar nome, host, versão ou service name" autocomplete="off"></label>
+    <button type="button" class="icon-btn" id="agora" title="Atualizar agora">↻ <span>Atualizar</span></button>
+  </div>
+  <div class="jx-linha2"><div class="jx-chips" id="chips">
+    {% for k, r, c in [('', 'Todas', 'todas'), ('ok', 'Abertas', 'sucesso'), ('warn', 'Montadas / a mudar', 'aviso'), ('bad', 'Fechadas / sem ligação', 'erro')] %}
+    <button type="button" class="chip r-{{ c }} {{ 'on' if not k }}" data-f="{{ k }}"><i></i>{{ r }} <b data-n="{{ k }}">0</b></button>{% endfor %}
+  </div><span class="muted small">Verde = aberta · laranja = MOUNT / a abrir · vermelho = fechada ou sem ligação. Passe o rato pela bola para ver o estado.</span></div>
+</section>
+{% if not dbs %}
+<p class="muted">Não há bases de dados{% if user.can('oracle.definicoes') %}: acrescente em <a href="{{ url_for('oracle.cfg_db_form') }}">Definições</a>{% endif %}.</p>
+{% else %}
+<div class="table-wrap">
+<table class="bd-tab">
+  <thead><tr><th></th><th>Nome</th><th>Base de dados</th><th>Versão</th><th>Instância (SID)</th><th>Service name</th>
+    <th>Papel / Data Guard</th><th>Log</th><th>Ligação</th></tr></thead>
+  <tbody>
+  {% for d in dbs %}
+    <tr data-id="{{ d.id }}" class="bd-linha" tabindex="0" translate="no">
+      <td><span class="bola b-cinza" title="A verificar…"></span></td>
+      <td><b>{{ d.name }}</b><br><small class="muted">{{ d.host }}:{{ d.port }}</small></td>
+      <td data-c="db">—</td><td data-c="versao">—</td><td data-c="inst">{{ d.sid or '—' }}</td>
+      <td data-c="svc">{{ d.service_name or '—' }}</td><td data-c="papel">—</td><td data-c="log">—</td>
+      <td data-c="lig"><small>{{ d.username }}{% if d.role == 'SYSDBA' %} · SYSDBA{% endif %}</small></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<dialog id="dbd" class="jx-dlg">
+  <div class="jx-dlg-head">
+    <div><h2 id="dt" translate="no"></h2><div class="muted small" id="ds"></div></div>
+    <div class="buttons">
+      {% if user.can('oracle.tablespaces') %}<a class="btn small" id="dlts" href="#">Tablespaces</a>{% endif %}
+      {% if user.can('oracle.definicoes') %}<a class="btn small" id="dluser" href="#">Utilizador do portal</a>{% endif %}
+      <button type="button" class="small" id="dfechar" aria-label="Fechar">✕</button></div>
+  </div>
+  <nav class="subtabs bd-sub" id="dtabs">
+    {% for k, r in [('geral', 'Geral'), ('asm', 'ASM'), ('dataguard', 'Data Guard'), ('jobs', 'Jobs'), ('recyclebin', 'Recyclebin'), ('schemas', 'Schemas'), ('rman', 'Backups RMAN'), ('datapump', 'Data Pump')] %}
+    <a href="#" data-p="{{ k }}">{{ r }}</a>{% endfor %}
+  </nav>
+  <div class="dlg-corpo" id="dcorpo"></div>
+</dialog>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const API = "{{ url_for('oracle.api_bd_resumo', db_id=0) }}".replace('/0/', '/{id}/'), DET = "{{ url_for('oracle.api_bd_detalhe', db_id=0, parte='x') }}".replace('/0/', '/{id}/').replace(/\/x$/, '/{p}');
+  const TS = "{{ url_for('oracle.report') }}", USR = "{{ url_for('oracle.cfg_dboperator', db_id=0) }}";
+  const $ = id => document.getElementById(id), T = s => (window.t ? window.t(s) : s);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const num = v => v == null || v === '' ? '—' : Number(v).toLocaleString('pt-PT');
+  const res = {}; let filtro = '', atual = null, cache = {};
+  const COR = {ok: 'b-verde', warn: 'b-laranja', bad: 'b-vermelha'};
+
+  async function uma(tr) {
+    const id = tr.dataset.id, b = tr.querySelector('.bola');
+    b.className = 'bola b-cinza a-pulsar'; b.title = T('A verificar…');
+    let d;
+    try { d = await (await fetch(API.replace('{id}', id), {cache: 'no-store'})).json(); }
+    catch (e) { d = {ok: false, cor: 'bad', estado_txt: String(e)}; }
+    res[id] = d;
+    b.className = 'bola ' + (COR[d.cor] || 'b-cinza'); b.title = T(d.estado_txt || '');
+    const c = k => tr.querySelector(`[data-c="${k}"]`);
+    if (d.ok) {
+      c('db').innerHTML = `<b>${esc(d.db_unique_name)}</b>${d.contentor && d.contentor !== d.db_name ? `<br><small class="muted">${esc(d.contentor)}</small>` : ''}${d.cdb ? ' <span class="tag">CDB</span>' : ''}`;
+      c('versao').innerHTML = `${esc(d.versao)}<br><small class="muted" title="${esc(d.banner)}">${esc((d.banner || '').replace(/^Oracle Database \d+[a-z]* /, '').slice(0, 40))}</small>`;
+      c('inst').innerHTML = `${esc(d.instancia)}<br><small class="muted">${esc(d.host)}</small>`;
+      c('svc').innerHTML = `${esc(d.service_name)}${d.servicos.length > 1 ? `<br><small class="muted" title="${esc(d.servicos.join(', '))}">+${d.servicos.length - 1} ${T('serviço(s)')}</small>` : ''}`;
+      c('papel').innerHTML = `${esc(d.papel)} ${d.dataguard ? `<span class="tag dg" title="${esc(T('Proteção') + ': ' + (d.protecao || '') + ' · broker ' + (d.broker || ''))}">Data Guard</span>` : `<span class="muted small">${T('sem Data Guard')}</span>`}`;
+      c('log').innerHTML = `<small>${esc(d.log_mode)}${d.flashback === 'YES' ? '<br>FLASHBACK' : ''}</small>`;
+    } else {
+      c('db').innerHTML = `<small class="c-bad">${esc((d.erro || d.estado_txt || '').slice(0, 120))}</small>`;
+      ['versao', 'papel', 'log'].forEach(k => c(k).textContent = '—');
+    }
+    if (d.ligacao && d.ligacao.portal) c('lig').innerHTML += ` <span class="tag portal-user" title="${esc(T('Utilizador criado pelo portal'))}">portal</span>`;
+    contar(); filtrar();
+  }
+  function contar() { const v = Object.values(res); document.querySelectorAll('#chips b').forEach(b => b.textContent = b.dataset.n ? v.filter(x => x.cor === b.dataset.n).length : document.querySelectorAll('.bd-linha').length); }
+  function filtrar() { const q = $('q').value.trim().toLowerCase();
+    document.querySelectorAll('.bd-linha').forEach(tr => { const d = res[tr.dataset.id] || {};
+      tr.hidden = (filtro && d.cor !== filtro) || (q && !tr.textContent.toLowerCase().includes(q)); }); }
+  function todas() { document.querySelectorAll('.bd-linha').forEach(uma); }
+  $('chips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; document.querySelectorAll('#chips .chip').forEach(x => x.classList.toggle('on', x === b)); filtro = b.dataset.f; filtrar(); };
+  $('q').oninput = filtrar; $('agora').onclick = todas; todas();
+
+  // ---------------------------------------------------------------- janela
+  const tabela = (linhas, cols, cls = '') => linhas && linhas.length ? `<div class="table-wrap"><table class="small-tab ${cls}" translate="no"><thead><tr>${cols.map(c => `<th>${esc(T(c[1]))}</th>`).join('')}</tr></thead><tbody>${
+      linhas.map(l => `<tr class="${l._cls || ''}" ${l._attr || ''}>${cols.map(c => `<td>${c[2] ? c[2](l[c[0]], l) : esc(l[c[0]] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : `<p class="muted">${T('Sem dados.')}</p>`;
+  const barra = p => p == null ? '—' : `<div class="mini-bar"><span class="b-${p >= 90 ? 'bad' : p >= 75 ? 'warn' : 'ok'}" style="width:${p}%"></span></div> ${Number(p).toFixed(1)}%`;
+  const kv = l => `<dl class="kvl">${l.filter(x => x[1] != null && x[1] !== '').map(([k, v]) => `<dt>${esc(T(k))}</dt><dd translate="no">${v}</dd>`).join('')}</dl>`;
+  const pill = (t, c) => `<span class="sys-pill ${c}">${esc(T(t))}</span>`;
+  const R = {
+    geral: (x, d) => `<div class="smtp-grid">${kv([['Estado', pill(d.estado_txt || '—', d.cor)], ['Base de dados', esc(d.db_unique_name)], ['Contentor', esc(d.contentor)],
+        ['Instância (SID)', esc(d.instancia)], ['Servidor', esc(d.host)], ['Versão', esc(d.banner)], ['Plataforma', esc(d.plataforma)],
+        ['Arranque', esc(d.arranque)], ['Papel', esc(d.papel)], ['Proteção', esc(d.protecao)], ['Log mode', esc(d.log_mode)],
+        ['Flashback', esc(d.flashback)], ['Force logging', esc(d.force_logging)], ['Serviços', esc((d.servicos || []).join(', '))]])}
+      ${kv([['Datafiles', num(x.tamanho.dados_mb) + ' MB'], ['Temp', num(x.tamanho.temp_mb) + ' MB'], ['Segmentos (ocupado)', num(x.tamanho.segmentos_mb) + ' MB'],
+        ['Tablespaces', num(x.tamanho.tablespaces)], ['Sessões de utilizador', num(x.tamanho.sessoes)], ['SGA', num(x.tamanho.sga_mb) + ' MB'],
+        ['PGA alocada', num(x.tamanho.pga_mb) + ' MB'], ['Character set', esc(x.tamanho.charset)], ['Criada', esc(x.tamanho.criada)],
+        ['Redo', x.redo ? `${x.redo.grupos} × ${x.redo.membros} · ${num(x.redo.tamanho_mb)} MB` : ''],
+        ['FRA', x.fra ? `${num(x.fra.usado_mb)} / ${num(x.fra.limite_mb)} MB (${T('recuperável')} ${num(x.fra.recuperavel_mb)} MB)` : T('não configurada')]])}</div>
+      <h3>${T('Tablespaces mais ocupadas')}</h3>${tabela(x.ts, [['tablespace_name', 'Tablespace'], ['pct', 'Ocupação (máx.)', barra]])}`,
+    asm: x => x.diskgroups.length ? tabela(x.diskgroups, [['name', 'Diskgroup'], ['state', 'Estado'], ['type', 'Redundância'], ['total_mb', 'Total (MB)', num],
+        ['free_mb', 'Livre (MB)', num], ['usable_file_mb', 'Utilizável (MB)', num], ['pct_usado', 'Ocupado', barra], ['offline_disks', 'Discos offline', v => v ? `<b class="c-bad">${v}</b>` : '0']])
+        : `<p class="muted">${T('Esta base de dados não usa ASM (ou o utilizador não vê V$ASM_DISKGROUP).')}</p>`,
+    dataguard: x => kv([['Papel', esc(x.bd.database_role)], ['Modo de proteção', esc(x.bd.protection_mode)], ['Nível de proteção', esc(x.bd.protection_level)],
+        ['Switchover', esc(x.bd.switchover_status)], ['Broker', esc(x.bd.dataguard_broker)], ['Fast-start failover', esc(x.bd.fs_failover_status)]]) +
+      `<h3>${T('Destinos')}</h3>` + tabela(x.destinos, [['dest_id', '#'], ['destination', 'Destino'], ['status', 'Estado', v => pill(v, v === 'VALID' ? 'ok' : 'bad')], ['type', 'Tipo'],
+        ['database_mode', 'Modo'], ['recovery_mode', 'Recuperação'], ['gap_status', 'Gap'], ['error', 'Erro']]) +
+      `<h3>${T('Atraso (standby)')}</h3>` + tabela(x.estatisticas, [['name', 'Métrica'], ['value', 'Valor'], ['unit', 'Unidade'], ['time_computed', 'Calculado em']]),
+    jobs: x => tabela(x.jobs, [['owner', 'Owner'], ['job_name', 'Job'], ['enabled', 'Ativo', v => v === 'TRUE' ? pill('Sim', 'ok') : pill('Não', 'off')],
+        ['state', 'Estado'], ['last_start_date', 'Última'], ['next_run_date', 'Próxima'], ['run_count', 'Execuções', num], ['failure_count', 'Falhas', v => v ? `<b class="c-bad">${v}</b>` : '0']]) +
+      `<h3>${T('Falhas nos últimos 7 dias')}</h3>` + tabela(x.falhas, [['actual_start_date', 'Início'], ['owner', 'Owner'], ['job_name', 'Job'], ['status', 'Estado', v => pill(v, 'bad')], ['error#', 'Erro'], ['additional_info', 'Informação']]) +
+      (x.dba_jobs.length ? `<h3>DBA_JOBS</h3>` + tabela(x.dba_jobs, [['job', '#'], ['log_user', 'Utilizador'], ['what', 'O quê'], ['broken', 'Broken'], ['failures', 'Falhas'], ['last_date', 'Última'], ['next_date', 'Próxima']]) : ''),
+    recyclebin: x => `<div class="tiles g3"><div class="tile num-tile"><span class="tile-l">${T('Objetos')}</span><b class="tile-v">${num(x.total_objetos)}</b></div>
+        <div class="tile num-tile"><span class="tile-l">${T('Espaço')}</span><b class="tile-v">${num(x.total_mb)} MB</b></div>
+        <div class="tile num-tile"><span class="tile-l">${T('Schemas')}</span><b class="tile-v">${x.donos.length}</b></div></div>
+      <p class="hint">${T('Clique num schema para ver os objetos.')}</p>` +
+      tabela(x.donos.map(l => ({...l, _cls: 'clicavel', _attr: `data-owner="${esc(l.owner)}"`})), [['owner', 'Schema'], ['objetos', 'Objetos', num], ['espaco_mb', 'Espaço (MB)', num], ['mais_antigo', 'Mais antigo']]) + '<div id="rbowner"></div>',
+    schemas: x => `<div class="jx-chips" id="schips"><button type="button" class="chip on" data-s="">${T('Todos')} <b>${x.schemas.length}</b></button>
+        <button type="button" class="chip" data-s="portal">${T('Criados pelo portal')} <b>${x.schemas.filter(s => s.portal).length}</b></button></div>` +
+      tabela(x.schemas.map(s => ({...s, _cls: s.portal ? 'portal-linha' : ''})), [['username', 'Schema', (v, l) => esc(v) + (l.portal ? ' <span class="tag portal-user">portal</span>' : '')],
+        ['account_status', 'Estado', v => pill(v, v === 'OPEN' ? 'ok' : 'off')], ['default_tablespace', 'Tablespace'], ['tamanho_mb', 'Tamanho (MB)', num],
+        ['segmentos', 'Segmentos', num], ['created', 'Criado'], ['last_login', 'Último login'], ['profile', 'Profile']], 'schemas-tab'),
+    rman: x => `<div class="tiles g3">${['DB FULL', 'DB INCR', 'ARCHIVELOG'].map(k => `<div class="tile num-tile"><span class="tile-l">${T('Último')} ${k}</span>
+        <b class="tile-v small-v">${esc((x.ultimo[k] || '—').slice(0, 16))}</b></div>`).join('')}</div>` +
+      tabela(x.jobs, [['start_time', 'Início'], ['end_time', 'Fim'], ['input_type', 'Tipo'], ['status', 'Estado', v => pill(v, (v || '').startsWith('COMPLETED') ? ((v || '').includes('WARN') ? 'warn' : 'ok') : (v || '').startsWith('RUNNING') ? 'warn' : 'bad')],
+        ['entrada_mb', 'Lido (MB)', num], ['saida_mb', 'Escrito (MB)', num], ['output_device_type', 'Destino'], ['time_taken_display', 'Duração']]) +
+      `<p class="hint">${T('Últimos 30 dias (V$RMAN_BACKUP_JOB_DETAILS).')}</p>`,
+    datapump: x => `<h3>${T('Jobs Data Pump (em curso ou parados)')}</h3>` + tabela(x.jobs, [['owner_name', 'Owner'], ['job_name', 'Job'], ['operation', 'Operação'], ['job_mode', 'Modo'], ['state', 'Estado'], ['degree', 'Paralelismo'], ['attached_sessions', 'Sessões']]) +
+      `<h3>${T('Diretórios')}</h3>` + tabela(x.diretorios, [['directory_name', 'Diretório'], ['directory_path', 'Caminho']]) +
+      `<p class="hint">${T('O histórico dos expdp/impdp terminados não fica no dicionário: está nos ficheiros .log destes diretórios.')}</p>`,
+  };
+  async function parte(p) {
+    document.querySelectorAll('#dtabs a').forEach(a => a.classList.toggle('on', a.dataset.p === p));
+    const corpo = $('dcorpo'), k = atual + ':' + p;
+    if (!cache[k]) {
+      corpo.innerHTML = `<p class="muted">${T('A ligar à base de dados…')}</p>`;
+      try { cache[k] = await (await fetch(DET.replace('{id}', atual).replace('{p}', p), {cache: 'no-store'})).json(); }
+      catch (e) { cache[k] = {ok: false, error: String(e)}; }
+    }
+    const x = cache[k];
+    corpo.innerHTML = x.ok ? R[p](x, res[atual] || {}) : `<div class="flash error">${esc(x.error)}</div>`;
+  }
+  $('dtabs').onclick = e => { const a = e.target.closest('a'); if (!a) return; e.preventDefault(); parte(a.dataset.p); };
+  $('dcorpo').addEventListener('click', async e => {
+    const tr = e.target.closest('tr[data-owner]'); if (tr) {
+      const o = tr.dataset.owner, box = $('rbowner'); box.innerHTML = `<p class="muted">${T('A carregar…')}</p>`;
+      const x = await (await fetch(DET.replace('{id}', atual).replace('{p}', 'recyclebin_owner') + '?owner=' + encodeURIComponent(o))).json();
+      box.innerHTML = `<h3>${T('Recyclebin de')} <span translate="no">${esc(o)}</span></h3>` + (x.ok ? tabela(x.objetos, [['original_name', 'Nome original'], ['type', 'Tipo'], ['ts_name', 'Tablespace'],
+        ['espaco_mb', 'Espaço (MB)', num], ['droptime', 'Apagado em'], ['object_name', 'Nome na recyclebin'], ['can_purge', 'Purge']]) +
+        `<p class="hint">${T('Para libertar o espaço (como o owner ou DBA):')} <code translate="no">PURGE TABLESPACE … USER ${esc(o)};</code> ${T('ou')} <code translate="no">PURGE DBA_RECYCLEBIN;</code></p>` : `<div class="flash error">${esc(x.error)}</div>`);
+      return; }
+    const b = e.target.closest('#schips .chip'); if (b) {
+      document.querySelectorAll('#schips .chip').forEach(x => x.classList.toggle('on', x === b));
+      document.querySelectorAll('.schemas-tab tbody tr').forEach(r => r.hidden = b.dataset.s === 'portal' && !r.classList.contains('portal-linha')); }
+  });
+  function abrir(id) {
+    atual = id; const tr = document.querySelector(`.bd-linha[data-id="${id}"]`), d = res[id] || {};
+    $('dt').textContent = tr.querySelector('b').textContent;
+    $('ds').innerHTML = `${esc(tr.querySelector('small').textContent)} · <span class="bola ${COR[d.cor] || 'b-cinza'}"></span> ${esc(T(d.estado_txt || ''))}`;
+    if ($('dlts')) $('dlts').href = TS + '?db=' + id; if ($('dluser')) $('dluser').href = USR.replace('/0/', '/' + id + '/');
+    Object.keys(cache).forEach(k => { if (k.startsWith(id + ':')) delete cache[k]; });
+    $('dbd').showModal(); parte('geral');
+  }
+  document.querySelectorAll('.bd-linha').forEach(tr => { tr.onclick = () => abrir(tr.dataset.id); tr.onkeydown = e => { if (e.key === 'Enter') abrir(tr.dataset.id); }; });
+  $('dfechar').onclick = () => $('dbd').close();
+})();
+</script>
+{% endblock %}

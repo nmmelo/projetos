@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Oracle · Utilizador do portal{% endblock %}
+{% block content %}
+{% include "oracle/_tabs.html" %}
+<p class="crumbs"><a href="{{ url_for('oracle.cfg_dbs') }}">Definições</a> › <span translate="no">{{ db.name }}</span> › <span>Utilizador do portal</span></p>
+<div class="smtp-grid">
+<section class="card">
+  <h2>Utilizador dedicado do portal</h2>
+  <p class="muted">Em vez do SYS/SYSTEM, o portal pode ligar-se com um utilizador próprio só com o que precisa. Os privilégios:</p>
+  <div class="table-wrap"><table class="small-tab">
+    <thead><tr><th>Privilégio</th><th>Para quê</th></tr></thead>
+    <tbody>{% for g_, p in grants %}<tr><td translate="no"><code>{{ g_ }}</code></td><td>{{ p }}</td></tr>{% endfor %}
+      <tr><td translate="no"><code>EXECUTE ON SYS.DBMS_PIPE</code></td><td>shrink: output em direto (DBMS_PIPE)</td></tr>
+      <tr><td translate="no"><code>SELECT ON SYS.X_$KTFBUE</code></td><td>shrink: cálculo rápido do HWM (a vista é criada como SYS)</td></tr></tbody>
+  </table></div>
+  <form method="get" class="inline-form wrap" style="margin:12px 0">
+    <label>Nome <input name="nome" value="{{ nome }}" maxlength="30" translate="no"></label><button>Atualizar o SQL</button></form>
+  <h3>Numa PDB ou numa BD sem multitenant</h3>
+  <pre class="mono-area small cmd" translate="no">{{ script_pdb }}</pre>
+  <h3>No CDB$ROOT (utilizador comum, em todas as PDB)</h3>
+  <pre class="mono-area small cmd" translate="no">{{ script_cdb }}</pre>
+  <p class="hint">Corra como SYSDBA (ex. <code>sqlplus / as sysdba</code>), trocando <code>&lt;password&gt;</code>. Depois, em
+    <a href="{{ url_for('oracle.cfg_db_form', db_id=db.id) }}">Editar</a>, use este utilizador com o tipo de ligação <b>Normal</b>.</p>
+</section>
+
+<section class="card">
+  <h2>Criar por esta ligação</h2>
+  <p class="muted">Usa a ligação guardada (<span translate="no"><b>{{ db.username }}</b>{% if db.role == 'SYSDBA' %} · SYSDBA{% endif %}</span>),
+    que tem de poder criar utilizadores e dar estes privilégios (SYSDBA, ou DBA com <code>WITH ADMIN OPTION</code>).
+    {% if db.role != 'SYSDBA' %}<br><b>Sem SYSDBA não é criada a vista <code>X_$KTFBUE</code></b> (o shrink usa a estimativa).{% endif %}</p>
+  <form method="post" class="stack" onsubmit="return confirm('Criar o utilizador ' + this.nome.value.toUpperCase() + ' na base de dados {{ db.name }}?')">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label>Nome <input name="nome" value="{{ nome }}" maxlength="30" required translate="no">
+      <span class="hint">No CDB$ROOT passa a <code>C##{{ nome }}</code>.</span></label>
+    <label>Password do novo utilizador <input name="password" type="password" minlength="12" required autocomplete="new-password">
+      <span class="hint">Mínimo 12 caracteres, com letras e números, sem aspas.</span></label>
+    <label>Confirmar password <input name="repeat" type="password" minlength="12" required autocomplete="new-password"></label>
+    <label class="inline"><input type="checkbox" name="usar" value="1" checked> Passar a usar este utilizador nesta ligação (tipo Normal)</label>
+    <div class="buttons"><button class="primary">Criar utilizador</button></div>
+  </form>
+  {% if resultado %}
+  <h3>Resultado</h3>
+  <div class="lista">{% for p in resultado.passos %}
+    <div class="lrow"><span class="dot d-{{ 'ok' if p.ok else 'bad' }}"></span>
+      <span class="lrow-t"><b translate="no">{{ p.sql }}</b>{% if p.erro %}<small class="c-bad" translate="no">{{ p.erro }}</small>{% endif %}</span></div>
+  {% endfor %}</div>
+  {% endif %}
+  {% if portal_users %}
+  <h3>Utilizadores criados pelo portal nesta BD</h3>
+  <ul class="lista-simples small">{% for u in portal_users %}<li><b translate="no">{{ u.username }}</b> — {{ u.created_at }} · {{ u.created_by }}</li>{% endfor %}</ul>
+  <p class="hint">Aparecem destacados em Bases de dados → Schemas.</p>
+  {% endif %}
+</section>
+</div>
+{% endblock %}

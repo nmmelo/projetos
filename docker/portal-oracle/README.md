@@ -11,6 +11,7 @@ Instala-se **num servidor** (script `instalar.sh`, ver [Instalação num servido
 | Menu | Conteúdo |
 |---|---|
 | **Home** | Painel de cartões dos módulos a que o utilizador tem acesso (Oracle, Sistema, SMTP, notificações e o estado do portal), atualizado de x em x segundos; botão **Editar** para adicionar, esconder e reordenar cartões |
+| **Oracle → Bases de dados** | Estado de cada BD (verde/laranja/vermelho), versão, SID, service name, Data Guard; janela com ASM, Data Guard, jobs, recyclebin por schema, schemas, backups RMAN e Data Pump |
 | **Oracle → Tablespaces** | Tamanho, usado e livre, do maior para o mais pequeno (sem SYSTEM, SYSAUX, UNDO e TEMP) |
 | **Oracle → Shrink** | Um tablespace ou TODOS, em ANÁLISE ou EXECUTAR, corre em segundo plano |
 | **Oracle → Execuções** | Tabela dinâmica com filtros (sucesso, avisos, erros, falhadas, em curso; tablespace; BD; modo; texto também no output), janela com o output a saltar para os erros, apagar (uma, selecionadas, falhadas); andamento em direto (barra, passos, tempo, output linha a linha), log e cancelamento |
@@ -42,6 +43,39 @@ Instala-se **num servidor** (script `instalar.sh`, ver [Instalação num servido
 | Home | Editar painel |
 |---|---|
 | ![Home](docs/home.png) | ![Editar](docs/home-editar.png) |
+
+### Oracle → Bases de dados
+
+Permissão `oracle.bds`. Uma tabela com todas as BDs visíveis no perfil, verificadas em paralelo (botão **Atualizar**):
+
+| Coluna | Origem |
+|---|---|
+| Estado (bola) | 🟢 aberta (`OPEN`, com o `OPEN_MODE`), 🟠 `MOUNT`/`NOMOUNT` ou a abrir/fechar (ORA-01033), 🔴 fechada (ORA-01034, serviço não registado) ou sem ligação. Passar o rato mostra o texto |
+| Base de dados, contentor, CDB | `V$DATABASE`, `SYS_CONTEXT('USERENV', 'CON_NAME')` |
+| Versão, instância (SID), servidor | `V$INSTANCE`, `V$VERSION` |
+| Service name | O da ligação, e os outros de `V$SERVICES` |
+| Papel / Data Guard | `DATABASE_ROLE`; **Data Guard** se for standby, tiver destino `STANDBY` válido ou o broker ligado |
+| Log | `ARCHIVELOG`/`NOARCHIVELOG`, `FLASHBACK` |
+| Ligação | Utilizador usado; `portal` se foi criado pelo portal |
+
+Filtros: Todas / Abertas / Montadas / Fechadas e pesquisa. **Clicar numa BD** abre a janela com o detalhe (cada aba é lida quando se abre):
+
+| Aba | Conteúdo |
+|---|---|
+| **Geral** | Estado, versão, plataforma, arranque, papel, proteção, log mode, flashback, force logging, serviços; tamanho (datafiles, temp, segmentos), tablespaces, sessões, SGA/PGA, character set, redo, FRA; as 5 tablespaces mais ocupadas |
+| **ASM** | Diskgroups (`V$ASM_DISKGROUP`): estado, redundância, total, livre, utilizável, % ocupado, discos offline |
+| **Data Guard** | Papel, proteção, switchover, broker, fast-start failover; destinos (`V$ARCHIVE_DEST_STATUS`: estado, modo, recuperação, gap, erro); atraso no standby (`V$DATAGUARD_STATS`) |
+| **Jobs** | `DBA_SCHEDULER_JOBS` (sem os do SYS): ativo, estado, última/próxima, execuções, falhas; falhas dos últimos 7 dias; `DBA_JOBS` |
+| **Recyclebin** | Total e por schema (objetos, espaço, mais antigo); clicar num schema mostra os objetos e o comando `PURGE` |
+| **Schemas** | `DBA_USERS` não mantidos pela Oracle: estado, tablespace, tamanho, segmentos, criado, último login. Os **criados pelo portal** aparecem a roxo, com filtro |
+| **Backups RMAN** | Últimos 30 dias (`V$RMAN_BACKUP_JOB_DETAILS`): tipo, estado, lido/escrito, destino, duração; último DB FULL, DB INCR e ARCHIVELOG concluídos |
+| **Data Pump** | Jobs em curso ou parados (`DBA_DATAPUMP_JOBS`) e diretórios. O histórico dos expdp/impdp terminados não fica no dicionário (está nos `.log`) |
+
+Tudo é só leitura (`SELECT ANY DICTIONARY` chega). Cada consulta tem o comentário `/* portal:<aba> */`, para se encontrar no `V$SQL`.
+
+| Bases de dados | Detalhe (Geral) | Recyclebin por schema |
+|---|---|---|
+| ![Bases de dados](docs/oracle-bds.png) | ![Geral](docs/oracle-bd-geral.png) | ![Recyclebin](docs/oracle-bd-recyclebin.png) |
 
 ### Histórico de execuções (Oracle → Execuções)
 
@@ -1270,6 +1304,14 @@ Ou, a partir do anfitrião, `docker-compose restart`.
 | Normal | `SELECT ANY DICTIONARY`, `ALTER DATABASE`, `ALTER ANY TABLE`, `ALTER ANY INDEX`, `ALTER SYSTEM` (para cancelar) | Sem a vista abaixo, estima o HWM por `DBA_FREE_SPACE` (rápido) e só usa `DBA_EXTENTS` para os objetos acima do alvo e se o resize falhar com ORA-03297 |
 | HWM rápido com ligação Normal (recomendado) | Como SYS: `CREATE OR REPLACE VIEW SYS.X_$KTFBUE AS SELECT * FROM SYS.X$KTFBUE;` e `GRANT SELECT ON SYS.X_$KTFBUE TO <utilizador>;` | Igual ao script `oracledb/query/shrink_tablespace`. O **Testar ligação** (Oracle → Definições) indica o método usado: `X$KTFBUE`, `X_$KTFBUE` ou `DBA_FREE_SPACE` |
 | Output em direto (opcional) | `GRANT EXECUTE ON SYS.DBMS_PIPE TO <utilizador>` | Sem este privilégio, a barra e o passo atual continuam em direto, mas as linhas do output só aparecem no fim. Com SYSDBA já existe |
+
+**Utilizador dedicado do portal (recomendado).** Em vez do SYS/SYSTEM, crie um utilizador só com o que o portal precisa (ex. `DBOPERATOR`). Em **Oracle → Definições → Utilizador do portal** (cada BD):
+
+| O quê | Descrição |
+|---|---|
+| Privilégios | `CREATE SESSION`, `SELECT ANY DICTIONARY`, `ALTER DATABASE`, `ALTER ANY TABLE`, `ALTER ANY INDEX`, `ALTER SYSTEM`, `EXECUTE ON SYS.DBMS_PIPE` e `SELECT ON SYS.X_$KTFBUE` (com a vista), cada um com o motivo |
+| SQL | O script completo para uma PDB/BD sem multitenant e para o `CDB$ROOT` (utilizador comum `C##…`, `CONTAINER = ALL`), para correr como SYSDBA |
+| **Criar utilizador** | Corre o script pela ligação já guardada (SYSDBA, ou DBA com `WITH ADMIN OPTION`), mostra o resultado de cada comando (password escondida) e, se escolher, passa a ligação a usar o novo utilizador (tipo Normal). Fica registado como "criado pelo portal" e aparece destacado em Bases de dados → Schemas |
 
 O driver é o **python-oracledb** em modo *thin* (sem Instant Client). Requer Oracle 12.1 ou superior e não suporta Native Network Encryption: nesses casos, use o modo *thick*.
 

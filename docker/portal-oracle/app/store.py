@@ -14,7 +14,7 @@ from . import aparencia, crypto, modulos, settings
 
 TABLES = ("settings", "oracle_dbs", "profiles", "users", "jobs", "backups", "system_actions",
           "notification_rules", "notifications", "email_queue", "traducoes", "agendamentos",
-          "agendamento_execucoes")
+          "agendamento_execucoes", "oracle_utilizadores")
 
 # Definicoes volateis (escritas pelo agente a cada poucos segundos): fora dos backups
 VOLATEIS = ("agente_estado", "sistema_metricas", "smtp_estado", "regras_iniciais", "regras_iniciais_2", "i18n_rev")
@@ -118,6 +118,14 @@ _SCHEMA = [
         erro TEXT,
         log {LONGTEXT},
         pedido_por VARCHAR(64)
+    ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS oracle_utilizadores (
+        id {ID},
+        db_id INTEGER NOT NULL,
+        username VARCHAR(128) NOT NULL,
+        finalidade VARCHAR(200),
+        created_at VARCHAR(19) NOT NULL,
+        created_by VARCHAR(64)
     ){SUFFIX}""",
     """CREATE TABLE IF NOT EXISTS auth_log (
         id {ID},
