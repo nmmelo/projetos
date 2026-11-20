@@ -258,7 +258,7 @@ listar_instancias() {   # nomes das instancias registadas (incluindo as de verso
     {
         for f in "$ESTADO_DIR"/*.conf; do [[ -f $f ]] && basename "$f" .conf; done
         for u in /etc/systemd/system/*.service; do
-            [[ -f $u ]] && grep -q '^Description=Portal Oracle' "$u" && basename "$u" .service
+            [[ -f $u && $u != *-agente.service ]] && grep -q '^Description=Portal Oracle' "$u" && basename "$u" .service
         done
         true
     } 2>/dev/null | sort -u
@@ -340,16 +340,21 @@ listar() {
     local n; local -a lista
     mapfile -t lista < <(listar_instancias)
     if (( ${#lista[@]} == 0 )); then echo "Nao ha instancias do portal neste servidor."; return 0; fi
-    printf "%-20s %-24s %-9s %-36s %s\n" NOME PASTA SERVICO ENDERECO "ULTIMA EXECUCAO"
+    local ag
+    printf "%-20s %-24s %-9s %-9s %-36s %s\n" NOME PASTA SERVICO AGENTE ENDERECO "ULTIMA EXECUCAO"
     for n in "${lista[@]}"; do
+        ag=$(systemctl is-active "$n-agente" 2>/dev/null || true)
+        [[ -f /etc/systemd/system/$n-agente.service ]] || ag="-"
         if carregar_estado "$n"; then
             calcular_url
-            printf "%-20s %-24s %-9s %-36s %s\n" "$n" "${DIR:-?}" "$(systemctl is-active "$n" 2>/dev/null || true)" \
+            printf "%-20s %-24s %-9s %-9s %-36s %s\n" "$n" "${DIR:-?}" "$(systemctl is-active "$n" 2>/dev/null || true)" "$ag" \
                 "$URL" "${ULTIMA_EXEC:-?}$([[ ${ESTADO_INST:-} == incompleta ]] && echo ' (incompleta)')"
         else
-            printf "%-20s %-24s %-9s %s\n" "$n" "?" "$(systemctl is-active "$n" 2>/dev/null || true)" "(sem configuracao guardada)"
+            printf "%-20s %-24s %-9s %-9s %s\n" "$n" "?" "$(systemctl is-active "$n" 2>/dev/null || true)" "$ag" "(sem configuracao guardada)"
         fi
     done
+    echo
+    echo "Agente: systemctl status <nome>-agente | journalctl -u <nome>-agente -n 50 | no portal: Sistema e Configuracao > Agendamento"
 }
 
 # ============================================================================ sistema
