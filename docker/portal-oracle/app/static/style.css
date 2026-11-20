@@ -646,3 +646,11 @@ tr.clicavel:hover td { background: var(--hover); }
 #dcorpo h3 { margin: 18px 0 8px; font-size: 14px; }
 .dica-dbop { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--info-bg); font-size: 13px; }
 #dbd { height: min(880px, 92vh); }
+
+/* Firewall */
+.fw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+.fw-grid .card { max-width: none; }
+.fw-add { margin-top: 10px; }
+.fw-rule { white-space: normal; word-break: break-all; font-size: 12.5px; }
+.fw-log { max-height: 65vh; overflow: auto; white-space: pre-wrap; font-size: 12px; }
+.ipset-lista { max-height: 320px; overflow: auto; }

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Firewall · IPsets{% endblock %}
+{% block content %}
+{% include "firewall/_tabs.html" %}
+{% if erro %}<div class="flash error" translate="no">{{ erro }}</div>{% endif %}
+{% if est.backend == 'ufw' %}<p class="muted">O ufw não tem ipsets (são do firewalld).</p>
+{% elif est.ativo %}
+<p class="muted">Listas de endereços (<code>/etc/firewalld/ipsets/</code>) usadas em origens (<code>ipset:nome</code>) ou em regras ricas
+  (<code>source ipset="nome"</code>). As alterações vão para a configuração permanente e para a em execução.</p>
+<div class="fw-grid">
+{% for s in ipsets %}
+<section class="card">
+  <div class="modulo-head"><h2 translate="no">{{ s.nome }}</h2><span class="tag" translate="no">{{ s.tipo }}</span></div>
+  <p class="muted small"><span>{{ s.n }} entrada(s)</span>{% if s.opcoes %} · <span translate="no">{{ s.opcoes }}</span>{% endif %} · <code translate="no">{{ s.ficheiro }}</code></p>
+  <div class="lista ipset-lista">{% for e in s.entradas[:300] %}<div class="lrow"><span class="lrow-t"><b translate="no">{{ e }}</b></span>
+    {% if pode %}<form method="post" action="{{ url_for('firewall.acao') }}" class="inline-form"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="acao" value="ipset_del"><input type="hidden" name="ipset" value="{{ s.nome }}"><input type="hidden" name="entrada" value="{{ e }}">
+      <input type="hidden" name="voltar" value="{{ request.path }}"><button class="small danger" aria-label="Retirar">✕</button></form>{% endif %}</div>
+  {% else %}<p class="muted small">Vazio.</p>{% endfor %}</div>
+  {% if s.n > 300 %}<p class="hint">… e mais {{ s.n - 300 }}.</p>{% endif %}
+  {% if pode %}
+  <form method="post" action="{{ url_for('firewall.acao') }}" class="stack fw-add">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="ipset_add"><input type="hidden" name="ipset" value="{{ s.nome }}">
+    <input type="hidden" name="voltar" value="{{ request.path }}">
+    <textarea name="entrada" rows="2" placeholder="10.1.2.3, 10.20.0.0/16 (vários separados por espaços, vírgulas ou linhas)" translate="no" required></textarea>
+    <div class="buttons"><button class="primary">+ Acrescentar</button></div></form>
+  <form method="post" action="{{ url_for('firewall.acao') }}" onsubmit="return confirm('Apagar o ipset {{ s.nome }}? Regras que o usem deixam de funcionar.')">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="ipset_apagar"><input type="hidden" name="ipset" value="{{ s.nome }}">
+    <input type="hidden" name="voltar" value="{{ request.path }}"><button class="small danger">Apagar o ipset</button></form>
+  {% endif %}
+</section>
+{% else %}<p class="muted">Não há ipsets.</p>{% endfor %}
+{% if pode %}
+<section class="card">
+  <h2>Novo ipset</h2>
+  <form method="post" action="{{ url_for('firewall.acao') }}" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="ipset_novo"><input type="hidden" name="voltar" value="{{ request.path }}">
+    <label>Nome <input name="ipset" pattern="[A-Za-z0-9_.\-]{1,40}" required translate="no" placeholder="admins"></label>
+    <label>Tipo <select name="tipo">{% for t in tipos %}<option>{{ t }}</option>{% endfor %}</select>
+      <span class="hint"><code>hash:ip</code> endereços; <code>hash:net</code> redes (CIDR).</span></label>
+    <div class="buttons"><button class="primary">Criar</button></div>
+  </form>
+</section>
+{% endif %}
+</div>
+{% endif %}
+{% endblock %}

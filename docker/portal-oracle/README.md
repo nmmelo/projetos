@@ -338,6 +338,36 @@ O estado fica na tabela `settings` (`module.<chave>` = `1`/`0`), por isso entra 
 
 ---
 
+## Módulo Firewall (firewalld / ufw)
+
+Ver e alterar a firewall do servidor do portal. Ative-o em **Configuração → Módulos** e dê, nos perfis, o acesso (`modulo.firewall`) e, a quem pode alterar, `firewall.alterar`.
+
+| Aba | Conteúdo |
+|---|---|
+| Geral | Estado (ativa/parada, versão), zona por omissão, LogDenied, modo pânico, zonas ativas (interfaces e origens), **Recarregar** e as últimas alterações feitas pelo portal (comando, utilizador e resultado) |
+| Regras | Por zona e por configuração (em execução / permanente): serviços, portas, origens (IP, rede ou `ipset:nome`), regras ricas e outros (target, masquerade, forward). No ufw, as regras numeradas. Acrescentar e apagar |
+| IPsets | Os ipsets (`/etc/firewalld/ipsets/`) com o tipo e as entradas; criar, apagar, acrescentar várias entradas de uma vez e retirar |
+| Logs | Registo do serviço `firewalld` e pacotes recusados (registo do kernel), com filtro |
+| Definições | Versão, ficheiros de configuração, serviços predefinidos, LogDenied, modo pânico e as permissões do portal |
+
+As alterações são feitas na configuração permanente e na em execução ao mesmo tempo (não é preciso recarregar). Os valores são validados (zona, serviço, porta 1-65535, IP/rede, regra rica a começar por `rule `) e o comando é executado sem shell.
+
+**Permissões** (instalação sem Docker): o portal corre como utilizador de serviço e usa `sudo -n firewall-cmd`/`ufw` e `journalctl` com comandos exatos, autorizados por um ficheiro `sudoers` próprio (validado com `visudo`):
+
+```bash
+sudo ./instalar.sh --firewall dba-portal on       # autorizar (/etc/sudoers.d/dba-portal-firewall)
+sudo ./instalar.sh --firewall dba-portal status   # ver
+sudo ./instalar.sh --firewall dba-portal off      # retirar
+```
+
+Sem isto, as abas mostram o comando a correr. Iniciar, parar e reiniciar o `firewalld` faz-se no módulo **Sistema** (`--servicos dba-portal +firewalld`). No Docker, o módulo vê só o contentor (não se aplica).
+
+![Firewall](docs/firewall.png)
+![Firewall - Regras](docs/firewall-regras.png)
+![Firewall - IPsets](docs/firewall-ipsets.png)
+
+---
+
 ## Agendamento
 
 Em **Configuração → Agendamento**: as tarefas periódicas do portal e dos módulos ativos, executadas pelo **agente** (sem o agente não correm à hora marcada; podem correr à mão com **▶ Agora**).
@@ -720,6 +750,7 @@ Ao voltar a correr o script, ele mostra as instâncias do servidor e a configura
 | **Atualizar o código** pelo Git e reaplicar | `sudo ./instalar.sh --atualizar <nome> [URL [branch [pasta]]]`. Se a instância foi instalada a partir de uma pasta (sem repositório guardado), usa o URL indicado ou pergunta-o, e guarda-o para a próxima vez (ver [Atualizar o código](#6-atualizar-o-código-sincronizar-com-o-repositório)) |
 | **Diagnóstico** (portal indisponível?) | `sudo ./instalar.sh --verificar <nome>` |
 | **Modo de manutenção** | `sudo ./instalar.sh --manutencao <nome> on\|off\|status` |
+| **Firewall** (sudoers do portal para o módulo Firewall) | `sudo ./instalar.sh --firewall <nome> on\|off\|status` |
 | **Serviços do módulo Sistema** (sudoers do agente) | `sudo ./instalar.sh --servicos <nome> [+servico\|-servico\|"lista"]`, ex. `+firewalld` |
 | **Outra instância** no mesmo servidor | `sudo ./instalar.sh` → "Nova instancia". Use outro nome DNS (ou outra porta HTTP) |
 | **Remover** | `sudo ./instalar.sh --desinstalar <nome>`: remove o serviço, o site do Nginx, o cron e a configuração guardada. Pergunta se apaga a pasta (antes guarda `data/` em `/root/<nome>-data-<data>.tar.gz`) e o utilizador. A base de dados MariaDB/PostgreSQL não é tocada |
@@ -1333,6 +1364,7 @@ O driver é o **python-oracledb** em modo *thin* (sem Instant Client). Requer Or
 | `services.portal.ports contains an invalid type, it should be a number, or an object` | Uma porta no `.env` não é só um número (ex. ficou `<porta_http>`, tem aspas, espaços, um comentário no fim ou CRLF). Veja com `grep -n PORT .env \| cat -A`, deixe `PORTAL_HTTP_PORT=8090` e `PORTAL_SSH_PORT=2223` e confirme com `docker-compose config -q`. O `portal-docker.sh` limpa e valida estes valores |
 | O `portal-docker.sh` volta a pôr as portas 8080 e 2222 | As portas foram alteradas no `docker-compose.yml`, que é substituído em cada atualização. Ponha-as no `.env` (`PORTAL_HTTP_PORT`, `PORTAL_SSH_PORT`) ou use `-H`/`-S` |
 | Um serviço aparece com 🔒 "sem sudoers" no Sistema | O agente não tem permissão para esse serviço: `sudo ./instalar.sh --servicos <nome> +<servico>` |
+| Firewall: "O portal não tem permissão para ler a firewall" | Falta o `sudoers`: `sudo ./instalar.sh --firewall <nome> on`. Se a firewall estiver parada, inicie-a no Sistema |
 | Uma tarefa agendada não corre | Confirme em Configuração → Agendamento: interruptor geral **Ativos**, tarefa ativa, módulo ativo e agente ativo (`systemctl status <nome>-agente`). O resultado de cada execução fica no histórico da tarefa |
 | Textos em português com a língua inglesa | São textos sem tradução: traduza-os em Configuração → Aparência → Linguagem (filtro **Em falta**) ou exporte/importe o XML. Dados, código e notificações já criadas não são traduzidos |
 | `Internal Server Error` | O erro fica no log do serviço com uma referência que aparece na página: `journalctl -u <nome> \| grep <referência>`. Na versão anterior acontecia em Oracle → Execuções quando havia uma execução em curso (corrigido) |

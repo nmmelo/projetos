@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Firewall · Regras{% endblock %}
+{% block content %}
+{% include "firewall/_tabs.html" %}
+{% if erro %}<div class="flash error" translate="no">{{ erro }}</div>{% endif %}
+{% macro apagar(acao, campos, titulo='Apagar') -%}
+{% if pode %}<form method="post" action="{{ url_for('firewall.acao') }}" class="inline-form" onsubmit="return confirm('{{ titulo }}?')">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="{{ acao }}">
+  <input type="hidden" name="voltar" value="{{ request.full_path }}">
+  {% for k, v in campos.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  <button class="small danger" title="Apagar" aria-label="Apagar">✕</button></form>{% endif %}
+{%- endmacro %}
+{% if z %}
+<section class="jx-filtros">
+  <form method="get" class="jx-toolbar">
+    <label class="jx-sel"><span>Zona</span><select name="zona" onchange="this.form.submit()" translate="no">
+      {% for n in est.zonas %}<option value="{{ n }}" {{ 'selected' if n == z.nome }}>{{ n }}{{ ' (omissão)' if n == est.zona_padrao }}</option>{% endfor %}</select></label>
+    <label class="jx-sel"><span>Configuração</span><select name="perm" onchange="this.form.submit()">
+      <option value="0" {{ 'selected' if not perm }}>Em execução</option><option value="1" {{ 'selected' if perm }}>Permanente</option></select></label>
+    <span class="muted small">As alterações são feitas na permanente e em execução ao mesmo tempo.</span>
+  </form>
+</section>
+<div class="fw-grid">
+  <section class="card">
+    <h2>Serviços</h2>
+    <div class="lista">{% for s in z.services %}<div class="lrow"><span class="lrow-t"><b translate="no">{{ s }}</b></span>{{ apagar('servico_del', {'zona': z.nome, 'servico': s}, 'Retirar o serviço ' ~ s) }}</div>
+    {% else %}<p class="muted small">Nenhum.</p>{% endfor %}</div>
+    {% if pode %}<form method="post" action="{{ url_for('firewall.acao') }}" class="inline-form wrap fw-add">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="servico_add">
+      <input type="hidden" name="zona" value="{{ z.nome }}"><input type="hidden" name="voltar" value="{{ request.full_path }}">
+      <input name="servico" placeholder="ex. https, ssh, oracle" required list="lservicos" translate="no"><button class="primary">+ Serviço</button></form>{% endif %}
+  </section>
+  <section class="card">
+    <h2>Portas</h2>
+    <div class="lista">{% for p in z.ports %}<div class="lrow"><span class="lrow-t"><b translate="no">{{ p }}</b></span>{{ apagar('porta_del', {'zona': z.nome, 'porta': p.split('/')[0], 'proto': p.split('/')[1]}, 'Fechar a porta ' ~ p) }}</div>
+    {% else %}<p class="muted small">Nenhuma.</p>{% endfor %}</div>
+    {% if pode %}<form method="post" action="{{ url_for('firewall.acao') }}" class="inline-form wrap fw-add">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="porta_add">
+      <input type="hidden" name="zona" value="{{ z.nome }}"><input type="hidden" name="voltar" value="{{ request.full_path }}">
+      <input name="porta" placeholder="1521 ou 8000-8100" required size="12"><select name="proto">{% for p in protos %}<option>{{ p }}</option>{% endfor %}</select>
+      <button class="primary">+ Porta</button></form>{% endif %}
+  </section>
+  <section class="card">
+    <h2>Origens (sources)</h2>
+    <div class="lista">{% for s in z.sources %}<div class="lrow"><span class="lrow-t"><b translate="no">{{ s }}</b></span>{{ apagar('source_del', {'zona': z.nome, 'source': s}, 'Retirar a origem ' ~ s) }}</div>
+    {% else %}<p class="muted small">Nenhuma (a zona aplica-se às interfaces).</p>{% endfor %}</div>
+    {% if pode %}<form method="post" action="{{ url_for('firewall.acao') }}" class="inline-form wrap fw-add">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="source_add">
+      <input type="hidden" name="zona" value="{{ z.nome }}"><input type="hidden" name="voltar" value="{{ request.full_path }}">
+      <input name="source" placeholder="10.0.0.0/8 ou ipset:nome" required translate="no"><button class="primary">+ Origem</button></form>{% endif %}
+  </section>
+  <section class="card">
+    <h2>Outros</h2>
+    {% from "_cartoes.html" import kv %}
+    {{ kv([('Target', z.target), ('Interfaces', z.interfaces|join(', ')), ('Masquerade', z.masquerade), ('Forward', z.forward), ('Forward ports', z['forward-ports']|join(', ')), ('Protocolos', z.protocols|join(', ')), ('ICMP bloqueado', z['icmp-blocks']|join(', '))]) }}
+  </section>
+</div>
+<section class="card full" style="margin-top:16px">
+  <h2>Regras ricas</h2>
+  <div class="lista">{% for r in z['rich rules'] %}<div class="lrow"><span class="lrow-t"><code translate="no" class="fw-rule">{{ r }}</code></span>{{ apagar('rich_del', {'zona': z.nome, 'regra': r}, 'Apagar esta regra') }}</div>
+  {% else %}<p class="muted small">Nenhuma.</p>{% endfor %}</div>
+  {% if pode %}<form method="post" action="{{ url_for('firewall.acao') }}" class="stack fw-add">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="rich_add">
+    <input type="hidden" name="zona" value="{{ z.nome }}"><input type="hidden" name="voltar" value="{{ request.full_path }}">
+    <input name="regra" required translate="no" placeholder='rule family="ipv4" source address="10.10.0.0/16" port port="1521" protocol="tcp" accept'>
+    <div class="buttons"><button class="primary">+ Regra rica</button>
+      <span class="hint">Exemplos: <code translate="no">rule family="ipv4" source ipset="admins" service name="ssh" accept</code> ·
+        <code translate="no">rule family="ipv4" source address="1.2.3.4" drop</code></span></div></form>{% endif %}
+</section>
+<datalist id="lservicos">{% for s in ['ssh', 'http', 'https', 'cockpit', 'oracle', 'postgresql', 'mysql', 'smtp', 'ntp', 'dns', 'zabbix-agent', 'nfs'] %}<option value="{{ s }}">{% endfor %}</datalist>
+{% elif est.backend == 'ufw' and est.ok %}
+<section class="card full">
+  <h2>Regras (ufw)</h2>
+  <div class="table-wrap"><table class="small-tab" translate="no">
+    <thead><tr><th>#</th><th>Para</th><th>Ação</th><th>Direção</th><th>De</th><th>Comentário</th><th></th></tr></thead>
+    <tbody>{% for r in regras_ufw %}<tr><td>{{ r.n }}</td><td><b>{{ r.para }}</b></td><td><span class="sys-pill {{ 'ok' if r.acao in ('ALLOW', 'LIMIT') else 'bad' }}">{{ r.acao }}</span></td>
+      <td>{{ r.direcao }}</td><td>{{ r.de }}</td><td>{{ r.comentario }}</td><td>{{ apagar('ufw_del', {'n': r.n}, 'Apagar a regra ' ~ r.n) }}</td></tr>
+    {% else %}<tr><td colspan="7" class="muted">Sem regras.</td></tr>{% endfor %}</tbody></table></div>
+  {% if pode %}<form method="post" action="{{ url_for('firewall.acao') }}" class="inline-form wrap fw-add">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="ufw_add"><input type="hidden" name="voltar" value="{{ request.full_path }}">
+    <select name="politica"><option value="allow">Permitir</option><option value="deny">Recusar</option><option value="reject">Rejeitar</option><option value="limit">Limitar</option></select>
+    <input name="porta" placeholder="Porta (ex. 1521)" size="12"><select name="proto">{% for p in protos[:2] %}<option>{{ p }}</option>{% endfor %}</select>
+    <input name="de" placeholder="De (IP/rede, opcional)" translate="no"><input name="comentario" placeholder="Comentário" maxlength="60">
+    <button class="primary">+ Regra</button></form>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

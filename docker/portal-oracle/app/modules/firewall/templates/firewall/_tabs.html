@@ -1,0 +1,13 @@
+<h1>Firewall {% if est.backend %}<span class="tag">{{ est.backend }}</span>{% endif %}</h1>
+<nav class="tabs">
+  {% for ep, r in [('firewall.geral', 'Geral'), ('firewall.regras', 'Regras'), ('firewall.ipsets', 'IPsets'), ('firewall.logs', 'Logs'), ('firewall.definicoes', 'Definições')] %}
+  <a href="{{ url_for(ep) }}" class="{{ 'on' if request.endpoint == ep }}">{{ r }}</a>{% endfor %}
+</nav>
+{% if docker %}<div class="flash warn">No Docker, este módulo vê a firewall do contentor (normalmente não existe). A firewall do servidor gere-se numa instalação sem Docker.</div>
+{% elif not est.backend %}<div class="flash error">{{ est.msg }}</div>
+{% elif est.permissao == false or (not est.ok) %}
+<div class="flash error"><span>O portal não tem permissão para ler a firewall.</span> <span>No servidor:</span>
+  <code translate="no">sudo instalar.sh --firewall {{ instancia }} on</code>{% if est.msg %}<br><small translate="no">{{ est.msg[:200] }}</small>{% endif %}</div>
+{% elif est.backend == 'firewalld' and not est.ativo %}
+<div class="flash warn"><span>O firewalld está parado.</span> {% if user.can('modulo.sistema') %}<a href="{{ url_for('sistema.painel') }}">Iniciar em Sistema</a>{% else %}<span>Inicie-o no servidor:</span> <code>systemctl start firewalld</code>{% endif %}</div>
+{% endif %}

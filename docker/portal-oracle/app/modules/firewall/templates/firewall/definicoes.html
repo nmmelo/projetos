@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_cartoes.html" import kv %}
+{% block title %}Firewall · Definições{% endblock %}
+{% block content %}
+{% include "firewall/_tabs.html" %}
+<div class="smtp-grid">
+<section class="card">
+  <h2>Informação</h2>
+  {{ kv([('Firewall', est.backend or 'nenhuma'), ('Versão', est.versao), ('Estado', est.estado or (est.info.status if est.info else '')),
+         ('Configuração', '/etc/firewalld/ (zones, services, ipsets, firewalld.conf)' if est.backend == 'firewalld' else ('/etc/ufw/' if est.backend == 'ufw' else '')),
+         ('Serviços conhecidos', extra.servicos|length if extra.servicos else ''), ('Tipos ICMP', extra.icmp|length if extra.icmp else ''),
+         ('Tipos de ipset', extra.conf|join(', ') if extra.conf else '')]) }}
+  <h3>Permissões do portal</h3>
+  <p class="small">O portal (utilizador de serviço) usa <code>sudo -n firewall-cmd</code> / <code>sudo -n ufw</code> e lê o registo com
+    <code>journalctl</code> (comandos exatos), autorizados em <code translate="no">/etc/sudoers.d/{{ instancia }}-firewall</code>:</p>
+  <pre class="mono-area small cmd" translate="no">sudo instalar.sh --firewall {{ instancia }} on      # autorizar
+sudo instalar.sh --firewall {{ instancia }} status  # ver
+sudo instalar.sh --firewall {{ instancia }} off     # retirar</pre>
+  <p class="hint">Iniciar, parar e reiniciar o serviço <code>firewalld</code> faz-se no módulo Sistema (<code>instalar.sh --servicos {{ instancia }} +firewalld</code>).</p>
+</section>
+{% if est.backend == 'firewalld' and est.ativo %}
+<section class="card">
+  <h2>Opções</h2>
+  {% if pode %}
+  <form method="post" action="{{ url_for('firewall.acao') }}" class="inline-form wrap">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="log_denied"><input type="hidden" name="voltar" value="{{ request.path }}">
+    <label>Registar pacotes recusados (LogDenied)
+      <select name="valor">{% for v in ['off', 'all', 'unicast', 'broadcast', 'multicast'] %}<option {{ 'selected' if est.log_denied == v }}>{{ v }}</option>{% endfor %}</select></label>
+    <button>Aplicar</button></form>
+  <p class="hint">Com <code>all</code> ou <code>unicast</code>, os pacotes recusados aparecem em Logs → Pacotes recusados.</p>
+  <form method="post" action="{{ url_for('firewall.acao') }}" onsubmit="return confirm('{{ 'Desligar' if est.panico else 'LIGAR' }} o modo pânico? {{ '' if est.panico else 'Bloqueia TODO o tráfego, incluindo o acesso a este portal.' }}')">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="panico"><input type="hidden" name="valor" value="{{ 'off' if est.panico else 'on' }}">
+    <input type="hidden" name="voltar" value="{{ request.path }}">
+    <button class="{{ '' if est.panico else 'danger' }}">{{ 'Desligar o modo pânico' if est.panico else 'Ligar o modo pânico' }}</button></form>
+  {% else %}<p class="muted">Sem permissão para alterar (firewall.alterar).</p>{% endif %}
+  {% if extra.servicos %}<h3>Serviços predefinidos</h3><p class="small muted" translate="no">{{ extra.servicos|join(' · ') }}</p>{% endif %}
+</section>
+{% endif %}
+</div>
+{% endblock %}

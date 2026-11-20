@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Firewall · Logs{% endblock %}
+{% block content %}
+{% include "firewall/_tabs.html" %}
+<section class="jx-filtros">
+  <div class="jx-toolbar">
+    <label class="jx-search"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 2a8 8 0 0 1 6.32 12.9l5.39 5.4-1.42 1.4-5.39-5.38A8 8 0 1 1 10 2Zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z"/></svg>
+      <input type="search" id="q" placeholder="Filtrar (IP, porta, zona, texto)" autocomplete="off"></label>
+    <button type="button" class="icon-btn" id="agora">↻ <span>Atualizar</span></button>
+  </div>
+  <div class="jx-linha2"><div class="jx-chips" id="chips">
+    <button type="button" class="chip on" data-t="servico">Serviço {{ est.backend or 'firewalld' }}</button>
+    <button type="button" class="chip" data-t="kernel">Pacotes recusados</button></div>
+    <span class="muted small" id="info"></span></div>
+</section>
+<pre class="mono-area fw-log" id="log" translate="no">A carregar…</pre>
+<p class="hint">"Pacotes recusados" vem do registo do kernel e só tem linhas com o LogDenied ligado (Definições) ou, no ufw, com o registo ligado.</p>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const $ = id => document.getElementById(id); let tipo = 'servico', tq;
+  async function carregar() {
+    $('log').textContent = (window.t || (x => x))('A carregar…');
+    const r = await fetch("{{ url_for('firewall.api_logs') }}?" + new URLSearchParams({tipo, q: $('q').value}), {cache: 'no-store'});
+    const d = await r.json();
+    if (!d.ok) { $('log').textContent = d.error; return; }
+    $('log').textContent = d.linhas.join('\n') || '—'; $('info').textContent = d.linhas.length + ' linha(s)';
+    $('log').scrollTop = $('log').scrollHeight;
+  }
+  $('chips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; document.querySelectorAll('#chips .chip').forEach(x => x.classList.toggle('on', x === b)); tipo = b.dataset.t; carregar(); };
+  $('q').oninput = () => { clearTimeout(tq); tq = setTimeout(carregar, 400); }; $('agora').onclick = carregar; carregar();
+})();
+</script>
+{% endblock %}

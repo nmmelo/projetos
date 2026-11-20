@@ -127,6 +127,14 @@ _SCHEMA = [
         created_at VARCHAR(19) NOT NULL,
         created_by VARCHAR(64)
     ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS firewall_acoes (
+        id {ID},
+        quando VARCHAR(19) NOT NULL,
+        utilizador VARCHAR(64),
+        comando VARCHAR(500),
+        ok INTEGER,
+        resultado TEXT
+    ){SUFFIX}""",
     """CREATE TABLE IF NOT EXISTS auth_log (
         id {ID},
         quando VARCHAR(19) NOT NULL,

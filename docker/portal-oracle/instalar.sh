@@ -115,6 +115,9 @@ Uso:
                                       servicos do modulo Sistema que o agente pode iniciar/parar/
                                       reiniciar (sudoers). Sem argumentos mostra a lista e os servicos
                                       detetados. Ex.: --servicos dba-portal +firewalld
+  sudo ./instalar.sh --firewall NOME on|off|status
+                                      modulo Firewall: autoriza o portal a ler e alterar a firewall
+                                      (firewall-cmd ou ufw) e a ler o registo do firewalld (sudoers)
   sudo ./instalar.sh --desinstalar [NOME]
   ./instalar.sh --help                esta ajuda (tambem -h, --ajuda)
 
@@ -396,7 +399,7 @@ desinstalar() {
     sim_nao "Parar e remover o servico, o site do Nginx e o cron de '$nome'?" n || exit 0
 
     systemctl disable --now "$nome" "$nome-agente" 2>/dev/null || true
-    rm -f "$unit" "/etc/systemd/system/$nome-agente.service" "/etc/sudoers.d/$nome-agente" \
+    rm -f "$unit" "/etc/systemd/system/$nome-agente.service" "/etc/sudoers.d/$nome-agente" "/etc/sudoers.d/$nome-firewall" \
           "/etc/cron.d/$nome" "$ESTADO_DIR/$nome.conf"
     systemctl daemon-reload
     rm -f "/etc/nginx/sites-enabled/$nome" "/etc/nginx/sites-available/$nome" "/etc/nginx/conf.d/$nome.conf"
@@ -487,6 +490,44 @@ gerir_servicos() {   # --servicos NOME [LISTA | +UNIT | -UNIT ...]
     exit 0
 }
 
+# ============================================================================ firewall (modulo Firewall)
+gerir_firewall() {   # --firewall NOME on|off|status
+    local f="/etc/sudoers.d/$NOME-firewall" tmp cmds=() fc uf jc
+    titulo "Modulo Firewall - '$NOME'"
+    fc=$(command -v firewall-cmd || true); uf=$(command -v ufw || true); jc=$(command -v journalctl || echo /usr/bin/journalctl)
+    info "firewalld: ${fc:-nao instalado}   ufw: ${uf:-nao instalado}"
+    case "$FW_ACAO" in
+        status)
+            if [[ -f $f ]]; then ok "autorizado ($f):"; sed 's/^/     /' "$f"; else info "nao autorizado (sem $f)"; fi
+            info "Ativar: sudo $0 --firewall $NOME on   |   desativar: sudo $0 --firewall $NOME off" ;;
+        off)
+            rm -f "$f"; ok "autorizacao removida ($f)" ;;
+        on)
+            [[ -n $fc || -n $uf ]] || erro "nem firewalld (firewall-cmd) nem ufw instalados"
+            [[ -n $fc ]] && cmds+=("$fc *")
+            [[ -n $uf ]] && cmds+=("$uf *")
+            # registo: comandos exatos (sem argumentos livres: o journalctl com pager permitiria uma shell)
+            cmds+=("$jc -u firewalld --no-pager -o short-iso -n 500" "$jc -k --no-pager -o short-iso -n 3000")
+            tmp=$(mktemp)
+            {
+                echo "# Portal Oracle '$NOME': o portal ($UTIL) pode ler e alterar a firewall (modulo Firewall)."
+                echo "# Gerado pelo instalar.sh --firewall. Remover: instalar.sh --firewall $NOME off"
+                local linha="" c
+                for c in "${cmds[@]}"; do linha+="${linha:+, }$c"; done
+                echo "Defaults!${fc:-$uf} !requiretty"
+                echo "$UTIL ALL=(root) NOPASSWD: $linha"
+            } > "$tmp"
+            chmod 440 "$tmp"
+            if command -v visudo >/dev/null && ! visudo -cf "$tmp" >/dev/null 2>&1; then
+                visudo -cf "$tmp" || true; rm -f "$tmp"; erro "regra sudoers invalida"
+            fi
+            mv "$tmp" "$f"
+            ok "autorizado: $f"
+            info "Ative o modulo Firewall no portal (Configuracao > Modulos)." ;;
+    esac
+    exit 0
+}
+
 # ============================================================================ verificar
 verificar() {   # diagnostico de uma instancia (portal indisponivel?)
     local unit="/etc/systemd/system/$NOME.service" cod dono modo f problemas=0
@@ -545,6 +586,8 @@ case "${1:-}" in
     --manutencao)
         MODO=manutencao; NOME_ARG=${2:-}; MANUT_ACAO=${3:-status}
         [[ $MANUT_ACAO =~ ^(on|off|status)$ ]] || { echo "Uso: $0 --manutencao NOME on|off|status" >&2; exit 2; } ;;
+    --firewall) MODO=firewall; NOME_ARG=${2:-}; FW_ACAO=${3:-status}
+        [[ $FW_ACAO =~ ^(on|off|status)$ ]] || { echo "Uso: $0 --firewall NOME on|off|status" >&2; exit 2; } ;;
     --servicos) MODO=servicos; NOME_ARG=${2:-}; shift 2 2>/dev/null || shift $#; SERV_ARGS=("$@") ;;
     -*) echo "Opcao desconhecida: $1 (ver $0 --help)" >&2; exit 2 ;;
     *) NOME_ARG=${1:-} ;;
@@ -599,6 +642,7 @@ if [[ $MODO == verificar || $MODO == manutencao ]]; then
     manage maintenance "$MANUT_ACAO" | sed 's/^/   /'
     exit 0
 fi
+[[ $MODO == firewall ]] && { (( REINSTALAR )) || erro "a instancia '$NOME_ARG' nao tem configuracao guardada."; gerir_firewall; }
 [[ $MODO == servicos ]] && { (( REINSTALAR )) || erro "a instancia '$NOME_ARG' nao tem configuracao guardada."; gerir_servicos; }
 [[ $MODO == desinstalar ]] && desinstalar "$NOME_ARG"
 

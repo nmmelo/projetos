@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "_cartoes.html" import saude, kv %}
+{% block title %}Firewall · Geral{% endblock %}
+{% block content %}
+{% include "firewall/_tabs.html" %}
+<div class="smtp-grid">
+<section class="card">
+  <h2>Estado</h2>
+  {% if est.ok and est.ativo %}{{ saude('ok', 'Ativa', (est.backend ~ ' ' ~ (est.versao or ''))|trim) }}
+  {% elif est.ok %}{{ saude('bad', 'Parada' if est.backend == 'firewalld' else 'Inativa', est.backend) }}
+  {% else %}{{ saude('warn', 'Sem acesso', est.backend or 'sem firewall') }}{% endif %}
+  {% if est.backend == 'firewalld' and est.ativo %}
+  {{ kv([('Zona por omissão', est.zona_padrao), ('Registo de pacotes recusados (LogDenied)', est.log_denied), ('Modo pânico', 'LIGADO — todo o tráfego bloqueado' if est.panico else 'desligado'), ('Zonas', est.zonas|length)]) }}
+  <h3>Zonas ativas</h3>
+  <div class="lista">{% for z in est.zonas_ativas %}
+    <a class="lrow" href="{{ url_for('firewall.regras', zona=z.nome) }}"><span class="dot d-ok"></span>
+      <span class="lrow-t"><b translate="no">{{ z.nome }}</b><small translate="no">{{ ([('interfaces: ' ~ z.interfaces|join(', ')) if z.interfaces else ''] + [('sources: ' ~ z.sources|join(', ')) if z.sources else ''])|select|join(' · ') }}</small></span></a>
+  {% else %}<p class="muted small">Nenhuma zona ativa.</p>{% endfor %}</div>
+  {% elif est.backend == 'ufw' and est.ok %}
+  {{ kv([('Estado', est.info.get('status')), ('Registo', est.info.get('logging')), ('Por omissão', est.info.get('default')), ('Novos perfis', est.info.get('new profiles'))]) }}
+  {% endif %}
+  {% if pode and est.ok %}
+  <form method="post" action="{{ url_for('firewall.acao') }}" class="buttons">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="reload"><input type="hidden" name="voltar" value="{{ request.path }}">
+    <button title="Aplica a configuração permanente">⟳ Recarregar a firewall</button></form>
+  {% endif %}
+</section>
+<section class="card">
+  <h2>Últimas alterações</h2>
+  {% if historico %}<div class="lista">{% for h in historico %}
+    <details class="lrow-det"><summary class="lrow"><span class="dot d-{{ 'ok' if h.ok else 'bad' }}"></span>
+      <span class="lrow-t"><b translate="no">{{ h.comando }}</b><small>{{ h.quando }} · {{ h.utilizador }}</small></span></summary>
+      <pre class="mono-area small" translate="no">{{ h.resultado or '—' }}</pre></details>
+  {% endfor %}</div>{% else %}<p class="muted small">Ainda não houve alterações pelo portal.</p>{% endif %}
+</section>
+</div>
+{% endblock %}
