@@ -660,3 +660,20 @@ tr.clicavel:hover td { background: var(--hover); }
 .ev-msg { white-space: pre-wrap; word-break: break-word; max-width: 560px; font-family: var(--mono, monospace); font-size: 12px; }
 .nowrap { white-space: nowrap; }
 .inst .tok { color: var(--accent, #2563eb); font-weight: 600; }
+.fw-ipset { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
+.fw-lado { display: grid; gap: 16px; }
+.fw-ipset .card { max-width: none; }
+.fw-q input { min-width: 200px; }
+.fw-uso { margin: 6px 0; padding-left: 18px; }
+.fw-uso code { white-space: normal; word-break: break-all; }
+td.num, th.num { text-align: right; }
+@media (max-width: 900px) { .fw-ipset { grid-template-columns: 1fr; } }
+
+/* Largura da area central: auto (aproveita ecras grandes), largo (toda a janela) ou normal (1200 px) */
+main { max-width: max(1200px, min(92vw, 1760px)); }
+html[data-largura="largo"] main { max-width: none; }
+html[data-largura="normal"] main { max-width: 1200px; }
+html[data-largura="largo"] .card:not(.narrow) { max-width: none; }
+.largura-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 32px; border: 0; border-radius: 8px;
+  background: var(--top-hover); color: inherit; cursor: pointer; padding: 0; }
+.largura-btn:hover { filter: brightness(1.15); }

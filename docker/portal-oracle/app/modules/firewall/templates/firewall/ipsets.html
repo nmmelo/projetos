@@ -5,43 +5,50 @@
 {% if erro %}<div class="flash error" translate="no">{{ erro }}</div>{% endif %}
 {% if est.backend == 'ufw' %}<p class="muted">O ufw não tem ipsets (são do firewalld).</p>
 {% elif est.ativo %}
-<p class="muted">Listas de endereços (<code>/etc/firewalld/ipsets/</code>) usadas em origens (<code>ipset:nome</code>) ou em regras ricas
-  (<code>source ipset="nome"</code>). As alterações vão para a configuração permanente e para a em execução.</p>
-<div class="fw-grid">
-{% for s in ipsets %}
-<section class="card">
-  <div class="modulo-head"><h2 translate="no">{{ s.nome }}</h2><span class="tag" translate="no">{{ s.tipo }}</span></div>
-  <p class="muted small"><span>{{ s.n }} entrada(s)</span>{% if s.opcoes %} · <span translate="no">{{ s.opcoes }}</span>{% endif %} · <code translate="no">{{ s.ficheiro }}</code></p>
-  <div class="lista ipset-lista">{% for e in s.entradas[:300] %}<div class="lrow"><span class="lrow-t"><b translate="no">{{ e }}</b></span>
-    {% if pode %}<form method="post" action="{{ url_for('firewall.acao') }}" class="inline-form"><input type="hidden" name="csrf" value="{{ csrf_token }}">
-      <input type="hidden" name="acao" value="ipset_del"><input type="hidden" name="ipset" value="{{ s.nome }}"><input type="hidden" name="entrada" value="{{ e }}">
-      <input type="hidden" name="voltar" value="{{ request.path }}"><button class="small danger" aria-label="Retirar">✕</button></form>{% endif %}</div>
-  {% else %}<p class="muted small">Vazio.</p>{% endfor %}</div>
-  {% if s.n > 300 %}<p class="hint">… e mais {{ s.n - 300 }}.</p>{% endif %}
-  {% if pode %}
-  <form method="post" action="{{ url_for('firewall.acao') }}" class="stack fw-add">
-    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="ipset_add"><input type="hidden" name="ipset" value="{{ s.nome }}">
-    <input type="hidden" name="voltar" value="{{ request.path }}">
-    <textarea name="entrada" rows="2" placeholder="10.1.2.3, 10.20.0.0/16 (vários separados por espaços, vírgulas ou linhas)" translate="no" required></textarea>
-    <div class="buttons"><button class="primary">+ Acrescentar</button></div></form>
-  <form method="post" action="{{ url_for('firewall.acao') }}" onsubmit="return confirm('Apagar o ipset {{ s.nome }}? Regras que o usem deixam de funcionar.')">
-    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="ipset_apagar"><input type="hidden" name="ipset" value="{{ s.nome }}">
-    <input type="hidden" name="voltar" value="{{ request.path }}"><button class="small danger">Apagar o ipset</button></form>
-  {% endif %}
+<section class="jx-filtros">
+  <div class="jx-toolbar">
+    <label class="jx-search"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 2a8 8 0 0 1 6.32 12.9l5.39 5.4-1.42 1.4-5.39-5.38A8 8 0 1 1 10 2Zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z"/></svg>
+      <input type="search" id="q" placeholder="Procurar ipset ou endereço" autocomplete="off"></label>
+    {% if pode %}<button type="button" class="primary" id="bnovo">+ Novo ipset</button>{% endif %}
+  </div>
+  <div class="jx-linha2"><span class="muted small">Listas de endereços em <code>/etc/firewalld/ipsets/</code>, usadas em origens (<code>ipset:nome</code>)
+    ou em regras ricas (<code>source ipset="nome"</code>). Clique num ipset para ver e alterar as entradas.</span></div>
 </section>
-{% else %}<p class="muted">Não há ipsets.</p>{% endfor %}
+<div class="table-wrap"><table class="bd-tab" id="tab">
+  <thead><tr><th>Nome</th><th>Tipo</th><th class="num">Entradas</th><th>Primeiras entradas</th><th>Usado em</th></tr></thead>
+  <tbody>{% for s in ipsets %}{% set u = uso.get(s.nome, []) %}
+  <tr class="bd-linha" tabindex="0" data-href="{{ url_for('firewall.ipset', nome=s.nome) }}" data-txt="{{ (s.nome ~ ' ' ~ s.entradas|join(' '))|lower }}">
+    <td><b translate="no">{{ s.nome }}</b></td>
+    <td><span class="tag" translate="no">{{ s.tipo }}</span></td>
+    <td class="num">{{ s.n }}</td>
+    <td translate="no"><small>{{ s.entradas[:4]|join(', ') }}{% if s.n > 4 %} … (+{{ s.n - 4 }}){% endif %}{% if not s.n %}<span class="muted">vazio</span>{% endif %}</small></td>
+    <td>{% if u %}<small translate="no" title="{{ u|join('\n') }}">{{ u|map('truncate', 60)|join(' · ') if u|length < 3 else (u[0]|truncate(50)) ~ ' … +' ~ (u|length - 1) }}</small>
+        {% else %}<span class="sys-pill off">não usado</span>{% endif %}</td>
+  </tr>{% else %}<tr><td colspan="5" class="muted">Não há ipsets.</td></tr>{% endfor %}</tbody></table></div>
+
 {% if pode %}
-<section class="card">
-  <h2>Novo ipset</h2>
-  <form method="post" action="{{ url_for('firewall.acao') }}" class="stack">
+<dialog id="dnovo" class="jx-dlg">
+  <div class="jx-dlg-head"><div><h2>Novo ipset</h2></div><button type="button" class="small" id="dfechar" aria-label="Fechar">✕</button></div>
+  <form method="post" action="{{ url_for('firewall.acao') }}" class="stack dlg-corpo">
     <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="ipset_novo"><input type="hidden" name="voltar" value="{{ request.path }}">
-    <label>Nome <input name="ipset" pattern="[A-Za-z0-9_.\-]{1,40}" required translate="no" placeholder="admins"></label>
-    <label>Tipo <select name="tipo">{% for t in tipos %}<option>{{ t }}</option>{% endfor %}</select>
-      <span class="hint"><code>hash:ip</code> endereços; <code>hash:net</code> redes (CIDR).</span></label>
+    <label>Nome <input name="ipset" pattern="[A-Za-z0-9_.\-]{1,40}" required translate="no" placeholder="ipset-oracle"></label>
+    <label>Tipo <select name="tipo">{% for t in tipos %}<option {{ 'selected' if t == 'hash:net' }}>{{ t }}</option>{% endfor %}</select>
+      <span class="hint"><code>hash:ip</code> endereços; <code>hash:net</code> redes (CIDR) e endereços.</span></label>
     <div class="buttons"><button class="primary">Criar</button></div>
   </form>
-</section>
+</dialog>
 {% endif %}
-</div>
 {% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const q = document.getElementById('q'); if (!q) return;
+  q.oninput = () => { const v = q.value.toLowerCase(); document.querySelectorAll('#tab tbody tr[data-txt]').forEach(tr => tr.hidden = v && !tr.dataset.txt.includes(v)); };
+  document.querySelectorAll('#tab tbody tr[data-href]').forEach(tr => { tr.onclick = () => location.href = tr.dataset.href;
+    tr.onkeydown = e => { if (e.key === 'Enter') location.href = tr.dataset.href; }; });
+  const d = document.getElementById('dnovo');
+  if (d) { document.getElementById('bnovo').onclick = () => d.showModal(); document.getElementById('dfechar').onclick = () => d.close(); }
+})();
+</script>
 {% endblock %}

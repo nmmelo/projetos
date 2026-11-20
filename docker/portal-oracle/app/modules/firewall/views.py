@@ -1,5 +1,5 @@
 """Rotas do modulo Firewall."""
-from flask import flash, g, jsonify, redirect, render_template, request, url_for
+from flask import abort, flash, g, jsonify, redirect, render_template, request, url_for
 
 from ... import auth, firewall, sistema_info
 from . import bp, MODULO
@@ -45,13 +45,30 @@ def regras():
 @auth.requires(MODULO.acesso)
 def ipsets():
     c = _ctx()
-    lista, erro = [], ""
+    lista, erro, uso = [], "", {}
     try:
         if c["est"].get("backend") == "firewalld" and c["est"].get("ativo"):
             lista = firewall.ipsets()
+            uso = firewall.uso_ipsets(c["est"].get("zonas", []))
     except ValueError as exc:
         erro = str(exc)
-    return render_template("firewall/ipsets.html", ipsets=lista, erro=erro, tipos=firewall.TIPOS_IPSET, **c)
+    return render_template("firewall/ipsets.html", ipsets=lista, erro=erro, uso=uso, tipos=firewall.TIPOS_IPSET, **c)
+
+
+@bp.route("/ipsets/<nome>")
+@auth.requires(MODULO.acesso)
+def ipset(nome):
+    c = _ctx()
+    s, erro, usado = None, "", []
+    try:
+        if c["est"].get("backend") == "firewalld" and c["est"].get("ativo"):
+            s = next((x for x in firewall.ipsets() if x["nome"] == nome), None)
+            if not s:
+                abort(404)
+            usado = firewall.uso_ipsets(c["est"].get("zonas", [])).get(nome, [])
+    except ValueError as exc:
+        erro = str(exc)
+    return render_template("firewall/ipset.html", s=s, erro=erro, usado=usado, q=request.args.get("q", ""), **c)
 
 
 @bp.route("/logs")

@@ -164,6 +164,23 @@ def ipsets() -> list[dict]:
     return lista
 
 
+def uso_ipsets(zonas: list) -> dict:
+    """{ipset: [onde e usado]}: origens (ipset:nome) e regras ricas (ipset="nome"), por zona (permanente)."""
+    out: dict = {}
+    for z in zonas:
+        try:
+            d = zona(z, True)
+        except ValueError:
+            continue
+        for src in d.get("sources", []):
+            if src.startswith("ipset:"):
+                out.setdefault(src[6:], []).append(f"{z}: origem {src}")
+        for r in d.get("rich rules", []):
+            for n in re.findall(r'ipset="([^"]+)"', r):
+                out.setdefault(n, []).append(f"{z}: {r}")
+    return out
+
+
 def regras_ufw() -> list[dict]:
     rc, out = ufw("status", "numbered")
     if rc != 0:

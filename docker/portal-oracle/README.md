@@ -346,7 +346,7 @@ Ver e alterar a firewall do servidor do portal. Ative-o em **Configuração → 
 |---|---|
 | Geral | Estado (ativa/parada, versão), zona por omissão, LogDenied, modo pânico, zonas ativas (interfaces e origens), **Recarregar** e as últimas alterações feitas pelo portal (comando, utilizador e resultado) |
 | Regras | Por zona e por configuração (em execução / permanente): serviços, portas, origens (IP, rede ou `ipset:nome`), regras ricas e outros (target, masquerade, forward). No ufw, as regras numeradas. Acrescentar e apagar |
-| IPsets | Os ipsets (`/etc/firewalld/ipsets/`) com o tipo e as entradas; criar, apagar, acrescentar várias entradas de uma vez e retirar |
+| IPsets | Tabela dos ipsets (`/etc/firewalld/ipsets/`): tipo, número e primeiras entradas, e onde são usados (origens e regras ricas). Clicar abre o ipset: entradas com filtro, acrescentar várias de uma vez, retirar, apagar o ipset |
 | Logs | Registo do serviço `firewalld` e pacotes recusados (registo do kernel), com filtro |
 | Definições | Versão, ficheiros de configuração, serviços predefinidos, LogDenied, modo pânico e as permissões do portal |
 
@@ -365,6 +365,7 @@ Sem isto, as abas mostram o comando a correr. Iniciar, parar e reiniciar o `fire
 ![Firewall](docs/firewall.png)
 ![Firewall - Regras](docs/firewall-regras.png)
 ![Firewall - IPsets](docs/firewall-ipsets.png)
+![Firewall - um ipset](docs/firewall-ipset.png)
 
 ---
 
@@ -1167,6 +1168,8 @@ Só é preciso refazer a imagem (`docker-compose build`) para mudar o sistema ba
 ---
 
 ## Aparência: título, rodapé, ícone e tema
+
+**Largura da página:** o botão ao lado das notificações alterna entre *automática* (por omissão: centrada e alarga em ecrãs grandes, até 92 % da janela), *toda a largura* e *normal* (1200 px). Fica guardada no browser de cada utilizador.
 
 Em **Configuração → Aparência → Geral** (permissão `config.portal`; a sub-aba **Linguagem** está em [Línguas](#línguas-português-e-inglês)):
 

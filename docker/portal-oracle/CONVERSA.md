@@ -366,3 +366,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 **Resposta — fase 3, módulo Firewall:** firewalld ou ufw (deteção automática), abas Geral (estado, zonas ativas, recarregar, histórico de alterações), Regras (serviços, portas, origens, regras ricas por zona; regras numeradas no ufw), IPsets (criar, apagar, entradas), Logs (serviço e pacotes recusados) e Definições (versão, LogDenied, modo pânico). Permissões com `instalar.sh --firewall <nome> on`.
 
 **Resposta — fase 4, agente cliente (módulo Clientes):** clientes em Configuração → Clientes (nome, IP/DNS, VM, Debian ou Red Hat, utilizador SSH) com token, comandos de instalação por distribuição e **Testar** (DNS, porta SSH, SSH com a chave do portal e known_hosts próprio, último contacto). Agente em `/opt/agente-portal/` (Python 3 sem dependências) com `.env` cifrado, serviço systemd, socket local e fila; `setup.sh` verifica o utilizador SSH (`authorized_keys`, permissões) e acrescenta a chave do portal. Regras de notificação com id gerado e log opcional (última linha); `agente-portal notificar <ID> ...` para os scripts (rman, shrink, montagens). O intervalo de sincronização vê-se no portal e muda-se só no cliente. Traduções em inglês dos textos novos.
+
+## 24. IPsets em tabela, largura da página e agente no --lista
+
+**Pergunta:**
+> melhorar o aspecto o ipsets, pode ser uma tabela e depois ao clicar vai para a ipsets concreta. Agora nem aparece o dba-portal-agente. Podemos também melhorar o aspecto da janela centra, pode ser dinamico [...]
+
+**Resposta:** IPsets em tabela (tipo, entradas, onde são usados) com página por ipset; botão de largura da página (automática, toda a largura, normal); no `instalar.sh --lista` o agente aparece na coluna AGENTE da instância.

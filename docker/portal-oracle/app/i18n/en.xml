@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1328">
+<lingua codigo="en" nome="English" textos="1352">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -5313,5 +5313,101 @@
   <texto>
     <origem>Último login</origem>
     <traducao>Last login</traducao>
+  </texto>
+  <texto>
+    <origem>Procurar ipset ou endereço</origem>
+    <traducao>Search ipset or address</traducao>
+  </texto>
+  <texto>
+    <origem>+ Novo ipset</origem>
+    <traducao>+ New ipset</traducao>
+  </texto>
+  <texto>
+    <origem>Primeiras entradas</origem>
+    <traducao>First entries</traducao>
+  </texto>
+  <texto>
+    <origem>Usado em</origem>
+    <traducao>Used in</traducao>
+  </texto>
+  <texto>
+    <origem>não usado</origem>
+    <traducao>not used</traducao>
+  </texto>
+  <texto>
+    <origem>vazio</origem>
+    <traducao>empty</traducao>
+  </texto>
+  <texto>
+    <origem>Entradas</origem>
+    <traducao>Entries</traducao>
+  </texto>
+  <texto>
+    <origem>Endereço / rede</origem>
+    <traducao>Address / network</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiro</origem>
+    <traducao>File</traducao>
+  </texto>
+  <texto>
+    <origem>← IPsets</origem>
+    <traducao>← IPsets</traducao>
+  </texto>
+  <texto>
+    <origem>Em nenhuma origem nem regra rica (configuração permanente).</origem>
+    <traducao>In no source or rich rule (permanent configuration).</traducao>
+  </texto>
+  <texto>
+    <origem>Vários separados por espaços, vírgulas ou linhas (até 500).</origem>
+    <traducao>Several separated by spaces, commas or lines (up to 500).</traducao>
+  </texto>
+  <texto>
+    <origem>Largura da página</origem>
+    <traducao>Page width</traducao>
+  </texto>
+  <texto>
+    <origem>Largura automática (aproveita ecrãs grandes)</origem>
+    <traducao>Automatic width (uses large screens)</traducao>
+  </texto>
+  <texto>
+    <origem>Toda a largura da janela</origem>
+    <traducao>Full window width</traducao>
+  </texto>
+  <texto>
+    <origem>Largura normal (centrada)</origem>
+    <traducao>Normal width (centred)</traducao>
+  </texto>
+  <texto>
+    <origem>clique para mudar</origem>
+    <traducao>click to change</traducao>
+  </texto>
+  <texto>
+    <origem>Listas de endereços em</origem>
+    <traducao>Address lists in</traducao>
+  </texto>
+  <texto>
+    <origem>, usadas em origens (</origem>
+    <traducao>, used in sources (</traducao>
+  </texto>
+  <texto>
+    <origem>). Clique num ipset para ver e alterar as entradas.</origem>
+    <traducao>). Click an ipset to view and change its entries.</traducao>
+  </texto>
+  <texto>
+    <origem>Usar numa zona: Regras → Origens com</origem>
+    <traducao>Use in a zone: Rules → Sources with</traducao>
+  </texto>
+  <texto>
+    <origem>, ou numa regra rica com</origem>
+    <traducao>, or in a rich rule with</traducao>
+  </texto>
+  <texto>
+    <origem>redes (CIDR) e endereços.</origem>
+    <traducao>networks (CIDR) and addresses.</traducao>
+  </texto>
+  <texto>
+    <origem>Retirar {n}?</origem>
+    <traducao>Remove {n}?</traducao>
   </texto>
 </lingua>

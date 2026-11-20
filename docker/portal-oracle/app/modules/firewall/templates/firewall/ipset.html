@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Firewall · IPset {{ s.nome if s }}{% endblock %}
+{% block content %}
+{% include "firewall/_tabs.html" %}
+<p><a href="{{ url_for('firewall.ipsets') }}">← IPsets</a></p>
+{% if erro %}<div class="flash error" translate="no">{{ erro }}</div>{% endif %}
+{% if s %}
+<div class="modulo-head"><h2><span translate="no">{{ s.nome }}</span> <span class="tag" translate="no">{{ s.tipo }}</span></h2>
+  {% if pode %}<form method="post" action="{{ url_for('firewall.acao') }}" onsubmit="return confirm('Apagar o ipset {{ s.nome }}? Regras que o usem deixam de funcionar.')">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="ipset_apagar"><input type="hidden" name="ipset" value="{{ s.nome }}">
+    <input type="hidden" name="voltar" value="{{ url_for('firewall.ipsets') }}"><button class="small danger">Apagar o ipset</button></form>{% endif %}</div>
+<div class="fw-ipset">
+<section class="card full">
+  <div class="modulo-head"><h2>Entradas <span class="muted small">({{ s.n }})</span></h2>
+    <label class="jx-search fw-q"><input type="search" id="q" placeholder="Filtrar" value="{{ q }}" autocomplete="off"></label></div>
+  <div class="table-wrap"><table class="small-tab" id="tab">
+    <thead><tr><th>Endereço / rede</th><th></th></tr></thead>
+    <tbody>{% for e in s.entradas %}<tr data-txt="{{ e|lower }}"><td translate="no"><b>{{ e }}</b></td>
+      <td class="num">{% if pode %}<form method="post" action="{{ url_for('firewall.acao') }}" class="inline-form" onsubmit="return confirm('Retirar {{ e }}?')">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="ipset_del"><input type="hidden" name="ipset" value="{{ s.nome }}">
+        <input type="hidden" name="entrada" value="{{ e }}"><input type="hidden" name="voltar" value="{{ request.path }}">
+        <button class="small danger" aria-label="Retirar" title="Retirar">✕</button></form>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="2" class="muted">Vazio.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+<div class="fw-lado">
+  {% if pode %}
+  <section class="card full">
+    <h2>Acrescentar</h2>
+    <form method="post" action="{{ url_for('firewall.acao') }}" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="ipset_add"><input type="hidden" name="ipset" value="{{ s.nome }}">
+      <input type="hidden" name="voltar" value="{{ request.path }}">
+      <textarea name="entrada" rows="5" placeholder="10.1.2.3&#10;10.20.0.0/16" translate="no" required></textarea>
+      <span class="hint">Vários separados por espaços, vírgulas ou linhas (até 500).</span>
+      <div class="buttons"><button class="primary">+ Acrescentar</button></div></form>
+  </section>
+  {% endif %}
+  <section class="card full">
+    <h2>Informação</h2>
+    {% from "_cartoes.html" import kv %}
+    {{ kv([('Tipo', s.tipo), ('Opções', s.opcoes), ('Ficheiro', s.ficheiro)]) }}
+    <h3>Usado em</h3>
+    {% if usado %}<ul class="fw-uso" translate="no">{% for u in usado %}<li><code>{{ u }}</code></li>{% endfor %}</ul>
+    {% else %}<p class="muted small">Em nenhuma origem nem regra rica (configuração permanente).</p>{% endif %}
+    <p class="hint">Usar numa zona: Regras → Origens com <code translate="no">ipset:{{ s.nome }}</code>, ou numa regra rica com
+      <code translate="no">source ipset="{{ s.nome }}"</code>.</p>
+  </section>
+</div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(() => { const q = document.getElementById('q'); if (!q) return;
+  const f = () => { const v = q.value.toLowerCase(); document.querySelectorAll('#tab tbody tr[data-txt]').forEach(tr => tr.hidden = v && !tr.dataset.txt.includes(v)); };
+  q.oninput = f; f(); })();
+</script>
+{% endblock %}
