@@ -18,6 +18,7 @@ utilização e um `CONVERSA.md` com o resumo do chat que deu origem ao projeto.
 | Migração mod_php → php-fpm | [`linux`](linux) › [`geral`](linux/geral) › [`migrate-php-fpm`](linux/geral/migrate-php-fpm) | Script interativo (um a um ou AUTO) que migra os virtualhosts ativos do Apache de mod_php para php-fpm: backup, diretivas `php_*` convertidas para um pool por site, SetHandler em 80/443, `.htaccess` → `.user.ini`, validação com a linha do erro, reload, log e desativação do mod_php |
 | Limpeza de logs Oracle | [`linux`](linux) › [`geral`](linux/geral) › [`limpeza-logs-oracle`](linux/geral/limpeza-logs-oracle) | Assistente com fundo azul (whiptail) para limpar logs sem reiniciar a BD: por caminho e padrão (alert.log, listener.log, `*.trc`, `*.aud`) define tamanho máximo e/ou dias e a ação (rodar com cópia .gz, esvaziar ou apagar). Configuração tipo `.env`, simulação, crontab ou logrotate e histórico de 365 dias com resumo mensal |
 | Extrair pasta de repositório Git | [`linux`](linux) › [`geral`](linux/geral) › [`extrair_pasta_git`](linux/geral/extrair_pasta_git) | Script interativo (ou com argumentos `-r -b -p -d`, ou por perfis guardados: `-c` sem perguntas, `-s`, `-e`, `-l`, `-x`) que extrai apenas uma pasta de um repositório Git (HTTPS ou SSH) para um diretório local, sem histórico `.git`: clone parcial com `sparse-checkout` num diretório temporário, validação da pasta na branch e limpeza no final |
+| Limpeza do Docker | [`outros`](outros) › [`docker-cleanup`](outros/docker-cleanup) | Script Bash para o Agendador de tarefas do Synology (ou cron) que limpa imagens sem uso, build cache, redes sem uso e logs de containers grandes, com mais de 7 dias, sem apagar containers parados ou a correr nem volumes. Com `--dry-run`, `flock`, timeouts e registo |
 | Contagem de linhas de código | [`outros`](outros) › [`count-code`](outros/count-code) | Script Bash/Python que conta as linhas de código, comentários e em branco de um projeto, por linguagem, pasta e ficheiro, com saída em tabela ou JSON |
 | Estatísticas do GitHub | [`geral`](geral) › [`estatisticas_github`](geral/estatisticas_github) | Profile README do GitHub (repositório `utilizador/utilizador`) com badges, contactos e estatísticas dinâmicas do github-stats-extended; inclui exemplo pronto a usar |
 | Remover linha com IP | [`geral`](geral) › [`remover-linha`](geral/remover-linha) | Script Python que pede um ficheiro e um IP e remove todas as linhas que o contenham (IP exato, com ou sem aspas), com confirmação, `--dry-run` e backup do último ficheiro |
@@ -53,7 +54,8 @@ projetos/
 │       └── rman/                   # Monitor pós-backup RMAN
 ├── outros/                         # Scripts diversos
 │   ├── README.md
-│   └── count-code/                 # Contagem de linhas de código
+│   ├── count-code/                 # Contagem de linhas de código
+│   └── docker-cleanup/             # Limpeza periódica do Docker (Synology)
 └── geral/                          # Guias gerais
     ├── README.md
     ├── estatisticas_github/        # Profile README com estatísticas
