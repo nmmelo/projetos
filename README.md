@@ -23,6 +23,7 @@ utilização e um `CONVERSA.md` com o resumo do chat que deu origem ao projeto.
 | Estatísticas do GitHub | [`geral`](geral) › [`estatisticas_github`](geral/estatisticas_github) | Profile README do GitHub (repositório `utilizador/utilizador`) com badges, contactos e estatísticas dinâmicas do github-stats-extended; inclui exemplo pronto a usar |
 | Remover linha com IP | [`geral`](geral) › [`remover-linha`](geral/remover-linha) | Script Python que pede um ficheiro e um IP e remove todas as linhas que o contenham (IP exato, com ou sem aspas), com confirmação, `--dry-run` e backup do último ficheiro |
 | Password_crypt_manager | [`geral`](Password_crypt_manager) › [`Password_crypt_manager`](geral/Password_crypt_manager) | Utilitário em Bash para gestão de segredos e credenciais locais através de cifra simétrica com `openssl`.|
+| MELCloud integrador | [`geral`](geral) › [`melcloud-integrador`](geral/melcloud-integrador) | Cliente Python (sem dependências) para a API não oficial do MELCloud clássico (Mitsubishi Electric): `list` dos equipamentos, `status` de unidades ar-ar e ar-água, `set` de power, modo, temperatura, ventilador e lâminas do ar condicionado; sessão guardada com novo login automático e aviso de bloqueio por excesso de pedidos |
 
 ## Estrutura
 
@@ -60,6 +61,7 @@ projetos/
     ├── README.md
     ├── estatisticas_github/        # Profile README com estatísticas
     └── remover-linha/              # Remover linhas com um IP de um ficheiro
+    ├── melcloud-integrador/        # Cliente da API do MELCloud (Mitsubishi Electric)
     └── Password_crypt_manager/     # Utilitário em Bash para gestão de segredos e credenciais locais através de cifra simétrica com `openssl`.
 ```
 
