@@ -62,3 +62,13 @@ projetos/
     └── remover-linha/              # Remover linhas com um IP de um ficheiro
     └── Password_crypt_manager/     # Utilitário em Bash para gestão de segredos e credenciais locais através de cifra simétrica com `openssl`.
 ```
+
+## Licença
+
+Este repositório usa a **[Apache License 2.0](LICENSE)**. Pode usar, copiar, alterar e redistribuir os projetos (também em trabalhos comerciais), desde que:
+
+- mantenha a **referência ao autor original** (Nuno Melo), a nota de copyright e o ficheiro [NOTICE](NOTICE);
+- inclua uma cópia da licença;
+- indique nos ficheiros que alterou que foram modificados.
+
+O trabalho é fornecido "tal como está", sem garantias.
