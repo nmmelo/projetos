@@ -43,7 +43,7 @@ Decisões:
 
 ## 3. Repositório
 
-> Podes colocar no repositório projeto sem referência a Claude, em geral, com o nome de MELCloud integrador com apache 2.0
+> Podes colocar no repositório projeto, em geral, com o nome de MELCloud integrador com apache 2.0
 
 Projeto colocado em `geral/melcloud-integrador`, com cabeçalho Apache 2.0 no script, `README.md` e entradas nos
 READMEs da raiz e de `geral/`.
