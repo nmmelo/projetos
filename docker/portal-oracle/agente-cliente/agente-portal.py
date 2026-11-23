@@ -32,8 +32,10 @@ import hmac
 import json
 import os
 import platform
+import pwd
 import re
 import secrets
+import shutil
 import socket
 import socketserver
 import ssl
@@ -44,7 +46,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.2.0"
+VERSAO = "1.3.0"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -120,7 +122,7 @@ def ler_env(decifrado: bool = True) -> dict:
 def gravar_env(cfg: dict) -> None:
     linhas = ["# Agente do portal. Gerado por 'agente-portal configurar'. Valores sensiveis cifrados (enc:).",
               "# Mudar o intervalo: agente-portal intervalo <segundos>"]
-    for k in ("PORTAL_URL", "CLIENTE_ID", "TOKEN", "INTERVALO", "VERIFICAR_TLS", "CA_FICHEIRO", "UTILIZADOR_SSH",
+    for k in ("PORTAL_URL", "CLIENTE_ID", "TOKEN", "INTERVALO", "VERIFICAR_TLS", "CA_FICHEIRO", "UTILIZADOR_SSH", "EXTRAS",
               "ORACLE_RPC", "RPC_PORTA", "RPC_ESCUTA", "RPC_ORIGENS", "ORACLE_LIB"):
         if k in cfg:
             v = cfg[k]
@@ -236,6 +238,213 @@ def recolher(cfg: dict) -> dict:
         "utilizador_ssh": cfg.get("UTILIZADOR_SSH", ""), "agora": datetime.datetime.now().isoformat(timespec="seconds"),
         "rpc": rpc_info(cfg),
     }
+
+
+# ============================================================ dados extra (processos, sistema, logs, atualizacoes)
+# Enviados na sincronizacao quando estao "devidos" (cada tipo tem o seu intervalo) ou quando o portal os pede
+# (botao "Pedir dados agora"). As atualizacoes pendentes sao lentas (dnf/yum consultam os repositorios): correm
+# numa thread e seguem na sincronizacao seguinte. EXTRAS=0 no .env desliga tudo.
+EXTRAS_CADA = {"processos": 0, "sistema": 3600, "logs": 300, "atualizacoes": 6 * 3600}
+_ext = {"ultimo": {}, "prontos": {}, "a_correr": set()}
+_proc_ant = {"t": None, "d": {}}
+
+
+def _run(args, timeout=60, env=None):
+    try:
+        r = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
+                           timeout=timeout, env=env)
+        return r.returncode, r.stdout, r.stderr
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return -1, "", str(e)
+
+
+def _procs_ler() -> dict:
+    d = {}
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            st = _ler("/proc/%s/stat" % pid)
+            if not st:
+                continue
+            comm = st[st.index("(") + 1:st.rindex(")")]
+            f = st[st.rindex(")") + 2:].split()
+            uid = os.stat("/proc/" + pid).st_uid
+            cmd = _ler("/proc/%s/cmdline" % pid).replace("\0", " ").strip() or "[%s]" % comm
+            d[int(pid)] = {"ppid": int(f[1]), "estado": f[0], "ticks": int(f[11]) + int(f[12]), "threads": int(f[17]),
+                           "inicio": int(f[19]), "rss": int(f[21]) * os.sysconf("SC_PAGE_SIZE"), "uid": uid,
+                           "nome": comm, "cmd": cmd[:300]}
+        except (OSError, ValueError, IndexError):
+            continue
+    return d
+
+
+def recolher_processos() -> dict:
+    hz = os.sysconf("SC_CLK_TCK")
+    if _proc_ant["t"] is None or time.time() - _proc_ant["t"] > 3600:
+        _proc_ant.update(t=time.time(), d=_procs_ler())
+        time.sleep(1)
+    agora, d = time.time(), _procs_ler()
+    dt = max(0.1, agora - _proc_ant["t"])
+    ant = _proc_ant["d"]
+    btime = 0
+    for l in _ler("/proc/stat").splitlines():
+        if l.startswith("btime"):
+            btime = int(l.split()[1])
+    utilizadores = {}
+    lista = []
+    for pid, p in d.items():
+        a = ant.get(pid)
+        cpu = round(100.0 * (p["ticks"] - a["ticks"]) / hz / dt, 1) if a and a["inicio"] == p["inicio"] else 0.0
+        if p["uid"] not in utilizadores:
+            try:
+                utilizadores[p["uid"]] = pwd.getpwuid(p["uid"]).pw_name
+            except KeyError:
+                utilizadores[p["uid"]] = str(p["uid"])
+        lista.append({"pid": pid, "ppid": p["ppid"], "user": utilizadores[p["uid"]], "cpu": max(0.0, cpu), "rss": p["rss"],
+                      "threads": p["threads"], "estado": p["estado"], "nome": p["nome"], "cmd": p["cmd"],
+                      "inicio": int(btime + p["inicio"] / hz) if btime else None})
+    _proc_ant.update(t=agora, d=d)
+    estados = {}
+    for p in lista:
+        estados[p["estado"]] = estados.get(p["estado"], 0) + 1
+    topo = sorted(lista, key=lambda p: -p["cpu"])[:30]
+    vistos = {p["pid"] for p in topo}
+    topo += [p for p in sorted(lista, key=lambda p: -p["rss"]) if p["pid"] not in vistos][:20]
+    return {"total": len(lista), "threads": sum(p["threads"] for p in lista), "estados": estados,
+            "lista": sorted(topo, key=lambda p: (-p["cpu"], -p["rss"]))}
+
+
+def recolher_sistema() -> dict:
+    mem = {}
+    for l in _ler("/proc/meminfo").splitlines():
+        k, v = l.split(":", 1)
+        mem[k] = int(v.split()[0]) * 1024
+    modelo = ""
+    for l in _ler("/proc/cpuinfo").splitlines():
+        if l.lower().startswith("model name"):
+            modelo = l.split(":", 1)[1].strip()
+            break
+    ips = [l.split()[1] + " " + l.split()[3] for l in _cmd("ip", "-o", "addr", "show").splitlines()
+           if len(l.split()) > 3 and l.split()[1] != "lo" and l.split()[2] in ("inet", "inet6")
+           and not l.split()[3].startswith("fe80")]
+    rota = _cmd("ip", "route", "show", "default").split("\n")[0]
+    dns = [l.split()[1] for l in _ler("/etc/resolv.conf").splitlines() if l.startswith("nameserver") and len(l.split()) > 1]
+    btime = 0
+    for l in _ler("/proc/stat").splitlines():
+        if l.startswith("btime"):
+            btime = int(l.split()[1])
+    falhados = [l.split()[0] for l in _cmd("systemctl", "--failed", "--no-legend", "--plain").splitlines() if l.strip()]
+    portas = sorted({l.split()[3].rsplit(":", 1)[-1] for l in _cmd("ss", "-H", "-ltn").splitlines() if len(l.split()) > 3},
+                    key=lambda x: int(x) if x.isdigit() else 0)
+    fw = "firewalld " + (_cmd("firewall-cmd", "--state") or "parado") if shutil.which("firewall-cmd") else \
+        ("ufw " + (_cmd("ufw", "status").split("\n")[0].split(":")[-1].strip() or "?") if shutil.which("ufw") else "")
+    pacotes = len(_cmd("rpm", "-qa").splitlines()) if shutil.which("rpm") and not shutil.which("dpkg-query") else \
+        len(_cmd("dpkg-query", "-f", ".\n", "-W").splitlines()) if shutil.which("dpkg-query") else None
+    return {"cpu_modelo": modelo, "mem_total": mem.get("MemTotal"), "swap_total": mem.get("SwapTotal"),
+            "swap_livre": mem.get("SwapFree"), "ips": ips[:12], "rota": rota, "dns": dns[:4],
+            "fuso": _cmd("timedatectl", "show", "-p", "Timezone", "--value") or _ler("/etc/timezone").strip(),
+            "ntp": _cmd("timedatectl", "show", "-p", "NTPSynchronized", "--value"),
+            "selinux": _cmd("getenforce") if shutil.which("getenforce") else "", "firewall": fw,
+            "arranque": datetime.datetime.fromtimestamp(btime).isoformat(timespec="seconds") if btime else "",
+            "sessoes": len(_cmd("who").splitlines()), "servicos_falhados": falhados[:30], "portas": portas[:60],
+            "pacotes": pacotes}
+
+
+def recolher_logs() -> dict:
+    if shutil.which("journalctl"):
+        rc, out, err = _run(["journalctl", "--no-pager", "-q", "-o", "short-iso", "-p", "warning", "--since", "-24h",
+                             "-n", "300"], timeout=60)
+        fonte = "journalctl -p warning (últimas 24 h)"
+        linhas = out.splitlines() if rc == 0 else ["(erro: %s)" % err.strip()[:200]]
+    else:
+        f = "/var/log/messages" if os.path.exists("/var/log/messages") else "/var/log/syslog"
+        fonte = f + " (erros e avisos)"
+        linhas = [l for l in _ler(f).splitlines()[-5000:] if re.search(r"(?i)error|fail|warn|crit", l)]
+    return {"fonte": fonte, "linhas": [l[:400] for l in linhas[-300:]]}
+
+
+def recolher_atualizacoes() -> dict:
+    env = dict(os.environ, LANG="C", LC_ALL="C")
+    pacotes, seg, erro, ferramenta, reinicio = [], set(), "", "", None
+    if shutil.which("dnf") or shutil.which("yum"):
+        ferramenta = "dnf" if shutil.which("dnf") else "yum"
+        rc, out, err = _run([ferramenta, "-q", "check-update"], timeout=900, env=env)
+        if rc not in (0, 100):
+            erro = (err or out).strip()[-300:]
+        for l in out.splitlines():
+            if l.startswith(("Obsoleting", "Security:")) or not l.strip():
+                if l.startswith("Obsoleting"):
+                    break
+                continue
+            c = l.split()
+            if len(c) == 3 and "." in c[0]:
+                pacotes.append({"nome": c[0].rsplit(".", 1)[0], "arq": c[0].rsplit(".", 1)[1], "versao": c[1], "repo": c[2]})
+        rc2, out2, _e = _run([ferramenta, "-q", "updateinfo", "list", "--security"], timeout=600, env=env)
+        for l in out2.splitlines():
+            c = l.split()
+            if len(c) >= 3:
+                seg.add(c[-1].rsplit("-", 2)[0])
+        if shutil.which("needs-restarting"):
+            reinicio = _run(["needs-restarting", "-r"], timeout=120, env=env)[0] == 1
+    elif shutil.which("apt"):
+        ferramenta = "apt"
+        rc, out, err = _run(["apt", "list", "--upgradable"], timeout=300, env=env)
+        if rc != 0:
+            erro = err.strip()[-300:]
+        for l in out.splitlines():
+            m = re.match(r"^([^/\s]+)/(\S+)\s+(\S+)\s+(\S+)(?:\s+\[upgradable from: ([^\]]+)\])?", l)
+            if m:
+                pacotes.append({"nome": m.group(1), "arq": m.group(4), "versao": m.group(3), "repo": m.group(2),
+                                "atual": m.group(5) or ""})
+                if "security" in m.group(2):
+                    seg.add(m.group(1))
+        reinicio = os.path.exists("/var/run/reboot-required")
+    else:
+        erro = "sem dnf, yum nem apt"
+    for p in pacotes:
+        p["seguranca"] = p["nome"] in seg
+    return {"ferramenta": ferramenta, "total": len(pacotes), "seguranca": sum(1 for p in pacotes if p["seguranca"]),
+            "reinicio": reinicio, "erro": erro, "pacotes": pacotes[:600],
+            "verificado": datetime.datetime.now().isoformat(timespec="seconds")}
+
+
+RECOLHER = {"processos": recolher_processos, "sistema": recolher_sistema, "logs": recolher_logs,
+            "atualizacoes": recolher_atualizacoes}
+
+
+def _extra_thread(tipo: str) -> None:
+    try:
+        _ext["prontos"][tipo] = RECOLHER[tipo]()
+    except Exception as e:  # noqa: BLE001
+        _ext["prontos"][tipo] = {"erro": str(e)}
+    finally:
+        _ext["a_correr"].discard(tipo)
+
+
+def extras(cfg: dict, pedidos=()) -> dict:
+    """Os dados extra devidos nesta sincronizacao (e os pedidos pelo portal)."""
+    if cfg.get("EXTRAS", "1") == "0":
+        return {}
+    agora, out = time.time(), {}
+    for tipo, cada in EXTRAS_CADA.items():
+        if tipo in _ext["a_correr"]:
+            continue
+        if tipo in pedidos or agora - _ext["ultimo"].get(tipo, 0) >= cada:
+            _ext["ultimo"][tipo] = agora
+            if tipo == "atualizacoes":                      # lento: segue na sincronizacao seguinte
+                _ext["a_correr"].add(tipo)
+                threading.Thread(target=_extra_thread, args=(tipo,), daemon=True).start()
+                continue
+            try:
+                out[tipo] = RECOLHER[tipo]()
+            except Exception as e:  # noqa: BLE001
+                out[tipo] = {"erro": str(e)}
+    for tipo in list(_ext["prontos"]):
+        out[tipo] = _ext["prontos"].pop(tipo)
+    if _ext["a_correr"]:
+        out["_a_verificar"] = sorted(_ext["a_correr"])
+    return out
 
 
 # ============================================================ fila local (portal indisponivel)
@@ -766,8 +975,10 @@ def cmd_run(_a):
             evs = verificar_logs(regras, mem)
             for e in evs:
                 enfileirar(e)
-            r = pedido(cfg, "sync", {"info": recolher(cfg)})
+            r = pedido(cfg, "sync", {"info": recolher(cfg), "extras": extras(cfg)})
             regras = r.get("regras", [])
+            if r.get("pedidos"):                   # o portal pediu dados agora: envia ja
+                pedido(cfg, "sync", {"info": recolher(cfg), "extras": extras(cfg, r["pedidos"])})
             esvaziar_fila(cfg)
             if falhas:
                 log("ligacao ao portal recuperada")

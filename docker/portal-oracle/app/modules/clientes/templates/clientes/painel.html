@@ -19,7 +19,7 @@
 <p class="muted">Ainda não há clientes.{% if user.can('clientes.gerir') %} Crie em <a href="{{ url_for('clientes.gerir') }}">Configuração → Clientes</a>.{% endif %}</p>
 {% else %}
 <div class="table-wrap"><table class="bd-tab" id="tab">
-  <thead><tr><th></th><th>Cliente</th><th>Sistema</th><th>CPU</th><th>Memória</th><th>Disco (maior)</th><th>Último contacto</th><th>Intervalo</th><th>Eventos 24 h</th><th>Alarmes</th></tr></thead>
+  <thead><tr><th></th><th>Cliente</th><th>Sistema</th><th>CPU</th><th>Memória</th><th>Disco (maior)</th><th>Último contacto</th><th>Intervalo</th><th>Bases de dados</th><th>Atualizações</th><th>Eventos 24 h</th><th>Alarmes</th></tr></thead>
   <tbody>{% for c in clientes %}{% set i = c.info %}{% set dmax = (i.discos or [])|sort(attribute='pct', reverse=True)|first %}
   <tr class="bd-linha" tabindex="0" data-cor="{{ c.contacto.cor }}" data-href="{{ url_for('clientes.detalhe', cid=c.id) }}"
       data-txt="{{ (c.nome ~ ' ' ~ c.endereco ~ ' ' ~ (i.so or '') ~ ' ' ~ (i.hostname or ''))|lower }}">
@@ -31,6 +31,8 @@
     <td>{% if dmax %}<span class="c-{{ 'bad' if dmax.pct >= 90 else 'warn' if dmax.pct >= 75 else 'ok' }}">{{ '%.0f'|format(dmax.pct) }}%</span><br><small class="muted" translate="no">{{ dmax.ponto }}</small>{% else %}—{% endif %}</td>
     <td>{{ c.ultimo_contacto or '—' }}<br><small class="muted">{{ c.contacto.texto }}{% if c.contacto.seg is not none %} · há {{ dur(c.contacto.seg) }}{% endif %}</small></td>
     <td>{{ c.intervalo or '—' }} s<br><small class="muted" translate="no">v{{ c.versao or '?' }}</small></td>
+    <td>{% for n in bds_por.get(c.id, []) %}<span class="tag" translate="no">{{ n }}</span> {% else %}—{% endfor %}</td>
+    <td>{% set u = upd_por.get(c.id) %}{% if u %}{% if u[0] %}<span class="sys-pill {{ 'bad' if u[1] else 'warn' }}" title="{{ u[1] }} de segurança">{{ u[0] }}</span>{% else %}<span class="c-ok">0</span>{% endif %}{% if u[2] %} <small class="c-bad">reiniciar</small>{% endif %}{% else %}—{% endif %}</td>
     <td>{{ c.ev24 }}{% if c.erros24 %} <span class="sys-pill bad">{{ c.erros24 }} erro(s)</span>{% endif %}</td>
     <td>{% set al = alarmes_por.get(c.id, []) %}{% if al %}<span class="sys-pill {{ 'bad' if al|selectattr('severidade', 'eq', 'erro')|list else 'warn' }}" title="{{ al|map(attribute='nome')|join(', ') }}">{{ al|length }}</span>{% else %}—{% endif %}</td>
   </tr>{% endfor %}</tbody></table></div>

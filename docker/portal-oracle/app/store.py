@@ -201,6 +201,13 @@ _SCHEMA = [
         origem VARCHAR(10),
         mensagem TEXT
     ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS cliente_dados (
+        id {ID},
+        cliente_id INTEGER NOT NULL,
+        tipo VARCHAR(20) NOT NULL,
+        atualizado VARCHAR(19) NOT NULL,
+        dados {LONGTEXT}
+    ){SUFFIX}""",
     """CREATE TABLE IF NOT EXISTS metricas (
         id {ID},
         ts BIGINT NOT NULL,
@@ -212,6 +219,7 @@ _SCHEMA = [
         extra VARCHAR(255)
     ){SUFFIX}""",
     "CREATE INDEX IF NOT EXISTS ix_metricas_comp_ts ON metricas (componente, ts)",
+    "CREATE INDEX IF NOT EXISTS ix_cliente_dados ON cliente_dados (cliente_id, tipo)",
         """CREATE TABLE IF NOT EXISTS cache_dados (
         chave VARCHAR(200) NOT NULL PRIMARY KEY,
         titulo VARCHAR(200),

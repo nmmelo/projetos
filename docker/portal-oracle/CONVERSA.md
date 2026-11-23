@@ -460,3 +460,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > devia ser possivel ter o setup para download, em clientes, ferramentas ou em configuração, ferramentas., agente-portal estado — bash: agente-portal: command not found — e a chave do portal no <utilizador> no autorized_key ficou na mesma linha do ulltimo, não fez quebra de linha.
 
 **Resposta:** Nova aba Clientes → Ferramentas (download do setup.sh, agente-portal.py e chave.pub, com versão e SHA-256, e comandos prontos a copiar). O setup.sh cria o comando `agente-portal` em /usr/local/bin e /usr/bin (o sudo do RHEL não procura em /usr/local/bin) e usa o Python do venv quando existe. Ao acrescentar a chave, garante a quebra de linha e separa chaves coladas na mesma linha (cópia `.antes-setup`). Sem acesso ao portal, usa o agente-portal.py que estiver ao lado do setup.sh.
+
+## 36. Cliente com abas, atualização automática, bases de dados e Zabbix
+
+**Pergunta:**
+> quando estamos no cliente devia ter um refresh como no home, também podiamos associar o cliente a uma base de dados, que é o caso de alguns clientes, mostrado para isso no clientes a informação da base de dados. Também podiamos ter no cliente uma aba com processos, logs, informação sobre o sistema, outra aba com atualizações pendentes, se tiver o zabbix ativo nesse cliente para ir buscar os dados.
+
+**Resposta:** Página do cliente com atualização automática (como a Home) e abas Resumo, Processos, Sistema, Logs, Atualizações, Bases de dados e Zabbix. Agente 1.3.0 envia processos (cada sincronização), sistema (1 h), logs de avisos/erros (5 min) e atualizações pendentes com segurança e reinício (6 h, em segundo plano); botão "Pedir dados agora". Bases de dados: estado do módulo Oracle e associar/desassociar no próprio cliente; a lista de clientes mostra as BDs e as atualizações pendentes. Zabbix: com a API configurada, anfitrião, problemas e itens principais.

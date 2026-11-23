@@ -1,13 +1,32 @@
 {% extends "base.html" %}
-{% from "_cartoes.html" import kv, barra, saude %}
+{% from "_cartoes.html" import kv, barra, saude, controlos %}
 {% from "clientes/_macros.html" import bola, dur, ev_pill %}
 {% block title %}Clientes · {{ c.nome }}{% endblock %}
 {% block content %}
 {% include "clientes/_tabs.html" %}
 {% set i = c.info %}
-<div class="modulo-head"><h2 translate="no">{{ bola(c) }} {{ c.nome }} <small class="muted">{{ c.endereco }}</small></h2>
+{% macro quando(x) %}{% if x %}<small class="muted">recebido {{ x.atualizado }}</small>{% else %}<small class="muted">ainda sem dados do agente</small>{% endif %}{% endmacro %}
+<div class="modulo-head"><h2 translate="no" data-ref="nome">{{ bola(c) }} {{ c.nome }} <small class="muted">{{ c.endereco }}</small></h2>
   {% if user.can('clientes.gerir') %}<a class="btn small" href="{{ url_for('clientes.gerir_cliente', cid=c.id) }}">✎ Editar / instalar / testar</a>{% endif %}</div>
 {% if c.descricao %}<p class="muted">{{ c.descricao }}</p>{% endif %}
+<div class="dash-bar">
+  <nav class="subtabs" style="margin:0">{% for k, t in abas %}<a href="{{ url_for('clientes.detalhe', cid=c.id, aba=k) }}" class="{{ 'on' if aba == k }}">{{ t }}
+    {%- if k == 'atualizacoes' and dd.atualizacoes and dd.atualizacoes.dados.total %} <span class="nbadge {{ 'bad' if dd.atualizacoes.dados.seguranca else '' }}">{{ dd.atualizacoes.dados.total }}</span>{% endif %}
+    {%- if k == 'bds' and bds %} <span class="nbadge">{{ bds|length }}</span>{% endif %}</a>{% endfor %}</nav>
+  <div class="dash-ctl">
+    {% if aba in ('processos', 'sistema', 'logs', 'atualizacoes') %}
+    <form method="post" action="{{ url_for('clientes.pedir_dados', cid=c.id) }}" id="fpedir">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="aba" value="{{ aba }}">
+      <input type="hidden" name="tipo" value="{{ aba }}">
+      <button class="btn small" title="O agente envia estes dados no próximo contacto (até {{ c.intervalo or 60 }} s)">⇣ Pedir dados agora</button></form>
+    {% endif %}
+    {{ controlos(editar=False, opcoes=((0, 'manual'), (10, '10 s'), (30, '30 s'), (60, '1 min'), (300, '5 min'))) }}
+  </div>
+</div>
+<div data-ref="pedido">{% if dd._pedido %}<div class="flash info">Pedido enviado ao agente ({{ dd._pedido|replace(',', ', ') }}): chega no próximo contacto.</div>{% endif %}</div>
+
+{% if aba == 'resumo' %}
+<div data-ref="resumo">
 {% if alarmes %}<div class="flash error"><b>Alarmes disparados:</b>
   {% for e in alarmes %}<span translate="no">{{ e.nome }}{{ (' ' ~ e.item) if e.metrica == 'disco' }} = {{ '%g'|format(e.valor) }}{{ e.unidade }}</span>{{ ' · ' if not loop.last }}{% endfor %}
   — <a href="{{ url_for('clientes.alarmes') }}">Alarmes</a></div>{% endif %}
@@ -50,13 +69,7 @@
   <p class="muted">Desligado. Para o portal fazer os pedidos às bases de dados deste servidor através do agente, no servidor:</p>
   <pre class="mono-area small cmd" translate="no">curl -fsSO {{ url_portal }}/clientes/agente/setup.sh && sudo bash setup.sh --oracle --origens "&lt;IP do portal&gt;" --abrir-firewall</pre>
   {% endif %}
-  <h3>Bases de dados associadas</h3>
-  {% if bds %}<div class="table-wrap"><table class="small-tab">
-    <thead><tr><th>Base de dados</th><th>Ligação</th><th>Modo</th><th>Pedidos feitos por</th></tr></thead>
-    <tbody>{% for d in bds %}<tr><td><b translate="no">{{ d.db.name }}</b></td><td translate="no"><small>{{ d.db.host }}:{{ d.db.port }}/{{ d.db.service_name or d.db.sid }}</small></td>
-      <td>{{ {'auto': 'Automático', 'obrigatorio': 'Obrigatório'}.get(d.db.agente_modo, 'Automático') }}</td>
-      <td>{% set v = d.via %}{% include "oracle/_via.html" %}</td></tr>{% endfor %}</tbody></table></div>
-  {% else %}<p class="muted small">Nenhuma. Associe em Oracle → Definições → Editar base de dados → Agente cliente.</p>{% endif %}
+  <p class="hint">{{ bds|length }} base(s) de dados associada(s) — ver <a href="{{ url_for('clientes.detalhe', cid=c.id, aba='bds') }}">Bases de dados</a>.</p>
 </section>
 <section class="card full" style="margin-top:16px">
   <h2>Regras de notificação deste cliente</h2>
@@ -71,4 +84,208 @@
   <div class="modulo-head"><h2>Eventos recentes</h2><a class="btn small" href="{{ url_for('clientes.eventos', cliente=c.id) }}">Ver todos</a></div>
   {% include "clientes/_eventos_tab.html" %}
 </section>
+</div>
+
+{% elif aba == 'processos' %}
+{% set x = dd.processos %}
+<section class="card full" data-ref="processos">
+  <div class="modulo-head"><h2>Processos</h2>{{ quando(x) }}</div>
+  {% if x and not x.dados.erro %}{% set p = x.dados %}
+  <div class="an-tiles">
+    <div class="an-tile"><span>Processos</span><b>{{ p.total }}</b></div>
+    <div class="an-tile"><span>Threads</span><b>{{ p.threads }}</b></div>
+    {% for e, n in (p.estados or {})|dictsort %}<div class="an-tile"><span>{{ {'R': 'A correr', 'S': 'Em espera', 'D': 'Em I/O (D)', 'Z': 'Zombie', 'I': 'Inativos', 'T': 'Parados'}.get(e, e) }}</span><b class="{{ 'c-bad' if e in ('Z', 'D') and n else '' }}">{{ n }}</b></div>{% endfor %}
+  </div>
+  <p class="hint">Os {{ p.lista|length }} processos com mais CPU e memória (CPU em % de um núcleo, desde a leitura anterior).</p>
+  <input type="search" class="filtro" data-alvo="tproc" placeholder="Filtrar (comando, utilizador, PID)">
+  <div class="table-wrap"><table class="small-tab ordenavel" id="tproc">
+    <thead><tr><th data-t="n">PID</th><th>Utilizador</th><th data-t="n">CPU %</th><th data-t="n">Memória</th><th data-t="n">Threads</th><th>Estado</th><th>Início</th><th>Comando</th></tr></thead>
+    <tbody>{% for r in p.lista %}<tr><td class="num" translate="no">{{ r.pid }}</td><td translate="no">{{ r.user }}</td>
+      <td class="num" data-v="{{ r.cpu }}">{{ '%.1f'|format(r.cpu) }}</td><td class="num" data-v="{{ r.rss }}">{{ r.rss|filesizeformat(true) }}</td>
+      <td class="num">{{ r.threads }}</td><td>{{ r.estado }}</td><td><small>{{ r.inicio|ts_iso if r.inicio else '—' }}</small></td>
+      <td class="cmd-cel" translate="no" title="{{ r.cmd }}">{{ r.cmd }}</td></tr>{% endfor %}</tbody></table></div>
+  {% elif x %}<p class="flash error">{{ x.dados.erro }}</p>
+  {% else %}<p class="muted">Sem dados. O agente 1.3.0 ou superior envia os processos em cada sincronização (atualize-o em Ferramentas).</p>{% endif %}
+</section>
+
+{% elif aba == 'sistema' %}
+{% set x = dd.sistema %}
+<div class="fw-grid" data-ref="sistema">
+<section class="card">
+  <div class="modulo-head"><h2>Sistema</h2>{{ quando(x) }}</div>
+  {% set y = x.dados if x else {} %}
+  {{ kv([('Hostname', i.hostname), ('Sistema', i.so), ('Kernel', i.kernel), ('Arquitetura', i.arquitetura),
+         ('Processador', y.cpu_modelo), ('CPUs', i.cpus), ('Memória', y.mem_total|filesizeformat(true) if y.mem_total),
+         ('Swap', ((y.swap_total - y.swap_livre)|filesizeformat(true) ~ ' usados de ' ~ y.swap_total|filesizeformat(true)) if y.swap_total else ('sem swap' if y else '')),
+         ('Arranque', y.arranque), ('Ligado há', dur(i.uptime) if i.uptime else ''), ('Virtualização', i.virtual),
+         ('Fuso horário', y.fuso), ('Hora sincronizada (NTP)', {'yes': 'sim', 'no': 'NÃO'}.get(y.ntp, y.ntp)),
+         ('SELinux', y.selinux), ('Firewall', y.firewall), ('Sessões abertas', y.sessoes), ('Pacotes instalados', y.pacotes),
+         ('Python', i.python)]) }}
+</section>
+<section class="card">
+  <h2>Rede</h2>
+  {% if y %}{{ kv([('Endereços', y.ips|join(' · ')), ('Rota por omissão', y.rota), ('DNS', y.dns|join(', ')),
+                   ('Portas à escuta (TCP)', y.portas|join(', '))]) }}{% else %}<p class="muted">Sem dados (agente 1.3.0+).</p>{% endif %}
+</section>
+<section class="card">
+  <h2>Serviços com falha</h2>
+  {% if y %}{% if y.servicos_falhados %}<ul class="lista-simples">{% for u in y.servicos_falhados %}<li><span class="tag bad" translate="no">{{ u }}</span></li>{% endfor %}</ul>
+  <p class="hint">No servidor: <code>systemctl status &lt;serviço&gt;</code></p>
+  {% else %}{{ saude('ok', 'Nenhum serviço com falha', 'systemctl --failed') }}{% endif %}{% else %}<p class="muted">—</p>{% endif %}
+</section>
+</div>
+
+{% elif aba == 'logs' %}
+{% set x = dd.logs %}
+<section class="card full" data-ref="logs">
+  <div class="modulo-head"><h2>Logs <small class="muted">{{ x.dados.fonte if x }}</small></h2>{{ quando(x) }}</div>
+  {% if x %}
+  <input type="search" class="filtro" data-alvo="tlogs" placeholder="Filtrar as linhas">
+  <div class="logs-box" id="tlogs">{% for l in x.dados.linhas|reverse %}<div class="lg {{ 'lg-err' if l is matching('(?i).*(error|fail|crit|emerg|alert|denied|segfault|oom|ora-)') else 'lg-warn' }}" translate="no">{{ l }}</div>
+  {% else %}<p class="muted">Sem avisos nem erros nas últimas 24 h.</p>{% endfor %}</div>
+  <p class="hint">Mais recentes primeiro (até 300 linhas, atualizado a cada 5 min ou com "Pedir dados agora"). No servidor: <code>journalctl -p warning --since -24h</code></p>
+  {% else %}<p class="muted">Sem dados (agente 1.3.0+).</p>{% endif %}
+</section>
+
+{% elif aba == 'atualizacoes' %}
+{% set x = dd.atualizacoes %}
+<section class="card full" data-ref="atualizacoes">
+  <div class="modulo-head"><h2>Atualizações pendentes</h2>
+    {% if 'atualizacoes' in dd._a_verificar %}<small class="muted"><span class="spin"></span> a verificar no servidor…</small>{% else %}{{ quando(x) }}{% endif %}</div>
+  {% if x %}{% set u = x.dados %}
+  {% if u.erro %}<p class="flash error">{{ u.ferramenta }}: {{ u.erro }}</p>{% endif %}
+  <div class="an-tiles">
+    <div class="an-tile"><span>Pacotes a atualizar</span><b class="{{ 'c-warn' if u.total }}">{{ u.total }}</b></div>
+    <div class="an-tile"><span>De segurança</span><b class="{{ 'c-bad' if u.seguranca }}">{{ u.seguranca }}</b></div>
+    <div class="an-tile"><span>Reinício necessário</span><b class="{{ 'c-bad' if u.reinicio }}">{{ 'sim' if u.reinicio else ('não' if u.reinicio is sameas false else '—') }}</b></div>
+    <div class="an-tile"><span>Verificado</span><b style="font-size:14px">{{ (u.verificado or '')|replace('T', ' ') }}</b><small>{{ u.ferramenta }}</small></div>
+  </div>
+  {% if u.pacotes %}
+  <input type="search" class="filtro" data-alvo="tupd" placeholder="Filtrar pacotes">
+  <div class="table-wrap"><table class="small-tab ordenavel" id="tupd">
+    <thead><tr><th>Pacote</th><th>Nova versão</th>{% if u.ferramenta == 'apt' %}<th>Instalada</th>{% endif %}<th>Repositório</th><th>Arq.</th><th>Segurança</th></tr></thead>
+    <tbody>{% for p in u.pacotes|sort(attribute='seguranca', reverse=True) %}<tr><td translate="no"><b>{{ p.nome }}</b></td><td translate="no">{{ p.versao }}</td>
+      {% if u.ferramenta == 'apt' %}<td translate="no"><small>{{ p.atual }}</small></td>{% endif %}<td translate="no"><small>{{ p.repo }}</small></td><td><small>{{ p.arq }}</small></td>
+      <td>{% if p.seguranca %}<span class="tag bad">segurança</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+  <p class="hint">Para instalar, no servidor: <code>{{ 'sudo apt-get update && sudo apt-get upgrade' if u.ferramenta == 'apt' else 'sudo ' ~ (u.ferramenta or 'dnf') ~ ' update' ~ (' --security' if u.seguranca else '') }}</code>.
+    O agente verifica a cada 6 h{{ ' (com o apt, a partir da última lista descarregada: apt-get update)' if u.ferramenta == 'apt' }}.</p>
+  {% elif not u.erro %}{{ saude('ok', 'Sistema atualizado', 'sem pacotes pendentes') }}{% endif %}
+  {% else %}<p class="muted">Sem dados (agente 1.3.0+). A primeira verificação pode demorar alguns minutos (dnf/yum consultam os repositórios).</p>{% endif %}
+</section>
+
+{% elif aba == 'bds' %}
+<section class="card full" data-ref="bds">
+  <h2>Bases de dados neste servidor</h2>
+  <p class="hint">Bases de dados associadas a este cliente: o estado vem do módulo Oracle (o mesmo de Oracle → Bases de dados) e,
+    com o serviço Oracle do agente, os pedidos são feitos pelo agente.</p>
+  {% if bds %}<div class="table-wrap"><table>
+    <thead><tr><th>Base de dados</th><th>Estado</th><th>Versão</th><th>Instância / host</th><th>Papel</th><th>Log</th><th>Pedidos feitos por</th><th>Modo</th><th></th></tr></thead>
+    <tbody>{% for d in bds %}{% set r = d.resumo.dados if d.resumo else None %}
+    <tr><td><b translate="no">{{ d.db.name }}</b><br><small class="muted" translate="no">{{ d.db.host }}:{{ d.db.port }}/{{ d.db.service_name or d.db.sid }}</small></td>
+      {% if user.can_db(d.db.id) %}
+      <td>{% if r %}<span class="via"><span class="dot d-{{ r.cor }}"></span>{{ r.estado_txt }}</span>{% if d.resumo.idade is not none %}<br><small class="muted">há {{ dur(d.resumo.idade) }}</small>{% endif %}
+        {% elif d.resumo and d.resumo.a_atualizar %}<small class="muted"><span class="spin"></span> a ler…</small>{% else %}—{% endif %}</td>
+      <td translate="no">{{ r.versao if r else '—' }}</td><td translate="no"><small>{{ (r.instancia ~ ' @ ' ~ r.host) if r and r.instancia else '—' }}</small></td>
+      <td>{{ r.papel if r else '' }}{% if r and r.dataguard %} <span class="tag">Data Guard</span>{% endif %}</td><td><small>{{ r.log_mode if r else '' }}</small></td>
+      {% else %}<td colspan="5" class="muted">sem acesso a esta base de dados</td>{% endif %}
+      <td>{% set v = d.via %}{% include "oracle/_via.html" %}</td>
+      <td>{{ {'auto': 'Automático', 'obrigatorio': 'Obrigatório'}.get(d.db.agente_modo, 'Automático') }}</td>
+      <td class="acts">{% if user.can_db(d.db.id) %}<a class="btn small" href="{{ url_for('oracle.bds') }}#bd{{ d.db.id }}">Oracle →</a>{% endif %}
+        {% if user.can('clientes.gerir') %}<form method="post" action="{{ url_for('clientes.associar_bd', cid=c.id) }}" style="display:inline"
+          onsubmit="return confirm((window.t || String)('Desassociar esta base de dados do cliente?'))"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <input type="hidden" name="db_id" value="{{ d.db.id }}"><input type="hidden" name="acao" value="remover"><button class="btn small danger">Desassociar</button></form>{% endif %}</td></tr>
+    {% endfor %}</tbody></table></div>
+  {% else %}<p class="muted">Nenhuma base de dados associada a este cliente.</p>{% endif %}
+  {% if user.can('clientes.gerir') and livres %}
+  <h3 style="margin-top:20px">Associar uma base de dados</h3>
+  <form method="post" action="{{ url_for('clientes.associar_bd', cid=c.id) }}" class="inline-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="associar">
+    <label>Base de dados <select name="db_id" required>{% for d in livres %}
+      <option value="{{ d.id }}" translate="no">{{ d.name }} ({{ d.host }}){{ ' · associada a outro cliente' if d.cliente_id }}</option>{% endfor %}</select></label>
+    <label>Modo <select name="modo">{% for k, t in modos.items() if k != 'nao' %}<option value="{{ k }}">{{ t }}</option>{% endfor %}</select></label>
+    <button class="primary small">Associar</button>
+  </form>
+  <p class="hint">O mesmo que em Oracle → Definições → Editar base de dados → Agente cliente.</p>
+  {% endif %}
+</section>
+
+{% elif aba == 'zabbix' %}
+<section class="card full" data-ref="zabbix">
+  {% set z = zbx.dados if zbx else None %}
+  <div class="modulo-head"><h2>Zabbix</h2>
+    <small class="muted">{% if zbx and zbx.a_atualizar %}<span class="spin"></span> a consultar…{% elif zbx and zbx.atualizado %}lido {{ zbx.atualizado }}{% endif %}</small></div>
+  {% if zbx and zbx.erro %}<p class="flash error">{{ zbx.erro }}</p>{% endif %}
+  {% if z and z.encontrado %}
+  {{ saude('ok' if z.ativo and not z.problemas else ('bad' if z.problemas|selectattr('sev', 'ge', 4)|list else 'warn'),
+           z.visivel ~ (' (desativado no Zabbix)' if not z.ativo else '') ~ (' · em manutenção' if z.manutencao else ''),
+           (z.problemas|length ~ ' problema(s) · ') ~ (z.interfaces|map(attribute='tipo')|join(', ')) ~ ' · ' ~ z.ms ~ ' ms') }}
+  <div class="smtp-grid setup-grid" style="margin-top:12px">
+  <section class="card">
+    <h3>Problemas</h3>
+    {% if z.problemas %}<div class="table-wrap"><table class="small-tab"><thead><tr><th>Gravidade</th><th>Problema</th><th>Desde</th></tr></thead>
+      <tbody>{% for p in z.problemas %}<tr><td><span class="tag {{ p.cor }}">{{ p.sev_txt }}</span></td><td>{{ p.nome }}{% if p.reconhecido %} <small class="muted">(reconhecido)</small>{% endif %}</td>
+        <td><small>{{ p.desde|ts_epoch }}</small></td></tr>{% endfor %}</tbody></table></div>
+    {% else %}{{ saude('ok', 'Sem problemas', 'no Zabbix') }}{% endif %}
+  </section>
+  <section class="card">
+    <h3>Anfitrião</h3>
+    {{ kv([('Nome no Zabbix', z.host), ('Nome visível', z.visivel), ('Estado', 'monitorizado' if z.ativo else 'desativado'),
+           ('Interfaces', z.interfaces|map(attribute='end')|join(', ')), ('Disponibilidade', z.interfaces|map(attribute='estado')|join(', '))]) }}
+    {% if z.url %}<a class="btn small" href="{{ z.url }}/zabbix.php?action=host.view&filter_host={{ z.host|urlencode }}" target="_blank" rel="noopener">Abrir no Zabbix ↗</a>{% endif %}
+  </section>
+  </div>
+  <h3>Itens</h3>
+  <input type="search" class="filtro" data-alvo="tzbx" placeholder="Filtrar itens">
+  <div class="table-wrap"><table class="small-tab" id="tzbx"><thead><tr><th>Item</th><th>Valor</th><th>Chave</th><th>Atualizado</th></tr></thead>
+    <tbody>{% for it in z.itens %}<tr><td>{{ it.nome }}</td><td class="num" translate="no"><b>{{ it.valor }}</b> {{ it.unidade }}</td><td translate="no"><small><code>{{ it.chave }}</code></small></td>
+      <td><small>{{ it.quando|ts_epoch if it.quando else '—' }}</small></td></tr>{% else %}<tr><td colspan="4" class="muted">Sem itens conhecidos neste anfitrião.</td></tr>{% endfor %}</tbody></table></div>
+  {% elif z %}<p class="muted">Anfitrião <code translate="no">{{ z.nome }}</code> não encontrado no Zabbix. Indique o nome em Gerir clientes → cliente → Host no Zabbix.</p>
+  {% elif not zbx or not zbx.erro %}<p class="muted"><span class="spin"></span> A consultar o Zabbix…</p>{% endif %}
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='painel.js', v=static_v) }}"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  function filtros() {
+    document.querySelectorAll('input.filtro').forEach(f => {
+      if (f.dataset.ok) return; f.dataset.ok = 1;
+      const ap = () => { const q = f.value.toLowerCase(), al = $(f.dataset.alvo); if (!al) return;
+        al.querySelectorAll('tbody tr, .lg').forEach(r => r.style.display = !q || r.textContent.toLowerCase().includes(q) ? '' : 'none'); };
+      f.addEventListener('input', ap); f._ap = ap;
+    });
+    document.querySelectorAll('table.ordenavel').forEach(t => {
+      if (t.dataset.ok) return; t.dataset.ok = 1;
+      t.querySelectorAll('th').forEach((th, i) => { th.style.cursor = 'pointer'; th.onclick = () => {
+        const tb = t.tBodies[0], rs = [...tb.rows], asc = th.dataset.asc !== '1'; th.dataset.asc = asc ? '1' : '0';
+        const v = r => { const c = r.cells[i]; return c.dataset.v !== undefined ? +c.dataset.v : (th.dataset.t === 'n' ? +c.textContent : c.textContent.toLowerCase()); };
+        rs.sort((a, b) => (v(a) > v(b) ? 1 : v(a) < v(b) ? -1 : 0) * (asc ? 1 : -1)); rs.forEach(r => tb.appendChild(r)); }; });
+    });
+  }
+  filtros();
+  async function blocos() {
+    const r = await fetch(location.href, {cache: 'no-store'});
+    if (!r.ok) throw new Error(r.status);
+    const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+    document.querySelectorAll('[data-ref]').forEach(el => {
+      const n = doc.querySelector(`[data-ref="${el.dataset.ref}"]`);
+      if (!n || n.innerHTML === el.innerHTML) return;
+      const q = [...el.querySelectorAll('input.filtro')].map(f => f.value);
+      el.innerHTML = n.innerHTML;
+      el.querySelectorAll('input.filtro').forEach((f, k) => { f.value = q[k] || ''; });
+    });
+    filtros(); document.querySelectorAll('input.filtro').forEach(f => f.value && f._ap && f._ap());
+  }
+  autoAtualizar('cliente', $('ref'), $('agora'), $('upd'), blocos, '30');
+  $('upd').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-PT');
+  const fp = $('fpedir');
+  if (fp) fp.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    await fetch(fp.action, {method: 'POST', body: new FormData(fp), headers: {'X-Requested-With': 'fetch'}});
+    await blocos();
+  });
+})();
+</script>
 {% endblock %}

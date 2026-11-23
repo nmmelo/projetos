@@ -147,6 +147,7 @@ def apagar(cid) -> None:
         t.run("DELETE FROM cliente_alarmes_estado WHERE cliente_id = ?", (cid,))
         t.run("DELETE FROM cliente_alarmes WHERE cliente_id = ?", (cid,))
         t.run("DELETE FROM cliente_regras WHERE cliente_id = ?", (cid,))
+        t.run("DELETE FROM cliente_dados WHERE cliente_id = ?", (cid,))
         t.run("DELETE FROM clientes WHERE id = ?", (cid,))
 
 
@@ -229,7 +230,48 @@ def autenticar(codigo: str, tk: str) -> dict | None:
     return c if hmac.compare_digest(c["token_hash"], _hash(tk)) else None
 
 
-def sync(c: dict, info: dict, ip: str, link: str = "") -> dict:
+# ============================================================ dados extra do agente (processos, sistema, logs, ...)
+TIPOS_DADOS = {"processos": "Processos", "sistema": "Sistema", "logs": "Logs", "atualizacoes": "Atualizações pendentes"}
+
+
+def guardar_dados(cid: int, extras: dict) -> None:
+    if not isinstance(extras, dict):
+        return
+    agora = store.now()
+    with store.tx() as t:
+        for tipo, dados in extras.items():
+            if tipo not in TIPOS_DADOS or not isinstance(dados, dict):
+                continue
+            texto = json.dumps(dados)[:2_000_000]
+            t.run("DELETE FROM cliente_dados WHERE cliente_id = ? AND tipo = ?", (cid, tipo))
+            t.run("INSERT INTO cliente_dados (cliente_id, tipo, atualizado, dados) VALUES (?, ?, ?, ?)",
+                  (cid, tipo, agora, texto))
+    a_verificar = extras.get("_a_verificar")
+    store.save_settings({f"cliente_verificar:{cid}": ",".join(a_verificar) if isinstance(a_verificar, list) else ""})
+
+
+def dados(cid: int) -> dict:
+    """tipo -> {"dados", "atualizado"} (o que o agente enviou por ultimo)."""
+    out = {}
+    with store.tx() as t:
+        for r in t.all("SELECT tipo, atualizado, dados FROM cliente_dados WHERE cliente_id = ?", (cid,)):
+            try:
+                out[r["tipo"]] = {"dados": json.loads(r["dados"] or "{}"), "atualizado": r["atualizado"]}
+            except ValueError:
+                pass
+    v = store.get_setting(f"cliente_verificar:{cid}") or ""
+    out["_a_verificar"] = [x for x in v.split(",") if x]
+    out["_pedido"] = store.get_setting(f"cliente_pedido:{cid}") or ""
+    return out
+
+
+def pedir_dados(cid: int, tipos: list[str]) -> None:
+    """O agente envia estes dados na proxima sincronizacao (resposta do sync: 'pedidos')."""
+    tipos = [x for x in tipos if x in TIPOS_DADOS] or list(TIPOS_DADOS)
+    store.save_settings({f"cliente_pedido:{cid}": ",".join(tipos)})
+
+
+def sync(c: dict, info: dict, ip: str, link: str = "", extras: dict | None = None) -> dict:
     iv = info.get("intervalo")
     try:
         iv = max(10, min(3600, int(iv)))
@@ -249,7 +291,12 @@ def sync(c: dict, info: dict, ip: str, link: str = "") -> dict:
     if c.get("estado_contacto") == "perdido":
         eventos.emitir("clientes.contacto", "recuperou", f"Cliente {c['nome']}: o agente voltou a contactar",
                        f"Último contacto anterior: {c.get('ultimo_contacto')}.", link, dados={"cliente": c["nome"]})
-    return {"ok": True, "nome": c["nome"], "intervalo": iv,
+    if extras:
+        guardar_dados(c["id"], extras)
+    ped = store.get_setting(f"cliente_pedido:{c['id']}") or ""
+    if ped:
+        store.save_settings({f"cliente_pedido:{c['id']}": ""})
+    return {"ok": True, "nome": c["nome"], "intervalo": iv, "pedidos": [x for x in ped.split(",") if x],
             "regras": [{"id": r["codigo"], "nome": r["nome"], "log": r["log_path"] or "",
                         "padrao_erro": r["padrao_erro"] or "", "padrao_aviso": r["padrao_aviso"] or ""}
                        for r in regras(c["id"], so_ativas=True)]}

@@ -1,6 +1,7 @@
 """Rotas do modulo Clientes (paginas, gestao e API do agente)."""
 import datetime
 import hashlib
+import json
 import os
 import re
 
@@ -48,18 +49,90 @@ def painel():
     por = {}
     for e in clientes_alarmes.ativos():
         por.setdefault(e["cliente_id"], []).append(e)
-    return render_template("clientes/painel.html", clientes=clientes.listar(), familias=clientes.FAMILIAS, alarmes_por=por)
+    bds = {}
+    for d in store.list_dbs():
+        if d.get("cliente_id"):
+            bds.setdefault(int(d["cliente_id"]), []).append(d["name"])
+    upd = {}
+    with store.tx() as t:
+        for r in t.all("SELECT cliente_id, dados FROM cliente_dados WHERE tipo = 'atualizacoes'"):
+            try:
+                x = json.loads(r["dados"] or "{}")
+                upd[int(r["cliente_id"])] = (x.get("total") or 0, x.get("seguranca") or 0, x.get("reinicio"))
+            except ValueError:
+                pass
+    return render_template("clientes/painel.html", clientes=clientes.listar(), familias=clientes.FAMILIAS, alarmes_por=por,
+                           bds_por=bds, upd_por=upd)
 
 
 @bp.route("/cliente/<int:cid>")
 @auth.requires(MODULO.acesso)
 def detalhe(cid):
     c = clientes.obter(cid) or abort(404)
-    from ... import agente_rpc
-    bds = [{"db": d, "via": agente_rpc.estado(d)} for d in store.list_dbs() if str(d.get("cliente_id") or "") == str(cid)]
+    from ... import agente_rpc, tarefas_bg, zabbix_api
+    aba = request.args.get("aba") or "resumo"
+    abas = [("resumo", "Resumo"), ("processos", "Processos"), ("sistema", "Sistema"), ("logs", "Logs"),
+            ("atualizacoes", "Atualizações"), ("bds", "Bases de dados")]
+    zbx_ok = zabbix_api.configurado()
+    if zbx_ok:
+        abas.append(("zabbix", "Zabbix"))
+    if aba not in dict(abas):
+        aba = "resumo"
+    todas = store.list_dbs()
+    bds = [{"db": d, "via": agente_rpc.estado(d), "resumo": _resumo_bd(d)} for d in todas
+           if str(d.get("cliente_id") or "") == str(cid)]
+    zbx = None
+    if aba == "zabbix" and zbx_ok:
+        ch = f"clientes:{cid}:zabbix"
+        zbx = tarefas_bg.pedir(ch, f"Zabbix · {c['nome']}", lambda: zabbix_api.resumo_cliente(c), g.user.username, 60,
+                               forcar=request.args.get("atualizar") == "1", link=url_for("clientes.detalhe", cid=cid, aba="zabbix"))
+        if zbx["a_atualizar"]:
+            zbx = tarefas_bg.esperar(ch, 3)
     return render_template("clientes/detalhe.html", c=c, regras=clientes.regras(cid), bds=bds, url_portal=_url_portal(),
                            eventos=clientes.listar_eventos(cliente_id=cid, limite=50), familias=clientes.FAMILIAS,
-                           estados=clientes.ESTADOS_EV, alarmes=clientes_alarmes.ativos(cid))
+                           estados=clientes.ESTADOS_EV, alarmes=clientes_alarmes.ativos(cid), aba=aba, abas=abas,
+                           dd=clientes.dados(cid), zbx=zbx, zbx_ok=zbx_ok,
+                           livres=[d for d in todas if str(d.get("cliente_id") or "") != str(cid)],
+                           modos=agente_rpc.MODOS)
+
+
+def _resumo_bd(db: dict) -> dict:
+    """Estado da BD da cache do modulo Oracle (o mesmo de Oracle -> Bases de dados); pede atualizacao se velho."""
+    from ... import tarefas_bg
+    try:
+        from ..oracle import inspecao
+    except Exception:  # noqa: BLE001 - modulo Oracle indisponivel
+        return {}
+    pw = crypto.decrypt(db["password_enc"]) if db.get("password_enc") else ""
+    return tarefas_bg.pedir(f"oracle:{db['id']}:resumo", f"Oracle {db['name']} · estado",
+                            lambda: inspecao.resumo(db, pw), g.user.username, 120)
+
+
+@bp.route("/cliente/<int:cid>/pedir", methods=["POST"])
+@auth.requires(MODULO.acesso)
+def pedir_dados(cid):
+    clientes.obter(cid) or abort(404)
+    clientes.pedir_dados(cid, request.form.getlist("tipo"))
+    if request.headers.get("X-Requested-With") == "fetch":
+        return jsonify(ok=True)
+    flash("Pedido enviado: o agente envia os dados no próximo contacto.", "ok")
+    return redirect(url_for("clientes.detalhe", cid=cid, aba=request.form.get("aba") or "resumo"))
+
+
+@bp.route("/cliente/<int:cid>/bds", methods=["POST"])
+@auth.requires(MODULO.acesso, "clientes.gerir")
+def associar_bd(cid):
+    c = clientes.obter(cid) or abort(404)
+    f = request.form
+    db = store.get_db(int(f.get("db_id") or 0)) or abort(404)
+    if f.get("acao") == "remover":
+        store.save_db({**db, "cliente_id": None, "agente_modo": "nao"}, None, db["id"])
+        flash(f"{db['name']} deixou de estar associada a {c['nome']}.", "ok")
+    else:
+        modo = f.get("modo") if f.get("modo") in ("auto", "obrigatorio") else "auto"
+        store.save_db({**db, "cliente_id": cid, "agente_modo": modo}, None, db["id"])
+        flash(f"{db['name']} associada a {c['nome']}.", "ok")
+    return redirect(url_for("clientes.detalhe", cid=cid, aba="bds"))
 
 
 @bp.route("/regras", methods=["GET", "POST"])
@@ -286,7 +359,8 @@ def agente_sync():
         return _negado()
     d = request.get_json(silent=True) or {}
     link = url_for("clientes.detalhe", cid=c["id"])
-    return jsonify(clientes.sync(c, d.get("info") if isinstance(d.get("info"), dict) else {}, _ip(), link))
+    return jsonify(clientes.sync(c, d.get("info") if isinstance(d.get("info"), dict) else {}, _ip(), link,
+                                 d.get("extras") if isinstance(d.get("extras"), dict) else None))
 
 
 @bp.route("/agente/api/evento", methods=["POST"])

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1692">
+<lingua codigo="en" nome="English" textos="1767">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -6769,5 +6769,305 @@
   <texto>
     <origem>A chave do portal ainda não foi criada (é criada ao guardar o primeiro cliente).</origem>
     <traducao>The portal key has not been created yet (it is created when the first client is saved).</traducao>
+  </texto>
+  <texto>
+    <origem>(reconhecido)</origem>
+    <traducao>(acknowledged)</traducao>
+  </texto>
+  <texto>
+    <origem>. O agente verifica a cada 6 h.</origem>
+    <traducao>. The agent checks every 6 h.</traducao>
+  </texto>
+  <texto>
+    <origem>Abrir no Zabbix ↗</origem>
+    <traducao>Open in Zabbix ↗</traducao>
+  </texto>
+  <texto>
+    <origem>Alto</origem>
+    <traducao>High</traducao>
+  </texto>
+  <texto>
+    <origem>Anfitrião</origem>
+    <traducao>Host</traducao>
+  </texto>
+  <texto>
+    <origem>Arq.</origem>
+    <traducao>Arch.</traducao>
+  </texto>
+  <texto>
+    <origem>Associar</origem>
+    <traducao>Associate</traducao>
+  </texto>
+  <texto>
+    <origem>Associar uma base de dados</origem>
+    <traducao>Associate a database</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizações</origem>
+    <traducao>Updates</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizações pendentes</origem>
+    <traducao>Pending updates</traducao>
+  </texto>
+  <texto>
+    <origem>Bases de dados associadas a este cliente: o estado vem do módulo Oracle (o mesmo de Oracle → Bases de dados) e, com o serviço Oracle do agente, os pedidos são feitos pelo agente.</origem>
+    <traducao>Databases associated with this client: the status comes from the Oracle module (same as Oracle → Databases) and, with the agent's Oracle service, the requests are made by the agent.</traducao>
+  </texto>
+  <texto>
+    <origem>Bases de dados neste servidor</origem>
+    <traducao>Databases on this server</traducao>
+  </texto>
+  <texto>
+    <origem>Chave</origem>
+    <traducao>Key</traducao>
+  </texto>
+  <texto>
+    <origem>De segurança</origem>
+    <traducao>Security</traducao>
+  </texto>
+  <texto>
+    <origem>Desassociar</origem>
+    <traducao>Disassociate</traducao>
+  </texto>
+  <texto>
+    <origem>Disponibilidade</origem>
+    <traducao>Availability</traducao>
+  </texto>
+  <texto>
+    <origem>Em espera</origem>
+    <traducao>Sleeping</traducao>
+  </texto>
+  <texto>
+    <origem>Endereços</origem>
+    <traducao>Addresses</traducao>
+  </texto>
+  <texto>
+    <origem>Filtrar (comando, utilizador, PID)</origem>
+    <traducao>Filter (command, user, PID)</traducao>
+  </texto>
+  <texto>
+    <origem>Filtrar as linhas</origem>
+    <traducao>Filter the lines</traducao>
+  </texto>
+  <texto>
+    <origem>Filtrar itens</origem>
+    <traducao>Filter items</traducao>
+  </texto>
+  <texto>
+    <origem>Filtrar pacotes</origem>
+    <traducao>Filter packages</traducao>
+  </texto>
+  <texto>
+    <origem>Gravidade</origem>
+    <traducao>Severity</traducao>
+  </texto>
+  <texto>
+    <origem>Hora sincronizada (NTP)</origem>
+    <traducao>Time synchronised (NTP)</traducao>
+  </texto>
+  <texto>
+    <origem>Instância / host</origem>
+    <traducao>Instance / host</traducao>
+  </texto>
+  <texto>
+    <origem>Itens</origem>
+    <traducao>Items</traducao>
+  </texto>
+  <texto>
+    <origem>Mais recentes primeiro (até 300 linhas, atualizado a cada 5 min ou com "Pedir dados agora"). No servidor:</origem>
+    <traducao>Most recent first (up to 300 lines, updated every 5 min or with "Request data now"). On the server:</traducao>
+  </texto>
+  <texto>
+    <origem>Médio</origem>
+    <traducao>Average</traducao>
+  </texto>
+  <texto>
+    <origem>Nome no Zabbix</origem>
+    <traducao>Name in Zabbix</traducao>
+  </texto>
+  <texto>
+    <origem>Nome visível</origem>
+    <traducao>Visible name</traducao>
+  </texto>
+  <texto>
+    <origem>Nova versão</origem>
+    <traducao>New version</traducao>
+  </texto>
+  <texto>
+    <origem>O agente envia estes dados no próximo contacto (até {n} s)</origem>
+    <traducao>The agent sends this data on the next contact (up to {n} s)</traducao>
+  </texto>
+  <texto>
+    <origem>O mesmo que em Oracle → Definições → Editar base de dados → Agente cliente.</origem>
+    <traducao>Same as in Oracle → Settings → Edit database → Client agent.</traducao>
+  </texto>
+  <texto>
+    <origem>Oracle →</origem>
+    <traducao>Oracle →</traducao>
+  </texto>
+  <texto>
+    <origem>Os {n} processos com mais CPU e memória (CPU em % de um núcleo, desde a leitura anterior).</origem>
+    <traducao>The {n} processes using the most CPU and memory (CPU in % of one core, since the previous reading).</traducao>
+  </texto>
+  <texto>
+    <origem>Pacote</origem>
+    <traducao>Package</traducao>
+  </texto>
+  <texto>
+    <origem>Pacotes a atualizar</origem>
+    <traducao>Packages to update</traducao>
+  </texto>
+  <texto>
+    <origem>Pacotes instalados</origem>
+    <traducao>Installed packages</traducao>
+  </texto>
+  <texto>
+    <origem>Papel</origem>
+    <traducao>Role</traducao>
+  </texto>
+  <texto>
+    <origem>Para instalar, no servidor:</origem>
+    <traducao>To install, on the server:</traducao>
+  </texto>
+  <texto>
+    <origem>Portas à escuta (TCP)</origem>
+    <traducao>Listening ports (TCP)</traducao>
+  </texto>
+  <texto>
+    <origem>Problema</origem>
+    <traducao>Problem</traducao>
+  </texto>
+  <texto>
+    <origem>Problemas</origem>
+    <traducao>Problems</traducao>
+  </texto>
+  <texto>
+    <origem>Processador</origem>
+    <traducao>Processor</traducao>
+  </texto>
+  <texto>
+    <origem>Rede</origem>
+    <traducao>Network</traducao>
+  </texto>
+  <texto>
+    <origem>Reinício necessário</origem>
+    <traducao>Reboot required</traducao>
+  </texto>
+  <texto>
+    <origem>Repositório</origem>
+    <traducao>Repository</traducao>
+  </texto>
+  <texto>
+    <origem>Resumo</origem>
+    <traducao>Summary</traducao>
+  </texto>
+  <texto>
+    <origem>Rota por omissão</origem>
+    <traducao>Default route</traducao>
+  </texto>
+  <texto>
+    <origem>Serviços com falha</origem>
+    <traducao>Failed services</traducao>
+  </texto>
+  <texto>
+    <origem>Verificado</origem>
+    <traducao>Checked</traducao>
+  </texto>
+  <texto>
+    <origem>disponível</origem>
+    <traducao>available</traducao>
+  </texto>
+  <texto>
+    <origem>lido {n}-{n}-{n} {n}:{n}:{n}</origem>
+    <traducao>read {n}-{n}-{n} {n}:{n}:{n}</traducao>
+  </texto>
+  <texto>
+    <origem>recebido {n}-{n}-{n} {n}:{n}:{n}</origem>
+    <traducao>received {n}-{n}-{n} {n}:{n}:{n}</traducao>
+  </texto>
+  <texto>
+    <origem>segurança</origem>
+    <traducao>security</traducao>
+  </texto>
+  <texto>
+    <origem>⇣ Pedir dados agora</origem>
+    <traducao>⇣ Request data now</traducao>
+  </texto>
+  <texto>
+    <origem>NÃO</origem>
+    <traducao>NO</traducao>
+  </texto>
+  <texto>
+    <origem>Pedido enviado ao agente (</origem>
+    <traducao>Request sent to the agent (</traducao>
+  </texto>
+  <texto>
+    <origem>): chega no próximo contacto.</origem>
+    <traducao>): arrives on the next contact.</traducao>
+  </texto>
+  <texto>
+    <origem>Sem avisos nem erros nas últimas 24 h.</origem>
+    <traducao>No warnings or errors in the last 24 h.</traducao>
+  </texto>
+  <texto>
+    <origem>Sistema atualizado</origem>
+    <traducao>System up to date</traducao>
+  </texto>
+  <texto>
+    <origem>sem pacotes pendentes</origem>
+    <traducao>no pending packages</traducao>
+  </texto>
+  <texto>
+    <origem>ainda sem dados do agente</origem>
+    <traducao>no data from the agent yet</traducao>
+  </texto>
+  <texto>
+    <origem>a verificar no servidor…</origem>
+    <traducao>checking on the server…</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhum serviço com falha</origem>
+    <traducao>No failed services</traducao>
+  </texto>
+  <texto>
+    <origem>Sem problemas</origem>
+    <traducao>No problems</traducao>
+  </texto>
+  <texto>
+    <origem>no Zabbix</origem>
+    <traducao>in Zabbix</traducao>
+  </texto>
+  <texto>
+    <origem>monitorizado</origem>
+    <traducao>monitored</traducao>
+  </texto>
+  <texto>
+    <origem>desativado</origem>
+    <traducao>disabled</traducao>
+  </texto>
+  <texto>
+    <origem>A consultar o Zabbix…</origem>
+    <traducao>Querying Zabbix…</traducao>
+  </texto>
+  <texto>
+    <origem>a consultar…</origem>
+    <traducao>querying…</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhuma base de dados associada a este cliente.</origem>
+    <traducao>No database associated with this client.</traducao>
+  </texto>
+  <texto>
+    <origem>sem acesso a esta base de dados</origem>
+    <traducao>no access to this database</traducao>
+  </texto>
+  <texto>
+    <origem>Desassociar esta base de dados do cliente?</origem>
+    <traducao>Disassociate this database from the client?</traducao>
+  </texto>
+  <texto>
+    <origem>Zombie</origem>
+    <traducao>Zombie</traducao>
   </texto>
 </lingua>

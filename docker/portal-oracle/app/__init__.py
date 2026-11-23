@@ -38,6 +38,18 @@ def create_app(mark_interrupted: bool = True) -> Flask:
         MAX_CONTENT_LENGTH=20 * 1024 * 1024,   # upload de backups
     )
 
+    import datetime as _dt
+    import re as _re
+
+    def _ts_epoch(v):
+        try:
+            return _dt.datetime.fromtimestamp(int(v)).strftime("%Y-%m-%d %H:%M")
+        except (TypeError, ValueError, OSError):
+            return ""
+    app.jinja_env.filters["ts_epoch"] = _ts_epoch
+    app.jinja_env.filters["ts_iso"] = _ts_epoch
+    app.jinja_env.tests["matching"] = lambda v, padrao: bool(_re.match(padrao, str(v or "")))
+
     store.get()                      # cria/atualiza o esquema
     if mark_interrupted:
         store.interrupt_running_jobs()

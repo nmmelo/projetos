@@ -519,6 +519,34 @@ API usada pelo agente (sem sessão, autenticada pelo id e token): `POST /cliente
 ![Novo alarme](docs/clientes-alarme.png)
 ![Integração Zabbix](docs/clientes-zabbix.png)
 
+### Cliente: abas, atualização automática e bases de dados
+
+A página de cada cliente tem, como a Home, a **atualização automática** (manual, 10 s, 30 s, 1 min, 5 min; por omissão 30 s) e abas:
+
+| Aba | Conteúdo | Origem / frequência |
+|---|---|---|
+| **Resumo** | Agente, sistema, recursos, serviço Oracle, regras e eventos | Cada sincronização |
+| **Processos** | Totais (processos, threads, por estado) e os ~50 com mais CPU e memória: PID, utilizador, CPU % (de um núcleo), memória, threads, estado, início, comando; filtro e ordenação | Agente, cada sincronização |
+| **Sistema** | Processador, memória, swap, arranque, fuso, NTP, SELinux, firewall, sessões, pacotes; rede (IPs, rota, DNS, portas TCP à escuta); serviços com falha | Agente, cada hora |
+| **Logs** | Avisos e erros das últimas 24 h (`journalctl -p warning`; sem journald, `/var/log/messages`), até 300 linhas, com filtro | Agente, cada 5 min |
+| **Atualizações** | Pacotes pendentes (dnf/yum `check-update`, apt `list --upgradable`), os de segurança e se é preciso reiniciar (`needs-restarting -r`, `/var/run/reboot-required`) | Agente, cada 6 h (corre em segundo plano) |
+| **Bases de dados** | Bases de dados associadas ao cliente com o estado do módulo Oracle (estado, versão, instância, papel, Data Guard, log), quem faz os pedidos e o modo; **associar/desassociar** aqui (o mesmo que em Oracle → Definições) | Cache do módulo Oracle |
+| **Zabbix** | Com a API do Zabbix configurada (Gerir clientes → Zabbix: endereço e token): anfitrião, interfaces, problemas por gravidade e os itens principais (CPU, memória, carga, discos, processos, uptime, versão do agente) e ligação para o Zabbix | API do Zabbix (cache 60 s) |
+
+**Pedir dados agora** (Processos, Sistema, Logs, Atualizações): o portal responde à sincronização seguinte com o pedido e o agente envia logo esses dados (até um intervalo). A lista de clientes mostra as bases de dados associadas e o número de atualizações pendentes (vermelho com atualizações de segurança, "reiniciar" quando preciso). Requer o agente **1.3.0** (atualize em Ferramentas); `EXTRAS=0` no `.env` do agente desliga estes dados.
+
+| Processos | Atualizações |
+|---|---|
+| ![Processos](docs/clientes-processos.png) | ![Atualizações](docs/clientes-atualizacoes.png) |
+
+| Bases de dados | Zabbix |
+|---|---|
+| ![Bases de dados](docs/clientes-bds.png) | ![Zabbix](docs/clientes-zabbix.png) |
+
+| Sistema | Logs |
+|---|---|
+| ![Sistema](docs/clientes-sistema.png) | ![Logs](docs/clientes-logs.png) |
+
 ### Clientes → Ferramentas
 
 Download do `setup.sh`, do `agente-portal.py` (versão, tamanho, SHA-256) e da chave SSH pública do portal, e os comandos prontos a copiar, já com o endereço do portal: descarregar o instalador, instalação nova, serviço Oracle, atualizar (mantém id e token), verificar, desinstalar, instalar num servidor sem acesso HTTPS ao portal (o `setup.sh` usa o `agente-portal.py` que estiver ao lado dele), comandos do agente e como pôr a chave à mão.
