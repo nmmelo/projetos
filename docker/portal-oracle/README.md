@@ -519,6 +519,35 @@ API usada pelo agente (sem sessão, autenticada pelo id e token): `POST /cliente
 ![Novo alarme](docs/clientes-alarme.png)
 ![Integração Zabbix](docs/clientes-zabbix.png)
 
+### Pedidos às bases de dados pelo agente cliente (serviço Oracle)
+
+Em vez de o portal se ligar diretamente a cada base de dados, o **agente cliente instalado no servidor da BD** pode fazer os pedidos: o portal envia-os ao agente e fica a aguardar a resposta. Vale para tudo o que o módulo Oracle faz — estado e inspeção (Oracle → Bases de dados), relatório de tablespaces, teste de ligação, cancelamento — e para o **shrink**, que corre no agente.
+
+| Ponto | Detalhe |
+|---|---|
+| **Ativar no servidor** | `sudo bash setup.sh --oracle --origens "<IP do portal>" --abrir-firewall` (num agente já instalado basta isto: mantém id e token). Cria `/opt/agente-portal/venv` com o `python-oracledb` (Python 3.8+), gera o certificado e liga o serviço na porta **8795/tcp** |
+| **Associar a base de dados** | Oracle → Definições → Editar → **Agente cliente**: escolher o agente (o que tem o mesmo host aparece como *sugerido*) e o modo |
+| **Modos** | **Automático**: o agente se estiver disponível, senão o portal. **Obrigatório**: só pelo agente (sem ele dá erro) |
+| **Quem tratou** | Coluna **Pedidos feitos por** em Oracle → Bases de dados e → Definições (verde = agente; cinza/laranja = portal, com o motivo). Em cada execução, **Executado por**; na lista, ⇄ agente. Em Clientes → cliente, o cartão **Serviço Oracle** com as BDs associadas |
+| **Shrink** | O bloco corre numa sessão do agente; o portal acompanha (passo, %, output em direto) e grava o resultado. Se o portal ou o agente Oracle do portal reiniciar, a execução **continua no agente** e volta a ser acompanhada. Cancelar termina a sessão pelo agente |
+| **Segurança** | HTTPS com certificado próprio do agente; o portal confirma a impressão digital (SHA-256) que o agente envia na sincronização autenticada. Cada pedido é assinado com o token do cliente (HMAC-SHA256 com hora e nonce: não pode ser repetido). `--origens` limita aos IPs do portal. A password da BD vai no pedido (cifrado pelo TLS) e não fica guardada no agente |
+| **Bases 11g** | O modo thin do python-oracledb precisa de 12.1+. Para 11g: `--oracle-lib /u01/app/oracle/product/11.2.0/dbhome_1/lib` (modo thick, usa as bibliotecas do Oracle do servidor) |
+| **Sem internet no servidor** | `pip download oracledb` noutra máquina (mesma versão de Python) e `setup.sh --oracle --oracledb-wheel /tmp/oracledb-*.whl` |
+
+```bash
+agente-portal estado          # inclui a linha "oracle" (porta, versão do python-oracledb, certificado)
+agente-portal oracle --dsn localhost:1521/PROD --utilizador DBOPERATOR    # testa uma ligação (pede a password)
+journalctl -u agente-portal -f   # "servico Oracle a escutar...", "job ... iniciado/terminou"
+```
+
+| Oracle → Bases de dados | Execução feita pelo agente |
+|---|---|
+| ![Bases de dados](docs/oracle-bds-agente.png) | ![Execução](docs/oracle-execucao-agente.png) |
+
+| Base de dados → Agente cliente | Clientes → Serviço Oracle |
+|---|---|
+| ![Editar base de dados](docs/oracle-bd-agente.png) | ![Serviço Oracle](docs/clientes-oracle.png) |
+
 ---
 
 ## Configuração → Setup
@@ -1526,6 +1555,8 @@ O driver é o **python-oracledb** em modo *thin* (sem Instant Client). Requer Or
 
 | Erro | Causa e solução |
 |---|---|
+| Base de dados com "Portal" e o motivo, em vez do agente | Agente sem contacto, sem `--oracle`, `python-oracledb` em falta, ou o portal não chega à porta 8795 do servidor (firewall). Veja o motivo na coluna e `agente-portal estado` no servidor |
+| `assinatura invalida` / `hora do pedido invalida` no registo do agente | Token mudado no portal (reconfigure o agente) ou relógios desacertados mais de 5 min (NTP/chrony) |
 | Shrink demora muito (20 min ou mais) | O tempo está na BD (MOVE/REBUILD). Use o **Paralelismo** (ex. 4) no Shrink, de preferência agendado para a noite; confirme em Sistema → Agentes que o Agente Oracle está a correr |
 | Sistema → Agentes/Análise sem gráficos | Falta o `psutil` (`--atualizar` instala-o) ou o agente do portal está parado |
 | Login falha logo depois de instalar | Corra `manage.py set-admin-password` (comando na tabela "Comandos úteis") |

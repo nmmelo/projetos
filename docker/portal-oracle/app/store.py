@@ -75,7 +75,7 @@ _SCHEMA = [
         output {LONGTEXT},
         error TEXT,
         created_by VARCHAR(64),
-        runner VARCHAR(10),
+        runner VARCHAR(20),
         n_erros INTEGER,
         n_avisos INTEGER
     ){SUFFIX}""",
@@ -416,7 +416,8 @@ class Store:
             self._migrate_v1()
         self._migrate_modulos()
         self._add_column("jobs", "progress", "INTEGER")
-        self._add_column("jobs", "runner", "VARCHAR(10)")
+        self._add_column("jobs", "runner", "VARCHAR(20)")
+        self._alargar("jobs", "runner", "VARCHAR(20)")         # 'agente_oracle' nao cabia em 10 (PG/MariaDB)
         self._add_column("jobs", "n_erros", "INTEGER")
         self._add_column("jobs", "n_avisos", "INTEGER")
         self._add_column("users", "auth_tipo", "VARCHAR(10)")
@@ -425,6 +426,22 @@ class Store:
         self._add_column("profiles", "administrador", "INTEGER NOT NULL DEFAULT 0")
         self._add_column("users", "first_name", "VARCHAR(100)")
         self._add_column("users", "last_name", "VARCHAR(100)")
+        self._add_column("oracle_dbs", "cliente_id", "INTEGER")          # agente cliente que faz os pedidos
+        self._add_column("oracle_dbs", "agente_modo", "VARCHAR(12)")     # nao | auto | obrigatorio
+        self._add_column("jobs", "via", "VARCHAR(120)")                  # quem tratou: portal / agente cliente
+        self._add_column("jobs", "remoto", "VARCHAR(80)")                # <cliente_id>:<job no agente>
+
+    def _alargar(self, table: str, col: str, ddl: str) -> None:
+        """Aumenta o tamanho de uma coluna VARCHAR (no SQLite o tamanho nao conta)."""
+        if self.kind == "sqlite":
+            return
+        sql = (f"ALTER TABLE {table} ALTER COLUMN {col} TYPE {ddl}" if self.kind == "postgresql"
+               else f"ALTER TABLE {table} MODIFY {col} {ddl}")
+        try:
+            with self.tx() as t:
+                t.run(sql)
+        except Exception:  # noqa: BLE001 - ja alterada por outro processo
+            pass
 
     def _add_column(self, table: str, col: str, ddl: str) -> None:
         """Acrescenta uma coluna a uma tabela ja existente (versoes anteriores do portal)."""
@@ -537,7 +554,7 @@ def save_settings(values: dict) -> None:
 
 
 # ------------------------------------------------------------------ bases de dados Oracle
-DB_FIELDS = ("name", "host", "port", "sid", "service_name", "pdb", "username", "role")
+DB_FIELDS = ("name", "host", "port", "sid", "service_name", "pdb", "username", "role", "cliente_id", "agente_modo")
 
 
 def list_dbs() -> list[dict]:
@@ -551,7 +568,7 @@ def get_db(db_id) -> dict | None:
 
 
 def save_db(data: dict, password_enc: str | None, db_id=None) -> int:
-    row = {f: data[f] for f in DB_FIELDS}
+    row = {f: data.get(f) for f in DB_FIELDS}
     with tx() as t:
         if db_id is None:
             return t.insert("oracle_dbs", {**row, "password_enc": password_enc,
@@ -654,7 +671,7 @@ def delete_user(uid) -> None:
 
 # ------------------------------------------------------------------ execucoes
 JOB_RESUMO = ("id, db_id, db_name, params, status, started_at, finished_at, current_action, progress, "
-              "created_by, runner, n_erros, n_avisos, error, agendado_para")
+              "created_by, runner, n_erros, n_avisos, error, agendado_para, via")
 
 
 def create_job(db: dict, params: dict, user: str, status: str = "EM CURSO", runner: str = "portal",
@@ -752,14 +769,22 @@ def delete_jobs(ids) -> int:
 
 def interrupt_running_jobs(runner: str = "portal") -> None:
     """Ao arrancar: as execucoes deste processo que ficaram 'EM CURSO' morreram com ele.
-    (as do agente so sao marcadas pelo agente, e vice-versa)"""
+    (as do agente so sao marcadas pelo agente, e vice-versa). As que correm num agente cliente
+    (remoto) continuam la: o agente do portal volta a acompanha-las (jobs.retomar_remotos)."""
     with tx() as t:
         if runner == "portal":
             t.run("""UPDATE jobs SET status = 'INTERROMPIDO', finished_at = ?
                      WHERE status = 'EM CURSO' AND (runner = 'portal' OR runner IS NULL)""", (now(),))
         else:
-            t.run("UPDATE jobs SET status = 'INTERROMPIDO', finished_at = ? WHERE status = 'EM CURSO' AND runner = ?",
-                  (now(), runner))
+            t.run("UPDATE jobs SET status = 'INTERROMPIDO', finished_at = ? WHERE status = 'EM CURSO' AND runner = ? "
+                  "AND (remoto IS NULL OR remoto = '')", (now(), runner))
+
+
+def remote_jobs() -> list[dict]:
+    """Execucoes EM CURSO num agente cliente (para voltar a acompanhar depois de reiniciar)."""
+    with tx() as t:
+        return [_job(r) for r in t.all("SELECT * FROM jobs WHERE status = 'EM CURSO' AND remoto IS NOT NULL "
+                                       "AND remoto <> '' ORDER BY id")]
 
 
 def pending_jobs() -> list[int]:

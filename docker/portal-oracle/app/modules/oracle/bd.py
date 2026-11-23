@@ -4,6 +4,8 @@ import re
 
 import oracledb
 
+from ... import agente_rpc
+
 SQL_DIR = os.path.join(os.path.dirname(__file__), "sql")
 IDENT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_$#]{0,127}$")
 TODOS = ("TODOS", "ALL", "*")
@@ -29,7 +31,13 @@ def make_dsn(cfg: dict) -> str:
     raise ValidationError("Indique o SID ou o Service Name.")
 
 
-def connect(cfg: dict, password: str) -> oracledb.Connection:
+def connect(cfg: dict, password: str, direto: bool = False) -> oracledb.Connection:
+    """Ligacao a base de dados. Se estiver associada a um agente cliente disponivel, os pedidos vao
+    pelo agente (agente_rpc.Ligacao, com a mesma interface); senao (ou direto=True) liga-se o portal."""
+    if not direto:
+        lig = agente_rpc.ligar(cfg, password)
+        if lig is not None:
+            return lig
     mode = oracledb.AUTH_MODE_SYSDBA if cfg.get("role") == "SYSDBA" else oracledb.AUTH_MODE_DEFAULT
     conn = oracledb.connect(user=cfg["username"], password=password, dsn=make_dsn(cfg), mode=mode)
     if cfg.get("pdb"):
@@ -241,6 +249,8 @@ def build_block(p: dict, pipe: str = "") -> str:
 
 
 def read_dbms_output(conn) -> list[str]:
+    if getattr(conn, "remoto", False):
+        return conn.dbms_output()
     lines = []
     chunk = 1000
     with conn.cursor() as cur:

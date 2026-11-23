@@ -50,6 +50,11 @@
   <tr><th>Parâmetros</th><td>{{ job.params.modo }} · ONLINE {{ job.params.online }} · ganho mín. {{ job.params.min_ganho }} MB · margem {{ job.params.margem }}% · purge {{ job.params.purge }}</td></tr>
   <tr><th>Início / fim</th><td>{{ job.started_at }} → <span id="fin">{{ job.finished_at or '…' }}</span></td></tr>
   <tr><th>Lançado por</th><td>{{ job.created_by }}</td></tr>
+  <tr><th>Executado por</th><td>{% if (job.via or '').startswith('agente') %}<span class="via via-verde"><span class="dot d-ok"></span>{{ job.via|replace('agente cliente', 'Agente cliente') }}</span>
+    <small class="muted">— o shrink corre no servidor da base de dados; o portal acompanha</small>
+    {% elif job.via %}<span class="via"><span class="dot d-off"></span>Portal</span>{% if '(' in job.via %} <small class="muted">{{ job.via[job.via.index('(')+1:-1] }}</small>{% endif %}
+    {% else %}—{% endif %}
+    <small class="muted">· {{ {'agente_oracle': 'agente Oracle', 'agente': 'agente do portal', 'portal': 'portal (Gunicorn)'}.get(job.runner or 'portal', job.runner) }}</small></td></tr>
 </table>
 
 <div id="err" class="flash error" {{ '' if job.error else 'hidden' }}>{{ job.error or '' }}</div>

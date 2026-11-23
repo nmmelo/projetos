@@ -10,15 +10,23 @@ Corre como servico (systemd) no servidor cliente e, a cada INTERVALO segundos:
 Outros scripts (rman, shrink, ...) notificam o portal com:
   agente-portal notificar <ID> [ok|aviso|erro|info] "mensagem"
 
+Servico Oracle (opcional, ORACLE_RPC=1): o portal envia ao agente os pedidos as bases de dados deste
+servidor (consultas, inspecao, shrink) e fica a aguardar a resposta; o agente liga-se ao Oracle com o
+python-oracledb (venv em /opt/agente-portal/venv). HTTPS na porta RPC_PORTA (8795) com certificado
+proprio (o portal confirma a impressao digital que o agente lhe envia na sincronizacao) e cada pedido
+assinado com o token (HMAC-SHA256 com hora e nonce: um pedido nao pode ser repetido).
+
 So usa a biblioteca padrao do Python 3 (3.6+). O .env tem os valores sensiveis cifrados com uma
 chave local (.chave, so o root le) ligada a esta maquina (/etc/machine-id).
 
-Comandos: run | configurar | notificar | testar | estado | intervalo | valor | versao
+Comandos: run | configurar | notificar | testar | estado | intervalo | valor | oracle | versao
 """
 import argparse
 import base64
 import datetime
+import decimal
 import grp
+import http.server
 import hashlib
 import hmac
 import json
@@ -27,6 +35,7 @@ import platform
 import re
 import secrets
 import socket
+import socketserver
 import ssl
 import subprocess
 import sys
@@ -35,13 +44,16 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.1.0"
+VERSAO = "1.2.0"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
 FILA = os.path.join(BASE, "fila.jsonl")
 ESTADO = os.path.join(BASE, "estado.json")
 SOCKET = os.environ.get("AGENTE_SOCKET", "/run/agente-portal/agente.sock")
+TLS_CRT = os.path.join(BASE, "tls.crt")
+TLS_KEY = os.path.join(BASE, "tls.key")
+RPC_PORTA = 8795
 GRUPO = "agente-portal"
 SENSIVEIS = ("TOKEN",)
 ESTADOS = ("ok", "aviso", "erro", "info")
@@ -108,7 +120,8 @@ def ler_env(decifrado: bool = True) -> dict:
 def gravar_env(cfg: dict) -> None:
     linhas = ["# Agente do portal. Gerado por 'agente-portal configurar'. Valores sensiveis cifrados (enc:).",
               "# Mudar o intervalo: agente-portal intervalo <segundos>"]
-    for k in ("PORTAL_URL", "CLIENTE_ID", "TOKEN", "INTERVALO", "VERIFICAR_TLS", "CA_FICHEIRO", "UTILIZADOR_SSH"):
+    for k in ("PORTAL_URL", "CLIENTE_ID", "TOKEN", "INTERVALO", "VERIFICAR_TLS", "CA_FICHEIRO", "UTILIZADOR_SSH",
+              "ORACLE_RPC", "RPC_PORTA", "RPC_ESCUTA", "RPC_ORIGENS", "ORACLE_LIB"):
         if k in cfg:
             v = cfg[k]
             if k in SENSIVEIS and not str(v).startswith("enc:"):
@@ -221,6 +234,7 @@ def recolher(cfg: dict) -> dict:
         "mem": {"total": total, "livre": livre, "pct": round(100 * (total - livre) / total, 1) if total else None},
         "discos": discos, "virtual": _cmd("systemd-detect-virt") or "none", "python": platform.python_version(),
         "utilizador_ssh": cfg.get("UTILIZADOR_SSH", ""), "agora": datetime.datetime.now().isoformat(timespec="seconds"),
+        "rpc": rpc_info(cfg),
     }
 
 
@@ -361,6 +375,371 @@ def servidor_socket(cfg: dict) -> None:
         threading.Thread(target=atender, args=(c,), daemon=True).start()
 
 
+# ============================================================ servico Oracle (pedidos do portal)
+RPC = {"ativo": False, "erro": "", "pedidos": 0, "inicio": None}
+SESSOES = {}           # id -> {"conn", "ultimo", "trava"}
+JOBS = {}              # id -> {"estado", "erro", "saida", "inicio", "fim", "sid", "serial"}
+_rpc_trava = threading.Lock()
+_vistas = {}           # assinaturas ja usadas (5 min): um pedido nao pode ser repetido
+IDENT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_$#]{0,127}$")
+_ora = {"mod": None, "erro": "", "init": False}
+
+
+def oracledb_mod():
+    """O modulo python-oracledb (None se nao estiver instalado). Com ORACLE_LIB usa o modo thick
+    (preciso para bases 11g; a 12.1+ funciona no modo thin, sem cliente Oracle)."""
+    if _ora["mod"] is None and not _ora["erro"]:
+        try:
+            import oracledb  # noqa: PLC0415
+            _ora["mod"] = oracledb
+        except ImportError as e:
+            _ora["erro"] = str(e)
+    m = _ora["mod"]
+    if m is not None and not _ora["init"]:
+        _ora["init"] = True
+        try:
+            lib = ler_env().get("ORACLE_LIB", "")
+        except OSError:
+            lib = ""
+        if lib:
+            try:
+                m.init_oracle_client(lib_dir=lib)
+            except Exception as e:  # noqa: BLE001
+                _ora["erro"] = "init_oracle_client: %s" % e
+    return m
+
+
+def tls_fp() -> str:
+    try:
+        with open(TLS_CRT) as f:
+            der = ssl.PEM_cert_to_DER_cert(f.read())
+        return hashlib.sha256(der).hexdigest()
+    except (OSError, ValueError):
+        return ""
+
+
+def tls_garantir() -> str:
+    """Certificado proprio do servico (10 anos). O portal nao o valida por uma CA: confirma a impressao
+    digital, que recebe do agente pelo canal autenticado (sincronizacao com o token)."""
+    if not (os.path.exists(TLS_CRT) and os.path.exists(TLS_KEY)):
+        nome = socket.getfqdn() or "agente-portal"
+        r = subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "3650",
+                            "-subj", "/CN=" + nome[:60], "-keyout", TLS_KEY, "-out", TLS_CRT],
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+        if r.returncode != 0:
+            raise RuntimeError("openssl falhou: " + r.stdout.strip()[-300:])
+        os.chmod(TLS_KEY, 0o600)
+        os.chmod(TLS_CRT, 0o644)
+    return tls_fp()
+
+
+def rpc_info(cfg: dict):
+    if cfg.get("ORACLE_RPC") != "1":
+        return None
+    m = oracledb_mod()
+    return {"ativo": RPC["ativo"], "erro": RPC["erro"] or _ora["erro"], "porta": int(cfg.get("RPC_PORTA") or RPC_PORTA),
+            "fp": tls_fp(), "oracledb": getattr(m, "__version__", "?") if m else None,
+            "modo": ("thick" if cfg.get("ORACLE_LIB") else "thin") if m else None,
+            "sessoes": len(SESSOES), "jobs": sum(1 for j in JOBS.values() if j["estado"] == "a correr"),
+            "pedidos": RPC["pedidos"], "python": platform.python_version()}
+
+
+def _enc(v):
+    """Valores do Oracle -> JSON (o portal volta a converter datas e decimais)."""
+    if v is None or isinstance(v, (bool, int, float, str)):
+        return v
+    if isinstance(v, datetime.datetime):
+        return {"$dt": v.isoformat()}
+    if isinstance(v, datetime.date):
+        return {"$d": v.isoformat()}
+    if isinstance(v, datetime.timedelta):
+        return {"$td": v.total_seconds()}
+    if isinstance(v, decimal.Decimal):
+        return {"$dec": str(v)}
+    if isinstance(v, (bytes, bytearray)):
+        return {"$b64": base64.b64encode(bytes(v)).decode()}
+    if hasattr(v, "read"):
+        return _enc(v.read())
+    return str(v)
+
+
+def _ligar(db: dict):
+    m = oracledb_mod()
+    if m is None:
+        raise RuntimeError("python-oracledb nao instalado no agente (%s)" % _ora["erro"])
+    if db.get("service_name"):
+        dsn = m.makedsn(db["host"], int(db["port"]), service_name=db["service_name"])
+    else:
+        dsn = m.makedsn(db["host"], int(db["port"]), sid=db["sid"])
+    modo = m.AUTH_MODE_SYSDBA if db.get("role") == "SYSDBA" else m.AUTH_MODE_DEFAULT
+    conn = m.connect(user=db["username"], password=db["password"], dsn=dsn, mode=modo)
+    pdb = db.get("pdb")
+    if pdb:
+        if not IDENT_RE.match(pdb):
+            conn.close()
+            raise ValueError("PDB invalida")
+        with conn.cursor() as cur:
+            cur.execute("ALTER SESSION SET CONTAINER = " + pdb)
+    return conn
+
+
+def _dbms_output(conn) -> list:
+    linhas, bloco = [], 1000
+    with conn.cursor() as cur:
+        lv, nv = cur.arrayvar(str, bloco, 32767), cur.var(int)
+        while True:
+            nv.setvalue(0, bloco)
+            cur.callproc("dbms_output.get_lines", (lv, nv))
+            n = nv.getvalue()
+            linhas.extend((l or "") for l in lv.getvalue()[:n])
+            if n < bloco:
+                break
+    return linhas
+
+
+def _binds(cur, b):
+    """Valores simples; {"$var": "str"|"int", "size": N} cria uma variavel de saida."""
+    outs = {}
+
+    def conv(k, v):
+        if isinstance(v, dict) and "$var" in v:
+            var = cur.var(str, int(v.get("size") or 4000)) if v["$var"] == "str" else cur.var(int)
+            outs[k] = var
+            return var
+        if isinstance(v, dict) and "$dt" in v:
+            return datetime.datetime.fromisoformat(v["$dt"]) if hasattr(datetime.datetime, "fromisoformat") else v["$dt"]
+        return v
+    if isinstance(b, list):
+        return [conv(i, v) for i, v in enumerate(b)], outs
+    if isinstance(b, dict):
+        return {k: conv(k, v) for k, v in b.items()}, outs
+    return [], outs
+
+
+def _sessao(sid: str) -> dict:
+    s = SESSOES.get(sid)
+    if not s:
+        raise LookupError("sessao inexistente ou expirada")
+    s["ultimo"] = time.time()
+    return s
+
+
+def _job_correr(jid: str, conn, bloco: str) -> None:
+    j = JOBS[jid]
+    try:
+        with conn.cursor() as cur:
+            cur.execute(bloco)
+        j["estado"] = "ok"
+    except Exception as e:  # noqa: BLE001
+        j["estado"], j["erro"] = "erro", str(e)
+    try:
+        j["saida"] = _dbms_output(conn)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        conn.close()
+    except Exception:  # noqa: BLE001
+        pass
+    j["fim"] = time.time()
+    log("job %s terminou: %s%s" % (jid, j["estado"], (" (" + j["erro"][:120] + ")") if j["erro"] else ""))
+
+
+def rpc_tratar(caminho: str, d: dict) -> dict:
+    if caminho == "/rpc/ping":
+        m = oracledb_mod()
+        return {"versao": VERSAO, "oracledb": getattr(m, "__version__", "?") if m else None}
+    if caminho == "/rpc/abrir":
+        conn = _ligar(d["db"])
+        sid = secrets.token_hex(12)
+        SESSOES[sid] = {"conn": conn, "ultimo": time.time(), "trava": threading.Lock()}
+        return {"sessao": sid, "versao": getattr(conn, "version", None)}
+    if caminho == "/rpc/fechar":
+        s = SESSOES.pop(d.get("sessao", ""), None)
+        if s:
+            try:
+                s["conn"].close()
+            except Exception:  # noqa: BLE001
+                pass
+        return {}
+    if caminho == "/rpc/sql":
+        s = _sessao(d["sessao"])
+        with s["trava"], s["conn"].cursor() as cur:
+            binds, outs = _binds(cur, d.get("binds"))
+            cur.execute(d["sql"], binds)
+            cols, linhas = None, []
+            if cur.description:
+                cols = [c[0] for c in cur.description]
+                maximo = int(d.get("max_linhas") or 100000)
+                for r in cur:
+                    linhas.append([_enc(v) for v in r])
+                    if len(linhas) >= maximo:
+                        break
+            return {"cols": cols, "linhas": linhas, "rowcount": getattr(cur, "rowcount", -1),
+                    "outs": {str(k): _enc(v.getvalue()) for k, v in outs.items()}}
+    if caminho == "/rpc/proc":
+        s = _sessao(d["sessao"])
+        with s["trava"], s["conn"].cursor() as cur:
+            cur.callproc(d["nome"], d.get("args") or [])
+        return {}
+    if caminho == "/rpc/dbms_output":
+        s = _sessao(d["sessao"])
+        with s["trava"]:
+            return {"linhas": _dbms_output(s["conn"])}
+    if caminho == "/rpc/job/iniciar":
+        conn = _ligar(d["db"])
+        try:
+            sid = serial = None
+            if d.get("sql_sessao"):
+                with conn.cursor() as cur:
+                    cur.execute(d["sql_sessao"])
+                    r = cur.fetchone()
+                    sid, serial = (r[0], r[1]) if r else (None, None)
+            with conn.cursor() as cur:
+                cur.callproc("dbms_output.enable", [None])
+        except Exception:
+            conn.close()
+            raise
+        jid = secrets.token_hex(8)
+        JOBS[jid] = {"estado": "a correr", "erro": "", "saida": None, "inicio": time.time(), "fim": None,
+                     "sid": sid, "serial": serial, "ref": str(d.get("ref", ""))[:40]}
+        threading.Thread(target=_job_correr, args=(jid, conn, d["bloco"]), daemon=True).start()
+        log("job %s iniciado (%s, sessao %s,%s)" % (jid, d.get("ref", ""), sid, serial))
+        return {"job": jid, "sid": sid, "serial": serial}
+    if caminho == "/rpc/job/estado":
+        j = JOBS.get(d.get("job", ""))
+        if not j:
+            raise LookupError("execucao desconhecida (o agente foi reiniciado?)")
+        return {"estado": j["estado"], "erro": j["erro"], "inicio": j["inicio"], "fim": j["fim"],
+                "sid": j["sid"], "serial": j["serial"], "saida": j["saida"] if j["estado"] != "a correr" else None}
+    if caminho == "/rpc/job/esquecer":
+        j = JOBS.get(d.get("job", ""))
+        if j and j["estado"] != "a correr":
+            JOBS.pop(d["job"], None)
+        return {}
+    raise LookupError("pedido desconhecido: " + caminho)
+
+
+def _autenticar(cab, caminho: str, corpo: bytes, ip: str) -> str:
+    cfg = ler_env()
+    origens = [x.strip() for x in re.split(r"[,\s]+", cfg.get("RPC_ORIGENS", "")) if x.strip()]
+    if origens and ip not in origens:
+        return "origem nao autorizada: " + ip
+    ts, nonce, assin = cab.get("X-Ts", ""), cab.get("X-Nonce", ""), cab.get("X-Assinatura", "")
+    if not ts.isdigit() or abs(time.time() - int(ts)) > 300:
+        return "hora do pedido invalida (relogios do portal e do agente diferentes?)"
+    if not re.match(r"^[0-9a-f]{16,64}$", nonce):
+        return "pedido sem nonce"
+    esperado = hmac.new(cfg["TOKEN"].encode(), ("%s\n%s\n%s\n" % (ts, nonce, caminho)).encode() + corpo,
+                        hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(esperado, assin):
+        return "assinatura invalida (token diferente?)"
+    with _rpc_trava:
+        agora = time.time()
+        for k in [k for k, t in _vistas.items() if agora - t > 600]:
+            del _vistas[k]
+        if assin in _vistas:
+            return "pedido repetido"
+        _vistas[assin] = agora
+    return ""
+
+
+class _Handler(http.server.BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+    server_version = "agente-portal/" + VERSAO
+
+    def log_message(self, *_a):
+        pass
+
+    def _resp(self, codigo: int, dados: dict) -> None:
+        b = json.dumps(dados).encode()
+        self.send_response(codigo)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
+    def do_GET(self):
+        self._resp(405, {"erro": "use POST"})
+
+    def do_POST(self):
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+            if n > 20 * 1024 * 1024:
+                return self._resp(413, {"erro": "pedido demasiado grande"})
+            corpo = self.rfile.read(n)
+            erro = _autenticar(self.headers, self.path, corpo, self.client_address[0])
+            if erro:
+                log("rpc recusado de %s: %s" % (self.client_address[0], erro))
+                return self._resp(401, {"erro": erro})
+            RPC["pedidos"] += 1
+            d = json.loads(corpo.decode() or "{}")
+        except Exception as e:  # noqa: BLE001
+            return self._resp(400, {"erro": str(e)})
+        try:
+            self._resp(200, rpc_tratar(self.path, d))
+        except LookupError as e:
+            self._resp(404, {"erro": str(e)})
+        except Exception as e:  # noqa: BLE001 - erros do Oracle (ORA-...) e outros
+            m = _ora["mod"]
+            oracle = m is not None and isinstance(e, m.Error)
+            self._resp(409 if oracle else 500, {"erro": str(e), "oracle": oracle})
+
+
+class _Servidor(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+    ctx = None
+
+    def finish_request(self, request, client_address):
+        request.settimeout(30)
+        try:
+            request = self.ctx.wrap_socket(request, server_side=True)
+        except (ssl.SSLError, OSError):
+            return
+        request.settimeout(120)                 # leitura/escrita; o tempo do Oracle nao conta (pedidos longos ok)
+        self.RequestHandlerClass(request, client_address, self)
+
+    def handle_error(self, request, client_address):
+        e = sys.exc_info()[1]
+        if not isinstance(e, (OSError, ssl.SSLError)):        # ligacoes fechadas pelo portal: normal
+            log("rpc: erro com %s: %r" % (client_address[0], e))
+
+
+def _limpeza() -> None:
+    while True:
+        time.sleep(60)
+        agora = time.time()
+        for k, s in list(SESSOES.items()):
+            if agora - s["ultimo"] > 900 and not s["trava"].locked():
+                SESSOES.pop(k, None)
+                try:
+                    s["conn"].close()
+                except Exception:  # noqa: BLE001
+                    pass
+        for k, j in list(JOBS.items()):
+            if j["fim"] and agora - j["fim"] > 86400:
+                JOBS.pop(k, None)
+
+
+def servidor_rpc(cfg: dict) -> None:
+    try:
+        tls_garantir()
+        if oracledb_mod() is None:
+            log("servico Oracle: python-oracledb nao instalado (%s); o portal trata dos pedidos" % _ora["erro"])
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(TLS_CRT, TLS_KEY)
+        porta = int(cfg.get("RPC_PORTA") or RPC_PORTA)
+        srv = _Servidor((cfg.get("RPC_ESCUTA") or "0.0.0.0", porta), _Handler)
+        srv.ctx = ctx
+        RPC.update(ativo=True, erro="", inicio=time.time())
+        threading.Thread(target=_limpeza, daemon=True).start()
+        log("servico Oracle a escutar na porta %s (TLS, impressao %s...)" % (porta, tls_fp()[:16]))
+        srv.serve_forever()
+    except Exception as e:  # noqa: BLE001
+        RPC.update(ativo=False, erro=str(e))
+        log("servico Oracle parado: %s" % e)
+
+
 # ============================================================ comandos
 def log(msg):
     print(time.strftime("%Y-%m-%d %H:%M:%S"), msg, flush=True)
@@ -369,6 +748,8 @@ def log(msg):
 def cmd_run(_a):
     cfg = ler_env()
     threading.Thread(target=servidor_socket, args=(cfg,), daemon=True).start()
+    if cfg.get("ORACLE_RPC") == "1":
+        threading.Thread(target=servidor_rpc, args=(cfg,), daemon=True).start()
     mem = {}
     try:
         with open(ESTADO) as f:
@@ -416,6 +797,13 @@ def cmd_configurar(a):
             cfg[k] = str(v)
     if a.inseguro:
         cfg["VERIFICAR_TLS"] = "0"
+    if a.oracle:
+        cfg["ORACLE_RPC"] = "1"
+    if a.sem_oracle:
+        cfg["ORACLE_RPC"] = "0"
+    for k, v in (("RPC_PORTA", a.porta_rpc), ("RPC_ORIGENS", a.origens), ("ORACLE_LIB", a.oracle_lib)):
+        if v is not None:
+            cfg[k] = str(v)
     for k in ("PORTAL_URL", "CLIENTE_ID", "TOKEN"):
         if not cfg.get(k):
             sys.exit(f"falta {k} (--portal, --id, --token)")
@@ -497,6 +885,31 @@ def cmd_estado(a):
           f"ultimo ciclo {('ha %d s' % (time.time() - ult)) if ult else '-'} (falhas seguidas: {est.get('falhas', '-')})\n"
           f"socket       {SOCKET} {'(ativo)' if os.path.exists(SOCKET) else '(inexistente)'}\n"
           f"fila         {sum(1 for _ in open(FILA)) if os.path.exists(FILA) else 0} evento(s) por enviar")
+    if cfg.get("ORACLE_RPC") == "1":
+        m = oracledb_mod()
+        print(f"oracle       porta {cfg.get('RPC_PORTA') or RPC_PORTA}, python-oracledb "
+              f"{getattr(m, '__version__', '?') if m else 'NAO INSTALADO'} ({'thick: ' + cfg['ORACLE_LIB'] if cfg.get('ORACLE_LIB') else 'thin'}), "
+              f"certificado {tls_fp()[:16] or 'em falta'}...")
+    else:
+        print("oracle       desligado (agente-portal configurar --oracle)")
+
+
+def cmd_oracle(a):
+    """Testa o servico Oracle: python-oracledb, certificado e, com --dsn, uma ligacao."""
+    cfg = ler_env()
+    m = oracledb_mod()
+    print(f"servico      {'ligado' if cfg.get('ORACLE_RPC') == '1' else 'DESLIGADO (configurar --oracle)'}, porta {cfg.get('RPC_PORTA') or RPC_PORTA}")
+    print(f"oracledb     {getattr(m, '__version__', '') if m else 'NAO INSTALADO: ' + _ora['erro']}")
+    print(f"certificado  {tls_fp() or 'em falta (criado ao arrancar)'}")
+    if a.utilizador and m:
+        import getpass  # noqa: PLC0415
+        host, _, resto = a.dsn.partition(":")
+        porta, _, serv = resto.partition("/")
+        db = {"host": host, "port": int(porta or 1521), "service_name": serv, "username": a.utilizador,
+              "password": getpass.getpass("password: "), "role": "SYSDBA" if a.sysdba else "NORMAL"}
+        c = _ligar(db)
+        print(f"ligacao      OK (Oracle {c.version})")
+        c.close()
 
 
 def chaves_zabbix(i: dict) -> dict:
@@ -537,6 +950,10 @@ def main():
     c = sp.add_parser("configurar", help="grava o .env (cifra o token)")
     c.add_argument("--portal"), c.add_argument("--id"), c.add_argument("--token"), c.add_argument("--intervalo", type=int)
     c.add_argument("--utilizador"), c.add_argument("--ca"), c.add_argument("--inseguro", action="store_true")
+    c.add_argument("--oracle", action="store_true", help="liga o servico Oracle (pedidos do portal)")
+    c.add_argument("--sem-oracle", action="store_true"), c.add_argument("--porta-rpc", type=int)
+    c.add_argument("--origens", help="IPs do portal autorizados (vazio = qualquer, com assinatura)")
+    c.add_argument("--oracle-lib", help="pasta das bibliotecas do cliente Oracle (modo thick, bases 11g)")
     c.set_defaults(f=cmd_configurar)
     n = sp.add_parser("notificar", help="envia uma notificacao ao portal: notificar <ID> [ok|aviso|erro|info] mensagem")
     n.add_argument("id"), n.add_argument("estado", nargs="?", default="info"), n.add_argument("mensagem", nargs="?", default="")
@@ -548,6 +965,9 @@ def main():
     i.add_argument("segundos", type=int), i.set_defaults(f=cmd_intervalo)
     v = sp.add_parser("valor", help="valor de uma metrica com a chave Zabbix (ou 'todas')")
     v.add_argument("chave"), v.set_defaults(f=cmd_valor)
+    o = sp.add_parser("oracle", help="testa o servico Oracle (e uma ligacao com --dsn host:porta/servico --utilizador U)")
+    o.add_argument("--dsn", default=""), o.add_argument("--utilizador"), o.add_argument("--sysdba", action="store_true")
+    o.set_defaults(f=cmd_oracle)
     sp.add_parser("versao").set_defaults(f=lambda _a: print(VERSAO))
     a = p.parse_args()
     if not getattr(a, "f", None):

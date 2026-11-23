@@ -1,0 +1,4 @@
+{# Quem trata os pedidos desta base de dados: v = agente_rpc.estado(db) #}
+<span class="via via-{{ v.cor }}" title="{{ v.motivo }}"><span class="dot d-{{ {'verde': 'ok', 'laranja': 'warn', 'vermelho': 'bad'}.get(v.cor, 'off') }}"></span>
+  {% if v.via == 'agente' %}{{ v.texto }}{% elif v.via == 'erro' %}Agente indisponível{% else %}Portal{% endif %}</span>
+{%- if v.motivo and v.via != 'agente' %}<small class="muted via-motivo">{{ v.motivo }}</small>{% endif %}

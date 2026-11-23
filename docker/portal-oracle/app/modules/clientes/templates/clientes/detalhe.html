@@ -39,6 +39,26 @@
 </section>
 </div>
 <section class="card full" style="margin-top:16px">
+  <h2>Serviço Oracle (pedidos do portal às bases de dados deste servidor)</h2>
+  {% set r = i.rpc if i else None %}
+  {% if r %}
+  {{ saude('ok' if r.ativo and r.oracledb else 'bad', 'Ativo' if r.ativo and r.oracledb else 'Com problemas',
+           ('porta ' ~ r.porta ~ ' · python-oracledb ' ~ (r.oracledb or 'não instalado') ~ ' (' ~ (r.modo or '—') ~ ')') ~ ((' · ' ~ r.erro) if r.erro else '')) }}
+  {{ kv([('Sessões abertas', r.sessoes), ('Execuções em curso', r.jobs), ('Pedidos atendidos', r.pedidos),
+         ('Python do agente', r.python), ('Certificado (SHA-256)', (r.fp[:32] ~ '…') if r.fp else 'em falta')]) }}
+  {% else %}
+  <p class="muted">Desligado. Para o portal fazer os pedidos às bases de dados deste servidor através do agente, no servidor:</p>
+  <pre class="mono-area small cmd" translate="no">curl -fsSO {{ url_portal }}/clientes/agente/setup.sh && sudo bash setup.sh --oracle --origens "&lt;IP do portal&gt;" --abrir-firewall</pre>
+  {% endif %}
+  <h3>Bases de dados associadas</h3>
+  {% if bds %}<div class="table-wrap"><table class="small-tab">
+    <thead><tr><th>Base de dados</th><th>Ligação</th><th>Modo</th><th>Pedidos feitos por</th></tr></thead>
+    <tbody>{% for d in bds %}<tr><td><b translate="no">{{ d.db.name }}</b></td><td translate="no"><small>{{ d.db.host }}:{{ d.db.port }}/{{ d.db.service_name or d.db.sid }}</small></td>
+      <td>{{ {'auto': 'Automático', 'obrigatorio': 'Obrigatório'}.get(d.db.agente_modo, 'Automático') }}</td>
+      <td>{% set v = d.via %}{% include "oracle/_via.html" %}</td></tr>{% endfor %}</tbody></table></div>
+  {% else %}<p class="muted small">Nenhuma. Associe em Oracle → Definições → Editar base de dados → Agente cliente.</p>{% endif %}
+</section>
+<section class="card full" style="margin-top:16px">
   <h2>Regras de notificação deste cliente</h2>
   <div class="table-wrap"><table class="small-tab">
     <thead><tr><th>Id</th><th>Nome</th><th>Log (última linha)</th><th>Último evento</th></tr></thead>

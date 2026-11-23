@@ -3,15 +3,20 @@
 #
 #   sudo bash setup.sh --portal https://<portal> --id <ID> --token <TOKEN> [--utilizador <utilizador_ssh>]
 #        [--intervalo 60] [--grupo "oracle postgres"] [--inseguro] [--ca /caminho/ca.pem] [--sem-ssh]
+#        [--oracle [--porta-rpc 8795] [--origens "IP_DO_PORTAL"] [--oracle-lib DIR] [--abrir-firewall]]
+#   sudo bash setup.sh --oracle [...]          # num agente ja instalado: atualiza e liga o servico Oracle
 #   sudo bash setup.sh --verificar --utilizador <utilizador_ssh> [--portal URL]  # verifica e corrige o SSH
 #   sudo bash setup.sh --desinstalar
 #
 # Faz: verifica o utilizador SSH (existe, ~/.ssh 700, authorized_keys 600, dono certo) e acrescenta a chave
 # publica do portal; instala o python3/curl se faltarem; copia o agente; grava o .env com o token cifrado;
 # cria o grupo agente-portal (quem pode notificar pelo socket) e o servico systemd.
+# Com --oracle: venv em /opt/agente-portal/venv com o python-oracledb e o servico Oracle (HTTPS na porta
+# 8795): o portal passa a fazer os pedidos as bases de dados deste servidor atraves do agente.
 set -euo pipefail
 DIR=/opt/agente-portal; SVC=agente-portal; GRUPO=agente-portal
-PORTAL=""; ID=""; TOKEN=""; UTIL=""; INTERVALO=60; GRUPO_UTIL=""; INSEGURO=0; CA=""; SEM_SSH=0; MODO=instalar
+PORTAL=""; ID=""; TOKEN=""; UTIL=""; INTERVALO=""; GRUPO_UTIL=""; INSEGURO=0; CA=""; SEM_SSH=0; MODO=instalar
+ORACLE=0; PORTA_RPC=8795; ORIGENS=""; ORACLE_LIB=""; ABRIR_FW=0; WHEEL=""
 V=$'\e[32m'; A=$'\e[33m'; E=$'\e[31m'; N=$'\e[0m'
 ok()   { echo "  ${V}OK${N}       $*"; }
 corr() { echo "  ${A}CORRIGIDO${N} $*"; }
@@ -30,9 +35,15 @@ while [[ $# -gt 0 ]]; do
         --ca) CA=$2; shift ;;
         --inseguro) INSEGURO=1 ;;
         --sem-ssh) SEM_SSH=1 ;;
+        --oracle) ORACLE=1 ;;
+        --porta-rpc) PORTA_RPC=$2; shift ;;
+        --origens) ORIGENS=$2; shift ;;
+        --oracle-lib) ORACLE_LIB=$2; shift ;;
+        --oracledb-wheel) WHEEL=$2; shift ;;
+        --abrir-firewall) ABRIR_FW=1 ;;
         --verificar) MODO=verificar ;;
         --desinstalar) MODO=desinstalar ;;
-        -h|--help) sed -n 2,13p "$0"; exit 0 ;;
+        -h|--help) sed -n 2,18p "$0"; exit 0 ;;
         *) erro "opcao desconhecida: $1" ;;
     esac
     shift
@@ -50,11 +61,12 @@ fi
 
 # ---------------------------------------------------------------- distribuicao
 tit "Sistema"
-. /etc/os-release 2>/dev/null || true
+# em subshell: o /etc/os-release define ID, que e tambem o --id do cliente
+OS_INFO=$( (. /etc/os-release 2>/dev/null; echo "${ID_LIKE:-} ${ID:-}|${PRETTY_NAME:-desconhecido}") )
 FAM=other
-[[ " ${ID_LIKE:-} ${ID:-} " =~ (debian|ubuntu) ]] && FAM=debian
-[[ " ${ID_LIKE:-} ${ID:-} " =~ (rhel|fedora|centos) ]] && FAM=redhat
-ok "${PRETTY_NAME:-desconhecido} (familia: $FAM)"
+[[ " ${OS_INFO%%|*} " =~ (debian|ubuntu) ]] && FAM=debian
+[[ " ${OS_INFO%%|*} " =~ (rhel|fedora|centos) ]] && FAM=redhat
+ok "${OS_INFO#*|} (familia: $FAM)"
 VIRT=$(systemd-detect-virt 2>/dev/null || echo none); ok "virtualizacao: $VIRT"
 
 instalar_pacotes() {
@@ -113,8 +125,14 @@ verificar_ssh
 
 # ---------------------------------------------------------------- agente
 tit "Agente ($DIR)"
-[[ -n $PORTAL && -n $ID && -n $TOKEN ]] || erro "faltam --portal, --id e --token (ver no portal: Configuracao > Clientes)"
-[[ $INTERVALO =~ ^[0-9]+$ && $INTERVALO -ge 10 && $INTERVALO -le 3600 ]] || erro "--intervalo entre 10 e 3600"
+if [[ -f $DIR/.env && ( -z $ID || -z $TOKEN ) ]]; then        # ja instalado: mantem a configuracao
+    [[ -n $PORTAL ]] || PORTAL=$(sed -n 's/^PORTAL_URL=//p' "$DIR/.env")
+    [[ $(sed -n 's/^VERIFICAR_TLS=//p' "$DIR/.env") == 0 ]] && { INSEGURO=1; K=(-k); }
+    ok "agente ja configurado ($(sed -n 's/^CLIENTE_ID=//p' "$DIR/.env")): mantem id e token"
+else
+    [[ -n $PORTAL && -n $ID && -n $TOKEN ]] || erro "faltam --portal, --id e --token (ver no portal: Configuracao > Clientes)"
+fi
+[[ -z $INTERVALO || ( $INTERVALO =~ ^[0-9]+$ && $INTERVALO -ge 10 && $INTERVALO -le 3600 ) ]] || erro "--intervalo entre 10 e 3600"
 umask 022
 install -d -m 755 "$DIR"
 curl -fsS ${K[@]+"${K[@]}"} "$PORTAL/clientes/agente/agente-portal.py" -o "$DIR/agente-portal.py.novo" || erro "download do agente falhou"
@@ -122,8 +140,10 @@ python3 -m py_compile "$DIR/agente-portal.py.novo" 2>/dev/null || python3 -c "im
 mv "$DIR/agente-portal.py.novo" "$DIR/agente-portal.py"; chmod 755 "$DIR/agente-portal.py"; rm -rf "$DIR/__pycache__"
 ln -sf "$DIR/agente-portal.py" /usr/local/bin/agente-portal
 ok "agente $("$DIR/agente-portal.py" versao) em $DIR"
-ARGS=(--portal "$PORTAL" --id "$ID" --token "$TOKEN" --intervalo "$INTERVALO")
+ARGS=(--portal "$PORTAL")
+[[ -n $ID ]] && ARGS+=(--id "$ID"); [[ -n $TOKEN ]] && ARGS+=(--token "$TOKEN"); [[ -n $INTERVALO ]] && ARGS+=(--intervalo "$INTERVALO")
 [[ -n $UTIL ]] && ARGS+=(--utilizador "$UTIL"); [[ -n $CA ]] && ARGS+=(--ca "$CA"); [[ $INSEGURO == 1 ]] && ARGS+=(--inseguro)
+[[ $ORACLE == 1 ]] && ARGS+=(--oracle --porta-rpc "$PORTA_RPC" --origens "$ORIGENS" --oracle-lib "$ORACLE_LIB")
 "$DIR/agente-portal.py" configurar "${ARGS[@]}" >/dev/null
 chmod 600 "$DIR/.env"; ok ".env 600 com o token cifrado (chave $DIR/.chave 400, ligada a /etc/machine-id)"
 
@@ -132,6 +152,52 @@ for u in $GRUPO_UTIL; do
     if id "$u" >/dev/null 2>&1; then usermod -aG $GRUPO "$u"; ok "$u no grupo $GRUPO (pode usar 'agente-portal notificar')"; else avs "utilizador $u nao existe"; fi
 done
 
+# ---------------------------------------------------------------- servico Oracle (opcional)
+PY=/usr/bin/python3
+if [[ $ORACLE == 1 ]]; then
+    tit "Servico Oracle (pedidos do portal as bases de dados deste servidor)"
+    [[ $PORTA_RPC =~ ^[0-9]+$ ]] || erro "--porta-rpc invalida"
+    command -v openssl >/dev/null || erro "falta o openssl (certificado do servico)"
+    BASEPY=""
+    for p in python3.13 python3.12 python3.11 python3.10 python3.9 python3.8 python3; do
+        command -v $p >/dev/null && $p -c 'import sys, venv; sys.exit(sys.version_info < (3, 8))' 2>/dev/null && { BASEPY=$(command -v $p); break; }
+    done
+    if [[ -z $BASEPY ]]; then
+        case $FAM in
+            debian) apt-get install -y -qq python3-venv >/dev/null && BASEPY=$(command -v python3) ;;
+            redhat) (dnf install -y -q python3.11 2>/dev/null || dnf install -y -q python39 2>/dev/null || yum install -y -q python38 2>/dev/null) || true
+                    for p in python3.11 python3.9 python3.8; do command -v $p >/dev/null && { BASEPY=$(command -v $p); break; }; done ;;
+        esac
+    fi
+    [[ -n $BASEPY ]] || erro "precisa de Python 3.8 ou superior com venv (o python-oracledb nao suporta versoes anteriores)"
+    ok "python base: $BASEPY ($($BASEPY -V 2>&1))"
+    [[ -x $DIR/venv/bin/python ]] || { $BASEPY -m venv "$DIR/venv" || erro "falhou: $BASEPY -m venv $DIR/venv (Debian: apt install python3-venv)"; corr "venv criado em $DIR/venv"; }
+    if [[ -n $WHEEL ]]; then
+        "$DIR/venv/bin/pip" install -q --disable-pip-version-check --no-index "$WHEEL" || erro "pip install $WHEEL falhou"
+    else
+        "$DIR/venv/bin/pip" install -q --disable-pip-version-check --upgrade oracledb \
+            || erro "pip install oracledb falhou (sem acesso a internet? descarregue o wheel noutra maquina e use --oracledb-wheel FICHEIRO)"
+    fi
+    ok "python-oracledb $("$DIR/venv/bin/python" -c 'import oracledb; print(oracledb.__version__)')"
+    PY=$DIR/venv/bin/python
+    if [[ $ABRIR_FW == 1 ]]; then
+        if command -v firewall-cmd >/dev/null && firewall-cmd --state >/dev/null 2>&1; then
+            if [[ -n $ORIGENS ]]; then
+                for ip in $ORIGENS; do firewall-cmd -q --permanent --add-rich-rule="rule family=$([[ $ip == *:* ]] && echo ipv6 || echo ipv4) source address=$ip port port=$PORTA_RPC protocol=tcp accept"; done
+            else firewall-cmd -q --permanent --add-port=$PORTA_RPC/tcp; fi
+            firewall-cmd -q --reload; corr "firewalld: porta $PORTA_RPC/tcp aberta${ORIGENS:+ para $ORIGENS}"
+        elif command -v ufw >/dev/null && ufw status | grep -q active; then
+            if [[ -n $ORIGENS ]]; then for ip in $ORIGENS; do ufw allow from "$ip" to any port "$PORTA_RPC" proto tcp >/dev/null; done
+            else ufw allow "$PORTA_RPC/tcp" >/dev/null; fi
+            corr "ufw: porta $PORTA_RPC/tcp aberta${ORIGENS:+ para $ORIGENS}"
+        else avs "sem firewalld/ufw ativo: nada a abrir"; fi
+    else
+        avs "o portal tem de chegar a este servidor na porta $PORTA_RPC/tcp (use --abrir-firewall ou abra a mao)"
+    fi
+elif [[ -x $DIR/venv/bin/python ]]; then
+    PY=$DIR/venv/bin/python
+fi
+
 cat > /etc/systemd/system/$SVC.service <<UNIT
 [Unit]
 Description=Agente cliente do portal
@@ -139,7 +205,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/bin/python3 $DIR/agente-portal.py run
+ExecStart=$PY $DIR/agente-portal.py run
 Restart=always
 RestartSec=10
 RuntimeDirectory=agente-portal
@@ -159,11 +225,12 @@ sleep 2
 systemctl is-active -q $SVC && ok "servico $SVC ativo" || erro "o servico nao arrancou: journalctl -u $SVC -n 30"
 
 tit "Teste"
-"$DIR/agente-portal.py" testar || avs "o teste falhou (veja acima); o servico tenta de novo a cada $INTERVALO s"
+"$DIR/agente-portal.py" testar || avs "o teste falhou (veja acima); o servico tenta de novo a cada ${INTERVALO:-60} s"
 cat <<FIM
 
 Concluido. Comandos uteis:
-  agente-portal estado                       # estado do agente
+  agente-portal estado                       # estado do agente (e do servico Oracle)
+  agente-portal oracle                       # testa o servico Oracle (python-oracledb, certificado)
   agente-portal intervalo 120                # mudar o intervalo de sincronizacao
   agente-portal notificar <ID> ok "texto"    # notificar o portal (ID da regra no portal)
   journalctl -u $SVC -f                      # registo do servico

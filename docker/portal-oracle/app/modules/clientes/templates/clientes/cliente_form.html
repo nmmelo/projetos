@@ -68,9 +68,13 @@ sudo {{ 'apt-get install -y curl python3' if f == 'debian' else 'dnf install -y 
 curl -fsS{{ k }} {{ url }}/clientes/agente/setup.sh -o /tmp/setup-agente.sh
 sudo bash /tmp/setup-agente.sh --portal {{ url }} --id {{ c.codigo }} --token <span class="tok">TOKEN</span>{{ extra }} --grupo "oracle"
 
+# 3. (Opcional) Serviço Oracle: o portal faz os pedidos às bases de dados deste servidor através do agente
+#    (venv com python-oracledb, HTTPS na porta 8795; --origens limita ao IP do portal)
+sudo bash /tmp/setup-agente.sh --oracle --origens "&lt;IP do portal&gt;" --abrir-firewall
+
 # Outros
 sudo bash /tmp/setup-agente.sh --verificar --utilizador {{ c.ssh_utilizador or '<utilizador>' }}   # só as verificações de SSH
-agente-portal estado ; agente-portal intervalo 120 ; journalctl -u agente-portal -f
+agente-portal estado ; agente-portal oracle ; agente-portal intervalo 120 ; journalctl -u agente-portal -f
 sudo bash /tmp/setup-agente.sh --desinstalar</pre>{% endfor %}
   <p class="hint">Download: <a href="{{ url_for('clientes.agente_ficheiro', nome='setup.sh', download=1) }}">setup.sh</a> ·
     <a href="{{ url_for('clientes.agente_ficheiro', nome='agente-portal.py', download=1) }}">agente-portal.py</a>.

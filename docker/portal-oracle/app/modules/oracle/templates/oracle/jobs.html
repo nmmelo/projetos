@@ -112,7 +112,7 @@ function desenhar() {
   $('rows').innerHTML = linhas.length ? linhas.map(j => `
     <tr data-id="${j.id}" class="${sel.has(j.id) ? 'sel' : ''}${j.id === NOVO ? ' novo-job' : ''}">
       ${CAN_DEL ? `<td class="cb"><input type="checkbox" data-id="${j.id}" ${sel.has(j.id) ? 'checked' : ''} ${ATIVOS.includes(j.status) ? 'disabled' : ''}></td>` : ''}
-      <td class="num">${j.id}</td><td>${esc(j.db_name)}</td><td><strong>${esc(j.ts)}</strong></td>
+      <td class="num">${j.id}</td><td>${esc(j.db_name)}${j.via.startsWith('agente') ? `<br><small class="via via-verde" title="${esc(j.via)}">⇄ agente</small>` : ''}</td><td><strong>${esc(j.ts)}</strong></td>
       <td><span class="tag ${j.modo === 'EXECUTAR' ? 'warn' : ''}">${esc(j.modo)}</span></td>
       <td><span class="res r-${j.resultado.replace(' ', '-')}">${ROTULO[j.resultado] || j.resultado}</span>
         ${j.n_erros ? `<span class="cnt e" title="linhas com erro">${j.n_erros} erro(s)</span>` : ''}

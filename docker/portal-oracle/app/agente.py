@@ -185,6 +185,12 @@ class Agente:
     # ------------------------------------------------------------------ ciclo
     def correr(self) -> None:
         store.interrupt_running_jobs("agente")      # execucoes de um agente anterior que morreu
+        try:                                         # as que correm num agente cliente continuam: volta a acompanha-las
+            from .modules.oracle import jobs as _jobs
+            for jid, t in _jobs.retomar_remotos("agente"):
+                self.execucoes[jid] = t
+        except Exception:  # noqa: BLE001
+            log.exception("retomar execucoes remotas")
         self.nice = agentes.aplicar_nice("agente")
         smtp_envio.recuperar_presas()
         eventos.regras_iniciais()

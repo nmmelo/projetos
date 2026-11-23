@@ -19,7 +19,7 @@
 <div class="table-wrap">
 <table class="bd-tab">
   <thead><tr><th></th><th>Nome</th><th>Base de dados</th><th>Versão</th><th>Instância (SID)</th><th>Service name</th>
-    <th>Papel / Data Guard</th><th>Log</th><th>Ligação</th></tr></thead>
+    <th>Papel / Data Guard</th><th>Log</th><th>Ligação</th><th>Pedidos feitos por</th></tr></thead>
   <tbody>
   {% for d in dbs %}
     <tr data-id="{{ d.id }}" class="bd-linha" tabindex="0" translate="no">
@@ -28,6 +28,7 @@
       <td data-c="db">—</td><td data-c="versao">—</td><td data-c="inst">{{ d.sid or '—' }}</td>
       <td data-c="svc">{{ d.service_name or '—' }}</td><td data-c="papel">—</td><td data-c="log">—</td>
       <td data-c="lig"><small>{{ d.username }}{% if d.role == 'SYSDBA' %} · SYSDBA{% endif %}</small></td>
+      <td data-c="via">{% set v = vias[d.id] %}{% include "oracle/_via.html" %}</td>
     </tr>
   {% endfor %}
   </tbody>
@@ -89,14 +90,22 @@
       c('db').innerHTML = `<small class="c-bad">${esc((d.erro || d.estado_txt || '').slice(0, 120))}</small>`;
       ['versao', 'papel', 'log'].forEach(k => c(k).textContent = '—');
     }
+    if (d.via) c('via').innerHTML = via(d.via);
     if (d.ligacao && d.ligacao.portal) c('lig').innerHTML += ` <span class="tag portal-user" title="${esc(T('Utilizador criado pelo portal'))}">portal</span>`;
     if (String(atual) === String(id) && $('dbd').open) cabecalho(id);
     contar(); filtrar();
   }
+  function via(v) {      /* quem trata os pedidos: portal ou agente cliente */
+    const cor = {verde: 'ok', laranja: 'warn', vermelho: 'bad'}[v.cor] || 'off';
+    const txt = v.via === 'agente' ? v.texto : v.via === 'erro' ? T('Agente indisponível') : T('Portal');
+    return `<span class="via via-${v.cor}" title="${esc(v.motivo)}"><span class="dot d-${cor}"></span>${esc(txt)}</span>` +
+      (v.motivo && v.via !== 'agente' ? `<small class="muted via-motivo">${esc(v.motivo)}</small>` : '');
+  }
   function cabecalho(id) {
     const tr = document.querySelector(`.bd-linha[data-id="${id}"]`), d = res[id] || {};
     $('dt').textContent = tr.querySelector('b').textContent;
-    $('ds').innerHTML = `${esc(tr.querySelector('small').textContent)} · <span class="bola ${COR[d.cor] || 'b-cinza'}"></span> ${esc(T(d.estado_txt || ''))}`;
+    $('ds').innerHTML = `${esc(tr.querySelector('small').textContent)} · <span class="bola ${COR[d.cor] || 'b-cinza'}"></span> ${esc(T(d.estado_txt || ''))}` +
+      (d.via ? ` · <span class="via-tag">${via({...d.via, motivo: ''})}</span>` : '');
   }
   function contar() { const v = Object.values(res); document.querySelectorAll('#chips b').forEach(b => b.textContent = b.dataset.n ? v.filter(x => x.cor === b.dataset.n).length : document.querySelectorAll('.bd-linha').length); }
   function filtrar() { const q = $('q').value.trim().toLowerCase();

@@ -40,10 +40,42 @@
       </div>
     </fieldset>
 
+    <fieldset class="full">
+      <legend>Agente cliente (pedidos feitos no servidor da base de dados)</legend>
+      {% if clientes %}
+      {% set sel = db.cliente_id|string if db.cliente_id else '' %}
+      <label>Agente
+        <select name="cliente_id" id="fcli">
+          <option value="">— nenhum: o portal liga-se diretamente —</option>
+          {% for c in clientes %}
+          <option value="{{ c.id }}" {{ 'selected' if sel == c.id|string or (not editing and not sel and c.sugerido) }}>
+            {{ c.nome }} ({{ c.endereco }}) · {{ c.contacto.texto }} · {{ ('Oracle ' ~ ('ativo' if c.rpc.ativo else 'parado')) if c.rpc else 'sem serviço Oracle' }}{{ ' · sugerido' if c.sugerido }}</option>
+          {% endfor %}
+        </select></label>
+      <div class="radios" id="fmodo">
+        {% set mdb = db.agente_modo if db.agente_modo in modos else 'auto' %}
+        {% for k, t in modos.items() if k != 'nao' %}
+        <label class="inline"><input type="radio" name="agente_modo" value="{{ k }}" {{ 'checked' if mdb == k or (mdb == 'nao' and k == 'auto') }}> <span>{{ t }}</span></label>
+        {% endfor %}
+      </div>
+      <span class="hint">Com um agente, o portal envia os pedidos (relatórios, inspeção, shrink) ao agente instalado no servidor
+        da BD e fica a aguardar a resposta; o shrink corre no agente e continua mesmo que o portal reinicie.
+        O agente precisa do serviço Oracle (<code>setup.sh --oracle</code>) e o portal tem de chegar à porta dele (8795).</span>
+      {% else %}
+      <p class="hint">Sem agentes cliente (módulo Clientes desligado ou sem clientes). O portal liga-se diretamente à base de dados.</p>
+      {% endif %}
+    </fieldset>
+
     <div class="full buttons">
       <button class="primary">Guardar</button>
       <a class="btn" href="{{ url_for('oracle.cfg_dbs') }}">Cancelar</a>
     </div>
   </form>
 </section>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => { const s = document.getElementById('fcli'), m = document.getElementById('fmodo'); if (!s || !m) return;
+  const f = () => m.style.display = s.value ? '' : 'none'; s.onchange = f; f(); })();
+</script>
 {% endblock %}

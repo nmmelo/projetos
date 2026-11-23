@@ -1,21 +1,23 @@
 """Execucao do shrink em segundo plano (pode demorar minutos/horas)."""
 import secrets
 import threading
+import time
 
 import oracledb
 
-from ... import agente_info, crypto, store
+from ... import agente_info, agente_rpc, crypto, store
 from . import bd as oracle
 
 POLL_SECONDS = 2
 MAX_LIVE_LINES = 20000            # limite do output em direto guardado na BD (o final vem completo)
 
 
-def _monitor(job_id, cfg, password, sid, serial, pipe, stop: threading.Event):
+def _monitor(job_id, cfg, password, sid, serial, pipe, stop: threading.Event, direto: bool = False):
     """Segunda ligacao: passo atual (V$SESSION.ACTION), percentagem (V$SESSION_LONGOPS) e linhas do
-    output em direto (DBMS_PIPE). Grava no job a cada POLL_SECONDS para a pagina mostrar."""
+    output em direto (DBMS_PIPE). Grava no job a cada POLL_SECONDS para a pagina mostrar.
+    Com o agente cliente, esta ligacao tambem vai pelo agente."""
     try:
-        mon = oracle.connect(cfg, password)
+        mon = oracle.connect(cfg, password, direto=direto)
     except oracledb.Error:
         return
     live, pipe_ok, prog_ok = [], True, True
@@ -58,18 +60,132 @@ def _monitor(job_id, cfg, password, sid, serial, pipe, stop: threading.Event):
         mon.close()
 
 
+SQL_SESSAO = "SELECT sid, serial# FROM v$session WHERE sid = SYS_CONTEXT('USERENV', 'SID')"
+
+
 def _run(job_id: int, cfg: dict, params: dict):
+    pipe = f"PORTAL_SHRINK_{job_id}_{secrets.token_hex(4).upper()}"
+    motivo = ""
+    try:
+        password = crypto.decrypt(cfg["password_enc"])
+        a, motivo = agente_rpc.alvo(cfg)
+        if a:
+            try:
+                r = agente_rpc.chamar(a, "/rpc/job/iniciar", {"db": agente_rpc._db(cfg, password), "sql_sessao": SQL_SESSAO,
+                                                              "bloco": oracle.build_block(params, pipe), "ref": f"job {job_id}"},
+                                      timeout=120)
+            except agente_rpc.Indisponivel as e:
+                agente_rpc.falhou(a, str(e))
+                a, motivo = None, str(e)
+            if a:
+                store.update_job(job_id, via=f"agente cliente {a['nome']}", remoto=f"{a['cliente_id']}:{r['job']}:{pipe}",
+                                 ora_sid=r.get("sid"), ora_serial=r.get("serial"), current_action="a iniciar (agente)",
+                                 progress=0)
+                agente_rpc.registar(cfg, "agente", a["nome"])
+                _acompanhar(job_id, cfg, password, a, r["job"], pipe, r.get("sid"), r.get("serial"))
+                return
+        if agente_rpc.modo(cfg) == "obrigatorio":
+            raise agente_rpc.ErroOracleRemoto(f"Base de dados só acessível pelo agente cliente, indisponível: {motivo}")
+    except Exception as exc:  # noqa: BLE001
+        store.update_job(job_id, status="ERRO", error=str(exc), finished_at=store.now())
+        _notificar(job_id)
+        return
+    store.update_job(job_id, via="portal" + (f" ({motivo})" if motivo else ""))
+    agente_rpc.registar(cfg, "portal", motivo)
+    _run_direto(job_id, cfg, params, password, pipe)
+
+
+def _acompanhar(job_id: int, cfg: dict, password: str, a: dict, rjob: str, pipe: str, sid, serial) -> None:
+    """A execucao corre no agente cliente: o portal acompanha (passo, %, output em direto pelo monitor,
+    que tambem vai pelo agente) e, no fim, grava o resultado. Se o portal/agente do portal reiniciar,
+    retomar_remotos volta a chamar esta funcao."""
+    stop = threading.Event()
+    monitor = None
+    if sid:
+        monitor = threading.Thread(target=_monitor, args=(job_id, cfg, password, sid, serial, pipe, stop), daemon=True)
+        monitor.start()
+    d, falhas_desde = {}, None
+    try:
+        while True:
+            try:
+                d = agente_rpc.chamar(a, "/rpc/job/estado", {"job": rjob}, timeout=30)
+                falhas_desde = None
+            except agente_rpc.Indisponivel as e:
+                falhas_desde = falhas_desde or time.time()
+                if time.time() - falhas_desde > 1800:            # 30 min sem contacto com o agente
+                    d = {"estado": "perdido", "erro": f"sem contacto com o agente {a['nome']} há 30 min: {e}"}
+                    break
+                store.update_job(job_id, current_action=f"sem contacto com o agente {a['nome']}; a tentar de novo")
+            except LookupError as e:
+                d = {"estado": "perdido", "erro": f"o agente {a['nome']} já não tem esta execução ({e})"}
+                break
+            if d.get("estado") and d["estado"] != "a correr":
+                break
+            time.sleep(POLL_SECONDS)
+    finally:
+        _parar(stop, monitor)
+    job = store.get_job(job_id)
+    linhas = d.get("saida")
+    out = "\n".join(linhas) if linhas else (job.get("output") or "" if job else "")
+    n_err, n_av = store.contar(out)
+    if d.get("estado") == "ok" and not (job and job["status"] == "CANCELADO"):
+        store.update_job(job_id, status="ERRO" if n_err else "OK", output=out, progress=1000, finished_at=store.now(),
+                         current_action="fim", n_erros=n_err, n_avisos=n_av)
+    else:
+        status = "CANCELADO" if job and job["status"] == "CANCELADO" else \
+            ("INTERROMPIDO" if d.get("estado") == "perdido" else "ERRO")
+        store.update_job(job_id, status=status, error=d.get("erro") or ("cancelada" if status == "CANCELADO" else "erro no agente"), output=out,
+                         finished_at=store.now(), n_erros=n_err, n_avisos=n_av)
+    try:
+        agente_rpc.chamar(a, "/rpc/job/esquecer", {"job": rjob}, timeout=15)
+    except Exception:  # noqa: BLE001
+        pass
+    _notificar(job_id)
+
+
+def retomar_remotos(runner: str) -> list[threading.Thread]:
+    """Depois de reiniciar: volta a acompanhar as execucoes deste runner que correm num agente cliente."""
+    ts = []
+    for j in store.remote_jobs():
+        if (j.get("runner") or "portal") != runner:
+            continue
+        try:
+            cid, rjob, pipe = j["remoto"].split(":", 2)
+            cfg = store.get_db(j["db_id"])
+            if not cfg:
+                raise ValueError("base de dados apagada")
+            cfg = {**cfg, "cliente_id": int(cid), "agente_modo": cfg.get("agente_modo") or "auto"}
+            a, motivo = agente_rpc.alvo(cfg)
+            if not a:                       # o alvo pode estar em pausa por falha: tenta na mesma
+                from ... import clientes
+                c = clientes.obter(int(cid))
+                rpc = ((c or {}).get("info") or {}).get("rpc") or {}
+                if not c or not rpc.get("fp"):
+                    raise ValueError(motivo or "agente cliente desconhecido")
+                a = {"cliente_id": c["id"], "nome": c["nome"], "host": c["endereco"], "porta": int(rpc.get("porta") or 8795),
+                     "fp": rpc["fp"], "token": clientes.token(c)}
+            password = crypto.decrypt(cfg["password_enc"])
+        except Exception as exc:  # noqa: BLE001
+            store.update_job(j["id"], status="INTERROMPIDO", error=f"não foi possível retomar: {exc}", finished_at=store.now())
+            continue
+        store.update_job(j["id"], current_action="retomada após reinício (agente cliente)")
+        t = threading.Thread(target=_acompanhar, args=(j["id"], cfg, password, a, rjob, pipe, j.get("ora_sid"),
+                                                        j.get("ora_serial")), daemon=True, name=f"job-{j['id']}")
+        t.start()
+        ts.append((j["id"], t))
+    return ts
+
+
+def _run_direto(job_id: int, cfg: dict, params: dict, password: str, pipe: str):
     stop = threading.Event()
     conn = None
     monitor = None
-    pipe = f"PORTAL_SHRINK_{job_id}_{secrets.token_hex(4).upper()}"
     try:
-        password = crypto.decrypt(cfg["password_enc"])
-        conn = oracle.connect(cfg, password)
+        conn = oracle.connect(cfg, password, direto=True)
         sid, serial = oracle.session_id(conn)
         store.update_job(job_id, ora_sid=sid, ora_serial=serial, current_action="a iniciar", progress=0)
         if sid:
-            monitor = threading.Thread(target=_monitor, args=(job_id, cfg, password, sid, serial, pipe, stop),
+            monitor = threading.Thread(target=_monitor, args=(job_id, cfg, password, sid, serial, pipe, stop, True),
                                        daemon=True)
             monitor.start()
 

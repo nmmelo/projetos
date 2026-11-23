@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1633">
+<lingua codigo="en" nome="English" textos="1661">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -6533,5 +6533,117 @@
   <texto>
     <origem>Atualização do painel Sistema (CPU, memória, discos, serviços).</origem>
     <traducao>Refresh of the System dashboard (CPU, memory, disks, services).</traducao>
+  </texto>
+  <texto>
+    <origem>Agente cliente (pedidos feitos no servidor da base de dados)</origem>
+    <traducao>Client agent (requests made on the database server)</traducao>
+  </texto>
+  <texto>
+    <origem>Automático</origem>
+    <traducao>Automatic</traducao>
+  </texto>
+  <texto>
+    <origem>Automático: o agente, se estiver disponível; senão o portal</origem>
+    <traducao>Automatic: the agent if available; otherwise the portal</traducao>
+  </texto>
+  <texto>
+    <origem>Obrigatório: só pelo agente (sem ele dá erro)</origem>
+    <traducao>Mandatory: only through the agent (error without it)</traducao>
+  </texto>
+  <texto>
+    <origem>Não usar (o portal liga-se à base de dados)</origem>
+    <traducao>Don't use (the portal connects to the database)</traducao>
+  </texto>
+  <texto>
+    <origem>Obrigatório</origem>
+    <traducao>Mandatory</traducao>
+  </texto>
+  <texto>
+    <origem>Bases de dados associadas</origem>
+    <traducao>Associated databases</traducao>
+  </texto>
+  <texto>
+    <origem>Certificado (SHA-256)</origem>
+    <traducao>Certificate (SHA-256)</traducao>
+  </texto>
+  <texto>
+    <origem>Com um agente, o portal envia os pedidos (relatórios, inspeção, shrink) ao agente instalado no servidor da BD e fica a aguardar a resposta; o shrink corre no agente e continua mesmo que o portal reinicie. O agente precisa do serviço Oracle (</origem>
+    <traducao>With an agent, the portal sends the requests (reports, inspection, shrink) to the agent installed on the DB server and waits for the answer; the shrink runs on the agent and continues even if the portal restarts. The agent needs the Oracle service (</traducao>
+  </texto>
+  <texto>
+    <origem>) e o portal tem de chegar à porta dele (8795).</origem>
+    <traducao>) and the portal must reach its port (8795).</traducao>
+  </texto>
+  <texto>
+    <origem>Executado por</origem>
+    <traducao>Run by</traducao>
+  </texto>
+  <texto>
+    <origem>Pedidos atendidos</origem>
+    <traducao>Requests served</traducao>
+  </texto>
+  <texto>
+    <origem>Pedidos feitos por</origem>
+    <traducao>Requests made by</traducao>
+  </texto>
+  <texto>
+    <origem>Python do agente</origem>
+    <traducao>Agent's Python</traducao>
+  </texto>
+  <texto>
+    <origem>Serviço Oracle (pedidos do portal às bases de dados deste servidor)</origem>
+    <traducao>Oracle service (portal requests to this server's databases)</traducao>
+  </texto>
+  <texto>
+    <origem>Sessões abertas</origem>
+    <traducao>Open sessions</traducao>
+  </texto>
+  <texto>
+    <origem>— nenhum: o portal liga-se diretamente —</origem>
+    <traducao>— none: the portal connects directly —</traducao>
+  </texto>
+  <texto>
+    <origem>— o shrink corre no servidor da base de dados; o portal acompanha</origem>
+    <traducao>— the shrink runs on the database server; the portal follows it</traducao>
+  </texto>
+  <texto>
+    <origem>⇄ agente</origem>
+    <traducao>⇄ agent</traducao>
+  </texto>
+  <texto>
+    <origem>Agente indisponível</origem>
+    <traducao>Agent unavailable</traducao>
+  </texto>
+  <texto>
+    <origem>Com problemas</origem>
+    <traducao>With problems</traducao>
+  </texto>
+  <texto>
+    <origem>Desligado. Para o portal fazer os pedidos às bases de dados deste servidor através do agente, no servidor:</origem>
+    <traducao>Off. For the portal to make its requests to this server's databases through the agent, on the server:</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhuma. Associe em Oracle → Definições → Editar base de dados → Agente cliente.</origem>
+    <traducao>None. Associate in Oracle → Settings → Edit database → Client agent.</traducao>
+  </texto>
+  <texto>
+    <origem>Sem agentes cliente (módulo Clientes desligado ou sem clientes). O portal liga-se diretamente à base de dados.</origem>
+    <traducao>No client agents (Clients module off or no clients). The portal connects directly to the database.</traducao>
+  </texto>
+  <texto>
+    <origem>· agente Oracle</origem>
+    <traducao>· Oracle agent</traducao>
+  </texto>
+  <texto>
+    <origem>· agente do portal</origem>
+    <traducao>· portal agent</traducao>
+  </texto>
+  <texto>
+    <origem>· portal (Gunicorn)</origem>
+    <traducao>· portal (Gunicorn)</traducao>
+  </texto>
+  <texto>
+    <origem>porta {n} · python-oracledb {n}.{n}.{n} (thin)</origem>
+    <traducao>port {n} · python-oracledb {n}.{n}.{n} (thin)</traducao>
   </texto>
 </lingua>

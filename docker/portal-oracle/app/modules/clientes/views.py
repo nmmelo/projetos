@@ -50,7 +50,9 @@ def painel():
 @auth.requires(MODULO.acesso)
 def detalhe(cid):
     c = clientes.obter(cid) or abort(404)
-    return render_template("clientes/detalhe.html", c=c, regras=clientes.regras(cid),
+    from ... import agente_rpc
+    bds = [{"db": d, "via": agente_rpc.estado(d)} for d in store.list_dbs() if str(d.get("cliente_id") or "") == str(cid)]
+    return render_template("clientes/detalhe.html", c=c, regras=clientes.regras(cid), bds=bds, url_portal=_url_portal(),
                            eventos=clientes.listar_eventos(cliente_id=cid, limite=50), familias=clientes.FAMILIAS,
                            estados=clientes.ESTADOS_EV, alarmes=clientes_alarmes.ativos(cid))
 

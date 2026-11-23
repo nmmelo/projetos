@@ -2,7 +2,7 @@
 import oracledb
 from flask import Response, abort, flash, g, jsonify, redirect, render_template, request, url_for
 
-from ... import auth, crypto, store, tarefas_bg
+from ... import agente_rpc, auth, crypto, store, tarefas_bg
 from . import bd as oracle
 from . import bp, jobs, MODULO
 
@@ -166,7 +166,7 @@ def _resumo(j: dict) -> dict:
             "n_avisos": j.get("n_avisos") or 0, "started_at": j["started_at"], "finished_at": j["finished_at"],
             "duracao": _elapsed(j), "created_by": j["created_by"], "progress": j.get("progress"),
             "runner": j.get("runner") or "portal", "erro": (j.get("error") or "")[:300],
-            "agendado_para": j.get("agendado_para")}
+            "agendado_para": j.get("agendado_para"), "via": j.get("via") or ""}
 
 
 @bp.route("/api/jobs")
@@ -280,13 +280,35 @@ def _form_to_db(form) -> dict:
         raise ValueError("Indique o SID ou o Service Name.")
     if data["pdb"]:
         oracle.valid_ident(data["pdb"], "PDB")
+    cid = (form.get("cliente_id") or "").strip()
+    data["cliente_id"] = int(cid) if cid.isdigit() else None
+    m = form.get("agente_modo") or "auto"
+    data["agente_modo"] = (m if m in agente_rpc.MODOS else "auto") if data["cliente_id"] else "nao"
     return data
+
+
+def _clientes_para_form(db: dict) -> list[dict]:
+    """Clientes (agentes) para associar; o que tiver o mesmo host/IP que a BD aparece como sugerido."""
+    from ... import clientes, modulos
+    if "clientes" not in modulos.ativos():
+        return []
+    host = (db.get("host") or "").lower()
+    curto = host.split(".")[0]
+    out = []
+    for c in clientes.listar():
+        nomes = {c["endereco"].lower(), (c["info"].get("hostname") or "").lower(), c["nome"].lower()}
+        rpc = c["info"].get("rpc") or {}
+        out.append({"id": c["id"], "nome": c["nome"], "endereco": c["endereco"], "contacto": c["contacto"],
+                    "rpc": rpc, "versao": c.get("versao"),
+                    "sugerido": bool(host) and (host in nomes or curto in {n.split(".")[0] for n in nomes if n})})
+    return out
 
 
 @bp.route("/definicoes")
 @auth.requires("oracle.definicoes")
 def cfg_dbs():
-    return render_template("oracle/dbs.html", dbs=store.list_dbs())
+    dbs = store.list_dbs()
+    return render_template("oracle/dbs.html", dbs=dbs, vias={d["id"]: agente_rpc.estado(d) for d in dbs})
 
 
 @bp.route("/definicoes/nova", methods=["GET", "POST"])
@@ -309,7 +331,8 @@ def cfg_db_form(db_id=None):
         except Exception as exc:  # noqa: BLE001 - validacao, nome duplicado, ...
             flash(f"Erro: {exc}", "error")
             db = {**(db or {}), **request.form.to_dict()}
-    return render_template("oracle/db_form.html", db=db or {}, editing=bool(db_id))
+    return render_template("oracle/db_form.html", db=db or {}, editing=bool(db_id), clientes=_clientes_para_form(db or {}),
+                           modos=agente_rpc.MODOS)
 
 
 @bp.route("/definicoes/<int:db_id>/apagar", methods=["POST"])
@@ -328,9 +351,10 @@ def cfg_db_test(db_id):
     try:
         conn = oracle.connect(db, crypto.decrypt(db["password_enc"]))
         info = oracle.test_connection(conn)
+        via = getattr(conn, "via", "portal")
         conn.close()
         rapido = info["hwm"] != "DBA_FREE_SPACE"
-        flash(f"{db['name']}: ligação OK — utilizador {info['user']}, contentor {info['container']}, "
+        flash(f"{db['name']}: ligação OK (via {via}) — utilizador {info['user']}, contentor {info['container']}, "
               f"BD {info['db']}, versão {info['version']}. Cálculo do HWM: {info['hwm']}"
               + (" (rápido e exato)." if rapido else
                  f" (estimativa rápida; exato só com DBA_EXTENTS, lento). Para o método rápido e exato, "
@@ -362,7 +386,8 @@ def _portal_users(db_id: int) -> list[dict]:
 @auth.requires("oracle.bds")
 def bds():
     dbs = g.user.visible_dbs(store.list_dbs())
-    return render_template("oracle/bds.html", dbs=dbs, estados=inspecao.ESTADOS)
+    return render_template("oracle/bds.html", dbs=dbs, estados=inspecao.ESTADOS,
+                           vias={d["id"]: agente_rpc.estado(d) for d in dbs})
 
 
 @bp.route("/api/bds/<int:db_id>/resumo")
@@ -378,6 +403,7 @@ def api_bd_resumo(db_id):
     c = _cache(db, "resumo", "estado", ler, url_for("oracle.bds"), max_idade=30, espera=0)
     r = dict(c["dados"] or {"ok": None, "cor": "", "estado_txt": "A verificar…", "pendente": True})
     r.update(_meta(c))
+    r["via"] = agente_rpc.estado(db)
     r["ligacao"] = {"utilizador": db["username"], "role": db["role"], "portal": db["username"].upper() in
                     {u["username"].upper() for u in _portal_users(db_id)}}
     return jsonify(r)

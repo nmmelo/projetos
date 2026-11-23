@@ -12,7 +12,7 @@
 <table>
   <thead><tr>
     <th>Nome</th><th>Host</th><th class="num">Porta</th><th>SID / Service Name</th><th>PDB</th>
-    <th>Utilizador</th><th>Ligação</th><th></th>
+    <th>Utilizador</th><th>Ligação</th><th>Pedidos feitos por</th><th></th>
   </tr></thead>
   <tbody>
   {% for d in dbs %}
@@ -24,6 +24,7 @@
       <td>{{ d.pdb or '—' }}</td>
       <td>{{ d.username }}</td>
       <td>{% if d.role == 'SYSDBA' %}<span class="tag warn">SYSDBA</span>{% else %}<span class="tag">Normal</span>{% endif %}</td>
+      <td>{% set v = vias[d.id] %}{% include "oracle/_via.html" %}</td>
       <td class="actions">
         <form method="post" action="{{ url_for('oracle.cfg_db_test', db_id=d.id) }}">
           <input type="hidden" name="csrf" value="{{ csrf_token }}"><button>Testar</button>
