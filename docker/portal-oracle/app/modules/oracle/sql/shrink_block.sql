@@ -13,6 +13,7 @@ DECLARE
   c_purge   CONSTANT BOOLEAN       := UPPER(TRIM('&p_purge'))  = 'S';
   c_min     CONSTANT NUMBER        := &p_min_ganho;
   c_margem  CONSTANT NUMBER        := &p_margem / 100;
+  c_par     CONSTANT PLS_INTEGER   := GREATEST(1, LEAST(32, &p_paralelo));  -- grau de paralelismo do MOVE/REBUILD (1 = sem)
   c_hdr     CONSTANT NUMBER        := 128;  -- blocos reservados no inicio de cada datafile
   c_passes  CONSTANT PLS_INTEGER   := 2;    -- passagens de reorganizacao (a 2.a corrige segmentos que o MOVE pos no fim)
 
@@ -173,6 +174,30 @@ DECLARE
     rc PLS_INTEGER;
   BEGIN
     rc := run_rc(s);
+  END;
+
+  -- Paralelismo: grau atual de uma tabela/indice (para o repor depois do MOVE/REBUILD ... PARALLEL n,
+  -- que deixa o objeto com esse grau)
+  FUNCTION grau_atual(p_tipo VARCHAR2, p_owner VARCHAR2, p_nome VARCHAR2) RETURN VARCHAR2 IS
+    d VARCHAR2(40);
+  BEGIN
+    IF c_par <= 1 THEN RETURN NULL; END IF;
+    IF p_tipo = 'TABLE' THEN
+      SELECT TRIM(degree) INTO d FROM dba_tables WHERE owner = p_owner AND table_name = p_nome;
+    ELSE
+      SELECT TRIM(degree) INTO d FROM dba_indexes WHERE owner = p_owner AND index_name = p_nome;
+    END IF;
+    RETURN NVL(d, '1');
+  EXCEPTION WHEN NO_DATA_FOUND THEN RETURN '1';
+  END;
+
+  PROCEDURE repor_grau(p_tipo VARCHAR2, p_owner VARCHAR2, p_nome VARCHAR2, p_deg VARCHAR2) IS
+  BEGIN
+    IF c_par > 1 AND p_deg IS NOT NULL THEN
+      run('ALTER ' || p_tipo || ' ' || q(p_owner) || '.' || q(p_nome) ||
+          CASE WHEN p_deg IN ('0', '1') THEN ' NOPARALLEL' WHEN p_deg = 'DEFAULT' THEN ' PARALLEL'
+               ELSE ' PARALLEL ' || p_deg END);
+    END IF;
   END;
 
   -- Pausa (DBMS_SESSION.SLEEP 18c+; DBMS_LOCK.SLEEP em versoes antigas)
@@ -448,7 +473,10 @@ DECLARE
   -- Gera/executa o comando de reorganizacao adequado ao tipo de segmento
   PROCEDURE reorg(r r_seg) IS
     v_onl VARCHAR2(20)  := CASE WHEN c_online THEN ' ONLINE' END;
-    v_upd VARCHAR2(20)  := CASE WHEN c_online THEN ' ONLINE' ELSE ' UPDATE INDEXES' END;
+    v_par VARCHAR2(20)  := CASE WHEN c_par > 1 THEN ' PARALLEL ' || c_par END;
+    -- MOVE PARTITION: ... [UPDATE INDEXES] [PARALLEL n] [ONLINE]
+    v_upd VARCHAR2(40)  := CASE WHEN c_online THEN v_par || ' ONLINE' ELSE ' UPDATE INDEXES' || v_par END;
+    v_deg VARCHAR2(40);
     v_obj VARCHAR2(300) := q(r.owner) || '.' || q(r.seg);
     v_tsq VARCHAR2(140) := q(g_ts);
     v_a   VARCHAR2(128);
@@ -470,17 +498,23 @@ DECLARE
           run('ALTER TABLE ' || q(r.owner) || '.' || q(v_b) || ' MOVE' || v_onl ||
               ' OVERFLOW TABLESPACE ' || v_tsq);
         ELSE
-          run('ALTER TABLE ' || v_obj || ' MOVE' || v_onl || ' TABLESPACE ' || v_tsq ||
+          v_deg := grau_atual('TABLE', r.owner, r.seg);
+          run('ALTER TABLE ' || v_obj || ' MOVE' || v_onl || ' TABLESPACE ' || v_tsq || v_par ||
               CASE WHEN NOT c_online THEN ' UPDATE INDEXES' END);
+          repor_grau('TABLE', r.owner, r.seg, v_deg);
         END IF;
 
       WHEN 'TABLE PARTITION' THEN
+        v_deg := grau_atual('TABLE', r.owner, r.seg);
         run('ALTER TABLE ' || v_obj || ' MOVE PARTITION ' || q(r.part) ||
             ' TABLESPACE ' || v_tsq || v_upd);
+        repor_grau('TABLE', r.owner, r.seg, v_deg);
 
       WHEN 'TABLE SUBPARTITION' THEN
+        v_deg := grau_atual('TABLE', r.owner, r.seg);
         run('ALTER TABLE ' || v_obj || ' MOVE SUBPARTITION ' || q(r.part) ||
             ' TABLESPACE ' || v_tsq || v_upd);
+        repor_grau('TABLE', r.owner, r.seg, v_deg);
 
       WHEN 'INDEX' THEN
         SELECT index_type, table_name INTO v_a, v_b
@@ -489,7 +523,9 @@ DECLARE
           run('ALTER TABLE ' || q(r.owner) || '.' || q(v_b) || ' MOVE' || v_onl ||
               ' TABLESPACE ' || v_tsq);
         ELSE
-          run('ALTER INDEX ' || v_obj || ' REBUILD TABLESPACE ' || v_tsq || v_onl);
+          v_deg := grau_atual('INDEX', r.owner, r.seg);
+          run('ALTER INDEX ' || v_obj || ' REBUILD TABLESPACE ' || v_tsq || v_onl || v_par);
+          repor_grau('INDEX', r.owner, r.seg, v_deg);
         END IF;
 
       WHEN 'INDEX PARTITION' THEN
@@ -499,27 +535,35 @@ DECLARE
           run('ALTER TABLE ' || q(r.owner) || '.' || q(v_b) || ' MOVE PARTITION ' ||
               q(r.part) || ' TABLESPACE ' || v_tsq || v_upd);
         ELSE
+          v_deg := grau_atual('INDEX', r.owner, r.seg);
           run('ALTER INDEX ' || v_obj || ' REBUILD PARTITION ' || q(r.part) ||
-              ' TABLESPACE ' || v_tsq || v_onl);
+              ' TABLESPACE ' || v_tsq || v_onl || v_par);
+          repor_grau('INDEX', r.owner, r.seg, v_deg);
         END IF;
 
       WHEN 'INDEX SUBPARTITION' THEN
+        v_deg := grau_atual('INDEX', r.owner, r.seg);
         run('ALTER INDEX ' || v_obj || ' REBUILD SUBPARTITION ' || q(r.part) ||
-            ' TABLESPACE ' || v_tsq || v_onl);
+            ' TABLESPACE ' || v_tsq || v_onl || v_par);
+        repor_grau('INDEX', r.owner, r.seg, v_deg);
 
       WHEN 'LOBSEGMENT' THEN
         SELECT table_name, column_name INTO v_b, v_c
           FROM dba_lobs WHERE owner = r.owner AND segment_name = r.seg;
+        v_deg := grau_atual('TABLE', r.owner, v_b);
         run('ALTER TABLE ' || q(r.owner) || '.' || q(v_b) || ' MOVE' || v_onl ||
-            ' LOB(' || qc(v_c) || ') STORE AS (TABLESPACE ' || v_tsq || ')' ||
+            ' LOB(' || qc(v_c) || ') STORE AS (TABLESPACE ' || v_tsq || ')' || v_par ||
             CASE WHEN NOT c_online THEN ' UPDATE INDEXES' END);
+        repor_grau('TABLE', r.owner, v_b, v_deg);
 
       WHEN 'LOB PARTITION' THEN
         SELECT table_name, column_name, partition_name INTO v_b, v_c, v_a
           FROM dba_lob_partitions
          WHERE table_owner = r.owner AND lob_name = r.seg AND lob_partition_name = r.part;
+        v_deg := grau_atual('TABLE', r.owner, v_b);
         run('ALTER TABLE ' || q(r.owner) || '.' || q(v_b) || ' MOVE PARTITION ' || q(v_a) ||
             ' LOB(' || qc(v_c) || ') STORE AS (TABLESPACE ' || v_tsq || ')' || v_upd);
+        repor_grau('TABLE', r.owner, v_b, v_deg);
 
       ELSE
         manual(r, 'tipo de segmento nao tratado automaticamente');
@@ -654,6 +698,8 @@ BEGIN
   p('===== 3. Diagnostico =====');
   p(RPAD('Modo', 42) || ': ' || CASE WHEN c_exec THEN 'EXECUTAR' ELSE 'ANALISE (nada sera alterado)' END);
   p(RPAD('Contentor', 42) || ': ' || SYS_CONTEXT('USERENV', 'CON_NAME'));
+  p(RPAD('Paralelismo do MOVE/REBUILD', 42) || ': ' ||
+    CASE WHEN c_par > 1 THEN c_par || ' (o grau de cada objeto e reposto no fim)' ELSE 'sem (serie)' END);
   p(RPAD('Tamanho atual', 42) || ': ' || ROUND(v_ini / 1048576) || ' MB');
   p(RPAD('Recuperavel ja (resize ate HWM)', 42) || ': ' || ROUND(v_direto / 1048576) || ' MB');
   p(RPAD('Recuperavel apos reorganizacao (estim.)', 42) || ': ' || ROUND(v_potencial / 1048576) ||

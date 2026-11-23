@@ -262,9 +262,9 @@ def servicos_padrao() -> list[str]:
     if env:
         return env
     if servicos_backend() == "supervisor":
-        return ["nginx", "gunicorn", "agente", "sshd", "cron"]
+        return ["nginx", "gunicorn", "agente", "agente-oracle", "sshd", "cron"]
     nome = instancia() or "portal-oracle"
-    return ["nginx", nome, f"{nome}-agente"]
+    return ["nginx", nome, f"{nome}-agente", f"{nome}-agente-oracle"]
 
 
 def servicos_configurados(settings_val: str | None) -> list[str]:
@@ -279,6 +279,8 @@ def papel(unit: str) -> str:
         return "portal"
     if unit in (f"{nome}-agente", "agente") or unit.endswith("-agente"):
         return "agente"
+    if unit in (f"{nome}-agente-oracle", "agente-oracle") or unit.endswith("-agente-oracle"):
+        return "agente_oracle"
     if unit.startswith("nginx"):
         return "nginx"
     return ""

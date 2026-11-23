@@ -3,7 +3,7 @@ import re
 
 from flask import abort, flash, g, jsonify, redirect, render_template, request, url_for
 
-from ... import agente_info, auth, settings, sistema_info, store
+from ... import agente_info, agentes, auth, settings, sistema_info, store
 from . import MODULO, bp, metricas_guardadas
 
 FRESCO = 15        # segundos: metricas do agente mais antigas do que isto -> leitura direta
@@ -93,3 +93,84 @@ def definicoes():
     return render_template("sistema/definicoes.html", atual=atual, padrao=sistema_info.servicos_padrao(),
                            backend=sistema_info.servicos_backend(), instancia=sistema_info.instancia(),
                            units=_units(), instalados=sistema_info.servicos_instalados(), aut=aut)
+
+
+# ============================================================ Agentes e Analise (recursos do portal)
+def _periodo() -> tuple[int, int, str]:
+    """?r=1h|5h|24h|7d|30d ou ?desde=AAAA-MM-DDTHH:MM&dur=1h..30d -> (desde, ate, rotulo)."""
+    import time
+    from datetime import datetime
+    r = request.args.get("r") or "24h"
+    dur = agentes.INTERVALOS.get(request.args.get("dur") or r, 86400)
+    if request.args.get("desde"):
+        try:
+            ini = int(datetime.strptime(request.args["desde"][:16], "%Y-%m-%dT%H:%M").timestamp())
+            return ini, min(ini + dur, int(time.time())), "data"
+        except ValueError:
+            pass
+    agora = int(time.time())
+    return agora - dur, agora, r
+
+
+@bp.route("/agentes", endpoint="agentes")
+@auth.requires(MODULO.acesso)
+def agentes_pag():
+    a = request.args.get("a", "agente_oracle")
+    if a not in agentes.AGENTES:
+        abort(404)
+    est = agente_info.estado(a)
+    procs = [p for p in agentes.processos_atuais().get("processos", []) if p["comp"] == a]
+    params = [{**p, "valor": agentes.param(a, p["chave"])} for p in agentes.AGENTES[a]["params"]]
+    em_curso = []
+    if est.get("execucoes"):
+        with store.tx() as t:
+            ids = [int(x) for x in est["execucoes"]][:50]
+            if ids:
+                em_curso = t.all(f"SELECT id, db_name, params, progress, current_action, started_at FROM jobs WHERE id IN "
+                                 f"({','.join('?' * len(ids))})", tuple(ids))
+        import json as _j
+        for j in em_curso:
+            j["params"] = _j.loads(j["params"])
+    return render_template("sistema/agentes.html", a=a, ag=agentes.AGENTES[a], todos=agentes.AGENTES, est=est,
+                           procs=procs, params=params, recursos=agentes.recursos_servico(a), em_curso=em_curso,
+                           instancia=sistema_info.instancia(), unit=agentes.unit(a),
+                           pode=g.user.can("sistema.agentes"), comps=agentes.COMPONENTES,
+                           estados={k: agente_info.estado(k)["ativo"] for k in agentes.AGENTES})
+
+
+@bp.route("/agentes/<a>/parametros", methods=["POST"])
+@auth.requires("sistema.agentes")
+def agentes_parametros(a):
+    if a not in agentes.AGENTES:
+        abort(404)
+    erros = agentes.guardar_params(a, request.form)
+    if erros:
+        flash(" ".join(erros), "error")
+    else:
+        flash("Parâmetros guardados. Os de aplicação imediata contam no próximo ciclo; a prioridade, ao reiniciar o agente.", "ok")
+    return redirect(url_for("sistema.agentes", a=a))
+
+
+@bp.route("/analise")
+@auth.requires(MODULO.acesso)
+def analise():
+    return render_template("sistema/analise.html", comps=agentes.COMPONENTES, agentes=agentes.AGENTES,
+                           estados={k: agente_info.estado(k) for k in agentes.AGENTES})
+
+
+@bp.route("/api/processos")
+@auth.requires(MODULO.acesso)
+def api_processos():
+    import time
+    p = agentes.processos_atuais()
+    return jsonify(ok=True, idade=int(time.time() - (p.get("ts") or 0)) if p.get("ts") else None, **p,
+                   nomes=agentes.COMPONENTES, agente=agente_info.ativo())
+
+
+@bp.route("/api/metricas")
+@auth.requires(MODULO.acesso)
+def api_metricas():
+    comps = [c for c in (request.args.get("comp") or "").split(",") if c in agentes.COMPONENTES]
+    desde, ate, rot = _periodo()
+    return jsonify(ok=True, **agentes.serie(comps or list(agentes.COMPONENTES), desde, ate), rotulo=rot,
+                   nomes=agentes.COMPONENTES)

@@ -1,0 +1,11 @@
+<div class="periodo" id="periodo">
+  <div class="seg" role="group" aria-label="Período">
+    {% for k, r in [('1h', '1 hora'), ('5h', '5 horas'), ('24h', '24 horas'), ('7d', '1 semana'), ('30d', '1 mês')] %}
+    <button type="button" data-r="{{ k }}" class="{{ 'on' if k == '24h' }}">{{ r }}</button>{% endfor %}
+  </div>
+  <div class="per-data"><span class="muted small">ou a partir de</span> <input type="datetime-local" id="pdesde" step="60">
+    <select id="pdur" aria-label="Duração">{% for k, r in [('1h', '1 hora'), ('5h', '5 horas'), ('24h', '24 horas'), ('7d', '1 semana')] %}<option value="{{ k }}" {{ 'selected' if k == '24h' }}>{{ r }}</option>{% endfor %}</select>
+    <button type="button" class="small" id="pver">Ver</button></div>
+  <button type="button" class="small" id="patual" title="Atualizar">↻</button>
+  <span class="muted small" id="pinfo"></span>
+</div>

@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% from "_cartoes.html" import kv, saude %}
+{% block title %}Sistema · Agentes{% endblock %}
+{% block content %}
+{% include "sistema/_tabs.html" %}
+<nav class="subtabs">
+  {% for k, x in todos.items()|sort(attribute='0', reverse=True) %}
+  <a href="{{ url_for('sistema.agentes', a=k) }}" class="{{ 'on' if k == a }}"><span class="dot d-{{ 'ok' if estados[k] else 'bad' }}"></span> {{ x.nome }}</a>{% endfor %}
+</nav>
+<p class="muted">{{ ag.descricao }}</p>
+
+<div class="fw-grid">
+<section class="card">
+  <h2>Estado</h2>
+  {% if est.ativo %}{{ saude('ok', 'A correr', 'sinal há ' ~ est.ha ~ ' s') }}
+  {% else %}{{ saude('bad', 'Parado', 'sem sinal' ~ (' há ' ~ est.ha ~ ' s' if est.ha else '')) }}{% endif %}
+  {% set ini = est.inicio|int if est.inicio else 0 %}
+  {{ kv([('Serviço', unit), ('PID', est.pid if est.ativo else ''), ('Versão', est.versao), ('Servidor', est.host), ('Utilizador', est.user),
+         ('A correr desde', recursos.desde if recursos.desde else ''), ('Prioridade (nice)', est.nice if est.ativo else ''),
+         ('Threads', est.threads if est.ativo else ''),
+         ('Execuções em curso', ((est.execucoes|length) ~ ' de ' ~ (est.maximo or params|selectattr('chave', 'eq', 'execucoes')|map(attribute='valor')|first)) if est.ativo and a == 'agente_oracle' else ((est.execucoes or [])|length if est.ativo else '')),
+         ('Terminadas desde o arranque', est.feitas if a == 'agente_oracle' and est.ativo else '')]) }}
+  {% if not est.ativo %}
+  <p class="hint">{% if a == 'agente_oracle' %}Sem o agente Oracle, as execuções Oracle são feitas pelo agente do portal.{% endif %}
+    No servidor: <code translate="no">sudo systemctl start {{ unit }}</code> ou, se não existir, <code translate="no">sudo instalar.sh --reaplicar {{ instancia or '<nome>' }}</code>.</p>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Parâmetros</h2>
+  <form method="post" action="{{ url_for('sistema.agentes_parametros', a=a) }}" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    {% for p in params %}
+    <label>{{ p.rotulo }} <input type="number" name="{{ p.chave }}" value="{{ p.valor }}" min="{{ p.min }}" max="{{ p.max }}" {{ 'disabled' if not pode }}>
+      <span class="hint">{{ p.ajuda }} <em>{{ 'Aplica-se no próximo ciclo.' if p.aplica == 'imediato' else 'Aplica-se ao reiniciar o agente.' }}</em></span></label>
+    {% endfor %}
+    {% if pode %}<div class="buttons"><button class="primary">Guardar</button></div>{% else %}<p class="muted small">Sem permissão para alterar (sistema.agentes).</p>{% endif %}
+  </form>
+</section>
+
+<section class="card">
+  <h2>Recursos do serviço</h2>
+  {% if recursos.backend == 'systemd' %}
+  {{ kv([('Limite de CPU', recursos.cpu), ('Limite de memória', recursos.mem), ('Nice (systemd)', recursos.nice), ('Máx. tarefas', recursos.tasks)]) }}
+  <p class="small">Aumentar ou limitar os recursos do serviço (precisa de root):</p>
+  <div class="rec-form">
+    <label>CPU <input id="rcpu" placeholder="200%" size="6"></label>
+    <label>Memória <input id="rmem" placeholder="2G" size="6"></label>
+    <label>Nice <input id="rnice" placeholder="5" size="4"></label>
+  </div>
+  <pre class="mono-area small cmd" translate="no" id="rcmd"></pre>
+  <p class="hint">100% = 1 CPU (200% = 2 CPUs). <code>off</code> retira os limites. O serviço é reiniciado; com o agente Oracle, as execuções em curso são marcadas como interrompidas.</p>
+  {% else %}
+  <p class="muted small">No Docker (supervisord) os limites são os do contentor: <code>docker-compose.yml</code> (<code>cpus</code>, <code>mem_limit</code>).</p>
+  {% endif %}
+</section>
+</div>
+
+{% if em_curso %}
+<section class="card full" style="margin-top:16px">
+  <h2>Execuções em curso</h2>
+  <div class="lista">{% for j in em_curso %}
+    <a class="lrow" href="{{ url_for('oracle.job_detail', job_id=j.id) }}"><span class="dot d-accent a-pulsar"></span>
+      <span class="lrow-t"><b translate="no">#{{ j.id }} · Shrink {{ j.params.ts }} · {{ j.db_name }}</b>
+        <small>{{ j.current_action or 'a correr' }}{% if j.progress %} · {{ (j.progress / 10)|round(0)|int }}%{% endif %} · desde {{ j.started_at }}{% if j.params.paralelo and j.params.paralelo > 1 %} · PARALLEL {{ j.params.paralelo }}{% endif %}</small></span></a>
+  {% endfor %}</div>
+</section>
+{% endif %}
+
+<section class="card full" style="margin-top:16px">
+  <div class="modulo-head"><h2>Processos</h2><span class="muted small" id="pidade"></span></div>
+  <div class="table-wrap"><table class="small-tab" id="tproc">
+    <thead><tr><th>PID</th><th>PPID</th><th class="num">CPU</th><th class="num">Memória</th><th class="num">Threads</th><th>Estado</th><th>Início</th><th>Comando</th></tr></thead>
+    <tbody></tbody></table></div>
+</section>
+
+<section class="card full" style="margin-top:16px">
+  <div class="modulo-head"><h2>Desempenho</h2></div>
+  {% include "sistema/_periodo.html" %}
+  <h3>CPU <small class="muted">(% de 1 CPU; média e máximo por intervalo)</small></h3>
+  <div class="pg" id="gcpu"></div>
+  <h3>Memória <small class="muted">(RSS dos processos do agente)</small></h3>
+  <div class="pg" id="gmem"></div>
+</section>
+{% endblock %}
+{% block scripts %}
+{% include "sistema/_graficos_js.html" %}
+<script>
+(() => {
+  const A = '{{ a }}', T = s => (window.t ? window.t(s) : s), $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const unit = '{{ unit }}', inst = '{{ instancia or "<nome>" }}', ag = A === 'agente_oracle' ? 'agente-oracle' : 'agente';
+  const cmd = () => { const p = [['cpu', $('rcpu')], ['mem', $('rmem')], ['nice', $('rnice')]].filter(([, e]) => e && e.value.trim()).map(([k, e]) => e.value.trim() === 'off' ? 'off' : `${k}=${e.value.trim()}`);
+    if ($('rcmd')) $('rcmd').textContent = `sudo /opt/${inst}/instalar.sh --agente-recursos ${inst} ${ag} ${p.join(' ') || 'cpu=200% mem=2G nice=5'}`; };
+  ['rcpu', 'rmem', 'rnice'].forEach(i => $(i) && ($(i).oninput = cmd)); cmd();
+  async function procs() {
+    try {
+      const d = await (await fetch("{{ url_for('sistema.api_processos') }}", {cache: 'no-store'})).json();
+      const l = (d.processos || []).filter(p => p.comp === A);
+      $('pidade').textContent = d.idade != null ? T('leitura há ' + d.idade + ' s') : (d.erro || T('sem leitura (agente do portal parado?)'));
+      $('tproc').tBodies[0].innerHTML = l.map(p => `<tr><td>${p.pid}</td><td>${p.ppid}</td><td class="num">${p.cpu.toFixed(1)}%</td>
+        <td class="num">${PortalGrafico.fmtBytes(p.rss)}</td><td class="num">${p.threads}</td><td>${esc(p.status)}</td>
+        <td>${new Date(p.inicio * 1000).toLocaleString('pt-PT')}</td><td class="cmd-cel" translate="no" title="${esc(p.cmd)}">${esc(p.cmd)}</td></tr>`).join('')
+        || `<tr><td colspan="8" class="muted">${T('Nenhum processo deste agente.')}</td></tr>`;
+    } catch (e) {}
+  }
+  procs(); setInterval(procs, 10000);
+  Periodo(async q => {
+    $('pinfo').textContent = T('A carregar…');
+    const d = await buscarMetricas([A], q), s = d.series[A] || [];
+    $('pinfo').textContent = `${s.length} ${T('pontos')} · ${T('intervalo de')} ${d.bucket >= 3600 ? d.bucket / 3600 + ' h' : d.bucket >= 60 ? d.bucket / 60 + ' min' : d.bucket + ' s'}`;
+    PortalGrafico.desenhar($('gcpu'), {unidade: '%', desde: d.desde, ate: d.ate, passo: d.bucket,
+      series: [{nome: T('CPU média'), cor: '#2563eb', pontos: s.map(p => [p[0], p[1]]), area: true},
+               {nome: T('CPU máxima'), cor: '#f59e0b', pontos: s.map(p => [p[0], p[2]]), tracejado: true}]});
+    PortalGrafico.desenhar($('gmem'), {unidade: 'bytes', desde: d.desde, ate: d.ate, passo: d.bucket,
+      series: [{nome: T('Memória'), cor: '#16a34a', pontos: s.map(p => [p[0], p[3]]), area: true}]});
+  });
+})();
+</script>
+{% endblock %}

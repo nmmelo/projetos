@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Sistema · Análise{% endblock %}
+{% block content %}
+{% include "sistema/_tabs.html" %}
+<p class="muted">Recursos usados pelo portal: o servidor web (Gunicorn) e os agentes. Medido pelo agente do portal a cada 10 s
+  (registo para os gráficos a cada 30 s, guardado 35 dias).</p>
+<div class="an-tiles" id="tiles"></div>
+
+<section class="card full" style="margin-top:16px">
+  <div class="modulo-head"><h2>Desempenho</h2></div>
+  {% include "sistema/_periodo.html" %}
+  <h3>CPU por componente <small class="muted">(% de 1 CPU) · tracejado: servidor (% total)</small></h3>
+  <div class="pg" id="gcpu"></div>
+  <h3>Memória por componente</h3>
+  <div class="pg" id="gmem"></div>
+</section>
+
+<section class="card full" style="margin-top:16px">
+  <div class="modulo-head"><h2>Processos do portal</h2><span class="muted small" id="pidade"></span></div>
+  <div class="table-wrap"><table class="small-tab" id="tproc">
+    <thead><tr><th data-o="comp">Componente</th><th data-o="pid">PID</th><th class="num" data-o="cpu">CPU ▾</th><th class="num" data-o="rss">Memória</th>
+      <th class="num" data-o="threads">Threads</th><th>Estado</th><th data-o="inicio">Início</th><th>Comando</th></tr></thead>
+    <tbody></tbody></table></div>
+</section>
+{% endblock %}
+{% block scripts %}
+{% include "sistema/_graficos_js.html" %}
+<script>
+(() => {
+  const T = s => (window.t ? window.t(s) : s), $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const CORES = {web: '#2563eb', agente: '#16a34a', agente_oracle: '#dc2626', outro: '#7c3aed', sistema: '#64748b'};
+  const NOMES = {{ comps|tojson }}, LINKS = {agente: "{{ url_for('sistema.agentes', a='agente') }}", agente_oracle: "{{ url_for('sistema.agentes', a='agente_oracle') }}"};
+  let ordem = 'cpu', lista = [];
+  function tabela() {
+    const l = [...lista].sort((a, b) => ordem === 'comp' ? a.comp.localeCompare(b.comp) : (b[ordem] || 0) - (a[ordem] || 0));
+    $('tproc').tBodies[0].innerHTML = l.map(p => `<tr><td><i class="cor" style="background:${CORES[p.comp]}"></i>${esc(T(NOMES[p.comp] || p.comp))}</td><td>${p.pid}</td>
+      <td class="num">${p.cpu.toFixed(1)}%</td><td class="num">${PortalGrafico.fmtBytes(p.rss)}</td><td class="num">${p.threads}</td><td>${esc(p.status)}</td>
+      <td>${new Date(p.inicio * 1000).toLocaleString('pt-PT')}</td><td class="cmd-cel" translate="no" title="${esc(p.cmd)}">${esc(p.cmd)}</td></tr>`).join('')
+      || `<tr><td colspan="8" class="muted">${T('Sem leitura dos processos (o agente do portal está parado?).')}</td></tr>`;
+  }
+  document.querySelectorAll('#tproc th[data-o]').forEach(th => th.onclick = () => { ordem = th.dataset.o; tabela(); });
+  async function agora() {
+    try {
+      const d = await (await fetch("{{ url_for('sistema.api_processos') }}", {cache: 'no-store'})).json();
+      lista = d.processos || []; tabela();
+      $('pidade').textContent = d.idade != null ? T('leitura há ' + d.idade + ' s') : '';
+      const por = d.por || {}, s = d.sistema || {};
+      const tot = Object.values(por).reduce((a, x) => ({cpu: a.cpu + x.cpu, rss: a.rss + x.rss, procs: a.procs + x.procs}), {cpu: 0, rss: 0, procs: 0});
+      const tile = (k, nome, x, link) => `<${link ? `a href="${link}"` : 'div'} class="an-tile" style="--c:${CORES[k] || '#334155'}"><span>${esc(T(nome))}</span>
+        <b>${x.cpu.toFixed(1)}% <small>CPU</small></b><b>${PortalGrafico.fmtBytes(x.rss)} <small>${T('memória')}</small></b>
+        <small class="muted">${x.procs} ${T('processo(s)')}${x.threads != null ? ' · ' + x.threads + ' threads' : ''}</small></${link ? 'a' : 'div'}>`;
+      $('tiles').innerHTML = tile('total', 'Portal (total)', tot) +
+        ['web', 'agente', 'agente_oracle', 'outro'].filter(k => por[k] || k !== 'outro').map(k => tile(k, NOMES[k], por[k] || {cpu: 0, rss: 0, procs: 0, threads: 0}, LINKS[k])).join('') +
+        (s.cpu != null ? `<div class="an-tile" style="--c:${CORES.sistema}"><span>${T('Servidor (total)')}</span><b>${s.cpu.toFixed(1)}% <small>CPU · ${s.ncpu} CPUs</small></b>
+          <b>${s.mem_pct.toFixed(0)}% <small>${T('memória')} (${PortalGrafico.fmtBytes(s.mem_usada)} / ${PortalGrafico.fmtBytes(s.mem_total)})</small></b>
+          <small class="muted">load ${(s.load || []).map(v => v.toFixed(2)).join(' / ')}</small></div>` : '');
+    } catch (e) {}
+  }
+  agora(); setInterval(agora, 10000);
+  const comps = ['web', 'agente', 'agente_oracle', 'outro', 'sistema'];
+  Periodo(async q => {
+    $('pinfo').textContent = T('A carregar…');
+    const d = await buscarMetricas(comps, q);
+    $('pinfo').textContent = `${T('intervalo de')} ${d.bucket >= 3600 ? d.bucket / 3600 + ' h' : d.bucket >= 60 ? d.bucket / 60 + ' min' : d.bucket + ' s'}`;
+    const ser = (i, filtro) => comps.filter(filtro).map(c => ({nome: T(NOMES[c]), cor: CORES[c], pontos: (d.series[c] || []).map(p => [p[0], p[i]]), tracejado: c === 'sistema'}));
+    PortalGrafico.desenhar($('gcpu'), {unidade: '%', desde: d.desde, ate: d.ate, passo: d.bucket, series: ser(1, c => true)});
+    PortalGrafico.desenhar($('gmem'), {unidade: 'bytes', desde: d.desde, ate: d.ate, passo: d.bucket, series: ser(3, c => c !== 'sistema')});
+  });
+})();
+</script>
+{% endblock %}

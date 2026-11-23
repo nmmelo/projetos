@@ -15,9 +15,9 @@ Instala-se **num servidor** (script `instalar.sh`, ver [Instalação num servido
 | **Oracle → Tablespaces** | Tamanho, usado e livre, do maior para o mais pequeno (sem SYSTEM, SYSAUX, UNDO e TEMP) |
 | **Oracle → Shrink** | Um tablespace ou TODOS, em ANÁLISE ou EXECUTAR, corre em segundo plano |
 | **Oracle → Execuções** | Tabela dinâmica com filtros (sucesso, avisos, erros, falhadas, em curso; tablespace; BD; modo; texto também no output), janela com o output a saltar para os erros, apagar (uma, selecionadas, falhadas); andamento em direto (barra, passos, tempo, output linha a linha), log e cancelamento |
-| **Sistema** | Servidor onde o portal corre: CPU, RAM, discos, serviços (Nginx, portal, agente, ...) com start/stop/restart, em cartões que se podem esconder e reordenar (**Editar**), atualizados a cada 2 s pelo agente |
+| **Sistema** | Servidor onde o portal corre: CPU, RAM, discos, serviços (Nginx, portal, agente, ...) com start/stop/restart, em cartões que se podem esconder e reordenar (**Editar**), atualizados a cada 2 s pelo agente; abas **Agentes** (estado, parâmetros, recursos, processos e gráficos de cada agente) e **Análise** (recursos usados pelo portal por componente) |
 | **Oracle → Definições** | Bases de dados Oracle: host, porta, SID ou Service Name, PDB, utilizador, password cifrada, Normal ou SYSDBA |
-| **Configuração** | **Geral**, **Aparência** (Geral: título, textos, ícone e tema; **Linguagem**: línguas e traduções, exportar/importar XML), **Manutenção** (modo de manutenção com editor HTML), **Módulos** (ativar/desativar e **Editar**: nome, perfis com acesso, agendamentos e notificações), **Agendamento** (tarefas dos módulos), **Armazenamento**, **Utilizadores**, **Perfis** e **Backups** |
+| **Configuração** | **Geral**, **Aparência** (Geral: título, textos, ícone e tema; **Linguagem**: línguas e traduções, exportar/importar XML), **Manutenção** (modo de manutenção com editor HTML), **Módulos** (abas Ativos/Inativos, interruptor e **Editar**: nome, perfis com acesso, agendamentos e notificações), **Agendamento** (tarefas dos módulos), **Setup** (resumo da instalação, ficheiros, permissões e comandos), **Armazenamento**, **Utilizadores**, **Perfis** e **Backups** |
 | **Língua** (bandeiras ao lado do sininho) | Português ou inglês (e outras que se acrescentem), por utilizador; também na página de entrada |
 | **Agente do portal** (serviço `<nome>-agente`) | Corre as execuções Oracle (continuam se o portal reiniciar), publica as métricas do servidor e executa as ações sobre serviços |
 | **Minha área** (nome no canto superior direito) | Dados do utilizador, permissões e alteração da password |
@@ -189,7 +189,7 @@ O agente é um processo separado do Gunicorn (`python -m app.agente`). Numa inst
 
 | Função | Detalhe |
 |---|---|
-| **Execuções Oracle** | Com o agente ativo, ao lançar um shrink a execução fica **PENDENTE** ("na fila do agente") e o agente começa-a dentro de 1 s (até 4 em simultâneo) |
+| **Execuções Oracle** | Com o agente ativo, ao lançar um shrink a execução fica **PENDENTE** ("na fila do agente") e o agente começa-a dentro de 1 s. Com o **Agente Oracle** ativo, é ele que as corre (ver abaixo); sem ele, o agente do portal (até 2 em simultâneo, configurável) |
 | **Métricas** | A cada 2 s: CPU (de `/proc/stat`), load, RAM, swap, discos, servidor e estado dos serviços (memória, CPU, PID, desde quando), com 3 minutos de histórico para os gráficos. Publicadas na base de dados do portal |
 | **Serviços** | Executa os pedidos de start/stop/restart feitos no módulo Sistema: `sudo -n systemctl <ação> <serviço>`, só para os serviços autorizados em `/etc/sudoers.d/<nome>-agente` (no Docker, `supervisorctl`) |
 | **Sinal de vida** | A cada 2 s. Se o portal não o vir há mais de 15 s, considera o agente parado |
@@ -209,6 +209,21 @@ Sem o agente, o portal continua a funcionar como antes: as execuções correm nu
 sudo systemctl status <nome>-agente
 sudo journalctl -u <nome>-agente -f
 ```
+
+---
+
+## Agente Oracle
+
+Serviço próprio para as execuções Oracle (shrink), separado do agente do portal: `python -m app.agente_oracle`, serviço `<nome>-agente-oracle` (criado pelo `instalar.sh`; no Docker, programa `agente-oracle` do supervisord).
+
+| Ponto | Detalhe |
+|---|---|
+| **Isolamento** | Um shrink longo não atrasa métricas, emails nem serviços (agente do portal), e reiniciar o agente do portal não interrompe shrinks |
+| **Concorrência** | "Execuções em simultâneo" (por omissão 4), em Sistema → Agentes → Agente Oracle |
+| **Sem agente Oracle** | O agente do portal volta a correr as execuções Oracle (comportamento anterior) |
+| **Recursos** | `sudo ./instalar.sh --agente-recursos <nome> agente-oracle cpu=200% mem=2G nice=5` (drop-in systemd; `off` retira; sem valores mostra os atuais) |
+
+**Shrink mais rápido: paralelismo.** O tempo de um shrink está quase todo na base de dados (`ALTER TABLE ... MOVE`, `ALTER INDEX ... REBUILD`), não no agente. O formulário do Shrink tem o campo **Paralelismo do MOVE/REBUILD** (1–32): com valor > 1 o bloco usa `PARALLEL n` no MOVE (tabelas, partições e LOBs) e no REBUILD dos índices, e no fim repõe o grau original de cada objeto (`NOPARALLEL` ou o `DEGREE` que tinha). Requer Enterprise Edition e usa mais CPU e I/O na BD — use-o fora de horas (o shrink pode ser **agendado**). Valor por omissão em Sistema → Agentes → Agente Oracle → "Paralelismo por omissão".
 
 ---
 
@@ -244,6 +259,28 @@ Atualiza a configuração guardada, a regra `sudoers` (validada com `visudo`) e 
 ![Sistema → Definições](docs/sistema-definicoes.png)
 
 ![Módulo Sistema](docs/sistema.png)
+
+### Sistema → Agentes
+
+Uma sub-aba por agente (Agente Oracle, Agente do portal):
+
+| Cartão | Conteúdo |
+|---|---|
+| **Estado** | A correr/parado, serviço, PID, versão, servidor, utilizador, desde quando, nice, threads, execuções em curso e terminadas |
+| **Parâmetros** | Agente do portal: ciclo, métricas a cada (s), execuções Oracle em simultâneo (sem agente Oracle), nice. Agente Oracle: execuções em simultâneo, paralelismo por omissão, ciclo, nice. Guardados na tabela `settings` (`<agente>.<parâmetro>`); aplicam-se no ciclo seguinte (nice ao reiniciar) |
+| **Recursos do serviço** | Limite de CPU, de memória e Nice do systemd, e o comando `--agente-recursos` montado com os valores escolhidos (precisa de root) |
+| **Processos** | PID, PPID, CPU, memória, threads, estado, início e comando (atualizado a cada 10 s) |
+| **Desempenho** | Gráficos de CPU (média e máximo) e memória: 1 hora, 5 horas, 24 horas, 1 semana, 1 mês, ou a partir de uma data com duração |
+
+### Sistema → Análise
+
+Recursos usados pelo portal por componente — Portal (Gunicorn), Agente do portal, Agente Oracle, outros processos — e o servidor (total): cartões com o valor atual, gráficos de CPU e memória por componente (o servidor a tracejado) com o mesmo seletor de período, e a tabela de processos ordenável.
+
+As medições são feitas pelo agente do portal com `psutil` (processos do mesmo utilizador e da pasta do portal): leitura a cada 10 s, registo na tabela `metricas` a cada 30 s, guardado 35 dias. Sem o agente do portal não há leituras novas.
+
+| Sistema → Agentes | Sistema → Análise |
+|---|---|
+| ![Agentes](docs/sistema-agentes.png) | ![Análise](docs/sistema-analise.png) |
 
 ---
 
@@ -332,7 +369,9 @@ O tipo escolhe-se em **Configuração → Utilizadores** (formulário do utiliza
 
 ## Módulos
 
-Em **Configuração → Módulos** cada módulo aparece num cartão com a descrição, o menu, o número de permissões, os perfis com acesso e o botão **Ativar/Desativar**.
+Em **Configuração → Módulos** os módulos estão em duas abas, **Ativos** e **Inativos** (com o número de cada), em **Cartões** (2, 3 ou 4 por linha) ou em **Lista**. Cada módulo mostra a descrição, ID, abas, permissões, agendamentos, eventos, perfis com acesso e um **interruptor** Ativo/Inativo: muda logo, sem recarregar a página (pede confirmação ao desativar); o módulo passa para a outra aba e o menu atualiza-se ao recarregar.
+
+![Configuração → Módulos](docs/config-modulos.png)
 
 | Estado | Efeito |
 |---|---|
@@ -479,6 +518,25 @@ API usada pelo agente (sem sessão, autenticada pelo id e token): `POST /cliente
 ![Alarmes](docs/clientes-alarmes.png)
 ![Novo alarme](docs/clientes-alarme.png)
 ![Integração Zabbix](docs/clientes-zabbix.png)
+
+---
+
+## Configuração → Setup
+
+Resumo da instalação, só de leitura (administrador):
+
+| Secção | Conteúdo |
+|---|---|
+| **Resumo** | Problemas de ficheiros/permissões, armazenamento ligado, serviços ativos |
+| **Identidade** | Instância, modo (systemd / Docker), pasta do portal, pasta de dados, utilizador de serviço, PID |
+| **Armazenamento** | Tipo, ligação, teste (registos e tempo), origem da chave de cifra (`fernet.key` ou `PORTAL_FERNET_KEY`) |
+| **Ficheiros, chaves e permissões** | `data/`, `admin.json`, `portal.json`, `fernet.key`, `flask_secret.key`, `clientes_ssh/`, `portal.sqlite3`, `backups/`: dono, modo atual/esperado (700 pastas, 600 ficheiros) e o comando para corrigir, com botão Copiar |
+| **Serviços** | `<nome>`, `<nome>-agente`, `<nome>-agente-oracle`, `nginx`, e as regras `/etc/sudoers.d/<nome>-agente` e `-firewall` |
+| **Runtime** | Python, Flask, Gunicorn, oracledb, psutil, ldap3, cryptography, sistema, fuso horário |
+| **Configuração do instalador** | `/etc/portal-oracle/<nome>.conf` (passwords ocultadas). Por omissão só o root o lê (600): a página indica o comando `--mostrar` |
+| **Comandos úteis** | Mostrar, atualizar, verificar, reaplicar, listar, recursos do agente Oracle, registos — com o caminho real da instância |
+
+![Configuração → Setup](docs/config-setup.png)
 
 ---
 
@@ -1468,6 +1526,8 @@ O driver é o **python-oracledb** em modo *thin* (sem Instant Client). Requer Or
 
 | Erro | Causa e solução |
 |---|---|
+| Shrink demora muito (20 min ou mais) | O tempo está na BD (MOVE/REBUILD). Use o **Paralelismo** (ex. 4) no Shrink, de preferência agendado para a noite; confirme em Sistema → Agentes que o Agente Oracle está a correr |
+| Sistema → Agentes/Análise sem gráficos | Falta o `psutil` (`--atualizar` instala-o) ou o agente do portal está parado |
 | Login falha logo depois de instalar | Corra `manage.py set-admin-password` (comando na tabela "Comandos úteis") |
 | `No supported authentication methods` / `Permission denied (publickey)` com uma chave que funciona noutros servidores | Veja o motivo em `docker-compose logs portal \| grep sshd`. `bad ownership or modes`: recrie o contentor, que corrige as permissões. `ssh-rsa not in PubkeyAcceptedAlgorithms`: atualize o PuTTY (0.75 ou superior) ou use uma chave ed25519 |
 | `Permission denied (publickey)` no SSH | A chave não está em `data/ssh/users/<utilizador>.pub`. Depois de a acrescentar, recrie o contentor e confirme com `docker-compose logs portal \| grep "Utilizador SSH"` |

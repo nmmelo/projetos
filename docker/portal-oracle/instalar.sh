@@ -118,6 +118,10 @@ Uso:
   sudo ./instalar.sh --firewall NOME on|off|status
                                       modulo Firewall: autoriza o portal a ler e alterar a firewall
                                       (firewall-cmd ou ufw) e a ler o registo do firewalld (sudoers)
+  sudo ./instalar.sh --agente-recursos NOME agente|agente-oracle [cpu=PCT%] [mem=TAM] [nice=N] [off]
+                                      limites de recursos do servico de um agente (systemd drop-in):
+                                      ex. --agente-recursos dba-portal agente-oracle cpu=200% mem=2G nice=5
+                                      (off retira os limites; sem cpu/mem/nice mostra os atuais)
   sudo ./instalar.sh --desinstalar [NOME]
   ./instalar.sh --help                esta ajuda (tambem -h, --ajuda)
 
@@ -151,7 +155,8 @@ Atualizar o codigo (sincronizar com o repositorio):
 O que cria (exemplo com o nome "nome-portal"):
   /opt/nome-portal                       codigo (do root), data/ e .venv (do utilizador de servico)
   /etc/systemd/system/nome-portal.service
-  /etc/systemd/system/nome-portal-agente.service   agente: execucoes em fila, metricas, servicos
+  /etc/systemd/system/nome-portal-agente.service   agente: metricas, servicos, email, agendamentos
+  /etc/systemd/system/nome-portal-agente-oracle.service   agente Oracle: execucoes Oracle em fila
   /etc/sudoers.d/nome-portal-agente      servicos que o agente pode iniciar/parar/reiniciar
   /etc/nginx/sites-available/nome-portal (RHEL: /etc/nginx/conf.d/nome-portal.conf)
   /etc/cron.d/nome-portal                backup diario (opcional)
@@ -258,7 +263,7 @@ listar_instancias() {   # nomes das instancias registadas (incluindo as de verso
     {
         for f in "$ESTADO_DIR"/*.conf; do [[ -f $f ]] && basename "$f" .conf; done
         for u in /etc/systemd/system/*.service; do
-            [[ -f $u && $u != *-agente.service ]] && grep -q '^Description=Portal Oracle' "$u" && basename "$u" .service
+            [[ -f $u && $u != *-agente.service && $u != *-agente-oracle.service ]] && grep -q '^Description=Portal Oracle' "$u" && basename "$u" .service
         done
         true
     } 2>/dev/null | sort -u
@@ -330,6 +335,7 @@ mostrar_estado() {   # mostra as variaveis carregadas
         "Endereco" "$URL" \
         "Backup cron" "$([[ -n ${CRON_HORA:-} ]] && echo "todos os dias as $CRON_HORA" || echo nao)" \
         "Agente" "$NOME-agente.service: $(systemctl is-active "$NOME-agente" 2>/dev/null || echo '?')" \
+        "Agente Oracle" "$NOME-agente-oracle.service: $(systemctl is-active "$NOME-agente-oracle" 2>/dev/null || echo '?')" \
         "Servicos (Sistema)" "${SERVICOS:-nginx $NOME $NOME-agente}" \
         "Firewall" "$([[ ${ABRIR_FW:-0} == 1 ]] && echo "portas abertas pelo script" || echo "nao alterada")" \
         "Ultima execucao" "${ULTIMA_EXEC:-?}$([[ ${ESTADO_INST:-} == incompleta ]] && echo "  (INCOMPLETA)")" \
@@ -340,21 +346,23 @@ listar() {
     local n; local -a lista
     mapfile -t lista < <(listar_instancias)
     if (( ${#lista[@]} == 0 )); then echo "Nao ha instancias do portal neste servidor."; return 0; fi
-    local ag
-    printf "%-20s %-24s %-9s %-9s %-36s %s\n" NOME PASTA SERVICO AGENTE ENDERECO "ULTIMA EXECUCAO"
+    local ag ao
+    printf "%-20s %-24s %-9s %-9s %-9s %-36s %s\n" NOME PASTA SERVICO AGENTE AG.ORACLE ENDERECO "ULTIMA EXECUCAO"
     for n in "${lista[@]}"; do
         ag=$(systemctl is-active "$n-agente" 2>/dev/null || true)
         [[ -f /etc/systemd/system/$n-agente.service ]] || ag="-"
+        ao=$(systemctl is-active "$n-agente-oracle" 2>/dev/null || true)
+        [[ -f /etc/systemd/system/$n-agente-oracle.service ]] || ao="-"
         if carregar_estado "$n"; then
             calcular_url
-            printf "%-20s %-24s %-9s %-9s %-36s %s\n" "$n" "${DIR:-?}" "$(systemctl is-active "$n" 2>/dev/null || true)" "$ag" \
+            printf "%-20s %-24s %-9s %-9s %-9s %-36s %s\n" "$n" "${DIR:-?}" "$(systemctl is-active "$n" 2>/dev/null || true)" "$ag" "$ao" \
                 "$URL" "${ULTIMA_EXEC:-?}$([[ ${ESTADO_INST:-} == incompleta ]] && echo ' (incompleta)')"
         else
-            printf "%-20s %-24s %-9s %-9s %s\n" "$n" "?" "$(systemctl is-active "$n" 2>/dev/null || true)" "$ag" "(sem configuracao guardada)"
+            printf "%-20s %-24s %-9s %-9s %-9s %s\n" "$n" "?" "$(systemctl is-active "$n" 2>/dev/null || true)" "$ag" "$ao" "(sem configuracao guardada)"
         fi
     done
     echo
-    echo "Agente: systemctl status <nome>-agente | journalctl -u <nome>-agente -n 50 | no portal: Sistema e Configuracao > Agendamento"
+    echo "Agentes: systemctl status <nome>-agente <nome>-agente-oracle | journalctl -u <nome>-agente-oracle -n 50 | no portal: Sistema > Agentes"
 }
 
 # ============================================================================ sistema
@@ -403,8 +411,10 @@ desinstalar() {
     info "Pasta:   $dir"
     sim_nao "Parar e remover o servico, o site do Nginx e o cron de '$nome'?" n || exit 0
 
-    systemctl disable --now "$nome" "$nome-agente" 2>/dev/null || true
-    rm -f "$unit" "/etc/systemd/system/$nome-agente.service" "/etc/sudoers.d/$nome-agente" "/etc/sudoers.d/$nome-firewall" \
+    systemctl disable --now "$nome" "$nome-agente" "$nome-agente-oracle" 2>/dev/null || true
+    rm -rf "/etc/systemd/system/$nome-agente.service.d" "/etc/systemd/system/$nome-agente-oracle.service.d"
+    rm -f "$unit" "/etc/systemd/system/$nome-agente.service" "/etc/systemd/system/$nome-agente-oracle.service" \
+          "/etc/sudoers.d/$nome-agente" "/etc/sudoers.d/$nome-firewall" \
           "/etc/cron.d/$nome" "$ESTADO_DIR/$nome.conf"
     systemctl daemon-reload
     rm -f "/etc/nginx/sites-enabled/$nome" "/etc/nginx/sites-available/$nome" "/etc/nginx/conf.d/$nome.conf"
@@ -486,12 +496,54 @@ gerir_servicos() {   # --servicos NOME [LISTA | +UNIT | -UNIT ...]
         render "$DIR/deploy/portal.service.tpl" "/etc/systemd/system/$NOME.service"
     T_NOME=$NOME T_DIR=$DIR T_UTILIZADOR=$UTIL T_SERVICOS=$SERVICOS \
         render "$DIR/deploy/agente.service.tpl" "/etc/systemd/system/$NOME-agente.service"
+    [[ -f $DIR/deploy/agente-oracle.service.tpl ]] && T_NOME=$NOME T_DIR=$DIR T_UTILIZADOR=$UTIL T_SERVICOS=$SERVICOS \
+        render "$DIR/deploy/agente-oracle.service.tpl" "/etc/systemd/system/$NOME-agente-oracle.service"
     instalar_sudoers
     gravar_estado "${ESTADO_INST:-concluida}"
     systemctl daemon-reload
     systemctl restart "$NOME-agente" "$NOME"
+    [[ -f /etc/systemd/system/$NOME-agente-oracle.service ]] && systemctl restart "$NOME-agente-oracle"
     ok "servicos: $SERVICOS"
     info "No portal (Sistema > Definicoes) acrescente-os tambem a lista mostrada, se a tiver alterado."
+    exit 0
+}
+
+# ============================================================================ recursos dos agentes
+gerir_recursos_agente() {   # --agente-recursos NOME agente|agente-oracle [cpu=..] [mem=..] [nice=..] [off]
+    local u="$NOME-$AG_NOME" d f a cpu="" mem="" nice="" off=0
+    [[ -f /etc/systemd/system/$u.service ]] || erro "o servico $u nao existe (sudo $0 --reaplicar $NOME)"
+    d="/etc/systemd/system/$u.service.d"; f="$d/recursos.conf"
+    titulo "Recursos do servico $u"
+    for a in "${AG_ARGS[@]}"; do
+        case "$a" in
+            cpu=*) cpu=${a#cpu=}; [[ $cpu =~ ^[0-9]{1,4}%$ ]] || erro "cpu: percentagem, ex. 150% (100% = 1 CPU)" ;;
+            mem=*) mem=${a#mem=}; [[ $mem =~ ^[0-9]+[KMGT]?$ ]] || erro "mem: ex. 512M ou 2G" ;;
+            nice=*) nice=${a#nice=}; [[ $nice =~ ^-?[0-9]{1,2}$ ]] && (( nice >= -20 && nice <= 19 )) || erro "nice: -20 a 19" ;;
+            off) off=1 ;;
+            *) erro "argumento desconhecido: $a" ;;
+        esac
+    done
+    if (( off )); then
+        rm -f "$f"; rmdir "$d" 2>/dev/null || true
+        ok "limites retirados"
+    elif [[ -n $cpu$mem$nice ]]; then
+        mkdir -p "$d"
+        {
+            echo "# Gerado por: instalar.sh --agente-recursos $NOME $AG_NOME ${AG_ARGS[*]}"
+            echo "[Service]"
+            [[ -n $cpu ]] && echo "CPUQuota=$cpu"
+            [[ -n $mem ]] && { echo "MemoryMax=$mem"; echo "MemoryHigh=$mem"; }
+            [[ -n $nice ]] && echo "Nice=$nice"
+        } > "$f"
+        ok "$f: ${cpu:+CPU $cpu }${mem:+memoria $mem }${nice:+nice $nice}"
+    else
+        [[ -f $f ]] && { info "Atual ($f):"; sed -n '/^\[Service\]/,$p' "$f"; } || info "Sem limites definidos."
+        info "Alterar: sudo $0 --agente-recursos $NOME $AG_NOME cpu=200% mem=2G nice=5   (off = retirar)"
+        exit 0
+    fi
+    systemctl daemon-reload
+    systemctl restart "$u"
+    systemctl show "$u" -p CPUQuotaPerSecUSec,MemoryMax,Nice --no-pager | sed 's/^/  /'
     exit 0
 }
 
@@ -543,6 +595,8 @@ verificar() {   # diagnostico de uma instancia (portal indisponivel?)
     else falha "servico parado: $(systemctl is-active "$NOME" 2>/dev/null || true)"; fi
     if systemctl is-active -q "$NOME-agente" 2>/dev/null; then ok "agente ativo ($NOME-agente)"
     else falha "agente parado: as execucoes correm no portal (param se o portal reiniciar) e o modulo Sistema nao gere servicos"; fi
+    if systemctl is-active -q "$NOME-agente-oracle" 2>/dev/null; then ok "agente Oracle ativo ($NOME-agente-oracle)"
+    else falha "agente Oracle parado: as execucoes Oracle ficam a cargo do agente do portal (sudo $0 --reaplicar $NOME)"; fi
     [[ -f /etc/sudoers.d/$NOME-agente ]] && ok "sudoers do agente" || falha "falta /etc/sudoers.d/$NOME-agente"
     cod=$(curl -s -o /dev/null -m 5 -w '%{http_code}' "http://127.0.0.1:${PORTA_GUNICORN:-8000}/login" || true)
     case $cod in
@@ -594,6 +648,8 @@ case "${1:-}" in
     --firewall) MODO=firewall; NOME_ARG=${2:-}; FW_ACAO=${3:-status}
         [[ $FW_ACAO =~ ^(on|off|status)$ ]] || { echo "Uso: $0 --firewall NOME on|off|status" >&2; exit 2; } ;;
     --servicos) MODO=servicos; NOME_ARG=${2:-}; shift 2 2>/dev/null || shift $#; SERV_ARGS=("$@") ;;
+    --agente-recursos) MODO=agente-recursos; NOME_ARG=${2:-}; AG_NOME=${3:-}; shift 3 2>/dev/null || shift $#; AG_ARGS=("$@")
+        [[ $AG_NOME =~ ^(agente|agente-oracle)$ ]] || { echo "Uso: $0 --agente-recursos NOME agente|agente-oracle [cpu=200%] [mem=2G] [nice=5] [off]" >&2; exit 2; } ;;
     -*) echo "Opcao desconhecida: $1 (ver $0 --help)" >&2; exit 2 ;;
     *) NOME_ARG=${1:-} ;;
 esac
@@ -649,6 +705,7 @@ if [[ $MODO == verificar || $MODO == manutencao ]]; then
 fi
 [[ $MODO == firewall ]] && { (( REINSTALAR )) || erro "a instancia '$NOME_ARG' nao tem configuracao guardada."; gerir_firewall; }
 [[ $MODO == servicos ]] && { (( REINSTALAR )) || erro "a instancia '$NOME_ARG' nao tem configuracao guardada."; gerir_servicos; }
+[[ $MODO == agente-recursos ]] && { (( REINSTALAR )) || erro "a instancia '$NOME_ARG' nao tem configuracao guardada."; gerir_recursos_agente; }
 [[ $MODO == desinstalar ]] && desinstalar "$NOME_ARG"
 
 if (( REINSTALAR )); then
@@ -858,13 +915,18 @@ else
     CRON_HORA=""
 fi
 info "Modulo Sistema: servicos mostrados no portal e que o agente pode iniciar/parar/reiniciar."
-SERV_DEF="nginx $NOME $NOME-agente"
+SERV_DEF="nginx $NOME $NOME-agente $NOME-agente-oracle"
 [[ $BD_OPCAO == mariadb-local ]] && SERV_DEF+=" mariadb"
 [[ $BD_OPCAO == postgresql-local ]] && SERV_DEF+=" postgresql"
 for u in firewalld ufw; do systemctl cat "$u" >/dev/null 2>&1 && SERV_DEF+=" $u" && break; done
 info "Servicos detetados neste servidor: $(servicos_detetados)"
 perguntar SERVICOS "Servicos geridos pelo modulo Sistema" "${SERVICOS:-$SERV_DEF}" '^[A-Za-z0-9@._: -]+$'
 SERVICOS=$(echo "$SERVICOS" | tr -s ' ')
+# versoes anteriores: o agente Oracle passa a estar na lista do modulo Sistema (e no sudoers do agente)
+if [[ " $SERVICOS " == *" $NOME-agente "* && " $SERVICOS " != *" $NOME-agente-oracle "* ]]; then
+    SERVICOS="$SERVICOS $NOME-agente-oracle"
+    info "Servicos do modulo Sistema: acrescentado $NOME-agente-oracle (novo agente Oracle)"
+fi
 FW=""
 if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then FW=ufw
 elif command -v firewall-cmd >/dev/null && firewall-cmd --state >/dev/null 2>&1; then FW=firewalld; fi
@@ -1042,12 +1104,16 @@ T_NOME=$NOME T_DIR=$DIR T_UTILIZADOR=$UTIL T_BIND="127.0.0.1:$PORTA_GUNICORN" T_
     render "$DIR/deploy/portal.service.tpl" "/etc/systemd/system/$NOME.service"
 T_NOME=$NOME T_DIR=$DIR T_UTILIZADOR=$UTIL T_SERVICOS=$SERVICOS \
     render "$DIR/deploy/agente.service.tpl" "/etc/systemd/system/$NOME-agente.service"
+T_NOME=$NOME T_DIR=$DIR T_UTILIZADOR=$UTIL T_SERVICOS=$SERVICOS \
+    render "$DIR/deploy/agente-oracle.service.tpl" "/etc/systemd/system/$NOME-agente-oracle.service"
 instalar_sudoers
 systemctl daemon-reload
-systemctl enable -q "$NOME" "$NOME-agente"
+systemctl enable -q "$NOME" "$NOME-agente" "$NOME-agente-oracle"
 systemctl restart "$NOME"
 systemctl restart "$NOME-agente"
-ok "agente: $NOME-agente.service (execucoes em fila, metricas, servicos)"
+systemctl restart "$NOME-agente-oracle"
+ok "agente: $NOME-agente.service (metricas, servicos, email, agendamentos)"
+ok "agente Oracle: $NOME-agente-oracle.service (execucoes Oracle em fila e agendadas)"
 CODIGO=000
 for _ in $(seq 1 20); do
     CODIGO=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORTA_GUNICORN/login" || true)

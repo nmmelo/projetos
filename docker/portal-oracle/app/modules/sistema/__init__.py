@@ -44,9 +44,12 @@ MODULO = modulos.registar(modulos.Modulo(
     acoes={
         "sistema.servicos": "Iniciar, parar e reiniciar serviços",
         "sistema.definicoes": "Definições: serviços mostrados no módulo",
+        "sistema.agentes": "Agentes: alterar parâmetros (execuções em simultâneo, paralelismo, ciclos, prioridade)",
     },
     abas=[
         ("sistema.painel", "Painel", None),
+        ("sistema.agentes", "Agentes", None),
+        ("sistema.analise", "Análise", None),
         ("sistema.definicoes", "Definições", "sistema.definicoes"),
     ],
     cartoes={

@@ -2,36 +2,104 @@
 {% block title %}Configuração · Módulos{% endblock %}
 {% block content %}
 {% include "config/_tabs.html" %}
-<p class="muted">Cada módulo ativo acrescenta um menu ao portal. Desativado, o menu desaparece para todos e as páginas
-  do módulo deixam de responder; os dados e as permissões dos perfis mantêm-se. Quem vê cada módulo define-se nos
-  <a href="{{ url_for('portal.cfg_profiles') }}">perfis</a>.</p>
-<div class="modulos">
-  {% for i in lista %}
-  <section class="card modulo {{ 'on' if i.ativo else 'off' }}">
-    <div class="modulo-head">
-      <h2>{{ i.m.nome }}</h2>
-      <span class="status {{ 's-OK' if i.ativo else 's-CANCELADO' }}">{{ 'Ativo' if i.ativo else 'Inativo' }}</span>
-    </div>
-    <p>{{ i.m.descricao }}</p>
-    <table class="kv small">
-      <tr><th>Menu</th><td>{% for _, rotulo, _ in i.m.abas %}<span>{{ rotulo }}</span>{{ ' · ' if not loop.last }}{% endfor %}</td></tr>
-      <tr><th>Permissões</th><td>{{ i.m.acoes|length + 1 }} (acesso + {{ i.m.acoes|length }} ações)</td></tr>
-      <tr><th>Agendamentos</th><td>{{ i.m.tarefas|length or 'nenhum' }}</td></tr>
-      <tr><th>Eventos</th><td>{{ i.m.eventos|length or 'nenhum' }}</td></tr>
-      <tr><th>Perfis com acesso</th><td>{% for n in i.perfis %}<span class="tag">{{ n }}</span> {% else %}<span class="muted">nenhum (só o administrador)</span>{% endfor %}</td></tr>
-    </table>
-    <form method="post" class="buttons">
-      <input type="hidden" name="csrf" value="{{ csrf_token }}">
-      <input type="hidden" name="module" value="{{ i.m.chave }}">
-      <a class="btn" href="{{ url_for('portal.cfg_module_edit', chave=i.m.chave) }}">✎ Editar</a>
-      {% if i.ativo %}
-      <button class="danger" name="active" value="0"
-              onclick="return confirm('Desativar o módulo {{ i.m.nome }}? O menu desaparece para todos os utilizadores.')">Desativar</button>
-      {% else %}
-      <button class="primary" name="active" value="1">Ativar</button>
-      {% endif %}
-    </form>
-  </section>
-  {% endfor %}
+{% set n_on = lista|selectattr('ativo')|list|length %}
+<div class="mods-toolbar">
+  <div><h2 class="mods-h">Gestão de módulos</h2>
+    <p class="muted small">Ative, desative e configure os módulos. Desativado, o menu desaparece para todos e as páginas deixam de
+      responder; os dados e as permissões dos <a href="{{ url_for('portal.cfg_profiles') }}">perfis</a> mantêm-se.</p></div>
+  <div class="mods-ctl">
+    <div class="seg" role="group" aria-label="Modo de visualização">
+      <button type="button" data-vista="cartoes" class="on">Cartões</button><button type="button" data-vista="lista">Lista</button></div>
+    <div class="seg" role="group" aria-label="Cartões por linha" id="mcols"><span class="muted small">Colunas</span>
+      <button type="button" data-cols="2">2</button><button type="button" data-cols="3" class="on">3</button><button type="button" data-cols="4">4</button></div>
+  </div>
 </div>
+<nav class="tabs mods-tabs" role="tablist" aria-label="Estado dos módulos">
+  <a href="#ativos" role="tab" data-estado="1" class="on">Ativos <span class="mods-n" id="n1">{{ n_on }}</span></a>
+  <a href="#inativos" role="tab" data-estado="0">Inativos <span class="mods-n" id="n0">{{ lista|length - n_on }}</span></a>
+</nav>
+<p id="mfb" class="mods-fb" role="status" aria-live="polite"></p>
+
+{% macro interruptor(i) -%}
+<label class="pswitch {{ 'on' if i.ativo }}" title="{{ 'Desativar o módulo' if i.ativo else 'Ativar o módulo' }}">
+  <input type="checkbox" role="switch" data-mod="{{ i.m.chave }}" data-nome="{{ i.m.nome }}" {{ 'checked' if i.ativo }} aria-label="{{ i.m.nome }}">
+  <span class="pswitch-t" aria-hidden="true"></span><span class="pswitch-l">{{ 'Ativo' if i.ativo else 'Inativo' }}</span></label>
+{%- endmacro %}
+
+<div class="mods-grid cols-3" id="mgrid">
+  {% for i in lista %}
+  <article class="mod-card {{ 'on' if i.ativo else 'off' }}" data-ativo="{{ 1 if i.ativo else 0 }}" data-chave="{{ i.m.chave }}">
+    <header><h3>{{ i.m.nome }}</h3>{% if i.m.em_config %}<span class="tag">em Configuração</span>{% endif %}</header>
+    <p class="mod-desc">{{ i.m.descricao }}</p>
+    <div class="mod-meta">
+      <span><b>ID</b> <code translate="no">{{ i.m.chave }}</code></span>
+      <span><b>Abas</b> {{ i.m.abas|length }}</span>
+      <span><b>Permissões</b> {{ i.m.acoes|length + 1 }}</span>
+      <span><b>Agendamentos</b> {{ i.m.tarefas|length }}</span>
+      <span><b>Eventos</b> {{ i.m.eventos|length }}</span>
+    </div>
+    <div class="mod-perfis">{% for n in i.perfis %}<span class="tag">{{ n }}</span>{% else %}<span class="muted small">Sem perfis com acesso (só administradores)</span>{% endfor %}</div>
+    <footer>{{ interruptor(i) }}<a class="btn small" href="{{ url_for('portal.cfg_module_edit', chave=i.m.chave) }}">✎ Editar</a></footer>
+  </article>
+  {% endfor %}
+  <p class="muted mods-vazio" hidden>Nenhum módulo.</p>
+</div>
+
+<div class="table-wrap" id="mlista" hidden>
+  <table class="small-tab mods-tab">
+    <thead><tr><th>Módulo</th><th>Identificador</th><th>Abas</th><th>Perfis com acesso</th><th>Estado</th><th></th></tr></thead>
+    <tbody>{% for i in lista %}<tr data-ativo="{{ 1 if i.ativo else 0 }}" data-chave="{{ i.m.chave }}">
+      <td><b>{{ i.m.nome }}</b><br><small class="muted">{{ i.m.descricao }}</small></td>
+      <td><code translate="no">{{ i.m.chave }}</code></td>
+      <td>{% for _, rotulo, _ in i.m.abas %}<span>{{ rotulo }}</span>{{ ' · ' if not loop.last }}{% endfor %}</td>
+      <td>{% for n in i.perfis %}<span class="tag">{{ n }}</span> {% else %}<span class="muted">—</span>{% endfor %}</td>
+      <td>{{ interruptor(i) }}</td>
+      <td><a class="btn small" href="{{ url_for('portal.cfg_module_edit', chave=i.m.chave) }}">✎ Editar</a></td>
+    </tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const T = s => (window.t ? window.t(s) : s), $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+  const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {} };
+  let estado = location.hash === '#inativos' ? '0' : '1', vista = ls('mods.vista') || 'cartoes', cols = ls('mods.cols') || '3';
+  function pintar() {
+    $$('.mods-tabs a').forEach(a => a.classList.toggle('on', a.dataset.estado === estado));
+    $$('[data-vista]').forEach(b => b.classList.toggle('on', b.dataset.vista === vista));
+    $$('[data-cols]').forEach(b => b.classList.toggle('on', b.dataset.cols === cols));
+    $('#mgrid').hidden = vista !== 'cartoes'; $('#mlista').hidden = vista !== 'lista'; $('#mcols').hidden = vista !== 'cartoes';
+    $('#mgrid').className = 'mods-grid cols-' + cols;
+    let vis = 0;
+    $$('#mgrid .mod-card, #mlista tbody tr').forEach(e => { e.hidden = e.dataset.ativo !== estado; if (!e.hidden && e.matches('.mod-card')) vis++; });
+    $('.mods-vazio').hidden = vis > 0; $('.mods-vazio').textContent = T(estado === '1' ? 'Nenhum módulo ativo.' : 'Nenhum módulo inativo.');
+    $('#n1').textContent = $$('#mgrid .mod-card[data-ativo="1"]').length; $('#n0').textContent = $$('#mgrid .mod-card[data-ativo="0"]').length;
+  }
+  $$('.mods-tabs a').forEach(a => a.onclick = e => { e.preventDefault(); estado = a.dataset.estado; history.replaceState(null, '', a.getAttribute('href')); pintar(); });
+  $$('[data-vista]').forEach(b => b.onclick = () => { vista = b.dataset.vista; ls('mods.vista', vista); pintar(); });
+  $$('[data-cols]').forEach(b => b.onclick = () => { cols = b.dataset.cols; ls('mods.cols', cols); pintar(); });
+  document.addEventListener('change', async e => {
+    const cb = e.target.closest('input[data-mod]'); if (!cb) return;
+    const liga = cb.checked, nome = cb.dataset.nome, fb = $('#mfb');
+    if (!liga && !confirm(T('Desativar o módulo') + ' ' + nome + '? ' + T('O menu desaparece para todos os utilizadores.'))) { cb.checked = true; return; }
+    $$(`input[data-mod="${cb.dataset.mod}"]`).forEach(x => x.disabled = true);
+    try {
+      const fd = new FormData(); fd.append('csrf', '{{ csrf_token }}'); fd.append('module', cb.dataset.mod); fd.append('active', liga ? '1' : '0');
+      const r = await fetch(location.pathname, {method: 'POST', body: fd, headers: {'X-Requested-With': 'fetch'}});
+      const d = await r.json(); if (!d.ok) throw new Error(d.error || r.status);
+      $$(`[data-chave="${cb.dataset.mod}"]`).forEach(el => { el.dataset.ativo = liga ? '1' : '0'; el.classList.toggle('on', liga); el.classList.toggle('off', !liga); });
+      $$(`input[data-mod="${cb.dataset.mod}"]`).forEach(x => { x.checked = liga; const l = x.closest('.pswitch'); l.classList.toggle('on', liga);
+        l.querySelector('.pswitch-l').textContent = T(liga ? 'Ativo' : 'Inativo'); l.title = T(liga ? 'Desativar o módulo' : 'Ativar o módulo'); });
+      fb.className = 'mods-fb ok'; fb.innerHTML = '';
+      fb.append(T(d.msg) + ' ');
+      const a = document.createElement('a'); a.href = location.pathname + (liga ? '#ativos' : '#inativos'); a.textContent = T('Recarregar para atualizar o menu');
+      a.onclick = ev => { ev.preventDefault(); location.reload(); }; fb.append(a);
+      pintar();
+    } catch (err) { cb.checked = !liga; fb.className = 'mods-fb err'; fb.textContent = T('Não foi possível alterar o módulo') + ': ' + err.message; }
+    $$(`input[data-mod="${cb.dataset.mod}"]`).forEach(x => x.disabled = false);
+  });
+  pintar();
+})();
+</script>
 {% endblock %}

@@ -4,7 +4,7 @@ import re
 
 from flask import abort, flash, g, jsonify, make_response, redirect, render_template, request, send_file, url_for
 
-from .. import agendamento, agente_info, aparencia, auth, backup, crypto, i18n, manutencao, modulos, settings, store
+from .. import agendamento, agente_info, setup_info, aparencia, auth, backup, crypto, i18n, manutencao, modulos, settings, store
 from . import bp
 
 USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
@@ -212,6 +212,13 @@ def cfg_traducoes_aplicar(codigo):
     return redirect(url_for("portal.cfg_traducoes", codigo=codigo))
 
 
+# ====================================================================== Portal: Setup
+@bp.route("/config/portal/setup")
+@auth.admin_required
+def cfg_setup():
+    return render_template("config/setup.html", s=setup_info.resumo(), sub="setup")
+
+
 # ====================================================================== Portal: Agendamento
 @bp.route("/config/portal/agendamento", methods=["GET", "POST"])
 @auth.requires("config.portal")
@@ -349,8 +356,11 @@ def cfg_modules():
         ativo = request.form.get("active") == "1"
         store.save_settings({f"module.{chave}": "1" if ativo else "0"})
         nome = modulos.REGISTO[chave].nome
-        flash(f"Módulo {nome} {'ativado' if ativo else 'desativado'}.", "ok")
-        return redirect(url_for("portal.cfg_modules"))
+        msg = f"Módulo {nome} {'ativado' if ativo else 'desativado'}."
+        if request.headers.get("X-Requested-With") == "fetch":
+            return jsonify(ok=True, chave=chave, ativo=ativo, msg=msg)
+        flash(msg, "ok")
+        return redirect(url_for("portal.cfg_modules") + ("#ativos" if ativo else "#inativos"))
     ativos = modulos.ativos()
     perfis = store.list_profiles()
     lista = []

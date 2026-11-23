@@ -1,0 +1,22 @@
+<script src="{{ url_for('static', filename='graficos.js', v=static_v) }}"></script>
+<script>
+/* Periodo (1h..30d ou data) e pedido das series a /sistema/api/metricas */
+window.Periodo = (cb) => {
+  const $ = id => document.getElementById(id), T = s => (window.t ? window.t(s) : s);
+  let q = {r: '24h'};
+  const pad = n => String(n).padStart(2, '0'), d = new Date(Date.now() - 86400000);
+  $('pdesde').value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  $('pdesde').max = `${new Date().toISOString().slice(0, 16)}`;
+  document.querySelectorAll('#periodo [data-r]').forEach(b => b.onclick = () => {
+    document.querySelectorAll('#periodo [data-r]').forEach(x => x.classList.toggle('on', x === b)); q = {r: b.dataset.r}; cb(q); });
+  $('pver').onclick = () => { if (!$('pdesde').value) return; document.querySelectorAll('#periodo [data-r]').forEach(x => x.classList.remove('on'));
+    q = {desde: $('pdesde').value, dur: $('pdur').value}; cb(q); };
+  $('patual').onclick = () => cb(q);
+  cb(q);
+  return () => q;
+};
+window.buscarMetricas = async (comps, q) => {
+  const r = await fetch("{{ url_for('sistema.api_metricas') }}?" + new URLSearchParams({comp: comps.join(','), ...q}), {cache: 'no-store'});
+  return r.json();
+};
+</script>

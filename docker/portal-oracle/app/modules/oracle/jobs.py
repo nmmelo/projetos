@@ -146,20 +146,20 @@ def start(db_id: int, params: dict, user: str, agendado_para: str | None = None)
     if not cfg:
         raise oracle.ValidationError("Base de dados nao encontrada.")
     if agendado_para:
-        if not agente_info.ativo():
-            raise oracle.ValidationError("Para agendar é preciso o agente do portal ativo (serviço <instância>-agente): "
+        if not agente_info.oracle_ativo():
+            raise oracle.ValidationError("Para agendar é preciso o agente Oracle (ou o agente do portal) ativo: "
                                          "é ele que corre a execução à hora marcada.")
         return store.create_job(cfg, params, user, status="AGENDADO", runner="agente", agendado_para=agendado_para)
-    if agente_info.ativo():
+    if agente_info.oracle_ativo():
         return store.create_job(cfg, params, user, status="PENDENTE", runner="agente")
     job_id = store.create_job(cfg, params, user, runner="portal")
     threading.Thread(target=_run, args=(job_id, cfg, params), daemon=True).start()
     return job_id
 
 
-def executar(job_id: int) -> bool:
-    """Usado pelo agente: fica com a execucao PENDENTE e corre-a (bloqueia ate terminar)."""
-    if not store.claim_job(job_id):
+def executar(job_id: int, runner: str = "agente") -> bool:
+    """Usado pelos agentes: fica com a execucao PENDENTE e corre-a (bloqueia ate terminar)."""
+    if not store.claim_job(job_id, runner):
         return False
     job = store.get_job(job_id)
     cfg = store.get_db(job["db_id"]) if job else None

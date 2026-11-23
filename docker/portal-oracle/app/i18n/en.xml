@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1479">
+<lingua codigo="en" nome="English" textos="1633">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -5917,5 +5917,621 @@
   <texto>
     <origem>A procurar…</origem>
     <traducao>Searching…</traducao>
+  </texto>
+  <texto>
+    <origem>(% de {n} CPU) · tracejado: servidor (% total)</origem>
+    <traducao>(% of {n} CPU) · dashed: server (% total)</traducao>
+  </texto>
+  <texto>
+    <origem>(% de {n} CPU; média e máximo por intervalo)</origem>
+    <traducao>(% of {n} CPU; average and maximum per interval)</traducao>
+  </texto>
+  <texto>
+    <origem>(RSS dos processos do agente)</origem>
+    <traducao>(RSS of the agent's processes)</traducao>
+  </texto>
+  <texto>
+    <origem>(instalação Docker ou feita à mão). Para ver:</origem>
+    <traducao>(Docker or manual installation). To view:</traducao>
+  </texto>
+  <texto>
+    <origem>{n} de {n}</origem>
+    <traducao>{n} of {n}</traducao>
+  </texto>
+  <texto>
+    <origem>{n} processo(s) · {n} threads</origem>
+    <traducao>{n} process(es) · {n} threads</traducao>
+  </texto>
+  <texto>
+    <origem>{n} = em série. {n}–{n} acelera tabelas e índices grandes (Enterprise Edition; usa mais CPU e I/O na BD). O grau de cada objeto é reposto no fim. Valor por omissão em Sistema → Agentes → Agente Oracle.</origem>
+    <traducao>{n} = serial. {n}–{n} speeds up large tables and indexes (Enterprise Edition; uses more CPU and I/O on the DB). Each object's degree is restored at the end. Default value in System → Agents → Oracle agent.</traducao>
+  </texto>
+  <texto>
+    <origem>{n} hora</origem>
+    <traducao>{n} hour</traducao>
+  </texto>
+  <texto>
+    <origem>{n} mês</origem>
+    <traducao>{n} month</traducao>
+  </texto>
+  <texto>
+    <origem>{n} semana</origem>
+    <traducao>{n} week</traducao>
+  </texto>
+  <texto>
+    <origem>{n} horas</origem>
+    <traducao>{n} hours</traducao>
+  </texto>
+  <texto>
+    <origem>{n}% = {n} CPU ({n}% = {n} CPUs).</origem>
+    <traducao>{n}% = {n} CPU ({n}% = {n} CPUs).</traducao>
+  </texto>
+  <texto>
+    <origem>{n} registo(s), {n} ms</origem>
+    <traducao>{n} record(s), {n} ms</traducao>
+  </texto>
+  <texto>
+    <origem>{n} pontos · intervalo de {n} min</origem>
+    <traducao>{n} points · {n}-min interval</traducao>
+  </texto>
+  <texto>
+    <origem>intervalo de {n} min</origem>
+    <traducao>{n}-min interval</traducao>
+  </texto>
+  <texto>
+    <origem>{n} problema(s) de ficheiros/permissões</origem>
+    <traducao>{n} file/permission problem(s)</traducao>
+  </texto>
+  <texto>
+    <origem>{n} processo(s)</origem>
+    <traducao>{n} process(es)</traducao>
+  </texto>
+  <texto>
+    <origem>{n} de {n} serviços ativos</origem>
+    <traducao>{n} of {n} services active</traducao>
+  </texto>
+  <texto>
+    <origem>{n} verificados em</origem>
+    <traducao>{n} checked in</traducao>
+  </texto>
+  <texto>
+    <origem>A correr</origem>
+    <traducao>Running</traducao>
+  </texto>
+  <texto>
+    <origem>A correr desde</origem>
+    <traducao>Running since</traducao>
+  </texto>
+  <texto>
+    <origem>A regra</origem>
+    <traducao>The rule</traducao>
+  </texto>
+  <texto>
+    <origem>Administrador local</origem>
+    <traducao>Local administrator</traducao>
+  </texto>
+  <texto>
+    <origem>Agente Oracle</origem>
+    <traducao>Oracle agent</traducao>
+  </texto>
+  <texto>
+    <origem>Agentes</origem>
+    <traducao>Agents</traducao>
+  </texto>
+  <texto>
+    <origem>Alterar em</origem>
+    <traducao>Change in</traducao>
+  </texto>
+  <texto>
+    <origem>Aplica-se ao reiniciar o agente.</origem>
+    <traducao>Applies when the agent restarts.</traducao>
+  </texto>
+  <texto>
+    <origem>Aplica-se no próximo ciclo.</origem>
+    <traducao>Applies on the next cycle.</traducao>
+  </texto>
+  <texto>
+    <origem>Armazenamento ligado</origem>
+    <traducao>Storage connected</traducao>
+  </texto>
+  <texto>
+    <origem>Arranque</origem>
+    <traducao>Startup</traducao>
+  </texto>
+  <texto>
+    <origem>Ative, desative e configure os módulos. Desativado, o menu desaparece para todos e as páginas deixam de responder; os dados e as permissões dos</origem>
+    <traducao>Enable, disable and configure modules. When disabled, the menu disappears for everyone and the pages stop responding; data and permissions of the</traducao>
+  </texto>
+  <texto>
+    <origem>mantêm-se.</origem>
+    <traducao>are kept.</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar (git pull + dependências + serviços)</origem>
+    <traducao>Update (git pull + dependencies + services)</traducao>
+  </texto>
+  <texto>
+    <origem>Aumentar ou limitar os recursos do serviço (precisa de root):</origem>
+    <traducao>Increase or limit the service resources (requires root):</traducao>
+  </texto>
+  <texto>
+    <origem>Base de dados SQLite</origem>
+    <traducao>SQLite database</traducao>
+  </texto>
+  <texto>
+    <origem>CPU máxima</origem>
+    <traducao>Max CPU</traducao>
+  </texto>
+  <texto>
+    <origem>CPU média</origem>
+    <traducao>Average CPU</traducao>
+  </texto>
+  <texto>
+    <origem>CPU por componente</origem>
+    <traducao>CPU per component</traducao>
+  </texto>
+  <texto>
+    <origem>CPU · {n} CPUs</origem>
+    <traducao>CPU · {n} CPUs</traducao>
+  </texto>
+  <texto>
+    <origem>CPU ▾</origem>
+    <traducao>CPU ▾</traducao>
+  </texto>
+  <texto>
+    <origem>Caminho</origem>
+    <traducao>Path</traducao>
+  </texto>
+  <texto>
+    <origem>Cartões</origem>
+    <traducao>Cards</traducao>
+  </texto>
+  <texto>
+    <origem>Cartões por linha</origem>
+    <traducao>Cards per row</traducao>
+  </texto>
+  <texto>
+    <origem>Chave SSH privada</origem>
+    <traducao>Private SSH key</traducao>
+  </texto>
+  <texto>
+    <origem>Chave das sessões</origem>
+    <traducao>Session key</traducao>
+  </texto>
+  <texto>
+    <origem>Chave de cifra</origem>
+    <traducao>Encryption key</traducao>
+  </texto>
+  <texto>
+    <origem>Chaves SSH dos clientes</origem>
+    <traducao>Clients' SSH keys</traducao>
+  </texto>
+  <texto>
+    <origem>Ciclo (s)</origem>
+    <traducao>Cycle (s)</traducao>
+  </texto>
+  <texto>
+    <origem>Colunas</origem>
+    <traducao>Columns</traducao>
+  </texto>
+  <texto>
+    <origem>Comando</origem>
+    <traducao>Command</traducao>
+  </texto>
+  <texto>
+    <origem>Comandos úteis</origem>
+    <traducao>Useful commands</traducao>
+  </texto>
+  <texto>
+    <origem>Componente</origem>
+    <traducao>Component</traducao>
+  </texto>
+  <texto>
+    <origem>Configuração do instalador</origem>
+    <traducao>Installer configuration</traducao>
+  </texto>
+  <texto>
+    <origem>Configuração guardada</origem>
+    <traducao>Saved configuration</traducao>
+  </texto>
+  <texto>
+    <origem>Configuração → Backups</origem>
+    <traducao>Configuration → Backups</traducao>
+  </texto>
+  <texto>
+    <origem>Copiar</origem>
+    <traducao>Copy</traducao>
+  </texto>
+  <texto>
+    <origem>Copiado</origem>
+    <traducao>Copied</traducao>
+  </texto>
+  <texto>
+    <origem>Corrigir permissões da pasta de dados</origem>
+    <traducao>Fix data folder permissions</traducao>
+  </texto>
+  <texto>
+    <origem>Corrigir:</origem>
+    <traducao>Fix:</traducao>
+  </texto>
+  <texto>
+    <origem>Desativar o módulo</origem>
+    <traducao>Disable module</traducao>
+  </texto>
+  <texto>
+    <origem>Desempenho</origem>
+    <traducao>Performance</traducao>
+  </texto>
+  <texto>
+    <origem>Dono</origem>
+    <traducao>Owner</traducao>
+  </texto>
+  <texto>
+    <origem>Estado dos módulos</origem>
+    <traducao>Module status</traducao>
+  </texto>
+  <texto>
+    <origem>Execuções Oracle (shrink) em fila e agendadas, isoladas do resto do portal: várias em simultâneo, cada uma na sua sessão Oracle.</origem>
+    <traducao>Queued and scheduled Oracle runs (shrink), isolated from the rest of the portal: several at once, each in its own Oracle session.</traducao>
+  </texto>
+  <texto>
+    <origem>Execuções Oracle em simultâneo (sem agente Oracle)</origem>
+    <traducao>Concurrent Oracle runs (without Oracle agent)</traducao>
+  </texto>
+  <texto>
+    <origem>Execuções em curso</origem>
+    <traducao>Runs in progress</traducao>
+  </texto>
+  <texto>
+    <origem>Execuções em simultâneo</origem>
+    <traducao>Concurrent runs</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiros, chaves e permissões</origem>
+    <traducao>Files, keys and permissions</traducao>
+  </texto>
+  <texto>
+    <origem>Fuso horário</origem>
+    <traducao>Time zone</traducao>
+  </texto>
+  <texto>
+    <origem>Gestão de módulos</origem>
+    <traducao>Module management</traducao>
+  </texto>
+  <texto>
+    <origem>Hora do servidor</origem>
+    <traducao>Server time</traducao>
+  </texto>
+  <texto>
+    <origem>Identidade</origem>
+    <traducao>Identity</traducao>
+  </texto>
+  <texto>
+    <origem>Identificador</origem>
+    <traducao>Identifier</traducao>
+  </texto>
+  <texto>
+    <origem>Inativos</origem>
+    <traducao>Inactive</traducao>
+  </texto>
+  <texto>
+    <origem>Instância</origem>
+    <traducao>Instance</traducao>
+  </texto>
+  <texto>
+    <origem>Intervalo entre verificações da fila de ações, email e agendamentos.</origem>
+    <traducao>Interval between checks of the action queue, email and schedules.</traducao>
+  </texto>
+  <texto>
+    <origem>Intervalo entre verificações da fila e das execuções agendadas.</origem>
+    <traducao>Interval between checks of the queue and scheduled runs.</traducao>
+  </texto>
+  <texto>
+    <origem>Limite de CPU</origem>
+    <traducao>CPU limit</traducao>
+  </texto>
+  <texto>
+    <origem>Limite de memória</origem>
+    <traducao>Memory limit</traducao>
+  </texto>
+  <texto>
+    <origem>Listar instâncias</origem>
+    <traducao>List instances</traducao>
+  </texto>
+  <texto>
+    <origem>Mais alto = menos prioridade de CPU no servidor do portal (o trabalho pesado é na BD).</origem>
+    <traducao>Higher = lower CPU priority on the portal server (the heavy work is on the DB).</traducao>
+  </texto>
+  <texto>
+    <origem>Mais alto = menos prioridade de CPU para o agente.</origem>
+    <traducao>Higher = lower CPU priority for the agent.</traducao>
+  </texto>
+  <texto>
+    <origem>Memória por componente</origem>
+    <traducao>Memory per component</traducao>
+  </texto>
+  <texto>
+    <origem>Modo de visualização</origem>
+    <traducao>View mode</traducao>
+  </texto>
+  <texto>
+    <origem>Métricas do servidor a cada (s)</origem>
+    <traducao>Server metrics every (s)</traducao>
+  </texto>
+  <texto>
+    <origem>Métricas do servidor, serviços (iniciar/parar), email, tarefas agendadas e eventos. Corre as execuções Oracle só quando o agente Oracle está parado.</origem>
+    <traducao>Server metrics, services (start/stop), email, scheduled tasks and events. Runs Oracle jobs only when the Oracle agent is stopped.</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhum módulo ativo.</origem>
+    <traducao>No active modules.</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhum módulo inativo.</origem>
+    <traducao>No inactive modules.</traducao>
+  </texto>
+  <texto>
+    <origem>Nice (systemd)</origem>
+    <traducao>Nice (systemd)</traducao>
+  </texto>
+  <texto>
+    <origem>Outros processos do portal</origem>
+    <traducao>Other portal processes</traducao>
+  </texto>
+  <texto>
+    <origem>Paralelismo do MOVE/REBUILD</origem>
+    <traducao>MOVE/REBUILD parallelism</traducao>
+  </texto>
+  <texto>
+    <origem>Paralelismo por omissão do MOVE/REBUILD</origem>
+    <traducao>Default MOVE/REBUILD parallelism</traducao>
+  </texto>
+  <texto>
+    <origem>Pasta de dados</origem>
+    <traducao>Data folder</traducao>
+  </texto>
+  <texto>
+    <origem>Pasta do portal</origem>
+    <traducao>Portal folder</traducao>
+  </texto>
+  <texto>
+    <origem>Período</origem>
+    <traducao>Period</traducao>
+  </texto>
+  <texto>
+    <origem>Portal (Gunicorn)</origem>
+    <traducao>Portal (Gunicorn)</traducao>
+  </texto>
+  <texto>
+    <origem>Portal (total)</origem>
+    <traducao>Portal (total)</traducao>
+  </texto>
+  <texto>
+    <origem>Prioridade (nice {n}–{n})</origem>
+    <traducao>Priority (nice {n}–{n})</traducao>
+  </texto>
+  <texto>
+    <origem>Prioridade (nice)</origem>
+    <traducao>Priority (nice)</traducao>
+  </texto>
+  <texto>
+    <origem>Processo</origem>
+    <traducao>Process</traducao>
+  </texto>
+  <texto>
+    <origem>Processos do portal</origem>
+    <traducao>Portal processes</traducao>
+  </texto>
+  <texto>
+    <origem>Reaplicar configuração (sudoers, units, nginx)</origem>
+    <traducao>Reapply configuration (sudoers, units, nginx)</traducao>
+  </texto>
+  <texto>
+    <origem>Recursos do agente Oracle</origem>
+    <traducao>Oracle agent resources</traducao>
+  </texto>
+  <texto>
+    <origem>Recursos do serviço</origem>
+    <traducao>Service resources</traducao>
+  </texto>
+  <texto>
+    <origem>Recursos usados pelo portal: o servidor web (Gunicorn) e os agentes. Medido pelo agente do portal a cada {n} s (registo para os gráficos a cada {n} s, guardado {n} dias).</origem>
+    <traducao>Resources used by the portal: the web server (Gunicorn) and the agents. Measured by the portal agent every {n} s (stored for the charts every {n} s, kept {n} days).</traducao>
+  </texto>
+  <texto>
+    <origem>Registo do agente Oracle</origem>
+    <traducao>Oracle agent log</traducao>
+  </texto>
+  <texto>
+    <origem>Registo do portal</origem>
+    <traducao>Portal log</traducao>
+  </texto>
+  <texto>
+    <origem>Regras sudoers</origem>
+    <traducao>sudoers rules</traducao>
+  </texto>
+  <texto>
+    <origem>Sem</origem>
+    <traducao>No</traducao>
+  </texto>
+  <texto>
+    <origem>Sem perfis com acesso (só administradores)</origem>
+    <traducao>No profiles with access (administrators only)</traducao>
+  </texto>
+  <texto>
+    <origem>Servidor (total)</origem>
+    <traducao>Server (total)</traducao>
+  </texto>
+  <texto>
+    <origem>Shrinks a correr ao mesmo tempo (bases ou tablespaces diferentes).</origem>
+    <traducao>Shrinks running at the same time (different databases or tablespaces).</traducao>
+  </texto>
+  <texto>
+    <origem>Só conta quando o agente Oracle está parado.</origem>
+    <traducao>Only counts when the Oracle agent is stopped.</traducao>
+  </texto>
+  <texto>
+    <origem>Terminadas desde o arranque</origem>
+    <traducao>Finished since startup</traducao>
+  </texto>
+  <texto>
+    <origem>Utilizador de serviço</origem>
+    <traducao>Service user</traducao>
+  </texto>
+  <texto>
+    <origem>Valor inicial do campo Paralelismo no Shrink ({n} = em série). Na base de dados: PARALLEL n (Enterprise Edition), mais CPU e I/O.</origem>
+    <traducao>Initial value of the Parallelism field in Shrink ({n} = serial). On the database: PARALLEL n (Enterprise Edition), more CPU and I/O.</traducao>
+  </texto>
+  <texto>
+    <origem>Verificar a instalação</origem>
+    <traducao>Check the installation</traducao>
+  </texto>
+  <texto>
+    <origem>ainda não existe (criado quando for preciso)</origem>
+    <traducao>does not exist yet (created when needed)</traducao>
+  </texto>
+  <texto>
+    <origem>armazenamento SQLite</origem>
+    <traducao>SQLite storage</traducao>
+  </texto>
+  <texto>
+    <origem>aviso</origem>
+    <traducao>warning</traducao>
+  </texto>
+  <texto>
+    <origem>cookies de sessão</origem>
+    <traducao>session cookies</traducao>
+  </texto>
+  <texto>
+    <origem>em Configuração</origem>
+    <traducao>in Configuration</traducao>
+  </texto>
+  <texto>
+    <origem>ficheiro fernet.key</origem>
+    <traducao>fernet.key file</traducao>
+  </texto>
+  <texto>
+    <origem>info</origem>
+    <traducao>info</traducao>
+  </texto>
+  <texto>
+    <origem>início de sessão do administrador</origem>
+    <traducao>administrator sign-in</traducao>
+  </texto>
+  <texto>
+    <origem>leitura há {n} s</origem>
+    <traducao>read {n} s ago</traducao>
+  </texto>
+  <texto>
+    <origem>ligação à base de dados do portal</origem>
+    <traducao>portal database connection</traducao>
+  </texto>
+  <texto>
+    <origem>memória ({n} MB / {n} GB)</origem>
+    <traducao>memory ({n} MB / {n} GB)</traducao>
+  </texto>
+  <texto>
+    <origem>modo {n} (esperado {n})</origem>
+    <traducao>mode {n} (expected {n})</traducao>
+  </texto>
+  <texto>
+    <origem>módulo Clientes</origem>
+    <traducao>Clients module</traducao>
+  </texto>
+  <texto>
+    <origem>ou a partir de</origem>
+    <traducao>or from</traducao>
+  </texto>
+  <texto>
+    <origem>passwords cifradas (BDs, LDAP, SMTP, clientes)</origem>
+    <traducao>encrypted passwords (DBs, LDAP, SMTP, clients)</traducao>
+  </texto>
+  <texto>
+    <origem>portal e agentes</origem>
+    <traducao>portal and agents</traducao>
+  </texto>
+  <texto>
+    <origem>portal, agente, agente Oracle e Nginx</origem>
+    <traducao>portal, agent, Oracle agent and Nginx</traducao>
+  </texto>
+  <texto>
+    <origem>retira os limites. O serviço é reiniciado; com o agente Oracle, as execuções em curso são marcadas como interrompidas.</origem>
+    <traducao>removes the limits. The service is restarted; with the Oracle agent, runs in progress are marked as interrupted.</traducao>
+  </texto>
+  <texto>
+    <origem>sem limite</origem>
+    <traducao>no limit</traducao>
+  </texto>
+  <texto>
+    <origem>sinal há {n} s</origem>
+    <traducao>signal {n} s ago</traducao>
+  </texto>
+  <texto>
+    <origem>só existe com o módulo Firewall autorizado (</origem>
+    <traducao>only exists with the Firewall module authorized (</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiros e permissões OK</origem>
+    <traducao>Files and permissions OK</traducao>
+  </texto>
+  <texto>
+    <origem>Armazenamento sem ligação</origem>
+    <traducao>Storage not connected</traducao>
+  </texto>
+  <texto>
+    <origem>existe</origem>
+    <traducao>exists</traducao>
+  </texto>
+  <texto>
+    <origem>não instalado</origem>
+    <traducao>not installed</traducao>
+  </texto>
+  <texto>
+    <origem>Copiar comando</origem>
+    <traducao>Copy command</traducao>
+  </texto>
+  <texto>
+    <origem>sem permissão de leitura</origem>
+    <traducao>no read permission</traducao>
+  </texto>
+  <texto>
+    <origem>não usado (armazenamento externo)</origem>
+    <traducao>not used (external storage)</traducao>
+  </texto>
+  <texto>
+    <origem>tipo inesperado</origem>
+    <traducao>unexpected type</traducao>
+  </texto>
+  <texto>
+    <origem>Módulo Oracle desativado.</origem>
+    <traducao>Oracle module disabled.</traducao>
+  </texto>
+  <texto>
+    <origem>Recarregar para atualizar o menu</origem>
+    <traducao>Reload to update the menu</traducao>
+  </texto>
+  <texto>
+    <origem>Terminadas</origem>
+    <traducao>Finished</traducao>
+  </texto>
+  <texto>
+    <origem>O menu desaparece para todos os utilizadores.</origem>
+    <traducao>The menu disappears for all users.</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhum processo deste agente.</origem>
+    <traducao>No processes for this agent.</traducao>
+  </texto>
+  <texto>
+    <origem>sem leitura (agente do portal parado?)</origem>
+    <traducao>no reading (portal agent stopped?)</traducao>
+  </texto>
+  <texto>
+    <origem>Valores atuais</origem>
+    <traducao>Current values</traducao>
+  </texto>
+  <texto>
+    <origem>Atualização do painel Sistema (CPU, memória, discos, serviços).</origem>
+    <traducao>Refresh of the System dashboard (CPU, memory, disks, services).</traducao>
   </texto>
 </lingua>

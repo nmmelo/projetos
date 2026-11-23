@@ -37,6 +37,10 @@
       <span class="hint">Com TODOS, tablespaces com menos espaço livre são ignorados.</span></label>
     <label>Margem livre por datafile (%)
       <input name="margem" type="number" min="0" max="100" value="10"></label>
+    <label>Paralelismo do MOVE/REBUILD
+      <input name="paralelo" type="number" min="1" max="32" value="{{ dop_padrao }}">
+      <span class="hint">1 = em série. 2–8 acelera tabelas e índices grandes (Enterprise Edition; usa mais CPU e I/O na BD).
+        O grau de cada objeto é reposto no fim. Valor por omissão em Sistema → Agentes → Agente Oracle.</span></label>
 
     <label class="inline"><input type="checkbox" name="online" value="S" checked> <span>Operações ONLINE (requer Enterprise Edition)</span></label>
     <label class="inline"><input type="checkbox" name="purge" value="S"> <span>PURGE da recyclebin do tablespace</span></label>

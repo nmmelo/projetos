@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Configuração · Setup{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+{% set st = {'ok': 'ok', 'info': 'info', 'aviso': 'warn', 'erro': 'bad'} %}
+<div class="setup-topo">
+  {% set a = s.armazenamento %}
+  <div class="saude {{ 's-ok' if not s.problemas else 's-warn' }}"><span class="saude-i">{{ '✓' if not s.problemas else '!' }}</span>
+    <div><b>{{ 'Ficheiros e permissões OK' if not s.problemas else s.problemas ~ ' problema(s) de ficheiros/permissões' }}</b>
+    <small>{{ s.ficheiros|length }} verificados em {{ s.identidade[3][1] }}</small></div></div>
+  <div class="saude {{ 's-ok' if a.ok else 's-bad' }}"><span class="saude-i">{{ '✓' if a.ok else '✕' }}</span>
+    <div><b>{{ 'Armazenamento ligado' if a.ok else 'Armazenamento sem ligação' }}</b>
+    <small>{{ a.descricao }} · {{ a.ms }} ms</small></div></div>
+  {% set ativos = s.servicos|selectattr('estado', 'equalto', 'active')|list|length %}
+  <div class="saude {{ 's-ok' if ativos == s.servicos|length else 's-warn' }}"><span class="saude-i">{{ ativos }}</span>
+    <div><b>{{ ativos }} de {{ s.servicos|length }} serviços ativos</b><small>portal, agente, agente Oracle e Nginx</small></div></div>
+</div>
+
+<div class="smtp-grid setup-grid">
+<section class="card full">
+  <h2>Identidade</h2>
+  <table class="kv">{% for k, v in s.identidade %}<tr><th>{{ k }}</th><td translate="no"><code>{{ v }}</code></td></tr>{% endfor %}</table>
+</section>
+<section class="card full">
+  <h2>Armazenamento</h2>
+  <table class="kv">
+    <tr><th>Tipo</th><td>{{ a.tipo }}</td></tr>
+    <tr><th>Ligação</th><td translate="no"><code>{{ a.descricao }}</code></td></tr>
+    <tr><th>Estado</th><td>{% if a.ok %}<span class="tag ok">OK</span> {{ a.registos }} registo(s), {{ a.ms }} ms
+      {% else %}<span class="tag bad">erro</span> <small>{{ a.erro }}</small>{% endif %}</td></tr>
+    <tr><th>Chave de cifra</th><td>{{ 'variável PORTAL_FERNET_KEY' if s.chave_env else 'ficheiro fernet.key' }}</td></tr>
+  </table>
+  <p class="hint">Alterar em <a href="{{ url_for('portal.cfg_storage') }}">Armazenamento</a>.</p>
+</section>
+</div>
+
+<section class="card full">
+  <h2>Ficheiros, chaves e permissões</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Item</th><th>Caminho</th><th>Usado por</th><th>Dono</th><th>Modo</th><th>Estado</th></tr></thead>
+    <tbody>{% for f in s.ficheiros %}
+    <tr><td><b>{{ f.rotulo }}</b></td><td translate="no"><code>{{ f.caminho }}</code></td><td>{{ f.uso }}</td>
+      <td translate="no">{{ f.dono or '—' }}</td><td translate="no">{{ f.modo or '—' }} <small class="muted">/ {{ f.esperado }}</small></td>
+      <td><span class="tag {{ st[f.estado] }}">{{ {'ok': 'OK', 'info': 'info', 'aviso': 'aviso', 'erro': 'erro'}[f.estado] }}</span>
+        {% if f.nota %}<br><small>{{ f.nota }}</small>{% endif %}
+</td></tr>
+    {% if f.corrigir %}<tr class="fix-row"><td></td><td colspan="5"><div class="cmd-linha"><span class="muted">Corrigir:</span> <code translate="no">{{ f.corrigir }}</code><button type="button" class="link copiar">Copiar</button></div></td></tr>{% endif %}
+    {% endfor %}</tbody>
+  </table></div>
+</section>
+
+<div class="smtp-grid setup-grid">
+<section class="card full">
+  <h2>Serviços</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Serviço</th><th>Estado</th><th>Arranque</th><th>Desde</th></tr></thead>
+    <tbody>{% for v in s.servicos %}
+    <tr><td translate="no"><code>{{ v.unit }}</code></td>
+      <td><span class="tag {{ 'ok' if v.estado == 'active' else ('bad' if v.estado == 'failed' else 'warn') }}">{{ v.estado }}</span>
+        {% if v.existe is defined and not v.existe %}<small>não instalado</small>{% endif %}</td>
+      <td>{{ v.arranque or '—' }}</td><td><small>{{ v.desde or '—' }}</small></td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  <h3>Regras sudoers</h3>
+  <table class="kv">{% for f in s.sudoers %}<tr><th translate="no"><code>{{ f.caminho }}</code></th>
+    <td>{% if f.existe %}<span class="tag ok">existe</span>{% else %}<span class="tag warn">em falta</span>{% endif %}</td></tr>{% endfor %}</table>
+  <p class="hint">A regra <code>-firewall</code> só existe com o módulo Firewall autorizado (<code>--firewall NOME on</code>).</p>
+</section>
+<section class="card full">
+  <h2>Runtime</h2>
+  <table class="kv">{% for k, v in s.runtime %}<tr><th>{{ k }}</th><td translate="no">{{ v }}</td></tr>{% endfor %}</table>
+</section>
+</div>
+
+<section class="card full">
+  {% set ins = s.instalador %}
+  <h2>Configuração do instalador</h2>
+  {% if ins.legivel %}
+  <p class="hint">De <code>{{ ins.caminho }}</code> (alterado {{ ins.alterado }}). Passwords ocultadas.</p>
+  <div class="table-wrap"><table class="kv">{% for k, v in ins.valores %}<tr><th translate="no">{{ k }}</th><td translate="no"><code>{{ v or '—' }}</code></td></tr>{% endfor %}</table></div>
+  {% else %}
+  <p class="hint">{% if ins.existe %}<code>{{ ins.caminho }}</code> existe mas só o root o pode ler (modo 600) — é o esperado.
+    {% else %}Sem <code>{{ ins.caminho }}</code> (instalação Docker ou feita à mão).{% endif %}
+    Para ver: <code translate="no">sudo {{ s.comandos[0][1].split(' ', 1)[1] }}</code></p>
+  {% endif %}
+</section>
+
+<section class="card full">
+  <h2>Comandos úteis</h2>
+  <div class="lista">{% for k, c in s.comandos %}
+    <div class="cmd-item"><span>{{ k }}</span><div class="cmd-linha"><code translate="no">{{ c }}</code><button type="button" class="link copiar">Copiar</button></div></div>
+  {% endfor %}</div>
+</section>
+<script>
+const T = s => (window.t ? window.t(s) : s);
+document.querySelectorAll('.copiar').forEach(b => b.addEventListener('click', async () => {
+  const t = b.parentElement.querySelector("code").textContent;
+  try { await navigator.clipboard.writeText(t); } catch (e) {
+    const x = document.createElement('textarea'); x.value = t; document.body.appendChild(x); x.select(); document.execCommand('copy'); x.remove();
+  }
+  const o = b.textContent; b.textContent = T('Copiado'); setTimeout(() => b.textContent = o, 1500);
+}));
+</script>
+{% endblock %}

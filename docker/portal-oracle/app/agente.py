@@ -22,13 +22,14 @@ import socket
 import threading
 import time
 
-from . import agendamento, crypto, eventos, modulos, settings, sistema_info, smtp_envio, store
+from . import agendamento, agente_info, agentes, crypto, eventos, modulos, settings, sistema_info, smtp_envio, store
 
 VERSAO = "1.0"
 CICLO = 1.0                 # segundos entre verificacoes da fila
 METRICAS_CADA = 2.0         # segundos entre publicacoes das metricas
 HISTORICO = 90              # pontos guardados (CPU/RAM) para os graficos
-MAX_EXECUCOES = 4           # execucoes Oracle em simultaneo
+PROCESSOS_CADA = 10.0       # segundos entre leituras dos processos do portal (Sistema > Analise)
+GRAVAR_CADA = 30.0          # segundos entre registos na tabela metricas (graficos)
 
 log = logging.getLogger("agente")
 
@@ -44,6 +45,10 @@ class Agente:
         self.estado_serv: dict[str, str] = {}     # ultimo estado visto (para detetar mudancas)
         self.disco_acima: set = set()             # (ponto, limiar) ja notificados
         self.prox_agenda = 0.0
+        self.medidor = agentes.Medidor()
+        self.prox_proc = 0.0
+        self.prox_gravar = 0.0
+        self.prox_limpar = 0.0
 
     # ------------------------------------------------------------------ execucoes
     def fila(self) -> None:
@@ -51,10 +56,13 @@ class Agente:
         for jid in list(self.execucoes):
             if not self.execucoes[jid].is_alive():
                 del self.execucoes[jid]
-        if len(self.execucoes) >= MAX_EXECUCOES:
+        if agente_info.ativo("agente_oracle"):
+            return                      # o agente Oracle trata da fila (este acaba as que ja tem)
+        maximo = agentes.param("agente", "execucoes")
+        if len(self.execucoes) >= maximo:
             return
         for jid in store.pending_jobs():
-            if len(self.execucoes) >= MAX_EXECUCOES:
+            if len(self.execucoes) >= maximo:
                 break
             t = threading.Thread(target=self._executar, args=(jobs, jid), daemon=True, name=f"job-{jid}")
             self.execucoes[jid] = t
@@ -139,6 +147,21 @@ class Agente:
                 elif d["pct"] is not None and d["pct"] < lim - 2:
                     self.disco_acima.discard(chave)          # desceu: volta a avisar se subir outra vez
 
+    def processos(self) -> None:
+        """Processos do portal (web, agentes): snapshot para Sistema > Analise e registo para os graficos."""
+        agora = time.time()
+        if agora < self.prox_proc:
+            return
+        self.prox_proc = agora + PROCESSOS_CADA
+        a = self.medidor.amostra()
+        store.save_settings({"processos_portal": json.dumps(a, separators=(",", ":"))})
+        if agora >= self.prox_gravar and a.get("por"):
+            self.prox_gravar = agora + GRAVAR_CADA
+            agentes.gravar(a)
+        if agora >= self.prox_limpar:
+            self.prox_limpar = agora + 3600
+            agentes.limpar()
+
     def email(self) -> None:
         smtp_envio.processar_fila()          # a validacao periodica e a tarefa agendada smtp.validar
 
@@ -155,12 +178,14 @@ class Agente:
     def publicar_estado(self) -> None:
         estado = {"heartbeat": time.time(), "pid": os.getpid(), "host": socket.gethostname(),
                   "versao": VERSAO, "inicio": self.inicio, "instancia": sistema_info.instancia(),
-                  "execucoes": sorted(self.execucoes), "user": _utilizador()}
+                  "execucoes": sorted(self.execucoes), "user": _utilizador(), "nice": getattr(self, "nice", 0),
+                  "threads": threading.active_count()}
         store.save_settings({"agente_estado": json.dumps(estado)})
 
     # ------------------------------------------------------------------ ciclo
     def correr(self) -> None:
         store.interrupt_running_jobs("agente")      # execucoes de um agente anterior que morreu
+        self.nice = agentes.aplicar_nice("agente")
         smtp_envio.recuperar_presas()
         eventos.regras_iniciais()
         agendamento.recuperar_presas()
@@ -168,18 +193,18 @@ class Agente:
         log.info("agente %s a correr (pid %s, dados em %s)", VERSAO, os.getpid(), store.get().describe())
         prox_metricas = 0.0
         while not self.parar.is_set():
-            for passo in (self.fila, self.acoes, self.email, self.agendamentos):
+            for passo in (self.fila, self.acoes, self.email, self.agendamentos, self.processos):
                 try:
                     passo()
                 except Exception:  # noqa: BLE001 - BD momentaneamente indisponivel, etc.
                     log.exception("erro em %s", passo.__name__)
             if time.time() >= prox_metricas:
-                prox_metricas = time.time() + METRICAS_CADA
+                prox_metricas = time.time() + agentes.param("agente", "metricas")
                 try:
                     self.metricas()
                 except Exception:  # noqa: BLE001
                     log.exception("erro nas metricas")
-            self.parar.wait(CICLO)
+            self.parar.wait(agentes.param("agente", "ciclo"))
         log.info("agente a terminar")
         if self.execucoes:
             log.warning("execucoes ainda em curso serao marcadas INTERROMPIDO: %s", sorted(self.execucoes))

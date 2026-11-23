@@ -130,12 +130,13 @@ def shrink():
     return render_template("oracle/shrink.html", dbs=g.user.visible_dbs(store.list_dbs()),
                            sel_db=request.args.get("db", type=int),
                            can_exec=g.user.can("oracle.shrink.executar"),
-                           can_analise=g.user.can("oracle.shrink.analise"), agente_ativo=_agente_ativo())
+                           can_analise=g.user.can("oracle.shrink.analise"), agente_ativo=_agente_ativo(),
+                           dop_padrao=int(store.get_setting("agente_oracle.dop") or 1))
 
 
 def _agente_ativo() -> bool:
     from ... import agente_info
-    return agente_info.ativo()
+    return agente_info.oracle_ativo()
 
 
 def _hora_agendada(valor: str) -> str:

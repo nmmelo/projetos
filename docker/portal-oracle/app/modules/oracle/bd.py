@@ -213,12 +213,15 @@ def validate_shrink_params(form) -> dict:
     try:
         min_ganho = int(form.get("min_ganho") or 100)
         margem = int(form.get("margem") or 10)
+        paralelo = int(form.get("paralelo") or 1)
     except ValueError as exc:
-        raise ValidationError("Ganho minimo e margem tem de ser numeros inteiros.") from exc
+        raise ValidationError("Ganho minimo, margem e paralelismo tem de ser numeros inteiros.") from exc
+    if not 1 <= paralelo <= 32:
+        raise ValidationError("Paralelismo entre 1 (sem) e 32.")
     if not 0 <= min_ganho <= 10_000_000 or not 0 <= margem <= 100:
         raise ValidationError("Ganho minimo (0-10000000) ou margem (0-100) fora dos limites.")
     return {"ts": ts, "modo": modo, "online": online, "purge": purge,
-            "min_ganho": min_ganho, "margem": margem}
+            "min_ganho": min_ganho, "margem": margem, "paralelo": paralelo}
 
 
 def build_block(p: dict, pipe: str = "") -> str:
@@ -229,7 +232,8 @@ def build_block(p: dict, pipe: str = "") -> str:
     block = block.rstrip().removesuffix("/").rstrip()  # sem o "/" do SQL*Plus, se existir
     for key, val in (("&p_min_ganho", p["min_ganho"]), ("&p_margem", p["margem"]),
                      ("&p_modo", p["modo"]), ("&p_online", p["online"]),
-                     ("&p_purge", p["purge"]), ("&p_ts", p["ts"]), ("&p_pipe", pipe)):
+                     ("&p_purge", p["purge"]), ("&p_ts", p["ts"]), ("&p_pipe", pipe),
+                     ("&p_paralelo", int(p.get("paralelo") or 1))):
         block = block.replace(key, str(val))
     if "&p_" in block:
         raise RuntimeError("Marcador por substituir no bloco PL/SQL.")

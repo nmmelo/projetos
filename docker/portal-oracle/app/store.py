@@ -201,7 +201,18 @@ _SCHEMA = [
         origem VARCHAR(10),
         mensagem TEXT
     ){SUFFIX}""",
-    """CREATE TABLE IF NOT EXISTS cache_dados (
+    """CREATE TABLE IF NOT EXISTS metricas (
+        id {ID},
+        ts BIGINT NOT NULL,
+        componente VARCHAR(20) NOT NULL,
+        cpu REAL,
+        mem BIGINT,
+        threads REAL,
+        procs INTEGER,
+        extra VARCHAR(255)
+    ){SUFFIX}""",
+    "CREATE INDEX IF NOT EXISTS ix_metricas_comp_ts ON metricas (componente, ts)",
+        """CREATE TABLE IF NOT EXISTS cache_dados (
         chave VARCHAR(200) NOT NULL PRIMARY KEY,
         titulo VARCHAR(200),
         dados {LONGTEXT},
@@ -759,11 +770,11 @@ def pending_jobs() -> list[int]:
             "ORDER BY COALESCE(agendado_para, started_at), id", (now(),))]
 
 
-def claim_job(job_id: int) -> bool:
-    """O agente fica com a execucao (so uma vez, mesmo com varios agentes)."""
+def claim_job(job_id: int, runner: str = "agente") -> bool:
+    """O agente fica com a execucao (so uma vez, mesmo com varios agentes); runner = quem a corre."""
     with tx() as t:
-        return t.run("UPDATE jobs SET status = 'EM CURSO', started_at = ? WHERE id = ? AND (status = 'PENDENTE' "
-                     "OR (status = 'AGENDADO' AND agendado_para <= ?))", (now(), job_id, now())) == 1
+        return t.run("UPDATE jobs SET status = 'EM CURSO', started_at = ?, runner = ? WHERE id = ? AND (status = 'PENDENTE' "
+                     "OR (status = 'AGENDADO' AND agendado_para <= ?))", (now(), runner, job_id, now())) == 1
 
 
 # ------------------------------------------------------------------ acoes sobre servicos (agente)
