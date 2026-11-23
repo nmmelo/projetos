@@ -1,4 +1,9 @@
 """Rotas do modulo Clientes (paginas, gestao e API do agente)."""
+import datetime
+import hashlib
+import os
+import re
+
 from flask import (Response, abort, flash, g, jsonify, redirect, render_template, request, send_file,
                    url_for)
 
@@ -222,6 +227,28 @@ def gerir_apagar(cid):
     clientes.apagar(cid)
     flash(f"Cliente {c['nome']} apagado (desinstale o agente: sudo bash setup.sh --desinstalar).", "ok")
     return redirect(url_for("clientes.gerir"))
+
+
+@bp.route("/ferramentas")
+@auth.login_required
+def ferramentas():
+    fich = []
+    for nome, desc in (("setup.sh", "Instalador: dependências, utilizador SSH, chave do portal, serviço systemd e serviço Oracle"),
+                       ("agente-portal.py", "O agente (só Python 3, sem dependências); o setup.sh descarrega-o do portal")):
+        p = clientes.ficheiro_agente(nome)
+        if not p:
+            continue
+        dados = open(p, "rb").read()
+        v = re.search(rb'^VERSAO = "([^"]+)"', dados, re.M)
+        fich.append({"nome": nome, "desc": desc, "tamanho": len(dados), "sha256": hashlib.sha256(dados).hexdigest(),
+                     "versao": v.group(1).decode() if v else "",
+                     "alterado": datetime.datetime.fromtimestamp(os.path.getmtime(p)).strftime("%Y-%m-%d %H:%M")})
+    try:
+        chave = clientes.chave_publica()
+    except RuntimeError:
+        chave = ""
+    return render_template("clientes/ferramentas.html", fich=fich, url=_url_portal(), chave=chave,
+                           inseguro=_cfg()["inseguro"], utilizador=_cfg()["ssh_padrao"])
 
 
 # ============================================================ API do agente (sem sessao; token)

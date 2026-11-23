@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1661">
+<lingua codigo="en" nome="English" textos="1692">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -6645,5 +6645,129 @@
   <texto>
     <origem>porta {n} · python-oracledb {n}.{n}.{n} (thin)</origem>
     <traducao>port {n} · python-oracledb {n}.{n}.{n} (thin)</traducao>
+  </texto>
+  <texto>
+    <origem>; se não chegar, descarregue aqui e copie com</origem>
+    <traducao>; if it can't, download here and copy with</traducao>
+  </texto>
+  <texto>
+    <origem>Acrescentar à mão</origem>
+    <traducao>Add manually</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar o agente (mantém id e token)</origem>
+    <traducao>Update the agent (keeps id and token)</traducao>
+  </texto>
+  <texto>
+    <origem>Chave SSH pública do portal (para</origem>
+    <traducao>Portal's public SSH key (for</traducao>
+  </texto>
+  <texto>
+    <origem>Chave pública</origem>
+    <traducao>Public key</traducao>
+  </texto>
+  <texto>
+    <origem>Comandos do agente</origem>
+    <traducao>Agent commands</traducao>
+  </texto>
+  <texto>
+    <origem>Corrige o caso em que a chave do portal ficou colada à última linha (ficheiro sem quebra de linha no fim). Cria uma cópia .bak.</origem>
+    <traducao>Fixes the case where the portal key was glued to the last line (file without a trailing newline). Creates a .bak copy.</traducao>
+  </texto>
+  <texto>
+    <origem>Descarregue os dois ficheiros acima. Sem o portal, o setup.sh usa o agente-portal.py que está ao lado dele; com --sem-ssh não vai buscar a chave do portal (ponha-a à mão, ao lado). O agente só funciona se depois chegar ao portal.</origem>
+    <traducao>Download both files above. Without the portal, setup.sh uses the agente-portal.py next to it; with --sem-ssh it doesn't fetch the portal key (add it manually, see beside). The agent only works if it can then reach the portal.</traducao>
+  </texto>
+  <texto>
+    <origem>Desinstalar</origem>
+    <traducao>Uninstall</traducao>
+  </texto>
+  <texto>
+    <origem>Estado (sincronização, fila, serviço Oracle)</origem>
+    <traducao>Status (sync, queue, Oracle service)</traducao>
+  </texto>
+  <texto>
+    <origem>Ferramentas</origem>
+    <traducao>Tools</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiros do agente</origem>
+    <traducao>Agent files</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiros e comandos para instalar, atualizar e verificar o agente nos servidores. O servidor precisa de chegar ao portal em</origem>
+    <traducao>Files and commands to install, update and check the agent on servers. The server must reach the portal at</traducao>
+  </texto>
+  <texto>
+    <origem>Instalador: dependências, utilizador SSH, chave do portal, serviço systemd e serviço Oracle</origem>
+    <traducao>Installer: dependencies, SSH user, portal key, systemd service and Oracle service</traducao>
+  </texto>
+  <texto>
+    <origem>Instalar e atualizar (no servidor, como root)</origem>
+    <traducao>Install and update (on the server, as root)</traducao>
+  </texto>
+  <texto>
+    <origem>Mudar o intervalo de sincronização</origem>
+    <traducao>Change the sync interval</traducao>
+  </texto>
+  <texto>
+    <origem>Notificar o portal (num script)</origem>
+    <traducao>Notify the portal (in a script)</traducao>
+  </texto>
+  <texto>
+    <origem>O agente (só Python 3, sem dependências); o setup.sh descarrega-o do portal</origem>
+    <traducao>The agent (Python 3 only, no dependencies); setup.sh downloads it from the portal</traducao>
+  </texto>
+  <texto>
+    <origem>O id e o token estão em Gerir clientes → cliente. --utilizador é a conta SSH onde fica a chave do portal.</origem>
+    <traducao>The id and token are in Manage clients → client. --utilizador is the SSH account that receives the portal key.</traducao>
+  </texto>
+  <texto>
+    <origem>O portal passa a fazer os pedidos às bases de dados deste servidor através do agente (porta 8795). Base 11g: acrescente --oracle-lib &lt;ORACLE_HOME&gt;/lib.</origem>
+    <traducao>The portal will make its requests to this server's databases through the agent (port 8795). 11g database: add --oracle-lib &lt;ORACLE_HOME&gt;/lib.</traducao>
+  </texto>
+  <texto>
+    <origem>O setup.sh acrescenta-a ao</origem>
+    <traducao>setup.sh adds it to</traducao>
+  </texto>
+  <texto>
+    <origem>Registo do agente</origem>
+    <traducao>Agent log</traducao>
+  </texto>
+  <texto>
+    <origem>Separar chaves que ficaram na mesma linha</origem>
+    <traducao>Split keys that ended up on the same line</traducao>
+  </texto>
+  <texto>
+    <origem>Servidor sem acesso HTTPS ao portal: copiar os ficheiros</origem>
+    <traducao>Server without HTTPS access to the portal: copy the files</traducao>
+  </texto>
+  <texto>
+    <origem>Testar a ligação ao portal</origem>
+    <traducao>Test the connection to the portal</traducao>
+  </texto>
+  <texto>
+    <origem>Testar o serviço Oracle</origem>
+    <traducao>Test the Oracle service</traducao>
+  </texto>
+  <texto>
+    <origem>Verificar (utilizador SSH, permissões, chave, sshd)</origem>
+    <traducao>Check (SSH user, permissions, key, sshd)</traducao>
+  </texto>
+  <texto>
+    <origem>do utilizador SSH. Para a pôr à mão (garante a quebra de linha antes):</origem>
+    <traducao>of the SSH user. To add it manually (ensures a newline before):</traducao>
+  </texto>
+  <texto>
+    <origem>⭳ Descarregar</origem>
+    <traducao>⭳ Download</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiros do agente em falta no portal (pasta agente-cliente).</origem>
+    <traducao>Agent files missing on the portal (agente-cliente folder).</traducao>
+  </texto>
+  <texto>
+    <origem>A chave do portal ainda não foi criada (é criada ao guardar o primeiro cliente).</origem>
+    <traducao>The portal key has not been created yet (it is created when the first client is saved).</traducao>
   </texto>
 </lingua>

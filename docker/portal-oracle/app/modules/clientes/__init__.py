@@ -31,6 +31,7 @@ MODULO = modulos.registar(modulos.Modulo(
         ("clientes.alarmes", "Alarmes", None),
         ("clientes.regras", "Regras de notificação", None),
         ("clientes.eventos", "Eventos", None),
+        ("clientes.ferramentas", "Ferramentas", None),
     ],
     cartoes={"clientes.estado": {"titulo": "Clientes", "icone": "🖧", "template": "clientes/c_estado.html",
                                  "link": "clientes.painel", "link_txt": "Ver os clientes"}},

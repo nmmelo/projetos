@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Clientes · Ferramentas{% endblock %}
+{% block content %}
+{% include "clientes/_tabs.html" %}
+{% set k = ' -k' if inseguro else '' %}
+{% set ins = ' --inseguro' if inseguro else '' %}
+<p class="muted">Ficheiros e comandos para instalar, atualizar e verificar o agente nos servidores. O servidor precisa de
+  chegar ao portal em <code translate="no">{{ url }}</code>; se não chegar, descarregue aqui e copie com <code>scp</code>.</p>
+
+<section class="card full">
+  <h2>Ficheiros do agente</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Ficheiro</th><th>Para quê</th><th>Versão</th><th>Tamanho</th><th>SHA-256</th><th></th></tr></thead>
+    <tbody>{% for f in fich %}
+    <tr><td translate="no"><b>{{ f.nome }}</b><br><small class="muted">{{ f.alterado }}</small></td><td>{{ f.desc }}</td>
+      <td translate="no">{{ f.versao or '—' }}</td><td class="num">{{ (f.tamanho / 1024)|round(1) }} KB</td>
+      <td translate="no"><code class="small" title="{{ f.sha256 }}">{{ f.sha256[:16] }}…</code></td>
+      <td class="acts"><a class="btn small primary" href="{{ url_for('clientes.agente_ficheiro', nome=f.nome, download=1) }}" download>⭳ Descarregar</a></td></tr>
+    {% else %}<tr><td colspan="6" class="muted">Ficheiros do agente em falta no portal (pasta agente-cliente).</td></tr>{% endfor %}
+    {% if chave %}<tr><td translate="no"><b>chave.pub</b></td><td>Chave SSH pública do portal (para <code>authorized_keys</code>)</td><td>—</td><td class="num">—</td><td>—</td>
+      <td class="acts"><a class="btn small" href="{{ url_for('clientes.agente_ficheiro', nome='chave.pub') }}" download="portal-chave.pub">⭳ Descarregar</a></td></tr>{% endif %}
+    </tbody>
+  </table></div>
+</section>
+
+{% macro cmd(titulo, texto, nota='') %}
+<div class="cmd-item"><span>{{ titulo }}</span>{% if nota %}<small class="muted">{{ nota }}</small>{% endif %}
+  <div class="cmd-linha"><pre class="mono-area small cmd" translate="no">{{ texto }}</pre><button type="button" class="link copiar">Copiar</button></div></div>
+{% endmacro %}
+
+<section class="card full">
+  <h2>Instalar e atualizar (no servidor, como root)</h2>
+  <div class="lista">
+    {{ cmd('1. Descarregar o instalador', 'curl -fsSL' ~ k ~ ' ' ~ url ~ '/clientes/agente/setup.sh -o /tmp/setup-agente.sh') }}
+    {{ cmd('2. Instalação nova', 'sudo bash /tmp/setup-agente.sh --portal ' ~ url ~ ' --id <ID> --token <TOKEN> --utilizador ' ~ utilizador ~ ins,
+           'O id e o token estão em Gerir clientes → cliente. --utilizador é a conta SSH onde fica a chave do portal.') }}
+    {{ cmd('3. Serviço Oracle (opcional)', 'sudo bash /tmp/setup-agente.sh --oracle --origens "<IP do portal>" --abrir-firewall',
+           'O portal passa a fazer os pedidos às bases de dados deste servidor através do agente (porta 8795). Base 11g: acrescente --oracle-lib <ORACLE_HOME>/lib.') }}
+    {{ cmd('Atualizar o agente (mantém id e token)', 'curl -fsSL' ~ k ~ ' ' ~ url ~ '/clientes/agente/setup.sh -o /tmp/setup-agente.sh && sudo bash /tmp/setup-agente.sh --portal ' ~ url ~ ins) }}
+    {{ cmd('Verificar (utilizador SSH, permissões, chave, sshd)', 'sudo bash /tmp/setup-agente.sh --verificar --portal ' ~ url ~ ' --utilizador ' ~ utilizador ~ ins) }}
+    {{ cmd('Desinstalar', 'sudo bash /tmp/setup-agente.sh --desinstalar') }}
+    {{ cmd('Servidor sem acesso HTTPS ao portal: copiar os ficheiros', 'scp setup.sh agente-portal.py <servidor>:/tmp/\nssh <servidor> sudo bash /tmp/setup.sh --portal ' ~ url ~ ' --id <ID> --token <TOKEN> --sem-ssh' ~ ins,
+           'Descarregue os dois ficheiros acima. Sem o portal, o setup.sh usa o agente-portal.py que está ao lado dele; com --sem-ssh não vai buscar a chave do portal (ponha-a à mão, ao lado). O agente só funciona se depois chegar ao portal.') }}
+  </div>
+</section>
+
+<div class="smtp-grid setup-grid">
+<section class="card">
+  <h2>Comandos do agente</h2>
+  <div class="lista">
+    {{ cmd('Estado (sincronização, fila, serviço Oracle)', 'sudo agente-portal estado') }}
+    {{ cmd('Testar a ligação ao portal', 'sudo agente-portal testar') }}
+    {{ cmd('Testar o serviço Oracle', 'sudo agente-portal oracle --dsn localhost:1521/<SERVICO> --utilizador <UTILIZADOR>') }}
+    {{ cmd('Mudar o intervalo de sincronização', 'sudo agente-portal intervalo 120') }}
+    {{ cmd('Notificar o portal (num script)', 'agente-portal notificar <ID_DA_REGRA> ok "Backup terminado"') }}
+    {{ cmd('Registo do agente', 'sudo journalctl -u agente-portal -n 100 --no-pager') }}
+  </div>
+</section>
+<section class="card">
+  <h2>Chave SSH do portal</h2>
+  {% if chave %}
+  <p class="hint">O setup.sh acrescenta-a ao <code>authorized_keys</code> do utilizador SSH. Para a pôr à mão (garante a quebra de linha antes):</p>
+  <div class="lista">
+    {{ cmd('Chave pública', chave) }}
+    {{ cmd('Acrescentar à mão', "sudo -u " ~ utilizador ~ " -H sh -c 'f=~/.ssh/authorized_keys; mkdir -p ~/.ssh && chmod 700 ~/.ssh; [ -s \"$f\" ] && [ -n \"$(tail -c1 \"$f\")\" ] && echo >> \"$f\"; echo \"" ~ chave ~ "\" >> \"$f\"; chmod 600 \"$f\"'") }}
+    {{ cmd('Separar chaves que ficaram na mesma linha', "sudo sed -E -i.bak 's/([^[:space:]])[[:space:]]*((ssh-(ed25519|rsa)|ecdsa-sha2-nistp[0-9]+) AAAA)/\\1\\n\\2/g' ~" ~ utilizador ~ "/.ssh/authorized_keys",
+           'Corrige o caso em que a chave do portal ficou colada à última linha (ficheiro sem quebra de linha no fim). Cria uma cópia .bak.') }}
+  </div>
+  {% else %}<p class="muted">A chave do portal ainda não foi criada (é criada ao guardar o primeiro cliente).</p>{% endif %}
+</section>
+</div>
+<script>
+const T = s => (window.t ? window.t(s) : s);
+document.querySelectorAll('.copiar').forEach(b => b.addEventListener('click', async () => {
+  const t = b.parentElement.querySelector('pre, code').textContent;
+  try { await navigator.clipboard.writeText(t); } catch (e) {
+    const x = document.createElement('textarea'); x.value = t; document.body.appendChild(x); x.select(); document.execCommand('copy'); x.remove();
+  }
+  const o = b.textContent; b.textContent = T('Copiado'); setTimeout(() => b.textContent = o, 1500);
+}));
+</script>
+{% endblock %}

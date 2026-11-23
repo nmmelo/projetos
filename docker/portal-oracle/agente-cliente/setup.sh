@@ -54,6 +54,7 @@ K=(); [[ $INSEGURO == 1 ]] && K=(-k)
 if [[ $MODO == desinstalar ]]; then
     systemctl disable --now $SVC 2>/dev/null || true
     rm -f /etc/systemd/system/$SVC.service /usr/local/bin/agente-portal; systemctl daemon-reload
+    [[ -L /usr/bin/agente-portal ]] && rm -f /usr/bin/agente-portal
     rm -rf "$DIR" /run/agente-portal
     echo "Agente removido. (O grupo $GRUPO e a chave do portal em authorized_keys ficam; retire-os a mao se quiser.)"
     exit 0
@@ -106,8 +107,18 @@ verificar_ssh() {
         local chave
         chave=$(curl -fsS ${K[@]+"${K[@]}"} "$PORTAL/clientes/agente/chave.pub") || erro "nao consegui obter a chave publica do portal ($PORTAL/clientes/agente/chave.pub)"
         [[ $chave =~ ^ssh-(ed25519|rsa)\  ]] || erro "chave publica do portal invalida"
+        # chaves coladas na mesma linha (ficheiro sem quebra de linha no fim): separa-as
+        if grep -qE '[^[:space:]][[:space:]]*(ssh-(ed25519|rsa|dss)|ecdsa-sha2-nistp[0-9]+|sk-ssh-ed25519@openssh.com) AAAA' "$ak" &&
+           ! grep -qE '^(command|from|restrict|no-|environment|permitopen|principals|tunnel)' "$ak"; then
+            cp -p "$ak" "$ak.antes-setup"
+            sed -E -i 's/([^[:space:]])[[:space:]]*((ssh-(ed25519|rsa|dss)|ecdsa-sha2-nistp[0-9]+|sk-ssh-ed25519@openssh.com) AAAA)/\1\n\2/g' "$ak"
+            corr "authorized_keys: chaves na mesma linha separadas (copia em $ak.antes-setup)"
+        fi
         if grep -qF "$(echo "$chave" | awk '{print $2}')" "$ak"; then ok "a chave publica do portal ja esta em authorized_keys"
-        else echo "$chave" >> "$ak"; corr "chave publica do portal acrescentada ($(echo "$chave" | awk '{print $3}'))"; fi
+        else
+            [[ -s $ak && -n $(tail -c1 "$ak") ]] && echo >> "$ak"      # o ficheiro nao acabava em quebra de linha
+            echo "$chave" >> "$ak"; corr "chave publica do portal acrescentada ($(echo "$chave" | awk '{print $3}'))"
+        fi
     fi
     if command -v getenforce >/dev/null && [[ $(getenforce) == Enforcing ]] && command -v restorecon >/dev/null; then
         restorecon -R "$home/.ssh" && ok "contexto SELinux de .ssh reposto"
@@ -135,11 +146,24 @@ fi
 [[ -z $INTERVALO || ( $INTERVALO =~ ^[0-9]+$ && $INTERVALO -ge 10 && $INTERVALO -le 3600 ) ]] || erro "--intervalo entre 10 e 3600"
 umask 022
 install -d -m 755 "$DIR"
-curl -fsS ${K[@]+"${K[@]}"} "$PORTAL/clientes/agente/agente-portal.py" -o "$DIR/agente-portal.py.novo" || erro "download do agente falhou"
+LOCAL_PY="$(cd "$(dirname "$0")" && pwd)/agente-portal.py"
+if ! curl -fsS ${K[@]+"${K[@]}"} "$PORTAL/clientes/agente/agente-portal.py" -o "$DIR/agente-portal.py.novo"; then
+    [[ -f $LOCAL_PY ]] || erro "download do agente falhou ($PORTAL/clientes/agente/agente-portal.py) e nao ha agente-portal.py ao lado do setup.sh"
+    cp "$LOCAL_PY" "$DIR/agente-portal.py.novo"; avs "sem acesso ao portal: usado $LOCAL_PY"
+fi
 python3 -m py_compile "$DIR/agente-portal.py.novo" 2>/dev/null || python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$DIR/agente-portal.py.novo" || erro "agente descarregado invalido"
 mv "$DIR/agente-portal.py.novo" "$DIR/agente-portal.py"; chmod 755 "$DIR/agente-portal.py"; rm -rf "$DIR/__pycache__"
-ln -sf "$DIR/agente-portal.py" /usr/local/bin/agente-portal
-ok "agente $("$DIR/agente-portal.py" versao) em $DIR"
+# comando agente-portal: em /usr/local/bin e /usr/bin (o sudo do RHEL nao procura em /usr/local/bin);
+# usa o python do venv (servico Oracle) quando existe
+rm -f /usr/local/bin/agente-portal
+cat > /usr/local/bin/agente-portal <<'CMD'
+#!/bin/sh
+P=/opt/agente-portal/venv/bin/python; [ -x "$P" ] || P=/usr/bin/python3
+exec "$P" /opt/agente-portal/agente-portal.py "$@"
+CMD
+chmod 755 /usr/local/bin/agente-portal
+[[ -e /usr/bin/agente-portal && ! -L /usr/bin/agente-portal ]] || ln -sf /usr/local/bin/agente-portal /usr/bin/agente-portal
+ok "agente $(agente-portal versao) em $DIR (comando: agente-portal)"
 ARGS=(--portal "$PORTAL")
 [[ -n $ID ]] && ARGS+=(--id "$ID"); [[ -n $TOKEN ]] && ARGS+=(--token "$TOKEN"); [[ -n $INTERVALO ]] && ARGS+=(--intervalo "$INTERVALO")
 [[ -n $UTIL ]] && ARGS+=(--utilizador "$UTIL"); [[ -n $CA ]] && ARGS+=(--ca "$CA"); [[ $INSEGURO == 1 ]] && ARGS+=(--inseguro)
