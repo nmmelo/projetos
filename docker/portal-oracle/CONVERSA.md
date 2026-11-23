@@ -439,3 +439,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > `--lista` mostra AG.ORACLE "-" e `--agente-recursos dba-portal agente-oracle ...` dá "o servico dba-portal-agente-oracle nao existe".
 
 **Resposta:** O `--atualizar` substitui o `instalar.sh` no disco, mas o bash continuava a correr a versão antiga (em memória), que ainda não criava o agente Oracle. Corrigir já: `sudo /opt/dba-portal/instalar.sh --reaplicar dba-portal`. Daqui em diante, se o `--atualizar` trouxer um `instalar.sh` diferente, o script continua automaticamente com a versão nova (`--reaplicar`).
+
+## 33. Atualização automática nos Agentes
+
+**Pergunta:**
+> quero que nos agentes os dados e informação tenha um refresh, que podemos indicar ou alterar como no home
+
+**Resposta:** Sistema → Agentes e → Análise têm, como a Home, o seletor "Atualizar: manual / 5 s / 10 s / 30 s / 1 min / 5 min" (por omissão 10 s, guardado no browser), a hora da última atualização e o botão ↻. Atualiza estado, recursos, execuções em curso, processos e gráficos (períodos relativos); o formulário de parâmetros não é tocado.

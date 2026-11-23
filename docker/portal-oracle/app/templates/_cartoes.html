@@ -36,7 +36,7 @@
 {%- endmacro %}
 
 {# Controlos do painel: atualizacao automatica (intervalo guardado no browser) e Editar #}
-{% macro controlos(refresh=True, extra='', opcoes=((0, 'manual'), (10, '10 s'), (30, '30 s'), (60, '1 min'), (300, '5 min'))) -%}
+{% macro controlos(refresh=True, extra='', opcoes=((0, 'manual'), (10, '10 s'), (30, '30 s'), (60, '1 min'), (300, '5 min')), editar=True) -%}
 <div class="dash-ctl">
   {{ extra|safe }}
   {% if refresh %}
@@ -48,8 +48,10 @@
   <button type="button" class="icon-btn" id="agora" title="Atualizar agora" aria-label="Atualizar agora">
     <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z"/></svg></button>
   {% endif %}
+  {% if editar %}
   <button type="button" class="icon-btn" id="editar" title="Editar painel: adicionar, esconder e reordenar cartões" aria-label="Editar painel" aria-pressed="false">
     <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25ZM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83Z"/></svg>
     <span>Editar</span></button>
+  {% endif %}
 </div>
 {%- endmacro %}

@@ -1,9 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Sistema · Análise{% endblock %}
+{% from "_cartoes.html" import controlos %}
 {% block content %}
 {% include "sistema/_tabs.html" %}
-<p class="muted">Recursos usados pelo portal: o servidor web (Gunicorn) e os agentes. Medido pelo agente do portal a cada 10 s
+<div class="dash-bar"><p class="muted" style="margin:0">Recursos usados pelo portal: o servidor web (Gunicorn) e os agentes. Medido pelo agente do portal a cada 10 s
   (registo para os gráficos a cada 30 s, guardado 35 dias).</p>
+  {{ controlos(editar=False, opcoes=((0, 'manual'), (5, '5 s'), (10, '10 s'), (30, '30 s'), (60, '1 min'), (300, '5 min'))) }}</div>
 <div class="an-tiles" id="tiles"></div>
 
 <section class="card full" style="margin-top:16px">
@@ -25,6 +27,7 @@
 {% endblock %}
 {% block scripts %}
 {% include "sistema/_graficos_js.html" %}
+<script src="{{ url_for('static', filename='painel.js', v=static_v) }}"></script>
 <script>
 (() => {
   const T = s => (window.t ? window.t(s) : s), $ = id => document.getElementById(id);
@@ -57,16 +60,22 @@
           <small class="muted">load ${(s.load || []).map(v => v.toFixed(2)).join(' / ')}</small></div>` : '');
     } catch (e) {}
   }
-  agora(); setInterval(agora, 10000);
+  agora();
   const comps = ['web', 'agente', 'agente_oracle', 'outro', 'sistema'];
-  Periodo(async q => {
+  const graf = async q => {
     $('pinfo').textContent = T('A carregar…');
     const d = await buscarMetricas(comps, q);
     $('pinfo').textContent = `${T('intervalo de')} ${d.bucket >= 3600 ? d.bucket / 3600 + ' h' : d.bucket >= 60 ? d.bucket / 60 + ' min' : d.bucket + ' s'}`;
     const ser = (i, filtro) => comps.filter(filtro).map(c => ({nome: T(NOMES[c]), cor: CORES[c], pontos: (d.series[c] || []).map(p => [p[0], p[i]]), tracejado: c === 'sistema'}));
     PortalGrafico.desenhar($('gcpu'), {unidade: '%', desde: d.desde, ate: d.ate, passo: d.bucket, series: ser(1, c => true)});
     PortalGrafico.desenhar($('gmem'), {unidade: 'bytes', desde: d.desde, ate: d.ate, passo: d.bucket, series: ser(3, c => c !== 'sistema')});
-  });
+  };
+  const periodo = Periodo(graf);
+  autoAtualizar('analise', $('ref'), $('agora'), $('upd'), async () => {
+    const q = periodo();
+    await Promise.all([agora(), q.r ? graf(q) : null]);
+  }, '10');
+  $('upd').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-PT');
 })();
 </script>
 {% endblock %}

@@ -1,16 +1,17 @@
 {% extends "base.html" %}
-{% from "_cartoes.html" import kv, saude %}
+{% from "_cartoes.html" import kv, saude, controlos %}
 {% block title %}Sistema · Agentes{% endblock %}
 {% block content %}
 {% include "sistema/_tabs.html" %}
-<nav class="subtabs">
+<nav class="subtabs" data-ref="subtabs">
   {% for k, x in todos.items()|sort(attribute='0', reverse=True) %}
   <a href="{{ url_for('sistema.agentes', a=k) }}" class="{{ 'on' if k == a }}"><span class="dot d-{{ 'ok' if estados[k] else 'bad' }}"></span> {{ x.nome }}</a>{% endfor %}
 </nav>
-<p class="muted">{{ ag.descricao }}</p>
+<div class="dash-bar"><p class="muted" style="margin:0">{{ ag.descricao }}</p>
+  {{ controlos(editar=False, opcoes=((0, 'manual'), (5, '5 s'), (10, '10 s'), (30, '30 s'), (60, '1 min'), (300, '5 min'))) }}</div>
 
 <div class="fw-grid">
-<section class="card">
+<section class="card" data-ref="estado">
   <h2>Estado</h2>
   {% if est.ativo %}{{ saude('ok', 'A correr', 'sinal há ' ~ est.ha ~ ' s') }}
   {% else %}{{ saude('bad', 'Parado', 'sem sinal' ~ (' há ' ~ est.ha ~ ' s' if est.ha else '')) }}{% endif %}
@@ -40,7 +41,7 @@
 <section class="card">
   <h2>Recursos do serviço</h2>
   {% if recursos.backend == 'systemd' %}
-  {{ kv([('Limite de CPU', recursos.cpu), ('Limite de memória', recursos.mem), ('Nice (systemd)', recursos.nice), ('Máx. tarefas', recursos.tasks)]) }}
+  <div data-ref="rec">{{ kv([('Limite de CPU', recursos.cpu), ('Limite de memória', recursos.mem), ('Nice (systemd)', recursos.nice), ('Máx. tarefas', recursos.tasks)]) }}</div>
   <p class="small">Aumentar ou limitar os recursos do serviço (precisa de root):</p>
   <div class="rec-form">
     <label>CPU <input id="rcpu" placeholder="200%" size="6"></label>
@@ -55,7 +56,7 @@
 </section>
 </div>
 
-{% if em_curso %}
+<div data-ref="emcurso">{% if em_curso %}
 <section class="card full" style="margin-top:16px">
   <h2>Execuções em curso</h2>
   <div class="lista">{% for j in em_curso %}
@@ -64,7 +65,7 @@
         <small>{{ j.current_action or 'a correr' }}{% if j.progress %} · {{ (j.progress / 10)|round(0)|int }}%{% endif %} · desde {{ j.started_at }}{% if j.params.paralelo and j.params.paralelo > 1 %} · PARALLEL {{ j.params.paralelo }}{% endif %}</small></span></a>
   {% endfor %}</div>
 </section>
-{% endif %}
+{% endif %}</div>
 
 <section class="card full" style="margin-top:16px">
   <div class="modulo-head"><h2>Processos</h2><span class="muted small" id="pidade"></span></div>
@@ -84,6 +85,7 @@
 {% endblock %}
 {% block scripts %}
 {% include "sistema/_graficos_js.html" %}
+<script src="{{ url_for('static', filename='painel.js', v=static_v) }}"></script>
 <script>
 (() => {
   const A = '{{ a }}', T = s => (window.t ? window.t(s) : s), $ = id => document.getElementById(id);
@@ -103,8 +105,16 @@
         || `<tr><td colspan="8" class="muted">${T('Nenhum processo deste agente.')}</td></tr>`;
     } catch (e) {}
   }
-  procs(); setInterval(procs, 10000);
-  Periodo(async q => {
+  async function blocos() {   /* estado, recursos e execucoes em curso: o HTML da propria pagina */
+    const r = await fetch(location.href, {cache: 'no-store'});
+    if (!r.ok) throw new Error(r.status);
+    const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+    document.querySelectorAll('[data-ref]').forEach(el => {
+      const n = doc.querySelector(`[data-ref="${el.dataset.ref}"]`);
+      if (n && n.innerHTML !== el.innerHTML) el.innerHTML = n.innerHTML;
+    });
+  }
+  const graf = async q => {
     $('pinfo').textContent = T('A carregar…');
     const d = await buscarMetricas([A], q), s = d.series[A] || [];
     $('pinfo').textContent = `${s.length} ${T('pontos')} · ${T('intervalo de')} ${d.bucket >= 3600 ? d.bucket / 3600 + ' h' : d.bucket >= 60 ? d.bucket / 60 + ' min' : d.bucket + ' s'}`;
@@ -113,7 +123,14 @@
                {nome: T('CPU máxima'), cor: '#f59e0b', pontos: s.map(p => [p[0], p[2]]), tracejado: true}]});
     PortalGrafico.desenhar($('gmem'), {unidade: 'bytes', desde: d.desde, ate: d.ate, passo: d.bucket,
       series: [{nome: T('Memória'), cor: '#16a34a', pontos: s.map(p => [p[0], p[3]]), area: true}]});
-  });
+  };
+  const periodo = Periodo(graf);
+  procs();
+  autoAtualizar('agentes', $('ref'), $('agora'), $('upd'), async () => {
+    const q = periodo();
+    await Promise.all([blocos(), procs(), q.r ? graf(q) : null]);   /* periodo fixo (a partir de uma data) nao muda */
+  }, '10');
+  $('upd').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-PT');
 })();
 </script>
 {% endblock %}

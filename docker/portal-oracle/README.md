@@ -262,7 +262,7 @@ Atualiza a configuração guardada, a regra `sudoers` (validada com `visudo`) e 
 
 ### Sistema → Agentes
 
-Uma sub-aba por agente (Agente Oracle, Agente do portal):
+Uma sub-aba por agente (Agente Oracle, Agente do portal). No topo, como na Home, a **atualização automática** (manual, 5 s, 10 s, 30 s, 1 min, 5 min; por omissão 10 s, guardada no browser) e o botão ↻: atualiza o estado, os recursos, as execuções em curso, os processos e os gráficos (nos períodos relativos; um período a partir de uma data fica fixo). Não atualiza com o separador escondido. A **Análise** tem o mesmo controlo.
 
 | Cartão | Conteúdo |
 |---|---|
