@@ -12,6 +12,7 @@ REPO_BRANCH_PADRAO="main"
 REPO_PASTA_PADRAO="docker/portal-oracle"
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+SCRIPT_SHA=$(sha256sum "${BASH_SOURCE[0]}" 2>/dev/null | cut -d" " -f1)   # para reexecutar se o --atualizar trouxer outro
 ESTADO_DIR="/etc/portal-oracle"          # registo das instancias: <nome>.conf (respostas, sem passwords)
 ESTADO_LEGADO=".instalacao"              # versoes anteriores guardavam na pasta da instalacao
 AUTO=0                                   # 1 = aceitar os valores guardados sem perguntar (reaplicar)
@@ -999,7 +1000,14 @@ case $COD in
         extrair_pasta_git "$GIT_URL" "$GIT_BRANCH" "$GIT_PASTA" "$TMP_COD" || { rm -rf "$TMP_COD"; erro "nao foi possivel obter o codigo do Git."; }
         tem_codigo "$TMP_COD" || { rm -rf "$TMP_COD"; erro "a pasta '$GIT_PASTA' nao tem o portal (wsgi.py, app/, deploy/)."; }
         copiar_codigo "$TMP_COD"; rm -rf "$TMP_COD"
-        ok "codigo obtido do Git" ;;
+        ok "codigo obtido do Git"
+        # O bash continua a ler a versao antiga deste script (ja substituida no disco): se o
+        # instalar.sh mudou, continua com o novo, para criar servicos/ficheiros que so ele conhece.
+        if [[ -z ${PORTAL_REEXEC:-} && -f $DIR/instalar.sh && -n $SCRIPT_SHA ]] &&
+           [[ $(sha256sum "$DIR/instalar.sh" | cut -d" " -f1) != "$SCRIPT_SHA" ]]; then
+            info "instalar.sh atualizado: a continuar com a versao nova (--reaplicar $NOME)"
+            PORTAL_REEXEC=1 exec bash "$DIR/instalar.sh" --reaplicar "$NOME"
+        fi ;;
     manter) ok "codigo mantido"; limpar_docker ;;
 esac
 tem_codigo "$DIR" || erro "$DIR nao tem o codigo do portal."
