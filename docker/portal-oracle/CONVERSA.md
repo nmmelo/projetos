@@ -481,3 +481,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > mas devia dar para selecionar o cliente que queremos, no cliente tb pode ter uma aba com o nome de Agente, qual a versão e se existe uma atualização. Quer pelo cliente ou pela aba ferramenta devia dar o output do que está a fazer. No agendamento em configuração, devemos ter a aba geral com o normal e depois outra aba com eventos, onde podemos ver os eventos. Ao clicar em atualizar devia ser instantaneo e mostrar o output.
 
 **Resposta:** Agente 1.5.0 consulta o portal a cada 5 s (sem portas abertas no servidor): atualizar e pedir dados passam a ser imediatos. Comandos com output guardado e mostrado em direto (descarregar, SHA-256, sintaxe, versão anterior guardada, substituição, reinício, "agente a correr"). Aba Agente no cliente (versões, botão, histórico de comandos com output); Ferramentas com seleção dos clientes e output de cada um. Configuração → Agendamento com abas Geral e Eventos (filtros por tarefa, estado, período e texto; duração e mensagem completa).
+
+## 39. Atualização "pedida" que nunca termina
+
+**Pergunta:**
+> ainda está a correr o atualziar, pedida 11-24 10:31
+
+**Resposta:** O pedido da versão anterior do portal era só uma marca, sem prazo: com um agente anterior à 1.4.0 (que não conhece o pedido) ficava "pedida" para sempre. Agora: pedidos sem resposta passam a erro ao fim de 15 min com o motivo; agentes anteriores à 1.4.0 recebem logo a explicação (atualizar uma vez com o setup.sh); botão para cancelar (aba Agente e Ferramentas, com "ver" o output); as marcas antigas sem comando são limpas automaticamente.

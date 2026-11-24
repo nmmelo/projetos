@@ -338,6 +338,12 @@ def pedir_atualizacao(cid: int, por: str = "") -> int:
     c = obter(cid) or {}
     cmd = criar_comando(cid, "atualizar", json.dumps({"versao": v, "sha256": sha}), por)
     comando_linha(cmd, f"pedido por {por or 'portal'}: atualizar o agente {c.get('versao') or '?'} -> {v}")
+    if _v(c.get("versao") or "0") < (1, 4, 0):
+        comando_linha(cmd, f"o agente {c.get('versao') or '(sem versão)'} não sabe atualizar-se pelo portal (só a partir da 1.4.0).")
+        comando_linha(cmd, "Atualize-o uma vez no servidor: Clientes → Ferramentas → Instalar e atualizar → "
+                           "\"Atualizar o agente\" (curl ... setup.sh && sudo bash setup.sh --portal ...).")
+        comando_estado(cmd, "ERRO")
+        return cmd
     if _v(c.get("versao") or "0") < (1, 5, 0):
         comando_linha(cmd, f"o agente {c.get('versao') or '?'} recebe o pedido na próxima sincronização "
                            f"(até {c.get('intervalo') or 60} s); a partir da 1.5.0 é imediato")
@@ -374,6 +380,44 @@ def comando_estado(cmd_id: int, estado: str) -> None:
             r = t.one("SELECT cliente_id, tipo FROM cliente_comandos WHERE id = ?", (cmd_id,))
         if r and r["tipo"] == "atualizar":
             store.save_settings({f"cliente_atualizar:{r['cliente_id']}": ""})
+
+
+EXPIRA_MIN = 15
+
+
+def expirar_comandos(cid: int | None = None) -> None:
+    """Comandos sem resposta do agente ha mais de 15 min passam a ERRO (e limpa pedidos antigos sem comando)."""
+    limite = (datetime.datetime.now() - datetime.timedelta(minutes=EXPIRA_MIN)).strftime("%Y-%m-%d %H:%M:%S")
+    with store.tx() as t:
+        velhos = t.all("SELECT c.id, c.cliente_id, c.estado, k.versao FROM cliente_comandos c LEFT JOIN clientes k ON k.id = c.cliente_id "
+                       "WHERE c.estado IN ('PENDENTE', 'EM CURSO') AND c.criado < ?" + (" AND c.cliente_id = ?" if cid else ""),
+                       (limite, cid) if cid else (limite,))
+    for r in velhos:
+        comando_linha(r["id"], f"sem resposta do agente ({r['versao'] or 'sem versão'}) em {EXPIRA_MIN} min: "
+                               "agente parado, sem contacto com o portal ou versão que não conhece este comando")
+        comando_estado(r["id"], "ERRO")
+    # pedidos da versao anterior do portal (so um 'setting', sem comando): limpa os que nao tem comando em curso
+    for c in listar() if cid is None else [obter(cid) or {}]:
+        if not c or not store.get_setting(f"cliente_atualizar:{c['id']}"):
+            continue
+        with store.tx() as t:
+            ativo = t.val("SELECT COUNT(*) FROM cliente_comandos WHERE cliente_id = ? AND tipo = 'atualizar' "
+                          "AND estado IN ('PENDENTE', 'EM CURSO')", (c["id"],))
+        if not ativo:
+            store.save_settings({f"cliente_atualizar:{c['id']}": ""})
+
+
+def cancelar_comando(cmd_id: int, por: str = "") -> None:
+    r = comando(cmd_id)
+    if r and r["estado"] in ("PENDENTE", "EM CURSO"):
+        comando_linha(cmd_id, f"cancelado por {por or 'portal'}" + (" (o agente já o tinha recebido: pode ainda concluir)"
+                                                                     if r["estado"] == "EM CURSO" else ""))
+        comando_estado(cmd_id, "ERRO")
+
+
+def comando_ativo(cid: int) -> dict | None:
+    with store.tx() as t:
+        return t.one("SELECT * FROM cliente_comandos WHERE cliente_id = ? AND estado IN ('PENDENTE', 'EM CURSO') ORDER BY id DESC", (cid,))
 
 
 def comando(cmd_id: int) -> dict | None:

@@ -1612,6 +1612,7 @@ O driver é o **python-oracledb** em modo *thin* (sem Instant Client). Requer Or
 | Erro | Causa e solução |
 |---|---|
 | Base de dados com "Portal" e o motivo, em vez do agente | Agente sem contacto, sem `--oracle`, `python-oracledb` em falta, ou o portal não chega à porta 8795 do servidor (firewall). Veja o motivo na coluna e `agente-portal estado` no servidor |
+| Atualização do agente "pedida" e nunca termina | O agente é anterior à 1.4.0 (não conhece o pedido) ou está sem contacto. Os pedidos sem resposta passam a erro ao fim de 15 min (com o motivo no output) e podem ser cancelados na aba Agente ou em Ferramentas. Agentes anteriores à 1.4.0: atualize uma vez com o `setup.sh` (`sudo agente-portal versao` mostra a versão no servidor) |
 | `agente-portal: command not found` | Agente instalado com um `setup.sh` anterior: volte a correr o `setup.sh` (Clientes → Ferramentas → Atualizar) ou use `sudo /usr/local/bin/agente-portal` |
 | A chave do portal ficou na mesma linha que a anterior em `authorized_keys` | O ficheiro não acabava em quebra de linha. Voltar a correr o `setup.sh` separa-as; ou o comando em Clientes → Ferramentas → Separar chaves |
 | `assinatura invalida` / `hora do pedido invalida` no registo do agente | Token mudado no portal (reconfigure o agente) ou relógios desacertados mais de 5 min (NTP/chrony) |

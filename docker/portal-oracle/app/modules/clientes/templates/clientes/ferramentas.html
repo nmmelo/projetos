@@ -20,7 +20,9 @@
       <td translate="no">{{ c.versao or '—' }} {% if a.desatualizado %}<span class="tag warn">desatualizado</span>{% elif c.versao %}<span class="tag ok">atual</span>{% endif %}</td>
       <td><small>{{ c.contacto.texto }}</small></td>
       <td><small>{{ 'imediatos' if c.versao and c.versao >= '1.5' else ('na sincronização' if pode else 'atualizar com o setup.sh') }}</small></td>
-      <td><small>{% if a.pedido %}<span class="spin"></span> pedida {{ a.pedido[5:16] }}{% elif a.ult %}{{ a.ult.de }} → {{ a.ult.para }} ({{ (a.ult.quando or '')[:16]|replace('T', ' ') }}){% if a.ult.erro %} <span class="c-bad">falhou: {{ a.ult.erro }}</span>{% endif %}{% else %}—{% endif %}</small></td></tr>
+      <td><small>{% if a.ativo %}<span class="spin"></span> {{ 'à espera do agente' if a.ativo.estado == 'PENDENTE' else 'em curso' }} desde {{ a.ativo.criado[11:16] }}
+          <a href="#" class="ver-cmd" data-cmd="{{ a.ativo.id }}" data-nome="{{ c.nome }}">ver</a> ·
+          <a href="#" class="canc-cmd" data-cmd="{{ a.ativo.id }}">cancelar</a>{% elif a.ult %}{{ a.ult.de }} → {{ a.ult.para }} ({{ (a.ult.quando or '')[:16]|replace('T', ' ') }}){% if a.ult.erro %} <span class="c-bad">falhou: {{ a.ult.erro }}</span>{% endif %}{% else %}—{% endif %}</small></td></tr>
     {% else %}<tr><td colspan="6" class="muted">Sem clientes.</td></tr>{% endfor %}</tbody></table></div>
   {% if user.can('clientes.gerir') %}
   <div style="margin-top:10px;display:flex;gap:10px;align-items:center">
@@ -113,6 +115,12 @@
     btn.disabled = false;
   });
 })();
+document.querySelectorAll('.ver-cmd').forEach(a => a.addEventListener('click', ev => { ev.preventDefault();
+  const el = document.createElement('div'); document.getElementById('saidas').prepend(el); PortalComando.seguir(a.dataset.cmd, el, null, a.dataset.nome); }));
+document.querySelectorAll('.canc-cmd').forEach(a => a.addEventListener('click', async ev => { ev.preventDefault();
+  if (!confirm((window.t || String)('Cancelar este pedido ao agente?'))) return;
+  const fd = new FormData(); fd.append('csrf', '{{ csrf_token }}');
+  await fetch(`/clientes/comando/${a.dataset.cmd}/cancelar`, {method: 'POST', body: fd, headers: {'X-Requested-With': 'fetch'}}); location.reload(); }));
 document.querySelectorAll('details.fw-sec').forEach(d => {      /* lembra o que ficou aberto */
   try { const v = localStorage.getItem('ferr.' + d.id); if (v !== null) d.open = v === '1'; } catch (e) {}
   d.addEventListener('toggle', () => { try { localStorage.setItem('ferr.' + d.id, d.open ? '1' : '0'); } catch (e) {} });

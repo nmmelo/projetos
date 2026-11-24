@@ -73,6 +73,7 @@ def detalhe(cid):
     aba = request.args.get("aba") or "resumo"
     abas = [("resumo", "Resumo"), ("processos", "Processos"), ("sistema", "Sistema"), ("logs", "Logs"),
             ("atualizacoes", "Atualizações"), ("bds", "Bases de dados"), ("agente", "Agente")]
+    clientes.expirar_comandos(cid)
     zbx_ok = zabbix_api.configurado()
     if zbx_ok:
         abas.append(("zabbix", "Zabbix"))
@@ -172,6 +173,16 @@ def atualizar_selecionados():
         if c:
             out.append({"cid": c["id"], "nome": c["nome"], "id": clientes.pedir_atualizacao(c["id"], g.user.username)})
     return jsonify(ok=True, comandos=out)
+
+
+@bp.route("/comando/<int:cmd_id>/cancelar", methods=["POST"])
+@auth.requires(MODULO.acesso, "clientes.gerir")
+def cancelar_comando(cmd_id):
+    r = clientes.comando(cmd_id) or abort(404)
+    clientes.cancelar_comando(cmd_id, g.user.username)
+    if request.headers.get("X-Requested-With") == "fetch":
+        return jsonify(ok=True)
+    return redirect(request.form.get("voltar") or url_for("clientes.detalhe", cid=r["cliente_id"], aba="agente"))
 
 
 @bp.route("/api/comando/<int:cmd_id>")
@@ -407,8 +418,9 @@ def ferramentas():
     except RuntimeError:
         chave = ""
     v_portal = clientes.agente_portal()[0]
-    agentes = [{"c": c, "desatualizado": clientes.desatualizado(c),
-                "pedido": store.get_setting(f"cliente_atualizar:{c['id']}") or "",
+    clientes.expirar_comandos()
+    agentes = [{"c": c, "desatualizado": clientes.desatualizado(c), "ativo": clientes.comando_ativo(c["id"]),
+                "pedido": "",
                 "ult": (c.get("info") or {}).get("atualizacao")} for c in clientes.listar()]
     return render_template("clientes/ferramentas.html", fich=fich, url=_url_portal(), chave=chave, agentes=agentes, v_portal=v_portal,
                            inseguro=_cfg()["inseguro"], utilizador=_cfg()["ssh_padrao"])

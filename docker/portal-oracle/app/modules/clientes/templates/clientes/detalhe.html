@@ -313,9 +313,10 @@
          ('Última atualização pelo portal', (ua.de ~ ' → ' ~ ua.para ~ ' em ' ~ (ua.quando or '')|replace('T', ' ') ~ (' — falhou: ' ~ ua.erro if ua.erro else ' — OK')) if ua else '—')]) }}
   {% if user.can('clientes.gerir') %}
   <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    {% if c.versao and c.versao >= '1.4' %}
     <button type="button" class="btn primary small" id="btn-atualizar" data-url="{{ url_for('clientes.atualizar_agente', cid=c.id) }}">⇧ {{ 'Atualizar para ' ~ v_portal if desatualizado else 'Reinstalar a versão do portal' }}</button>
-    {% else %}<small class="muted">Esta versão não se atualiza pelo portal: use uma vez o comando de Ferramentas → Instalar e atualizar.</small>{% endif %}
+    {% if not (c.versao and c.versao >= '1.4') %}<small class="muted">Esta versão ({{ c.versao or 'sem versão' }}) não se atualiza pelo portal: atualize-a uma vez com o setup.sh (Ferramentas → Instalar e atualizar).</small>{% endif %}
+    {% set k0 = (comandos|selectattr('estado', 'in', ['PENDENTE', 'EM CURSO'])|list or [None])[0] %}
+    {% if k0 %}<button type="button" class="btn small danger" id="btn-cancelar" data-url="{{ url_for('clientes.cancelar_comando', cmd_id=k0.id) }}">Cancelar pedido #{{ k0.id }}</button>{% endif %}
   </div>
   {% endif %}
 </section>
@@ -416,6 +417,11 @@
       out.scrollIntoView({behavior: 'smooth', block: 'nearest'});
       await PortalComando.seguir(d.id, out, () => { b.disabled = false; blocos(); });
     }); }
+    const bc = $('btn-cancelar');
+    if (bc && !bc.dataset.ok) { bc.dataset.ok = 1; bc.addEventListener('click', async () => {
+      if (!confirm((window.t || String)('Cancelar este pedido ao agente?'))) return;
+      const fd = new FormData(); fd.append('csrf', '{{ csrf_token }}');
+      await fetch(bc.dataset.url, {method: 'POST', body: fd, headers: {'X-Requested-With': 'fetch'}}); blocos(); }); }
     document.querySelectorAll('.cmd-hist tr[data-cmd]').forEach(tr => { if (tr.dataset.ok) return; tr.dataset.ok = 1;
       tr.addEventListener('click', () => { document.querySelectorAll('.cmd-hist tr.on').forEach(x => x.classList.remove('on')); tr.classList.add('on');
         PortalComando.seguir(tr.dataset.cmd, out); }); });
