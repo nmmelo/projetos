@@ -144,6 +144,19 @@ def estado(db: dict) -> dict:
             "cliente_id": db.get("cliente_id")}
 
 
+def _dica(e: Exception, a: dict) -> str:
+    """Causa provavel de uma falha de ligacao ao servico Oracle do agente."""
+    n = getattr(e, "errno", None)
+    if n == 113:          # EHOSTUNREACH: firewalld/iptables a rejeitar (icmp-host-prohibited) ou sem rota
+        return (f" — a firewall do servidor está a bloquear a porta {a['porta']}/tcp: abra-a para o IP do portal "
+                f"(setup.sh --oracle --abrir-firewall --origens \"<IP do portal>\") ou desligue o agente nesta base de dados")
+    if n == 111:          # ECONNREFUSED
+        return f" — nada a escutar na porta {a['porta']}: o serviço Oracle do agente está parado (agente-portal estado)"
+    if n in (110, None) and "timed out" in str(e).lower():
+        return f" — sem resposta: firewall pelo caminho (servidor ou rede) a descartar a porta {a['porta']}/tcp"
+    return ""
+
+
 # ============================================================ pedidos
 def chamar(a: dict, caminho: str, dados: dict, timeout: float = 60) -> dict:
     corpo = json.dumps(dados, default=_enc).encode()
@@ -157,7 +170,7 @@ def chamar(a: dict, caminho: str, dados: dict, timeout: float = 60) -> dict:
         try:
             c.connect()
         except (OSError, ssl.SSLError) as e:
-            raise Indisponivel(f"sem ligação a {a['host']}:{a['porta']} ({e})") from None
+            raise Indisponivel(f"sem ligação a {a['host']}:{a['porta']} ({e}){_dica(e, a)}") from None
         fp = hashlib.sha256(c.sock.getpeercert(binary_form=True) or b"").hexdigest()
         if not hmac.compare_digest(fp, a["fp"]):
             raise Indisponivel(f"o certificado de {a['host']}:{a['porta']} não é o do agente {a['nome']}")

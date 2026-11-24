@@ -502,3 +502,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > já corre, mas quando vejo depois o output de ter feito, não consigo fechar o output, devia ter uma cruz ou algum para voltar a fechar o output. Nos logs devia dar para editar os logs ou mesmo apagar. Sendo que podemos também colocar uma pasta com ficheiros de log e depois abrir um ficheiro, nesse sentido ao abrir, quero que tenha uma interface boa, tipo um editor onde vemos as linhas, e o texto todo formatado, podendo detetar o tipo de log. Podemos também fazer o download. A aba atualizar diz que vai fazer daqui a 6 horas novamente pelo agente, onde isso é configurado e podemos ter filtro por tipo de atualização, Repositório e fazer no maximo 20 por pagina
 
 **Resposta:** ✕ nos painéis de output. Logs: editar e apagar; seguir pastas (o agente lista os ficheiros). Visualizador tipo editor: números de linha, tipo de log detetado (Oracle alert, listener, journald, syslog, Apache/Nginx, auditd, dnf, JSON…), realce, níveis com filtros, pesquisa com navegação, ir para a linha, quebra de linha e download (até 10 MB). Atualizações: filtros por tipo (segurança/correção/melhoria, do dnf updateinfo) e repositório, 20 por página. Os intervalos (as 6 h) configuram-se em Gerir clientes → Recolha de dados. Agente 1.6.0 (ler ficheiros, pastas, intervalos, tipo de atualização).
+
+## 42. Shrink: "Portal (sem ligação a <servidor>:8795 ([Errno 113] No route to host))"
+
+**Pergunta:**
+> no shrink está a dar este aviso, Portal sem ligação a <servidor>:8795 ([Errno 113] No route to host) · agente Oracle
+
+**Resposta:** A base de dados está associada ao agente (modo Automático) mas a firewall do servidor da BD rejeita a porta 8795; o shrink foi feito pelo portal (como antes). Abrir a porta só para o IP do portal (firewall-cmd rich-rule ou setup.sh --oracle --abrir-firewall --origens) ou desligar o agente nessa BD. A mensagem passa a indicar a causa provável (113 firewall, 111 serviço parado, timeout rede).
