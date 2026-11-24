@@ -40,6 +40,22 @@
 </section>
 </div>
 
+<section class="card full" id="recolha" style="margin-top:16px">
+  <h2>Recolha de dados pelo agente</h2>
+  <p class="small">De quanto em quanto tempo cada agente envia estes dados (além do "Pedir dados agora", que é imediato).
+    Vale para todos os clientes; os agentes 1.6.0+ aplicam-no na sincronização seguinte (os anteriores usam os valores por omissão).</p>
+  <form method="post" action="{{ url_for('clientes.gerir_recolha') }}" class="inline-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    {% for k, (nome, padrao, hint) in recolha.items() %}
+    <label>{{ nome }} <span class="muted small">({{ 's' if k == 'processos' else 'min' }}{{ '; ' ~ hint if hint }})</span>
+      <input type="number" name="{{ k }}" min="{{ 0 if k == 'processos' else 1 }}" step="1" style="width:130px"
+        value="{{ intervalos[k] if k == 'processos' else (intervalos[k] // 60) }}"></label>
+    {% endfor %}
+    <button class="primary small">Guardar</button>
+  </form>
+  <p class="hint">Por omissão: processos em cada sincronização (0), sistema 60 min, logs e ficheiros de log 5 min, atualizações pendentes 360 min (6 h).</p>
+</section>
+
 <section class="card full" id="zabbix" style="margin-top:16px">
   <h2>Integração Zabbix <span class="tag">preparada</span></h2>
   <p class="small">O portal pode servir as métricas dos clientes ao Zabbix com as chaves de um agente Zabbix

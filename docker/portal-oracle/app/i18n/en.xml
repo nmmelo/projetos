@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1867">
+<lingua codigo="en" nome="English" textos="1921">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -7469,5 +7469,221 @@
   <texto>
     <origem>Sem pedidos</origem>
     <traducao>No requests</traducao>
+  </texto>
+  <texto>
+    <origem>(agente {n}.{n}.{n}+).</origem>
+    <traducao>(agent {n}.{n}.{n}+).</traducao>
+  </texto>
+  <texto>
+    <origem>(min)</origem>
+    <traducao>(min)</traducao>
+  </texto>
+  <texto>
+    <origem>(min; dnf/yum consultam os repositórios)</origem>
+    <traducao>(min; dnf/yum query the repositories)</traducao>
+  </texto>
+  <texto>
+    <origem>(s; em cada sincronização)</origem>
+    <traducao>(s; on every sync)</traducao>
+  </texto>
+  <texto>
+    <origem>). O tipo vem do</origem>
+    <traducao>). The type comes from</traducao>
+  </texto>
+  <texto>
+    <origem>. O agente verifica a cada {n} h (muda-se em</origem>
+    <traducao>. The agent checks every {n} h (change it in</traducao>
+  </texto>
+  <texto>
+    <origem>A pedir ao agente…</origem>
+    <traducao>Asking the agent…</traducao>
+  </texto>
+  <texto>
+    <origem>Correção ({n})</origem>
+    <traducao>Bugfix ({n})</traducao>
+  </texto>
+  <texto>
+    <origem>Melhoria ({n})</origem>
+    <traducao>Enhancement ({n})</traducao>
+  </texto>
+  <texto>
+    <origem>Segurança ({n})</origem>
+    <traducao>Security ({n})</traducao>
+  </texto>
+  <texto>
+    <origem>Sem classificação ({n})</origem>
+    <traducao>Unclassified ({n})</traducao>
+  </texto>
+  <texto>
+    <origem>De quanto em quanto tempo cada agente envia estes dados (além do "Pedir dados agora", que é imediato). Vale para todos os clientes; os agentes {n}.{n}.{n}+ aplicam-no na sincronização seguinte (os anteriores usam os valores por omissão).</origem>
+    <traducao>How often each agent sends this data (besides "Request data now", which is immediate). Applies to all clients; agents {n}.{n}.{n}+ apply it on the next sync (older ones use the defaults).</traducao>
+  </texto>
+  <texto>
+    <origem>Descarregar (até {n} MB)</origem>
+    <traducao>Download (up to {n} MB)</traducao>
+  </texto>
+  <texto>
+    <origem>Gerir clientes → Recolha de dados</origem>
+    <traducao>Manage clients → Data collection</traducao>
+  </texto>
+  <texto>
+    <origem>Logs (journal)</origem>
+    <traducao>Logs (journal)</traducao>
+  </texto>
+  <texto>
+    <origem>Mais recentes primeiro. Abrir mostra o ficheiro no visualizador (números de linha, realce do tipo de log, pesquisa e download).</origem>
+    <traducao>Most recent first. Open shows the file in the viewer (line numbers, log type highlighting, search and download).</traducao>
+  </texto>
+  <texto>
+    <origem>OK · {n} entrada(s)</origem>
+    <traducao>OK · {n} entry(ies)</traducao>
+  </texto>
+  <texto>
+    <origem>Pedido ao agente</origem>
+    <traducao>Request to the agent</traducao>
+  </texto>
+  <texto>
+    <origem>Por omissão: processos em cada sincronização ({n}), sistema {n} min, logs e ficheiros de log {n} min, atualizações pendentes {n} min ({n} h).</origem>
+    <traducao>Defaults: processes on every sync ({n}), system {n} min, logs and log files {n} min, pending updates {n} min ({n} h).</traducao>
+  </texto>
+  <texto>
+    <origem>Recolha de dados pelo agente</origem>
+    <traducao>Data collection by the agent</traducao>
+  </texto>
+  <texto>
+    <origem>Um ficheiro (o portal mostra as últimas linhas)</origem>
+    <traducao>A file (the portal shows the last lines)</traducao>
+  </texto>
+  <texto>
+    <origem>Uma pasta com ficheiros de log (escolhe-se o ficheiro a abrir)</origem>
+    <traducao>A folder with log files (you choose the file to open)</traducao>
+  </texto>
+  <texto>
+    <origem>correção</origem>
+    <traducao>bugfix</traducao>
+  </texto>
+  <texto>
+    <origem>melhoria</origem>
+    <traducao>enhancement</traducao>
+  </texto>
+  <texto>
+    <origem>ficheiro completo (até {n} MB)</origem>
+    <traducao>full file (up to {n} MB)</traducao>
+  </texto>
+  <texto>
+    <origem>últimas {n} {n}</origem>
+    <traducao>last {n} {n}</traducao>
+  </texto>
+  <texto>
+    <origem>↻ Recarregar</origem>
+    <traducao>↻ Reload</traducao>
+  </texto>
+  <texto>
+    <origem>Procurar (Enter = seguinte)</origem>
+    <traducao>Search (Enter = next)</traducao>
+  </texto>
+  <texto>
+    <origem>Anterior</origem>
+    <traducao>Previous</traducao>
+  </texto>
+  <texto>
+    <origem>Seguinte</origem>
+    <traducao>Next</traducao>
+  </texto>
+  <texto>
+    <origem>só as linhas encontradas</origem>
+    <traducao>only matching lines</traducao>
+  </texto>
+  <texto>
+    <origem>quebrar linhas</origem>
+    <traducao>wrap lines</traducao>
+  </texto>
+  <texto>
+    <origem>linha</origem>
+    <traducao>line</traducao>
+  </texto>
+  <texto>
+    <origem>Ir para a linha</origem>
+    <traducao>Go to line</traducao>
+  </texto>
+  <texto>
+    <origem>Sem linhas para mostrar.</origem>
+    <traducao>No lines to show.</traducao>
+  </texto>
+  <texto>
+    <origem>linha(s)</origem>
+    <traducao>line(s)</traducao>
+  </texto>
+  <texto>
+    <origem>visíveis</origem>
+    <traducao>visible</traducao>
+  </texto>
+  <texto>
+    <origem>Oracle alert log</origem>
+    <traducao>Oracle alert log</traducao>
+  </texto>
+  <texto>
+    <origem>Oracle listener</origem>
+    <traducao>Oracle listener</traducao>
+  </texto>
+  <texto>
+    <origem>Acesso web (Apache/Nginx)</origem>
+    <traducao>Web access (Apache/Nginx)</traducao>
+  </texto>
+  <texto>
+    <origem>JSON (uma entrada por linha)</origem>
+    <traducao>JSON (one entry per line)</traducao>
+  </texto>
+  <texto>
+    <origem>Data ISO + mensagem</origem>
+    <traducao>ISO date + message</traducao>
+  </texto>
+  <texto>
+    <origem>Texto</origem>
+    <traducao>Text</traducao>
+  </texto>
+  <texto>
+    <origem>entrada(s)</origem>
+    <traducao>entry(ies)</traducao>
+  </texto>
+  <texto>
+    <origem>lido</origem>
+    <traducao>read</traducao>
+  </texto>
+  <texto>
+    <origem>alterado</origem>
+    <traducao>modified</traducao>
+  </texto>
+  <texto>
+    <origem>parte final</origem>
+    <traducao>last part</traducao>
+  </texto>
+  <texto>
+    <origem>Abrir pasta</origem>
+    <traducao>Open folder</traducao>
+  </texto>
+  <texto>
+    <origem>Abrir no visualizador</origem>
+    <traducao>Open in the viewer</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar este log da lista? O ficheiro no servidor não é alterado.</origem>
+    <traducao>Delete this log from the list? The file on the server is not changed.</traducao>
+  </texto>
+  <texto>
+    <origem>O agente não devolveu o ficheiro: veja o output acima.</origem>
+    <traducao>The agent didn't return the file: see the output above.</traducao>
+  </texto>
+  <texto>
+    <origem>Pacote novo</origem>
+    <traducao>New package</traducao>
+  </texto>
+  <texto>
+    <origem>pacote(s)</origem>
+    <traducao>package(s)</traducao>
+  </texto>
+  <texto>
+    <origem>nome do pacote</origem>
+    <traducao>package name</traducao>
   </texto>
 </lingua>

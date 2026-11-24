@@ -865,3 +865,44 @@ details.card.fw-sec { padding: 16px 24px; }
 .tag.accent { background: var(--info-bg); color: var(--accent); }
 .cmd-hist tr { cursor: pointer; }
 .cmd-hist tr.on td { background: var(--th-bg); }
+.cmd-out-x { border: 0; background: transparent; color: var(--muted); font-size: 15px; line-height: 1; padding: 2px 6px; border-radius: 6px; cursor: pointer; }
+.cmd-out-x:hover { background: var(--line); color: var(--ink); }
+
+/* Visualizador de logs */
+.lv-cab { align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.lv-acoes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lv { padding: 0 !important; overflow: hidden; }
+.lv > p { padding: 16px 20px; margin: 0; }
+.lv-bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--th-bg); }
+.lv-bar select, .lv-bar input[type=search], .lv-bar input[type=number] { padding: 5px 8px; font-size: 13px; }
+.lv-proc { display: flex; gap: 6px; align-items: center; }
+.lv-proc input[type=search] { width: 260px; }
+.lv-n0 { font-size: 12px; color: var(--muted); min-width: 60px; }
+.lv-niveis { display: flex; gap: 6px; }
+.lv-chip { border: 1px solid var(--line); background: var(--card); border-radius: 14px; padding: 3px 10px; font-size: 12px; cursor: pointer; opacity: .45; }
+.lv-chip.on { opacity: 1; }
+.lv-chip.c-err b { color: var(--danger); } .lv-chip.c-warn b { color: #b7791f; }
+.lv-dir { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+.lv-ir { width: 90px; }
+.lv-ed { background: #0f141c; color: #d4dbe5; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px;
+  line-height: 1.55; height: calc(100vh - 330px); min-height: 360px; overflow: auto; outline: none; }
+.lv-l { display: flex; }
+.lv-l:hover { background: #18202c; }
+.lv-l.cur { background: #24354f; }
+.lv-l.hit .lv-num { color: #f0c674; }
+.lv-num { flex: none; min-width: 6ch; padding: 0 12px 0 8px; text-align: right; color: #5c6b80; user-select: none; border-right: 1px solid #222c3a;
+  position: sticky; left: 0; background: #0f141c; }
+.lv-txt { padding: 0 12px; white-space: pre; }
+.lv-ed.wrap .lv-txt { white-space: pre-wrap; overflow-wrap: anywhere; }
+.lv-l.n-err { background: rgba(229, 72, 77, .09); } .lv-l.n-err .lv-num { border-right-color: #e5484d; }
+.lv-l.n-warn { background: rgba(240, 180, 41, .07); } .lv-l.n-warn .lv-num { border-right-color: #f0b429; }
+.lv-ed mark { background: #f0c674; color: #111; border-radius: 2px; }
+.t-ts { color: #7aa2f7; } .t-ora, .t-err { color: #ff6b6b; font-weight: 600; } .t-warn { color: #f0b429; font-weight: 600; }
+.t-lvl { color: #9ece6a; } .t-str { color: #e0af68; } .t-ip { color: #bb9af7; } .t-proc { color: #73daca; }
+.t-key { color: #7dcfff; } .t-path { color: #a9b1d6; text-decoration: underline dotted #4a5468; } .t-http { color: #ff9e64; font-weight: 600; }
+.t-num { color: #ff9e64; }
+.lv-rod { padding: 6px 14px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); }
+.lv-vazio { padding: 20px; color: #8090a5; }
+.upd-filtros { margin: 10px 0; }
+.paginas { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 10px; }
+.ed-row td { background: var(--th-bg); }

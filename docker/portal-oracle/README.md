@@ -535,6 +535,14 @@ A página de cada cliente tem, como a Home, a **atualização automática** (man
 
 **Logs — ficheiros seguidos** (agente 1.4.0): além do journal ("Sistema"), cada cliente pode seguir ficheiros de log, agrupados por **tag** na coluna da esquerda. Em **＋ Adicionar / procurar**: *à mão* (pasta, ficheiro — aceita `*` e `?`, usa o mais recente, ex. `alert_*.log` —, descrição, tag e nº de linhas) ou **Procurar ficheiros (scan)**: o agente lista os ficheiros de texto de `/var/log` (sem os rodados/comprimidos) e escolhem-se os que interessam, com descrição e tag. O agente envia as últimas linhas a cada 5 min. Só lê ficheiros dentro de `LOGS_PASTAS` (no `.env` do agente; por omissão `/var/log /u01 /u02 /opt /oracle /app /home`).
 
+Cada log da lista pode ser **editado** (tipo, pasta, ficheiro, descrição, tag, linhas) ou **apagado** (só da lista; o ficheiro no servidor não muda). Além de ficheiros, podem seguir-se **pastas**: o agente (1.6.0+) lista os ficheiros (mais recentes primeiro) e escolhe-se o que abrir.
+
+**Visualizador** (Abrir / Abrir no visualizador): o agente envia as últimas 1 000, 5 000 ou 20 000 linhas, ou o ficheiro completo até 10 MB, e o portal mostra-o como num editor — números de linha, **tipo de log detetado** (Oracle alert log, listener, journald, syslog, acesso Apache/Nginx, auditd, dnf/yum, JSON, data ISO, texto; pode mudar-se), realce de datas, códigos ORA-/TNS-, níveis, IPs, processos, caminhos e texto entre aspas, linhas de erro e aviso marcadas, contagem por nível com filtros (erros, avisos, info, debug), **pesquisa** com navegação (Enter/↑↓) e "só as linhas encontradas", quebra de linha e ir para a linha. **⭳ Descarregar** guarda o que foi lido. Quem não tem `clientes.gerir` só abre os ficheiros configurados nos logs desse cliente; o agente só lê dentro de `LOGS_PASTAS`.
+
+| Visualizador (Oracle alert log) | Pasta de logs |
+|---|---|
+| ![Visualizador](docs/clientes-log-visualizador.png) | ![Pasta](docs/clientes-logs-pasta.png) |
+
 | Ficheiro seguido | Adicionar / procurar |
 |---|---|
 | ![Alert log](docs/clientes-logs-ficheiro.png) | ![Gerir](docs/clientes-logs-gerir.png) |
@@ -552,6 +560,14 @@ O agente **1.5.0** consulta o portal a cada 5 s (`COMANDOS_CADA` no `.env`; sem 
 ![Clientes → Pedidos](docs/clientes-pedidos.png)
 
 **Pedir dados agora** (Processos, Sistema, Logs, Atualizações): o portal responde à sincronização seguinte com o pedido e o agente envia logo esses dados (até um intervalo). A lista de clientes mostra as bases de dados associadas e o número de atualizações pendentes (vermelho com atualizações de segurança, "reiniciar" quando preciso). Requer o agente **1.3.0** (atualize em Ferramentas); `EXTRAS=0` no `.env` do agente desliga estes dados.
+
+**Atualizações**: filtros por **tipo** (segurança com a gravidade, correção, melhoria, pacote novo — do `dnf updateinfo`, agente 1.6.0+), **repositório** e nome do pacote, 20 por página. **Intervalos de recolha** (processos, sistema, logs, ficheiros de log, atualizações — por omissão 6 h): Gerir clientes → **Recolha de dados pelo agente**, aplicados pelos agentes 1.6.0+ na sincronização seguinte.
+
+| Atualizações (filtros e páginas) | Recolha de dados |
+|---|---|
+| ![Atualizações](docs/clientes-atualizacoes.png) | ![Recolha](docs/clientes-recolha.png) |
+
+Os painéis de output dos pedidos têm **✕** para fechar.
 
 | Processos | Atualizações |
 |---|---|

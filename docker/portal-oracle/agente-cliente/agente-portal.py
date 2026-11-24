@@ -47,7 +47,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.5.1"
+VERSAO = "1.6.0"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -372,6 +372,7 @@ def recolher_logs() -> dict:
 def recolher_atualizacoes() -> dict:
     env = dict(os.environ, LANG="C", LC_ALL="C")
     pacotes, seg, erro, ferramenta, reinicio = [], set(), "", "", None
+    tipos, gravidade = {}, {}
     if shutil.which("dnf") or shutil.which("yum"):
         ferramenta = "dnf" if shutil.which("dnf") else "yum"
         rc, out, err = _run([ferramenta, "-q", "check-update"], timeout=900, env=env)
@@ -385,11 +386,19 @@ def recolher_atualizacoes() -> dict:
             c = l.split()
             if len(c) == 3 and "." in c[0]:
                 pacotes.append({"nome": c[0].rsplit(".", 1)[0], "arq": c[0].rsplit(".", 1)[1], "versao": c[1], "repo": c[2]})
-        rc2, out2, _e = _run([ferramenta, "-q", "updateinfo", "list", "--security"], timeout=600, env=env)
-        for l in out2.splitlines():
+        rc2, out2, _e = _run([ferramenta, "-q", "updateinfo", "list"], timeout=600, env=env)
+        for l in out2.splitlines():               # ADVISORY  TIPO[/GRAVIDADE]  PACOTE-VERSAO
             c = l.split()
             if len(c) >= 3:
-                seg.add(c[-1].rsplit("-", 2)[0])
+                nome, t = c[-1].rsplit("-", 2)[0], c[-2].lower()
+                tipo = ("seguranca" if ("sec" in t or "security" in t) else "correcao" if "bugfix" in t
+                        else "melhoria" if "enhancement" in t else "novo" if "newpackage" in t else "")
+                if tipo == "seguranca":
+                    seg.add(nome)
+                if tipo and tipos.get(nome) != "seguranca":
+                    tipos[nome] = tipo
+                if "/" in c[-2]:
+                    gravidade[nome] = c[-2].split("/")[0]
         if shutil.which("needs-restarting"):
             reinicio = _run(["needs-restarting", "-r"], timeout=120, env=env)[0] == 1
     elif shutil.which("apt"):
@@ -409,6 +418,9 @@ def recolher_atualizacoes() -> dict:
         erro = "sem dnf, yum nem apt"
     for p in pacotes:
         p["seguranca"] = p["nome"] in seg
+        p["tipo"] = "seguranca" if p["seguranca"] else tipos.get(p["nome"], "")
+        if p["nome"] in gravidade:
+            p["gravidade"] = gravidade[p["nome"]]
     return {"ferramenta": ferramenta, "total": len(pacotes), "seguranca": sum(1 for p in pacotes if p["seguranca"]),
             "reinicio": reinicio, "erro": erro, "pacotes": pacotes[:600],
             "verificado": datetime.datetime.now().isoformat(timespec="seconds")}
@@ -442,6 +454,9 @@ def recolher_ficheiros() -> dict:
     out = {}
     for f in _ext["ficheiros_cfg"]:
         fid = str(f.get("id"))
+        if not f.get("ficheiro"):                       # pasta: lista os ficheiros (para abrir no portal)
+            out[fid] = _listar_pasta(f.get("pasta") or "/")
+            continue
         padrao = os.path.join(f.get("pasta") or "/", f.get("ficheiro") or "")
         try:
             cands = [c for c in glob.glob(padrao) if os.path.isfile(c)]
@@ -458,6 +473,74 @@ def recolher_ficheiros() -> dict:
         except (OSError, ValueError) as e:
             out[fid] = {"erro": str(e)}
     return out
+
+
+def _listar_pasta(pasta: str) -> dict:
+    if not _permitido(pasta):
+        return {"pasta": True, "erro": "fora das pastas permitidas no agente (LOGS_PASTAS): " + pasta}
+    if not os.path.isdir(pasta):
+        return {"pasta": True, "erro": "pasta nao encontrada: " + pasta}
+    lista = []
+    try:
+        for e in os.scandir(pasta):
+            try:
+                if e.is_file(follow_symlinks=False):
+                    st = e.stat(follow_symlinks=False)
+                    lista.append({"nome": e.name, "tamanho": st.st_size, "alterado": int(st.st_mtime)})
+                elif e.is_dir(follow_symlinks=False):
+                    lista.append({"nome": e.name, "pasta": True, "alterado": int(e.stat(follow_symlinks=False).st_mtime)})
+            except OSError:
+                continue
+    except OSError as e:
+        return {"pasta": True, "erro": str(e)}
+    lista.sort(key=lambda x: (not x.get("pasta"), -x["alterado"]))
+    return {"pasta": True, "caminho": pasta, "ficheiros": lista[:1000], "total": len(lista)}
+
+
+LER_MAX = 10 * 1024 * 1024
+
+
+def ler_ficheiro(cfg: dict, cmd_id, args: dict) -> None:
+    """Comando 'ler': envia ao portal o conteudo de um ficheiro de log (ultimas N linhas, ou ate 10 MB) para o
+    visualizador e o download. So dentro de LOGS_PASTAS; ficheiros binarios sao recusados."""
+    import gzip  # noqa: PLC0415
+    caminho = args.get("caminho") or ""
+    try:
+        if args.get("listar"):
+            d = _listar_pasta(caminho)
+            if d.get("erro"):
+                raise ValueError(d["erro"])
+            pedido(cfg, f"comando/{cmd_id}", {"linhas": [f"pasta {caminho}: {d['total']} entrada(s)"], "estado": "OK", "dados": d}, timeout=60)
+            return
+        real = os.path.realpath(caminho)
+        if not _permitido(real):
+            raise ValueError("fora das pastas permitidas no agente (LOGS_PASTAS): " + caminho)
+        if not os.path.isfile(real):
+            raise ValueError("ficheiro nao encontrado: " + caminho)
+        st = os.stat(real)
+        n = int(args.get("linhas") or 0)
+        with open(real, "rb") as f:
+            inicio = max(0, st.st_size - LER_MAX)
+            f.seek(inicio)
+            dados = f.read(LER_MAX)
+        if b"\0" in dados[:65536] or b"\0" in dados[-65536:]:
+            raise ValueError("ficheiro binario: nao e um log de texto")
+        texto = dados.decode("utf-8", errors="replace")
+        linhas = texto.splitlines()
+        if inicio and linhas:
+            linhas = linhas[1:]
+        truncado = bool(inicio)
+        if n and len(linhas) > n:
+            linhas, truncado = linhas[-n:], True
+        corpo = "\n".join(linhas)
+        gz = base64.b64encode(gzip.compress(corpo.encode("utf-8"))).decode()
+        msg = (f"lido {real}: {len(linhas)} linha(s), {st.st_size // 1024} KB no disco"
+               + (" (so a parte final)" if truncado else ""))
+        pedido(cfg, f"comando/{cmd_id}", {"linhas": [msg], "estado": "OK",
+                                          "dados": {"caminho": real, "tamanho": st.st_size, "alterado": int(st.st_mtime),
+                                                    "linhas": len(linhas), "truncado": truncado, "gz": gz}}, timeout=120)
+    except Exception as e:  # noqa: BLE001
+        _cmd_post(cfg, cmd_id, [f"erro: {e}"], "ERRO")
 
 
 def recolher_scan() -> dict:
@@ -634,6 +717,9 @@ def _reportar_reinicio(cfg: dict) -> bool:
 def executar_comando(cfg: dict, c: dict) -> None:
     if c.get("tipo") == "atualizar":
         atualizar_agente(cfg, c.get("args") or {}, c.get("id"))
+    elif c.get("tipo") == "ler":
+        _cmd_post(cfg, c.get("id"), ["a ler " + str((c.get("args") or {}).get("caminho"))])
+        ler_ficheiro(cfg, c.get("id"), c.get("args") or {})
     else:
         _cmd_post(cfg, c.get("id"), [f"comando desconhecido nesta versao ({VERSAO}): {c.get('tipo')}"], "ERRO")
 
@@ -667,6 +753,10 @@ def sincronizar(cfg: dict, pedidos=()) -> dict:
     se mudou (ficheiro novo), acrescenta 'ficheiros' aos pedidos para enviar ja as linhas."""
     with _sync_trava:
         r = pedido(cfg, "sync", {"info": recolher(cfg), "extras": extras(cfg, pedidos)})
+        if isinstance(r.get("intervalos"), dict):          # Gerir clientes -> Recolha de dados
+            for k, v in r["intervalos"].items():
+                if k in EXTRAS_CADA and EXTRAS_CADA[k] is not None and isinstance(v, int):
+                    EXTRAS_CADA[k] = max(0 if k == "processos" else 60, v)
         if isinstance(r.get("ficheiros_log"), list):
             novos = r["ficheiros_log"] != _ext["ficheiros_cfg"]
             _ext["ficheiros_cfg"] = r["ficheiros_log"]

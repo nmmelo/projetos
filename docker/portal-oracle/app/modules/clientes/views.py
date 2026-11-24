@@ -97,6 +97,7 @@ def detalhe(cid):
                            desatualizado=clientes.desatualizado(c),
                            atualizar_pedido=store.get_setting(f"cliente_atualizar:{cid}") or "",
                            comandos=clientes.comandos(cid, 15) if aba == "agente" else [], descrever=clientes.descrever,
+                           intervalos=clientes.intervalos_recolha(),
                            livres=[d for d in todas if str(d.get("cliente_id") or "") != str(cid)],
                            modos=agente_rpc.MODOS)
 
@@ -135,8 +136,14 @@ def logs_ficheiros(cid):
         if acao == "scan":
             destino["cmd"] = clientes.pedir_dados(cid, ["scan"], g.user.username)
         elif acao == "adicionar":
-            clientes.guardar_log(cid, f.get("pasta"), f.get("ficheiro"), f.get("descricao"), f.get("tag"), f.get("linhas") or 200)
-            destino["cmd"] = clientes.pedir_dados(cid, ["logs"], g.user.username, f"ficheiro novo: {f.get('ficheiro')}")
+            fich = "" if f.get("tipo") == "pasta" else f.get("ficheiro")
+            clientes.guardar_log(cid, f.get("pasta"), fich, f.get("descricao"), f.get("tag"), f.get("linhas") or 200)
+            destino["cmd"] = clientes.pedir_dados(cid, ["logs"], g.user.username,
+                                                  f"ficheiro novo: {fich}" if fich else f"pasta nova: {f.get('pasta')}")
+        elif acao == "editar":
+            fich = "" if f.get("tipo") == "pasta" else f.get("ficheiro")
+            clientes.editar_log(cid, int(f.get("lid") or 0), f.get("pasta"), fich, f.get("descricao"), f.get("tag"), f.get("linhas") or 200)
+            destino["cmd"] = clientes.pedir_dados(cid, ["logs"], g.user.username, "log alterado")
         elif acao == "adicionar_scan":
             sel = f.getlist("sel")
             for caminho in sel:
@@ -148,10 +155,45 @@ def logs_ficheiros(cid):
                 flash("Nenhum ficheiro selecionado.", "error")
         elif acao == "remover":
             clientes.apagar_log(cid, int(f.get("lid") or 0))
-            flash("Ficheiro retirado dos logs.", "ok")
+            flash("Log apagado da lista deste cliente (o ficheiro no servidor não é alterado).", "ok")
     except ValueError as exc:
         flash(str(exc), "error")
     return redirect(url_for("clientes.detalhe", **destino))
+
+
+@bp.route("/cliente/<int:cid>/ler", methods=["POST"])
+@auth.requires(MODULO.acesso)
+def ler_ficheiro(cid):
+    clientes.obter(cid) or abort(404)
+    caminho = os.path.normpath((request.form.get("caminho") or "").strip())
+    if not caminho.startswith("/") or ".." in caminho.split("/"):
+        return jsonify(ok=False, erro="caminho inválido"), 400
+    if not clientes.pode_ler(cid, caminho, g.user.can("clientes.gerir")):
+        return jsonify(ok=False, erro="só pode abrir os ficheiros configurados nos logs deste cliente"), 403
+    cmd = clientes.pedir_leitura(cid, caminho, int(request.form.get("linhas") or 0),
+                                 request.form.get("listar") == "1", g.user.username)
+    return jsonify(ok=True, id=cmd)
+
+
+@bp.route("/cliente/<int:cid>/leitura/<int:cmd_id>")
+@auth.requires(MODULO.acesso)
+def leitura(cid, cmd_id):
+    d = clientes.leitura(cid, cmd_id) or abort(404)
+    if request.args.get("download"):
+        nome = os.path.basename(d.get("caminho") or "log") or "log"
+        return Response(d.get("texto") or "", mimetype="text/plain; charset=utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="{nome}"'})
+    return jsonify(d)
+
+
+@bp.route("/cliente/<int:cid>/ver")
+@auth.requires(MODULO.acesso)
+def ver_ficheiro(cid):
+    c = clientes.obter(cid) or abort(404)
+    caminho = os.path.normpath(request.args.get("caminho") or "/")
+    return render_template("clientes/visualizador.html", c=c, caminho=caminho, linhas=request.args.get("n", "5000"),
+                           pasta=request.args.get("pasta") == "1", voltar=request.args.get("voltar") or
+                           url_for("clientes.detalhe", cid=cid, aba="logs"))
 
 
 @bp.route("/cliente/<int:cid>/atualizar-agente", methods=["POST"])
@@ -225,6 +267,8 @@ def agente_comando(cmd_id):
     d = request.get_json(silent=True) or {}
     for l in (d.get("linhas") or ([d["linha"]] if d.get("linha") else []))[:50]:
         clientes.comando_linha(cmd_id, str(l)[:1000])
+    if r["tipo"] == "ler" and isinstance(d.get("dados"), dict):
+        clientes.guardar_leitura(c["id"], cmd_id, d["dados"])
     if d.get("estado") in ("OK", "ERRO"):
         clientes.comando_estado(cmd_id, d["estado"])
     return jsonify(ok=True)
@@ -318,7 +362,23 @@ def gerir():
     except RuntimeError as exc:
         chave, erro_chave = "", str(exc)
     return render_template("clientes/gerir.html", clientes=clientes.listar(), familias=clientes.FAMILIAS,
-                           chave=chave, erro_chave=erro_chave, cfg=_cfg(), tab="portal", sub="clientes")
+                           chave=chave, erro_chave=erro_chave, cfg=_cfg(), tab="portal", sub="clientes",
+                           recolha=clientes.RECOLHA, intervalos=clientes.intervalos_recolha())
+
+
+@bp.route("/gerir/recolha", methods=["POST"])
+@auth.requires(MODULO.acesso, "clientes.gerir")
+def gerir_recolha():
+    novos = {}
+    for k, (nome, padrao, _h) in clientes.RECOLHA.items():
+        try:
+            v = int(float(request.form.get(k) or 0) * (60 if k != "processos" else 1))
+        except ValueError:
+            v = padrao
+        novos[f"clientes_recolha_{k}"] = str(max(0 if k == "processos" else 60, min(7 * 86400, v)))
+    store.save_settings(novos)
+    flash("Intervalos de recolha guardados: os agentes (1.6.0+) aplicam-nos na sincronização seguinte.", "ok")
+    return redirect(url_for("clientes.gerir") + "#recolha")
 
 
 @bp.route("/gerir/definicoes", methods=["POST"])

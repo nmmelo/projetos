@@ -150,7 +150,7 @@
   {% if g.grouper %}<div class="lf-tag">{{ g.grouper }}</div>{% endif %}
   {% for l in g.list %}{% set r = fx.get(l.id|string) %}
   <a href="{{ url_for('clientes.detalhe', cid=c.id, aba='logs', f=l.id) }}" class="{{ 'on' if lf == l.id|string }}" title="{{ l.pasta }}/{{ l.ficheiro }}">
-    <b>{{ l.descricao or l.ficheiro }}</b><small translate="no">{% if r and r.erro %}<span class="c-bad">⚠</span> {% endif %}{{ l.ficheiro }}</small></a>
+    <b>{{ '📁 ' if not l.ficheiro }}{{ l.descricao or l.ficheiro or l.pasta }}</b><small translate="no">{% if r and r.erro %}<span class="c-bad">⚠</span> {% endif %}{{ l.ficheiro or l.pasta }}</small></a>
   {% endfor %}{% endfor %}
   {% if user.can('clientes.gerir') %}
   <a href="{{ url_for('clientes.detalhe', cid=c.id, aba='logs', f='gerir') }}" class="lf-gerir {{ 'on' if lf == 'gerir' }}">＋ Adicionar / procurar</a>
@@ -174,14 +174,27 @@
   {% if logs_cfg %}<div class="table-wrap"><table class="small-tab">
     <thead><tr><th>Descrição</th><th>Tag</th><th>Pasta</th><th>Ficheiro</th><th class="num">Linhas</th><th>Estado</th><th></th></tr></thead>
     <tbody>{% for l in logs_cfg %}{% set r = fx.get(l.id|string) %}<tr><td><b>{{ l.descricao or '—' }}</b></td><td>{% if l.tag %}<span class="tag">{{ l.tag }}</span>{% endif %}</td>
-      <td translate="no"><small>{{ l.pasta }}</small></td><td translate="no"><code>{{ l.ficheiro }}</code></td><td class="num">{{ l.linhas }}</td>
-      <td>{% if not r %}<small class="muted">à espera do agente</small>{% elif r.erro %}<small class="c-bad">{{ r.erro }}</small>{% else %}<small class="c-ok">OK · {{ r.tamanho|filesizeformat(true) }}</small>{% endif %}</td>
-      <td class="acts"><form method="post" action="{{ url_for('clientes.logs_ficheiros', cid=c.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
-        <input type="hidden" name="acao" value="remover"><input type="hidden" name="lid" value="{{ l.id }}"><button class="btn small danger">Retirar</button></form></td></tr>{% endfor %}</tbody></table></div>{% endif %}
+      <td translate="no"><small>{{ l.pasta }}</small></td><td translate="no">{% if l.ficheiro %}<code>{{ l.ficheiro }}</code>{% else %}<span class="tag">📁 pasta</span>{% endif %}</td><td class="num">{{ l.linhas if l.ficheiro else '—' }}</td>
+      <td>{% if not r %}<small class="muted">à espera do agente</small>{% elif r.erro %}<small class="c-bad">{{ r.erro }}</small>{% elif r.pasta %}<small class="c-ok">OK · {{ r.total }} entrada(s)</small>{% else %}<small class="c-ok">OK · {{ r.tamanho|filesizeformat(true) }}</small>{% endif %}</td>
+      <td class="acts"><button type="button" class="btn small" onclick="const r = document.getElementById('ed{{ l.id }}'); r.hidden = !r.hidden">✎ Editar</button>
+        <form method="post" action="{{ url_for('clientes.logs_ficheiros', cid=c.id) }}" style="display:inline" onsubmit="return confirm((window.t || String)('Apagar este log da lista? O ficheiro no servidor não é alterado.'))"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <input type="hidden" name="acao" value="remover"><input type="hidden" name="lid" value="{{ l.id }}"><button class="btn small danger">Apagar</button></form></td></tr>
+    <tr id="ed{{ l.id }}" hidden class="ed-row"><td colspan="7">
+      <form method="post" action="{{ url_for('clientes.logs_ficheiros', cid=c.id) }}" class="inline-form">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="editar"><input type="hidden" name="lid" value="{{ l.id }}">
+        <label>Tipo <select name="tipo" onchange="this.form.ficheiro.disabled = this.value == 'pasta'"><option value="ficheiro">Ficheiro</option><option value="pasta" {{ 'selected' if not l.ficheiro }}>Pasta</option></select></label>
+        <label>Pasta <input name="pasta" value="{{ l.pasta }}" required style="width:320px" translate="no"></label>
+        <label>Ficheiro <input name="ficheiro" value="{{ l.ficheiro }}" {{ 'disabled' if not l.ficheiro }} translate="no"></label>
+        <label>Descrição <input name="descricao" value="{{ l.descricao or '' }}"></label>
+        <label>Tag <input name="tag" value="{{ l.tag or '' }}" list="tags-log" style="width:120px"></label>
+        <label>Linhas <input name="linhas" type="number" min="20" max="2000" value="{{ l.linhas or 200 }}" style="width:90px"></label>
+        <button class="primary small">Guardar</button></form></td></tr>{% endfor %}</tbody></table></div>{% endif %}
 
   <h3 style="margin-top:20px">Adicionar à mão</h3>
   <form method="post" action="{{ url_for('clientes.logs_ficheiros', cid=c.id) }}" class="grid">
     <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="adicionar">
+    <div class="full radios"><label class="inline"><input type="radio" name="tipo" value="ficheiro" checked onchange="this.form.ficheiro.disabled = false; this.form.ficheiro.required = true"> <span>Um ficheiro (o portal mostra as últimas linhas)</span></label>
+      <label class="inline"><input type="radio" name="tipo" value="pasta" onchange="this.form.ficheiro.disabled = true; this.form.ficheiro.required = false"> <span>Uma pasta com ficheiros de log (escolhe-se o ficheiro a abrir)</span></label></div>
     <label>Pasta <input name="pasta" required placeholder="/u01/app/oracle/diag/rdbms/prod/PROD/trace" translate="no"></label>
     <label>Ficheiro <input name="ficheiro" required placeholder="alert_PROD.log" translate="no"><span class="hint">Aceita * e ? (usa o mais recente).</span></label>
     <label>Descrição <input name="descricao" placeholder="Alert log PROD"></label>
@@ -219,8 +232,32 @@
 
 {% else %}
   {% set l = (logs_cfg|selectattr('id', 'equalto', lf|int)|list or [None])[0] %}
-  {% if l %}{% set r = fx.get(l.id|string) %}
-  <div class="modulo-head"><h2>{{ l.descricao or l.ficheiro }} {% if l.tag %}<span class="tag">{{ l.tag }}</span>{% endif %}</h2>{{ quando(dd.ficheiros) }}</div>
+  {% if l and not l.ficheiro %}{% set r = fx.get(l.id|string) %}
+  {% set vv = url_for('clientes.detalhe', cid=c.id, aba='logs', f=l.id) %}
+  <div class="modulo-head"><h2>📁 {{ l.descricao or l.pasta }} {% if l.tag %}<span class="tag">{{ l.tag }}</span>{% endif %}</h2>{{ quando(dd.ficheiros) }}</div>
+  <p class="hint" translate="no"><code>{{ l.pasta }}</code>{% if r and r.total %} · {{ r.total }} entrada(s){% endif %}</p>
+  {% if not r %}<p class="muted">À espera do agente (próximo contacto; agente 1.6.0+ para pastas).</p>
+  {% elif r.erro %}<p class="flash error">{{ r.erro }}</p>
+  {% elif not r.pasta %}<p class="muted">O agente desta versão ainda não lista pastas: atualize-o (aba Agente).</p>
+  {% else %}
+  <input type="search" class="filtro" data-alvo="tpasta" placeholder="Filtrar ficheiros">
+  <div class="table-wrap"><table class="small-tab" id="tpasta">
+    <thead><tr><th>Nome</th><th class="num">Tamanho</th><th>Alterado</th><th></th></tr></thead>
+    <tbody>{% for f in r.ficheiros %}{% set p = l.pasta.rstrip('/') ~ '/' ~ f.nome %}
+    <tr><td translate="no">{{ '📁' if f.pasta else '📄' }} <a href="{{ url_for('clientes.ver_ficheiro', cid=c.id, caminho=p, pasta=1 if f.pasta else None, voltar=vv) }}">{{ f.nome }}</a></td>
+      <td class="num">{{ f.tamanho|filesizeformat(true) if not f.pasta }}</td><td><small>{{ f.alterado|ts_epoch }}</small></td>
+      <td class="acts">{% if f.pasta %}<a class="btn small" href="{{ url_for('clientes.ver_ficheiro', cid=c.id, caminho=p, pasta=1, voltar=vv) }}">Abrir pasta</a>
+        {% else %}<a class="btn small primary" href="{{ url_for('clientes.ver_ficheiro', cid=c.id, caminho=p, voltar=vv) }}">Abrir</a>
+        <a class="btn small" href="{{ url_for('clientes.ver_ficheiro', cid=c.id, caminho=p, n=0, download=1, voltar=vv) }}" title="Descarregar (até 10 MB)">⭳</a>{% endif %}</td></tr>
+    {% endfor %}</tbody></table></div>
+  <p class="hint">Mais recentes primeiro. Abrir mostra o ficheiro no visualizador (números de linha, realce do tipo de log, pesquisa e download).</p>
+  {% endif %}
+  {% elif l %}{% set r = fx.get(l.id|string) %}
+  {% set vv = url_for('clientes.detalhe', cid=c.id, aba='logs', f=l.id) %}
+  <div class="modulo-head"><h2>{{ l.descricao or l.ficheiro }} {% if l.tag %}<span class="tag">{{ l.tag }}</span>{% endif %}</h2>
+    <div class="lv-acoes">{{ quando(dd.ficheiros) }}{% if r and r.caminho %}
+      <a class="btn small primary" href="{{ url_for('clientes.ver_ficheiro', cid=c.id, caminho=r.caminho, voltar=vv) }}">Abrir no visualizador</a>
+      <a class="btn small" href="{{ url_for('clientes.ver_ficheiro', cid=c.id, caminho=r.caminho, n=0, download=1, voltar=vv) }}">⭳ Descarregar</a>{% endif %}</div></div>
   <p class="hint" translate="no"><code>{{ r.caminho if r and r.caminho else l.pasta ~ '/' ~ l.ficheiro }}</code>
     {% if r and r.tamanho is defined %} · {{ r.tamanho|filesizeformat(true) }} · alterado {{ r.alterado|ts_epoch }}{% if r.correspondencias > 1 %} · o mais recente de {{ r.correspondencias }}{% endif %}{% endif %}</p>
   {% if not r %}<p class="muted">À espera do agente (próximo contacto; agente 1.4.0+).</p>
@@ -250,14 +287,26 @@
     <div class="an-tile"><span>Verificado</span><b style="font-size:14px">{{ (u.verificado or '')|replace('T', ' ') }}</b><small>{{ u.ferramenta }}</small></div>
   </div>
   {% if u.pacotes %}
-  <input type="search" class="filtro" data-alvo="tupd" placeholder="Filtrar pacotes">
-  <div class="table-wrap"><table class="small-tab ordenavel" id="tupd">
-    <thead><tr><th>Pacote</th><th>Nova versão</th>{% if u.ferramenta == 'apt' %}<th>Instalada</th>{% endif %}<th>Repositório</th><th>Arq.</th><th>Segurança</th></tr></thead>
-    <tbody>{% for p in u.pacotes|sort(attribute='seguranca', reverse=True) %}<tr><td translate="no"><b>{{ p.nome }}</b></td><td translate="no">{{ p.versao }}</td>
+  {% set TIPOS_UPD = {'seguranca': 'Segurança', 'correcao': 'Correção', 'melhoria': 'Melhoria', 'novo': 'Pacote novo', '': 'Sem classificação'} %}
+  <div class="inline-form upd-filtros" id="upd-filtros">
+    <label>Tipo <select data-f="tipo"><option value="*">Todos</option>{% for k, t in TIPOS_UPD.items() %}{% set n = u.pacotes|selectattr('tipo', 'defined')|selectattr('tipo', 'equalto', k)|list|length if k != 'seguranca' else u.seguranca %}
+      {% if n %}<option value="{{ k }}">{{ t }} ({{ n }})</option>{% endif %}{% endfor %}</select></label>
+    <label>Repositório <select data-f="repo"><option value="*">Todos</option>{% for r in u.pacotes|map(attribute='repo')|unique|sort %}
+      <option value="{{ r }}" translate="no">{{ r }} ({{ u.pacotes|selectattr('repo', 'equalto', r)|list|length }})</option>{% endfor %}</select></label>
+    <label>Pacote <input type="search" data-f="q" placeholder="nome do pacote"></label>
+    <span class="muted small" id="upd-n"></span>
+  </div>
+  <div class="table-wrap"><table class="small-tab" id="tupd">
+    <thead><tr><th>Pacote</th><th>Nova versão</th>{% if u.ferramenta == 'apt' %}<th>Instalada</th>{% endif %}<th>Repositório</th><th>Arq.</th><th>Tipo</th></tr></thead>
+    <tbody>{% for p in u.pacotes|sort(attribute='seguranca', reverse=True) %}{% set tp = p.tipo if p.tipo is defined else ('seguranca' if p.seguranca else '') %}
+      <tr data-tipo="{{ tp }}" data-repo="{{ p.repo }}"><td translate="no"><b>{{ p.nome }}</b></td><td translate="no">{{ p.versao }}</td>
       {% if u.ferramenta == 'apt' %}<td translate="no"><small>{{ p.atual }}</small></td>{% endif %}<td translate="no"><small>{{ p.repo }}</small></td><td><small>{{ p.arq }}</small></td>
-      <td>{% if p.seguranca %}<span class="tag bad">segurança</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+      <td>{% if tp == 'seguranca' %}<span class="tag bad">segurança{{ ' · ' ~ p.gravidade if p.gravidade }}</span>{% elif tp %}<span class="tag {{ 'warn' if tp == 'correcao' else 'info' }}">{{ TIPOS_UPD[tp]|lower }}</span>{% else %}<small class="muted">—</small>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+  <div class="paginas" id="upd-pag"></div>
   <p class="hint">Para instalar, no servidor: <code>{{ 'sudo apt-get update && sudo apt-get upgrade' if u.ferramenta == 'apt' else 'sudo ' ~ (u.ferramenta or 'dnf') ~ ' update' ~ (' --security' if u.seguranca else '') }}</code>.
-    O agente verifica a cada 6 h{{ ' (com o apt, a partir da última lista descarregada: apt-get update)' if u.ferramenta == 'apt' }}.</p>
+    O agente verifica a cada {{ (intervalos.atualizacoes // 3600) ~ ' h' if intervalos.atualizacoes % 3600 == 0 else (intervalos.atualizacoes // 60) ~ ' min' }}
+    {%- if user.can('clientes.gerir') %} (muda-se em <a href="{{ url_for('clientes.gerir') }}#recolha">Gerir clientes → Recolha de dados</a>){% endif %}
+    {{- ' — com o apt, a partir da última lista descarregada (apt-get update)' if u.ferramenta == 'apt' }}. O tipo vem do <code>{{ u.ferramenta or 'dnf' }} updateinfo</code> (agente 1.6.0+).</p>
   {% elif not u.erro %}{{ saude('ok', 'Sistema atualizado', 'sem pacotes pendentes') }}{% endif %}
   {% else %}<p class="muted">Sem dados (agente 1.3.0+). A primeira verificação pode demorar alguns minutos (dnf/yum consultam os repositórios).</p>{% endif %}
 </section>
@@ -389,7 +438,20 @@
         rs.sort((a, b) => (v(a) > v(b) ? 1 : v(a) < v(b) ? -1 : 0) * (asc ? 1 : -1)); rs.forEach(r => tb.appendChild(r)); }; });
     });
   }
-  filtros();
+  function paginar() {        /* Atualizacoes: filtros por tipo/repositorio/pacote e 20 por pagina */
+    const t = $('tupd'), fz = $('upd-filtros'); if (!t || !fz) return;
+    const v = k => (fz.querySelector(`[data-f=${k}]`) || {}).value || '';
+    if (!fz.dataset.ok) { fz.dataset.ok = 1; fz.querySelectorAll('[data-f]').forEach(x => x.addEventListener('input', () => { fz.dataset.pag = 0; paginar(); })); }
+    const rs = [...t.tBodies[0].rows], q = v('q').toLowerCase(), tipo = v('tipo'), repo = v('repo');
+    const ok = rs.filter(r => (tipo === '*' || r.dataset.tipo === tipo) && (repo === '*' || r.dataset.repo === repo)
+      && (!q || r.cells[0].textContent.toLowerCase().includes(q)));
+    const POR = 20, n = Math.max(1, Math.ceil(ok.length / POR)); let pag = Math.min(+(fz.dataset.pag || 0), n - 1);
+    rs.forEach(r => r.style.display = 'none'); ok.slice(pag * POR, pag * POR + POR).forEach(r => r.style.display = '');
+    $('upd-n').textContent = `${ok.length} ${(window.t || String)('pacote(s)')}`;
+    const pg = $('upd-pag'); pg.innerHTML = n > 1 ? [...Array(n).keys()].map(i => `<button type="button" class="btn small ${i === pag ? 'primary' : ''}" data-p="${i}">${i + 1}</button>`).join('') : '';
+    pg.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { fz.dataset.pag = b.dataset.p; paginar(); });
+  }
+  filtros(); paginar();
   let blocos = async function () {
     const r = await fetch(location.href, {cache: 'no-store'});
     if (!r.ok) throw new Error(r.status);
@@ -402,6 +464,7 @@
       el.querySelectorAll('input.filtro').forEach((f, k) => { f.value = q[k] || ''; });
     });
     filtros(); document.querySelectorAll('input.filtro').forEach(f => f.value && f._ap && f._ap());
+    paginar();
   };
   /* aba Agente: atualizar com output em direto */
   const out = $('cmd-out');
@@ -425,7 +488,7 @@
       tr.addEventListener('click', () => { document.querySelectorAll('.cmd-hist tr.on').forEach(x => x.classList.remove('on')); tr.classList.add('on');
         PortalComando.seguir(tr.dataset.cmd, out); }); });
     const ativo = document.querySelector('.cmd-hist tr[data-ativo="1"]');
-    if (ativo && out.hidden) { ativo.classList.add('on'); PortalComando.seguir(ativo.dataset.cmd, out, () => blocos()); }
+    if (ativo && out.hidden && out.dataset.fechado !== ativo.dataset.cmd) { ativo.classList.add('on'); PortalComando.seguir(ativo.dataset.cmd, out, () => blocos()); }
   }
   if (out) ligarAgente();
   const _blocos = blocos;

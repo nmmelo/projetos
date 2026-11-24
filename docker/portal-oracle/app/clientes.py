@@ -353,6 +353,21 @@ def _dados_recebidos(cid: int, extras: dict) -> None:
                 comando_estado(r["id"], "OK")
 
 
+# ============================================================ intervalos de recolha (Gerir clientes -> Recolha de dados)
+RECOLHA = {"processos": ("Processos", 0, "em cada sincronização"), "sistema": ("Sistema", 3600, ""), "logs": ("Logs (journal)", 300, ""),
+           "ficheiros": ("Ficheiros de log", 300, ""), "atualizacoes": ("Atualizações pendentes", 21600, "dnf/yum consultam os repositórios")}
+
+
+def intervalos_recolha() -> dict:
+    out = {}
+    for k, (_n, padrao, _h) in RECOLHA.items():
+        try:
+            out[k] = int(store.get_setting(f"clientes_recolha_{k}") or padrao)
+        except ValueError:
+            out[k] = padrao
+    return out
+
+
 # ============================================================ ficheiros de log seguidos (por cliente)
 LOG_PASTA_RE = re.compile(r"^/[\w./ -]{0,490}$")
 LOG_FICH_RE = re.compile(r"^[\w.*?\[\] -]{1,200}$")
@@ -363,12 +378,74 @@ def logs_cfg(cid: int) -> list[dict]:
         return t.all("SELECT * FROM cliente_logs WHERE cliente_id = ? ORDER BY tag, descricao, ficheiro", (cid,))
 
 
-def guardar_log(cid: int, pasta: str, ficheiro: str, descricao: str = "", tag: str = "", linhas: int = 200) -> None:
+def editar_log(cid: int, lid: int, pasta: str, ficheiro: str, descricao: str = "", tag: str = "", linhas: int = 200) -> None:
+    pasta, ficheiro = _validar_log(pasta, ficheiro)
+    with store.tx() as t:
+        t.run("UPDATE cliente_logs SET pasta = ?, ficheiro = ?, descricao = ?, tag = ?, linhas = ? WHERE id = ? AND cliente_id = ?",
+              (pasta, ficheiro, (descricao or "")[:255], (tag or "")[:40], max(20, min(2000, int(linhas or 200))), lid, cid))
+
+
+def _validar_log(pasta: str, ficheiro: str) -> tuple[str, str]:
     pasta, ficheiro = (pasta or "").strip().rstrip("/") or "/", (ficheiro or "").strip()
     if not LOG_PASTA_RE.match(pasta) or ".." in pasta:
         raise ValueError("Pasta inválida (caminho absoluto, sem '..').")
-    if not LOG_FICH_RE.match(ficheiro) or "/" in ficheiro:
-        raise ValueError("Nome de ficheiro inválido (pode usar * e ?).")
+    if ficheiro and (not LOG_FICH_RE.match(ficheiro) or "/" in ficheiro):
+        raise ValueError("Nome de ficheiro inválido (pode usar * e ?). Deixe vazio para seguir a pasta.")
+    return pasta, ficheiro
+
+
+def pode_ler(cid: int, caminho: str, gerir: bool) -> bool:
+    """Quem gere clientes le qualquer ficheiro (dentro de LOGS_PASTAS, verificado pelo agente); os restantes
+    so os ficheiros configurados nos logs deste cliente (ou dentro de uma pasta configurada)."""
+    import fnmatch
+    if gerir:
+        return True
+    caminho = os.path.normpath(caminho or "")
+    for l in logs_cfg(cid):
+        if not l["ficheiro"] and (caminho == l["pasta"] or caminho.startswith(l["pasta"].rstrip("/") + "/")):
+            return True
+        if l["ficheiro"] and os.path.dirname(caminho) == l["pasta"] and fnmatch.fnmatch(os.path.basename(caminho), l["ficheiro"]):
+            return True
+    return False
+
+
+def pedir_leitura(cid: int, caminho: str, linhas: int = 5000, listar: bool = False, por: str = "") -> int:
+    c = obter(cid) or {}
+    cmd = criar_comando(cid, "ler", json.dumps({"caminho": caminho, "linhas": int(linhas or 0), "listar": bool(listar)})[:500], por)
+    comando_linha(cmd, f"pedido por {por or 'portal'}: {'listar a pasta' if listar else 'ler'} {caminho}"
+                       + ("" if listar else (f" (últimas {linhas} linhas)" if linhas else " (completo, até 10 MB)")))
+    if _v(c.get("versao") or "0") < (1, 6, 0):
+        comando_linha(cmd, f"o agente {c.get('versao') or '(sem versão)'} não sabe abrir ficheiros (a partir da 1.6.0): atualize-o na aba Agente")
+        comando_estado(cmd, "ERRO")
+    return cmd
+
+
+def guardar_leitura(cid: int, cmd_id: int, dados: dict) -> None:
+    tipo = f"ler:{cmd_id}"
+    with store.tx() as t:
+        t.run("INSERT INTO cliente_dados (cliente_id, tipo, atualizado, dados) VALUES (?, ?, ?, ?)",
+              (cid, tipo, store.now(), json.dumps(dados)))
+        velhos = t.all("SELECT id FROM cliente_dados WHERE cliente_id = ? AND tipo LIKE 'ler:%' ORDER BY id DESC", (cid,))[20:]
+        for v in velhos:
+            t.run("DELETE FROM cliente_dados WHERE id = ?", (v["id"],))
+
+
+def leitura(cid: int, cmd_id: int) -> dict | None:
+    import base64
+    import gzip
+    with store.tx() as t:
+        r = t.one("SELECT dados, atualizado FROM cliente_dados WHERE cliente_id = ? AND tipo = ?", (cid, f"ler:{cmd_id}"))
+    if not r:
+        return None
+    d = json.loads(r["dados"] or "{}")
+    if d.get("gz"):
+        d["texto"] = gzip.decompress(base64.b64decode(d.pop("gz"))).decode("utf-8", errors="replace")
+    d["recebido"] = r["atualizado"]
+    return d
+
+
+def guardar_log(cid: int, pasta: str, ficheiro: str, descricao: str = "", tag: str = "", linhas: int = 200) -> None:
+    pasta, ficheiro = _validar_log(pasta, ficheiro)
     linhas = max(20, min(2000, int(linhas or 200)))
     with store.tx() as t:
         if t.val("SELECT COUNT(*) FROM cliente_logs WHERE cliente_id = ? AND pasta = ? AND ficheiro = ?", (cid, pasta, ficheiro)):
@@ -498,7 +575,7 @@ def comando_ativo(cid: int) -> dict | None:
         return t.one("SELECT * FROM cliente_comandos WHERE cliente_id = ? AND estado IN ('PENDENTE', 'EM CURSO') ORDER BY id DESC", (cid,))
 
 
-TIPOS_COMANDO = {"atualizar": "Atualizar o agente", "dados": "Pedir dados"}
+TIPOS_COMANDO = {"atualizar": "Atualizar o agente", "dados": "Pedir dados", "ler": "Abrir ficheiro / pasta"}
 
 
 def descrever(r: dict) -> str:
@@ -510,6 +587,8 @@ def descrever(r: dict) -> str:
         return "Pedir dados: " + ", ".join(NOMES_PEDIDO.get(x, x) for x in a.get("tipos") or [])
     if r["tipo"] == "atualizar":
         return f"Atualizar o agente para {a.get('versao') or '?'}"
+    if r["tipo"] == "ler":
+        return ("Listar a pasta " if a.get("listar") else "Abrir ") + str(a.get("caminho") or "")
     return r["tipo"]
 
 
@@ -656,7 +735,7 @@ def sync(c: dict, info: dict, ip: str, link: str = "", extras: dict | None = Non
     fl = [{"id": r["id"], "pasta": r["pasta"], "ficheiro": r["ficheiro"], "linhas": r["linhas"] or 200}
           for r in logs_cfg(c["id"])]
     return {"ok": True, "nome": c["nome"], "intervalo": iv, "pedidos": [x for x in ped.split(",") if x],
-            "ficheiros_log": fl, "atualizar": atualizar,
+            "ficheiros_log": fl, "atualizar": atualizar, "intervalos": intervalos_recolha(),
             "regras": [{"id": r["codigo"], "nome": r["nome"], "log": r["log_path"] or "",
                         "padrao_erro": r["padrao_erro"] or "", "padrao_aviso": r["padrao_aviso"] or ""}
                        for r in regras(c["id"], so_ativas=True)]}

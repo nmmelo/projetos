@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ c.nome }} · {{ caminho }}{% endblock %}
+{% block content %}
+{% include "clientes/_tabs.html" %}
+<div class="modulo-head lv-cab">
+  <div><a href="{{ voltar }}" class="muted small">← {{ c.nome }} · Logs</a>
+    <h2 translate="no" style="margin:4px 0 0">{{ '📁 ' if pasta }}{{ caminho }}</h2>
+    <small class="muted" id="lv-meta"></small></div>
+  <div class="lv-acoes">
+    {% if not pasta %}
+    <label class="small">Linhas <select id="lv-linhas">
+      {% for n, t in (('1000', 'últimas 1 000'), ('5000', 'últimas 5 000'), ('20000', 'últimas 20 000'), ('0', 'ficheiro completo (até 10 MB)')) %}
+      <option value="{{ n }}" {{ 'selected' if linhas == n }}>{{ t }}</option>{% endfor %}</select></label>
+    <a class="btn small" id="lv-down" hidden>⭳ Descarregar</a>
+    {% endif %}
+    <button type="button" class="btn small" id="lv-reload">↻ Recarregar</button>
+  </div>
+</div>
+<div id="cmd-out" hidden></div>
+<section class="card full lv" id="lv"><p class="muted"><span class="spin"></span> A pedir ao agente…</p></section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='comandos.js', v=static_v) }}"></script>
+<script src="{{ url_for('static', filename='visualizador.js', v=static_v) }}"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id), T = s => (window.t ? window.t(s) : s);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const CAM = {{ caminho|tojson }}, PASTA = {{ 'true' if pasta else 'false' }}, CID = {{ c.id }};
+  const kb = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1024).toFixed(1) + ' KB';
+  const dt = s => new Date(s * 1000).toLocaleString('pt-PT');
+  async function carregar() {
+    const raiz = $('lv'), out = $('cmd-out');
+    raiz.innerHTML = `<p class="muted"><span class="spin"></span> ${esc(T('A pedir ao agente…'))}</p>`;
+    const fd = new FormData(); fd.append('csrf', '{{ csrf_token }}'); fd.append('caminho', CAM);
+    if (PASTA) fd.append('listar', '1'); else fd.append('linhas', $('lv-linhas').value);
+    const r = await fetch('{{ url_for('clientes.ler_ficheiro', cid=c.id) }}', {method: 'POST', body: fd});
+    const d = await r.json();
+    if (!d.ok) { raiz.innerHTML = `<p class="flash error">${esc(d.erro)}</p>`; return; }
+    const fim = await PortalComando.seguir(d.id, out, null, T('Pedido ao agente'));
+    if (!fim || fim.estado !== 'OK') { raiz.innerHTML = `<p class="flash error">${esc(T('O agente não devolveu o ficheiro: veja o output acima.'))}</p>`; return; }
+    out.hidden = true;
+    const x = await (await fetch(`/clientes/cliente/${CID}/leitura/${d.id}`)).json();
+    if (PASTA) {
+      $('lv-meta').textContent = `${x.total} ${T('entrada(s)')} · ${T('lido')} ${x.recebido}`;
+      raiz.innerHTML = `<input type="search" class="filtro" id="lv-f" placeholder="${esc(T('Filtrar ficheiros'))}">
+        <div class="table-wrap"><table class="small-tab" id="lv-t"><thead><tr><th>${esc(T('Nome'))}</th><th class="num">${esc(T('Tamanho'))}</th><th>${esc(T('Alterado'))}</th><th></th></tr></thead><tbody>` +
+        (x.ficheiros || []).map(f => { const p = CAM.replace(/\/$/, '') + '/' + f.nome;
+          const url = `?caminho=${encodeURIComponent(p)}${f.pasta ? '&pasta=1' : ''}&voltar=${encodeURIComponent(location.pathname + location.search)}`;
+          return `<tr><td translate="no">${f.pasta ? '📁 ' : '📄 '}<a href="${url}">${esc(f.nome)}</a></td><td class="num">${f.pasta ? '' : kb(f.tamanho)}</td><td><small>${dt(f.alterado)}</small></td>
+            <td class="acts"><a class="btn small" href="${url}">${esc(T(f.pasta ? 'Abrir pasta' : 'Abrir'))}</a></td></tr>`; }).join('') + '</tbody></table></div>';
+      $('lv-f').addEventListener('input', e => { const q = e.target.value.toLowerCase();
+        document.querySelectorAll('#lv-t tbody tr').forEach(r => r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none'); });
+      return;
+    }
+    $('lv-meta').textContent = `${x.caminho} · ${kb(x.tamanho)} · ${T('alterado')} ${dt(x.alterado)} · ${x.linhas} ${T('linha(s)')}${x.truncado ? ' (' + T('parte final') + ')' : ''} · ${T('lido')} ${x.recebido}`;
+    const dl = $('lv-down'); dl.hidden = false; dl.href = `/clientes/cliente/${CID}/leitura/${d.id}?download=1`;
+    PortalLog.criar(raiz, x.texto || '', {});
+    if (new URLSearchParams(location.search).get('download') === '1') { dl.click(); }
+  }
+  $('lv-reload').onclick = carregar;
+  if ($('lv-linhas')) $('lv-linhas').onchange = carregar;
+  carregar();
+})();
+</script>
+{% endblock %}
