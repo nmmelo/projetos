@@ -233,7 +233,7 @@ def autenticar(codigo: str, tk: str) -> dict | None:
 
 # ============================================================ dados extra do agente (processos, sistema, logs, ...)
 TIPOS_DADOS = {"processos": "Processos", "sistema": "Sistema", "logs": "Logs", "atualizacoes": "Atualizações pendentes",
-               "ficheiros": "Ficheiros de log", "scan": "Ficheiros em /var/log"}
+               "ficheiros": "Ficheiros de log", "scan": "Ficheiros em /var/log", "firewall": "Firewall"}
 TIPOS_PEDIDO = ("processos", "sistema", "logs", "atualizacoes", "scan")
 
 
@@ -512,7 +512,7 @@ def pedir_atualizacao(cid: int, por: str = "") -> int:
 def criar_comando(cid: int, tipo: str, args: str = "", por: str = "") -> int:
     with store.tx() as t:
         t.run("INSERT INTO cliente_comandos (cliente_id, tipo, args, estado, pedido_por, criado, output) "
-              "VALUES (?, ?, ?, 'PENDENTE', ?, ?, '')", (cid, tipo, args[:500], (por or "")[:100], store.now()))
+              "VALUES (?, ?, ?, 'PENDENTE', ?, ?, '')", (cid, tipo, args[:4000], (por or "")[:100], store.now()))
         return t.val("SELECT MAX(id) FROM cliente_comandos WHERE cliente_id = ?", (cid,))
 
 
@@ -575,7 +575,64 @@ def comando_ativo(cid: int) -> dict | None:
         return t.one("SELECT * FROM cliente_comandos WHERE cliente_id = ? AND estado IN ('PENDENTE', 'EM CURSO') ORDER BY id DESC", (cid,))
 
 
-TIPOS_COMANDO = {"atualizar": "Atualizar o agente", "dados": "Pedir dados", "ler": "Abrir ficheiro / pasta"}
+TIPOS_COMANDO = {"atualizar": "Atualizar o agente", "dados": "Pedir dados", "ler": "Abrir ficheiro / pasta", "firewall": "Firewall"}
+
+# ============================================================ firewall do cliente (firewalld ou ufw) pelo agente 1.7+
+FW_OPS = {"porta_add": "abrir a porta {porta} na zona {zona}", "porta_del": "fechar a porta {porta} na zona {zona}",
+          "servico_add": "permitir o serviço {servico} na zona {zona}", "servico_del": "retirar o serviço {servico} da zona {zona}",
+          "rich_add": "regra na zona {zona}: {regra}", "rich_del": "remover da zona {zona}: {regra}",
+          "fonte_add": "origem {fonte} na zona {zona}", "fonte_del": "retirar a origem {fonte} da zona {zona}",
+          "ipset_novo": "criar o ipset {nome} ({tipo})", "ipset_apagar": "apagar o ipset {nome}",
+          "entrada_add": "adicionar {entrada} ao ipset {nome}", "entrada_del": "retirar {entrada} do ipset {nome}",
+          "ufw_regra": "ufw {acao} porta {porta}/{proto} de {de}", "ufw_apagar": "ufw apagar a regra n.º {numero}"}
+FW_CAMPOS = ("op", "zona", "porta", "servico", "regra", "fonte", "nome", "tipo", "entrada", "acao", "proto", "de", "numero", "comentario")
+
+
+def fw_descrever(op: dict) -> str:
+    f = FW_OPS.get(op.get("op"), op.get("op") or "?")
+    try:
+        return f.format(**{k: op.get(k) or ("qualquer" if k == "de" else "") for k in FW_CAMPOS})
+    except (KeyError, IndexError):
+        return str(op.get("op"))
+
+
+def pedir_firewall(cid: int, ops: list | None = None, por: str = "") -> int:
+    """Le o estado da firewall do cliente (ops vazio) ou aplica operacoes (validadas tambem no agente)."""
+    ops = [{k: str(o[k])[:600] for k in FW_CAMPOS if o.get(k) not in (None, "")} for o in (ops or [])]
+    for o in ops:
+        if o.get("op") not in FW_OPS:
+            raise ValueError("operação de firewall desconhecida")
+    args = json.dumps({"ops": ops})
+    if len(args) > 4000:
+        raise ValueError("demasiadas operações num pedido: divida em vários")
+    c = obter(cid) or {}
+    cmd = criar_comando(cid, "firewall", args, por)
+    comando_linha(cmd, f"pedido por {por or 'portal'}: " + ("; ".join(fw_descrever(o) for o in ops) if ops else "ler o estado da firewall"))
+    if _v(c.get("versao") or "0") < (1, 7, 0):
+        comando_linha(cmd, f"o agente {c.get('versao') or '(sem versão)'} não gere a firewall (a partir da 1.7.0): atualize-o na aba Agente")
+        comando_estado(cmd, "ERRO")
+    return cmd
+
+
+def fw_preset_oracle(estado: dict, ipset: str, entradas: list, porta: int) -> list:
+    """Operacoes para abrir a porta RPC do agente (Oracle) a um ipset em todas as zonas ativas (firewalld) ou por IP (ufw)."""
+    ops = []
+    if estado.get("backend") == "firewalld":
+        existe = next((i for i in estado.get("ipsets") or [] if i["nome"] == ipset), None)
+        if not existe:
+            ops.append({"op": "ipset_novo", "nome": ipset, "tipo": "hash:net"})
+        for e in entradas:
+            if not existe or e not in existe.get("entradas", []):
+                ops.append({"op": "entrada_add", "nome": ipset, "entrada": e})
+        regra = f'rule source ipset="{ipset}" port port="{porta}" protocol="tcp" accept'
+        for z in (estado.get("ativas") or {}) or [estado.get("zona_omissao") or "public"]:
+            zd = next((x for x in estado.get("zonas") or [] if x["nome"] == z), {})
+            if not any(f'ipset="{ipset}"' in r and f'port="{porta}"' in r for r in zd.get("rich", [])):
+                ops.append({"op": "rich_add", "zona": z, "regra": regra})
+    elif estado.get("backend") == "ufw":
+        for e in entradas or [""]:
+            ops.append({"op": "ufw_regra", "acao": "allow", "porta": str(porta), "proto": "tcp", "de": e, "comentario": "agente-portal"})
+    return ops
 
 
 def descrever(r: dict) -> str:
@@ -587,6 +644,9 @@ def descrever(r: dict) -> str:
         return "Pedir dados: " + ", ".join(NOMES_PEDIDO.get(x, x) for x in a.get("tipos") or [])
     if r["tipo"] == "atualizar":
         return f"Atualizar o agente para {a.get('versao') or '?'}"
+    if r["tipo"] == "firewall":
+        ops = a.get("ops") or []
+        return "Firewall: " + ("; ".join(fw_descrever(o) for o in ops) if ops else "ler o estado")
     if r["tipo"] == "ler":
         return ("Listar a pasta " if a.get("listar") else "Abrir ") + str(a.get("caminho") or "")
     return r["tipo"]

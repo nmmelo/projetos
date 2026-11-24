@@ -30,7 +30,7 @@
 {% if alarmes %}<div class="flash error"><b>Alarmes disparados:</b>
   {% for e in alarmes %}<span translate="no">{{ e.nome }}{{ (' ' ~ e.item) if e.metrica == 'disco' }} = {{ '%g'|format(e.valor) }}{{ e.unidade }}</span>{{ ' · ' if not loop.last }}{% endfor %}
   — <a href="{{ url_for('clientes.alarmes') }}">Alarmes</a></div>{% endif %}
-<div class="fw-grid">
+<div class="cfw-grid">
 <section class="card">
   <h2>Agente</h2>
   {% set ct = c.contacto %}
@@ -116,7 +116,7 @@
 
 {% elif aba == 'sistema' %}
 {% set x = dd.sistema %}
-<div class="fw-grid" data-ref="sistema">
+<div class="cfw-grid" data-ref="sistema">
 <section class="card">
   <div class="modulo-head"><h2>Sistema</h2>{{ quando(x) }}</div>
   {% set y = x.dados if x else {} %}
@@ -382,6 +382,111 @@
 </section>
 </div>
 
+{% elif aba == 'firewall' %}
+{% set fwd = dd.firewall %}{% set fw = fwd.dados if fwd else None %}
+{% set pode = user.can('clientes.firewall') and fw and fw.gerir %}
+{% macro x(acao, titulo) %}{% if pode %}<button type="button" class="cfw-x" title="{{ titulo }}" data-acao="{{ acao }}" {% for k, v in kwargs.items() %}data-{{ k }}="{{ v }}" {% endfor %}>✕</button>{% endif %}{% endmacro %}
+<div data-ref="firewall" data-fw-url="{{ url_for('clientes.firewall', cid=c.id) }}" data-fw-auto="{{ 1 if fw_v and not fw else 0 }}">
+<div class="smtp-grid setup-grid">
+<section class="card">
+  <div class="modulo-head"><h2>Firewall</h2>
+    {% if fw_v %}<button type="button" class="btn small" data-fw-ler>⇣ Ler o estado</button>{% endif %}</div>
+  {% if not fw_v %}
+    {{ saude('warn', 'Agente ' ~ (c.versao or 'sem versão') ~ ' não gere a firewall', 'a partir da 1.7.0: atualize-o na aba Agente') }}
+  {% elif not fw %}
+    <p class="muted"><span class="spin"></span> A pedir o estado da firewall ao agente…</p>
+  {% else %}
+    {{ saude('ok' if fw.backend in ('firewalld', 'ufw') else 'warn',
+             {'firewalld': 'firewalld ativo', 'ufw': 'ufw ativo', 'firewalld-parado': 'firewalld instalado mas parado',
+              'ufw-inativo': 'ufw instalado mas inativo'}.get(fw.backend, 'Sem firewalld nem ufw'),
+             'lido ' ~ (fw.lido or '')|replace('T', ' ')) }}
+    {{ kv([('Serviço', fw.backend or '—'), ('Zona por omissão', fw.zona_omissao) if fw.backend == 'firewalld' else ('Política', fw.politica),
+           ('Zonas ativas', (fw.ativas or {}).keys()|join(', ')) if fw.backend == 'firewalld' else ('Regras', fw.regras|length if fw.regras else 0),
+           ('Alterações pelo portal', 'permitidas neste agente' if fw.gerir else 'desligadas no agente'),
+           ('A sua permissão', 'pode alterar' if user.can('clientes.firewall') else 'só consulta (falta clientes.firewall)')]) }}
+    {% if not fw.gerir %}<p class="hint">Para permitir alterações pelo portal, no servidor:<br><code>sudo agente-portal configurar --gerir-firewall</code> (ou <code>setup.sh --gerir-firewall</code>).</p>{% endif %}
+  {% endif %}
+</section>
+{% if fw and fw.backend in ('firewalld', 'ufw') %}
+<section class="card">
+  <h2>Serviço Oracle do agente</h2>
+  <p class="hint">Abre a porta RPC do agente só às origens indicadas{% if fw.backend == 'firewalld' %}: cria o ipset (se não existir), junta as entradas e põe a regra rica em todas as zonas ativas{% else %}: uma regra ufw por origem{% endif %}.</p>
+  <form class="cfw-form cfw-oracle" data-acao="oracle"{% if fw.backend != 'firewalld' %} style="grid-template-columns: 90px 1fr auto"{% endif %}>
+    {% if fw.backend == 'firewalld' %}<label>ipset<input name="ipset" value="agente-portal" translate="no"></label>{% endif %}
+    <label>porta<input name="porta" value="{{ (i.rpc.porta if i and i.rpc and i.rpc.porta) or 8795 }}"></label>
+    <label>Origens (IP ou rede, separados por espaço)<input name="entradas" placeholder="<IP do portal> 10.0.0.0/24" required></label>
+    <button class="btn small primary" {{ 'disabled' if not pode }}>Aplicar</button>
+  </form>
+</section>
+{% endif %}
+</div>
+
+{% if fw and fw.backend == 'firewalld' %}
+{% for z in fw.zonas %}{% set ativa = z.nome in (fw.ativas or {}) %}
+<details class="card cfw-zona" open>
+  <summary><b translate="no">{{ z.nome }}</b> {% if ativa %}<span class="tag ok">ativa</span>{% endif %}{% if z.nome == fw.zona_omissao %} <span class="tag">omissão</span>{% endif %}
+    <small class="muted">target {{ z.target or 'default' }} · interfaces: {{ (z.interfaces or [])|join(', ') or '—' }}</small></summary>
+  <div class="cfw-grid">
+    <div><h3>Serviços</h3>
+      <div class="cfw-chips">{% for v in z.services or [] %}<span class="cfw-chip" translate="no">{{ v }}{{ x('servico_del', 'Retirar', zona=z.nome, servico=v) }}</span>{% else %}<span class="muted">nenhum</span>{% endfor %}</div>
+      {% if pode %}<form class="cfw-form" data-acao="servico_add"><input type="hidden" name="zona" value="{{ z.nome }}">
+        <input name="servico" list="fw-servicos" placeholder="ex. https" required size="14"><button class="btn small">+</button></form>{% endif %}</div>
+    <div><h3>Portas</h3>
+      <div class="cfw-chips">{% for v in z.ports or [] %}<span class="cfw-chip" translate="no">{{ v }}{{ x('porta_del', 'Fechar', zona=z.nome, porta=v) }}</span>{% else %}<span class="muted">nenhuma</span>{% endfor %}</div>
+      {% if pode %}<form class="cfw-form" data-acao="porta_add"><input type="hidden" name="zona" value="{{ z.nome }}">
+        <input name="porta" placeholder="8795/tcp" pattern="\d{1,5}(-\d{1,5})?/(tcp|udp|sctp|dccp)" required size="12"><button class="btn small">+</button></form>{% endif %}</div>
+    <div><h3>Origens</h3>
+      <div class="cfw-chips">{% for v in z.sources or [] %}<span class="cfw-chip" translate="no">{{ v }}{{ x('fonte_del', 'Retirar', zona=z.nome, fonte=v) }}</span>{% else %}<span class="muted">nenhuma</span>{% endfor %}</div>
+      {% if pode %}<form class="cfw-form" data-acao="fonte_add"><input type="hidden" name="zona" value="{{ z.nome }}">
+        <input name="fonte" placeholder="10.0.0.0/24 ou ipset:nome" required size="18"><button class="btn small">+</button></form>{% endif %}</div>
+  </div>
+  <h3>Regras ricas</h3>
+  <ul class="cfw-rich">{% for r in z.rich or [] %}<li><code translate="no">{{ r }}</code>{{ x('rich_del', 'Remover', zona=z.nome, regra=r) }}</li>{% else %}<li class="muted">nenhuma</li>{% endfor %}</ul>
+  {% if pode %}<form class="cfw-form cfw-rich-form" data-acao="rich_add"><input type="hidden" name="zona" value="{{ z.nome }}">
+    <div class="cfw-builder"><select data-b="tipo"><option value="ipset">ipset</option><option value="address">endereço</option></select>
+      <input data-b="origem" placeholder="agente-portal / 10.0.0.5" size="16"><input data-b="porta" placeholder="porta" size="6">
+      <select data-b="proto"><option>tcp</option><option>udp</option></select>
+      <select data-b="acao"><option>accept</option><option>reject</option><option>drop</option></select>
+      <button type="button" class="btn small" data-b-gerar>→ gerar</button></div>
+    <input name="regra" placeholder='rule family="ipv4" source address="10.0.0.5" port port="8795" protocol="tcp" accept' required class="cfw-regra">
+    <button class="btn small">Adicionar regra</button></form>{% endif %}
+</details>
+{% endfor %}
+<details class="card cfw-zona" open>
+  <summary><b>ipsets</b> <small class="muted">{{ fw.ipsets|length }}</small></summary>
+  <div class="table-wrap"><table class="small-tab"><thead><tr><th>Nome</th><th>Tipo</th><th>Entradas</th><th></th></tr></thead><tbody>
+  {% for s in fw.ipsets %}<tr><td translate="no"><b>{{ s.nome }}</b></td><td><small>{{ s.tipo }}</small></td>
+    <td><div class="cfw-chips">{% for e in s.entradas[:300] %}<span class="cfw-chip" translate="no">{{ e }}{{ x('entrada_del', 'Retirar', nome=s.nome, entrada=e) }}</span>{% else %}<span class="muted">vazio</span>{% endfor %}
+      {% if s.total > 300 %}<small class="muted">… {{ s.total }} no total</small>{% endif %}</div>
+      {% if pode %}<form class="cfw-form" data-acao="entrada_add"><input type="hidden" name="nome" value="{{ s.nome }}">
+        <input name="entrada" placeholder="IP ou rede" required size="16"><button class="btn small">+</button></form>{% endif %}</td>
+    <td>{% if pode %}<button type="button" class="btn small danger cfw-x" data-acao="ipset_apagar" data-nome="{{ s.nome }}" title="Apagar o ipset">Apagar</button>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="4" class="muted">Nenhum ipset.</td></tr>{% endfor %}</tbody></table></div>
+  {% if pode %}<form class="cfw-form small-form" data-acao="ipset_novo"><b>Novo ipset</b>
+    <input name="nome" placeholder="nome" required size="14" pattern="[A-Za-z0-9_.\-]{1,64}">
+    <select name="tipo"><option>hash:net</option><option>hash:ip</option></select>
+    <input name="entradas" placeholder="entradas (opcional, separadas por espaço)" size="30"><button class="btn small">Criar</button></form>{% endif %}
+</details>
+<datalist id="fw-servicos">{% for v in fw.servicos or [] %}<option value="{{ v }}">{% endfor %}</datalist>
+
+{% elif fw and fw.backend == 'ufw' %}
+<section class="card full">
+  <h2>Regras ufw</h2>
+  <div class="table-wrap"><table class="small-tab"><thead><tr><th>#</th><th>Para</th><th>Ação</th><th>Direção</th><th>De</th><th>Comentário</th><th></th></tr></thead><tbody>
+  {% for r in fw.regras %}<tr><td class="num">{{ r.n }}</td><td translate="no">{{ r.para }}</td>
+    <td><span class="tag {{ 'ok' if r.acao == 'ALLOW' else 'bad' }}">{{ r.acao }}</span></td><td>{{ r.dir }}</td><td translate="no">{{ r.de }}</td><td><small>{{ r.comentario }}</small></td>
+    <td>{{ x('ufw_apagar', 'Apagar a regra', numero=r.n) }}</td></tr>
+  {% else %}<tr><td colspan="7" class="muted">Sem regras.</td></tr>{% endfor %}</tbody></table></div>
+  {% if pode %}<form class="cfw-form small-form" data-acao="ufw_regra"><b>Nova regra</b>
+    <select name="acao"><option>allow</option><option>deny</option><option>reject</option><option>limit</option></select>
+    <input name="porta" placeholder="porta (8795 ou 6000:6010)" required size="12"><select name="proto"><option>tcp</option><option>udp</option></select>
+    <input name="de" placeholder="de (IP/rede, vazio = qualquer)" size="20"><input name="comentario" placeholder="comentário" size="14">
+    <button class="btn small">Adicionar</button></form>
+  <p class="hint">Os números mudam depois de apagar uma regra: o estado é relido no fim de cada pedido.</p>{% endif %}
+</section>
+{% endif %}
+</div>
+
 {% elif aba == 'zabbix' %}
 <section class="card full" data-ref="zabbix">
   {% set z = zbx.dados if zbx else None %}
@@ -501,6 +606,39 @@
     const d = await (await fetch(fp.action, {method: 'POST', body: new FormData(fp), headers: {'X-Requested-With': 'fetch'}})).json();
     PortalComando.seguir(d.id, out, () => blocos(), (window.t || String)('Pedido'));
   });
+  /* aba Firewall: cada alteracao e um pedido ao agente, com output em direto; no fim rele o estado */
+  async function fwPedir(dados, confirmar) {
+    const raiz = document.querySelector('[data-fw-url]'); if (!raiz) return;
+    if (confirmar && !confirm(confirmar)) return;
+    const fd = new FormData(); fd.append('csrf', '{{ csrf_token }}');
+    Object.entries(dados).forEach(([k, v]) => fd.append(k, v));
+    const r = await fetch(raiz.dataset.fwUrl, {method: 'POST', body: fd, headers: {'X-Requested-With': 'fetch'}});
+    const d = await r.json();
+    if (!d.ok) { alert(d.erro || r.status); return; }
+    out.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    PortalComando.seguir(d.id, out, () => blocos(), 'Firewall');
+  }
+  document.addEventListener('submit', ev => {
+    const f = ev.target.closest('form.cfw-form'); if (!f) return;
+    ev.preventDefault();
+    const dados = {acao: f.dataset.acao}; new FormData(f).forEach((v, k) => { dados[k] = v; });
+    fwPedir(dados, f.dataset.acao === 'oracle' ? (window.t || String)('Aplicar as regras na firewall do cliente?') : null);
+  });
+  document.addEventListener('click', ev => {
+    const b = ev.target.closest('.cfw-x, [data-fw-ler], [data-b-gerar]'); if (!b) return;
+    if (b.hasAttribute('data-fw-ler')) return fwPedir({acao: 'ler'});
+    if (b.hasAttribute('data-b-gerar')) {       /* construtor simples de regra rica */
+      const f = b.closest('form'), g = k => f.querySelector(`[data-b=${k}]`).value.trim();
+      const src = g('origem') ? (g('tipo') === 'ipset' ? ` source ipset="${g('origem')}"` : ` source address="${g('origem')}"`) : '';
+      const fam = g('tipo') === 'address' ? ' family="ipv4"' : '';
+      f.querySelector('.cfw-regra').value = `rule${fam}${src}${g('porta') ? ` port port="${g('porta')}" protocol="${g('proto')}"` : ''} ${g('acao')}`;
+      return;
+    }
+    const dados = {acao: b.dataset.acao}; Object.entries(b.dataset).forEach(([k, v]) => { if (k !== 'acao') dados[k] = v; });
+    fwPedir(dados, (window.t || String)('Remover da firewall?') + '\n' + Object.values(dados).slice(1).join(' · '));
+  });
+  const fa = document.querySelector('[data-fw-auto="1"]');
+  if (fa) fwPedir({acao: 'ler'});
   const pc = new URLSearchParams(location.search).get('cmd');      /* vindo de um formulario (scan, ficheiro novo) */
   if (pc && out) PortalComando.seguir(pc, out, () => blocos(), (window.t || String)('Pedido'));
 })();

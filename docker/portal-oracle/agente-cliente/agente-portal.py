@@ -47,7 +47,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.6.1"
+VERSAO = "1.7.0"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -124,7 +124,7 @@ def ler_env(decifrado: bool = True) -> dict:
 def gravar_env(cfg: dict) -> None:
     linhas = ["# Agente do portal. Gerado por 'agente-portal configurar'. Valores sensiveis cifrados (enc:).",
               "# Mudar o intervalo: agente-portal intervalo <segundos>"]
-    for k in ("PORTAL_URL", "CLIENTE_ID", "TOKEN", "INTERVALO", "VERIFICAR_TLS", "CA_FICHEIRO", "UTILIZADOR_SSH", "EXTRAS", "LOGS_PASTAS", "COMANDOS_CADA",
+    for k in ("PORTAL_URL", "CLIENTE_ID", "TOKEN", "INTERVALO", "VERIFICAR_TLS", "CA_FICHEIRO", "UTILIZADOR_SSH", "EXTRAS", "LOGS_PASTAS", "COMANDOS_CADA", "FIREWALL_GERIR",
               "ORACLE_RPC", "RPC_PORTA", "RPC_ESCUTA", "RPC_ORIGENS", "ORACLE_LIB"):
         if k in cfg:
             v = cfg[k]
@@ -497,6 +497,186 @@ def _listar_pasta(pasta: str) -> dict:
     return {"pasta": True, "caminho": pasta, "ficheiros": lista[:1000], "total": len(lista)}
 
 
+# ============================================================ firewall (firewalld ou ufw) pelo portal
+# Leitura sempre; alteracoes so com FIREWALL_GERIR=1 no .env (setup.sh --gerir-firewall). Cada operacao e validada
+# e corre como lista de argumentos (sem shell); no firewalld vai para a configuracao permanente e faz reload.
+FW_NOME_RE = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+FW_PORTA_RE = re.compile(r"^\d{1,5}(-\d{1,5})?/(tcp|udp|sctp|dccp)$")
+
+
+def fw_backend() -> str:
+    if shutil.which("firewall-cmd") and _run(["firewall-cmd", "--state"], timeout=20)[1].strip() == "running":
+        return "firewalld"
+    if shutil.which("ufw") and "Status: active" in _run(["ufw", "status"], timeout=20)[1]:
+        return "ufw"
+    if shutil.which("firewall-cmd"):
+        return "firewalld-parado"
+    if shutil.which("ufw"):
+        return "ufw-inativo"
+    return ""
+
+
+def _fw_listar_zona(z: str) -> dict:
+    out = _run(["firewall-cmd", f"--zone={z}", "--list-all"], timeout=30)[1]
+    d, chave = {"nome": z, "rich": []}, None
+    for l in out.splitlines()[1:]:
+        if chave == "rich rules" and l.strip().startswith("rule"):
+            d["rich"].append(l.strip())
+        elif ":" in l:
+            k, v = l.strip().split(":", 1)
+            chave = k.strip()
+            if chave == "rich rules":
+                if v.strip():
+                    d["rich"].append(v.strip())
+            else:
+                d[chave] = v.split() if chave in ("interfaces", "sources", "services", "ports", "protocols", "source-ports",
+                                                  "icmp-blocks", "forward-ports") else v.strip()
+    return d
+
+
+def fw_estado() -> dict:
+    b = fw_backend()
+    cfg = ler_env()
+    d = {"backend": b, "gerir": cfg.get("FIREWALL_GERIR") == "1", "lido": datetime.datetime.now().isoformat(timespec="seconds")}
+    if b == "firewalld":
+        d["zona_omissao"] = _cmd("firewall-cmd", "--get-default-zone")
+        ativas, z = {}, None
+        for l in _cmd("firewall-cmd", "--get-active-zones").splitlines():
+            if l and not l[0].isspace():
+                z = l.strip()
+                ativas[z] = {}
+            elif z and ":" in l:
+                k, v = l.strip().split(":", 1)
+                ativas[z][k.strip()] = v.split()
+        d["ativas"] = ativas
+        d["zonas_todas"] = _cmd("firewall-cmd", "--get-zones").split()
+        d["zonas"] = [_fw_listar_zona(z) for z in sorted(set(ativas) | {d["zona_omissao"]})]
+        d["servicos"] = _cmd("firewall-cmd", "--get-services").split()
+        ips = []
+        for n in _cmd("firewall-cmd", "--get-ipsets").split():
+            info = _run(["firewall-cmd", f"--info-ipset={n}"], timeout=30)[1]
+            tipo = next((l.split(":", 1)[1].strip() for l in info.splitlines() if l.strip().startswith("type:")), "")
+            ent = next((l.split(":", 1)[1].split() for l in info.splitlines() if l.strip().startswith("entries:")), [])
+            ips.append({"nome": n, "tipo": tipo, "entradas": ent[:1000], "total": len(ent)})
+        d["ipsets"] = ips
+    elif b == "ufw":
+        v = _run(["ufw", "status", "verbose"], timeout=30)[1]
+        d["politica"] = next((l.split(":", 1)[1].strip() for l in v.splitlines() if l.startswith("Default:")), "")
+        regras = []
+        for l in _run(["ufw", "status", "numbered"], timeout=30)[1].splitlines():
+            m = re.match(r"^\[\s*(\d+)\]\s+(.+?)\s{2,}(ALLOW|DENY|REJECT|LIMIT)( IN| OUT|)\s+(.+)$", l)
+            if m:
+                de, _, com = m.group(5).partition("#")
+                regras.append({"n": int(m.group(1)), "para": m.group(2).strip(), "acao": m.group(3), "dir": m.group(4).strip() or "IN",
+                               "de": de.strip(), "comentario": com.strip()})
+        d["regras"] = regras
+    return d
+
+
+def _ip_ok(x: str) -> bool:
+    import ipaddress  # noqa: PLC0415
+    try:
+        ipaddress.ip_network(x, strict=False)
+        return True
+    except ValueError:
+        return False
+
+
+def _fw_args(op: dict) -> list:
+    """Operacao -> argumentos do firewall-cmd/ufw (ValueError se invalida)."""
+    t = op.get("op", "")
+    z, n = str(op.get("zona") or ""), str(op.get("nome") or "")
+
+    def nome(x, o="nome"):
+        if not FW_NOME_RE.match(x):
+            raise ValueError(f"{o} invalido: {x!r}")
+        return x
+    if t in ("porta_add", "porta_del"):
+        p = str(op.get("porta") or "")
+        if not FW_PORTA_RE.match(p):
+            raise ValueError("porta invalida (ex. 8795/tcp ou 6000-6010/tcp)")
+        return ["firewall-cmd", "--permanent", f"--zone={nome(z, 'zona')}", ("--add-port=" if t == "porta_add" else "--remove-port=") + p]
+    if t in ("servico_add", "servico_del"):
+        return ["firewall-cmd", "--permanent", f"--zone={nome(z, 'zona')}",
+                ("--add-service=" if t == "servico_add" else "--remove-service=") + nome(str(op.get("servico") or ""), "servico")]
+    if t in ("rich_add", "rich_del"):
+        r = str(op.get("regra") or "").strip()
+        if not r.startswith("rule ") or len(r) > 600 or "\n" in r:
+            raise ValueError("regra rica invalida (comeca por 'rule ')")
+        return ["firewall-cmd", "--permanent", f"--zone={nome(z, 'zona')}", ("--add-rich-rule=" if t == "rich_add" else "--remove-rich-rule=") + r]
+    if t in ("fonte_add", "fonte_del"):
+        f = str(op.get("fonte") or "")
+        if f.startswith("ipset:"):
+            nome(f[6:], "ipset")
+        elif not _ip_ok(f):
+            raise ValueError("fonte invalida (IP, rede CIDR ou ipset:NOME)")
+        return ["firewall-cmd", "--permanent", f"--zone={nome(z, 'zona')}", ("--add-source=" if t == "fonte_add" else "--remove-source=") + f]
+    if t == "ipset_novo":
+        tipo = str(op.get("tipo") or "hash:net")
+        if tipo not in ("hash:ip", "hash:net"):
+            raise ValueError("tipo de ipset invalido")
+        a = ["firewall-cmd", "--permanent", f"--new-ipset={nome(n, 'ipset')}", f"--type={tipo}"]
+        return a + (["--option=family=inet6"] if op.get("ipv6") else [])
+    if t == "ipset_apagar":
+        return ["firewall-cmd", "--permanent", f"--delete-ipset={nome(n, 'ipset')}"]
+    if t in ("entrada_add", "entrada_del"):
+        e = str(op.get("entrada") or "")
+        if not _ip_ok(e):
+            raise ValueError("entrada invalida (IP ou rede CIDR)")
+        return ["firewall-cmd", "--permanent", f"--ipset={nome(n, 'ipset')}", ("--add-entry=" if t == "entrada_add" else "--remove-entry=") + e]
+    if t == "ufw_regra":
+        acao = str(op.get("acao") or "allow")
+        if acao not in ("allow", "deny", "reject", "limit"):
+            raise ValueError("acao invalida")
+        a = ["ufw", acao]
+        de = str(op.get("de") or "")
+        if de and not _ip_ok(de):
+            raise ValueError("origem invalida")
+        porta = str(op.get("porta") or "")
+        if not re.match(r"^\d{1,5}(:\d{1,5})?$", porta):
+            raise ValueError("porta invalida (ex. 8795 ou 6000:6010)")
+        proto = str(op.get("proto") or "tcp")
+        if proto not in ("tcp", "udp"):
+            raise ValueError("protocolo invalido")
+        a += ["from", de or "any", "to", "any", "port", porta, "proto", proto]
+        coment = re.sub(r"[^\w .:/-]", "", str(op.get("comentario") or ""))[:60]
+        return a + (["comment", coment] if coment else [])
+    if t == "ufw_apagar":
+        num = int(op.get("numero") or 0)
+        if num < 1:
+            raise ValueError("numero de regra invalido")
+        return ["ufw", "--force", "delete", str(num)]
+    raise ValueError("operacao desconhecida: " + t)
+
+
+def firewall_comando(cfg: dict, cmd_id, args: dict) -> None:
+    try:
+        ops = args.get("ops") or []
+        if ops:
+            if cfg.get("FIREWALL_GERIR") != "1":
+                raise PermissionError("este agente nao permite alterar a firewall pelo portal: no servidor, "
+                                      "sudo agente-portal configurar --gerir-firewall (ou setup.sh --gerir-firewall)")
+            precisa_reload = False
+            for op in ops:
+                a = _fw_args(op)
+                rc, out, err = _run(a, timeout=120)
+                txt = (out + err).strip()
+                _cmd_post(cfg, cmd_id, [f"$ {' '.join(a)}", f"  {txt or ('ok' if rc == 0 else 'erro')}"])
+                if rc != 0 and "ALREADY_ENABLED" not in txt and "NOT_ENABLED" not in txt:
+                    raise RuntimeError(f"falhou (codigo {rc}): {txt}")
+                precisa_reload = precisa_reload or a[0] == "firewall-cmd"
+            if precisa_reload:
+                rc, out, err = _run(["firewall-cmd", "--reload"], timeout=120)
+                _cmd_post(cfg, cmd_id, ["$ firewall-cmd --reload", f"  {(out + err).strip() or 'ok'}"])
+                if rc != 0:
+                    raise RuntimeError("reload falhou: " + (out + err).strip())
+        d = fw_estado()
+        pedido(cfg, f"comando/{cmd_id}", {"linhas": [f"estado lido ({d['backend'] or 'sem firewalld/ufw'})"], "estado": "OK",
+                                          "dados": d}, timeout=60)
+    except Exception as e:  # noqa: BLE001
+        _cmd_post(cfg, cmd_id, [f"erro: {e}"], "ERRO")
+
+
 LER_MAX = 10 * 1024 * 1024
 
 
@@ -717,6 +897,8 @@ def _reportar_reinicio(cfg: dict) -> bool:
 def executar_comando(cfg: dict, c: dict) -> None:
     if c.get("tipo") == "atualizar":
         atualizar_agente(cfg, c.get("args") or {}, c.get("id"))
+    elif c.get("tipo") == "firewall":
+        firewall_comando(cfg, c.get("id"), c.get("args") or {})
     elif c.get("tipo") == "ler":
         _cmd_post(cfg, c.get("id"), ["a ler " + str((c.get("args") or {}).get("caminho"))])
         ler_ficheiro(cfg, c.get("id"), c.get("args") or {})
@@ -1147,7 +1329,7 @@ def rpc_tratar(caminho: str, d: dict) -> dict:
 
 
 def _origem_ok(ip: str, origens: list) -> bool:
-    """IPs ou redes (CIDR, ex. 10.31.241.0/24) autorizados a fazer pedidos ao servico Oracle."""
+    """IPs ou redes (CIDR, ex. 192.0.2.0/24) autorizados a fazer pedidos ao servico Oracle."""
     import ipaddress  # noqa: PLC0415
     try:
         a = ipaddress.ip_address(ip)
@@ -1352,6 +1534,10 @@ def cmd_configurar(a):
         cfg["ORACLE_RPC"] = "1"
     if a.sem_oracle:
         cfg["ORACLE_RPC"] = "0"
+    if a.gerir_firewall:
+        cfg["FIREWALL_GERIR"] = "1"
+    if a.sem_gerir_firewall:
+        cfg["FIREWALL_GERIR"] = "0"
     for k, v in (("RPC_PORTA", a.porta_rpc), ("RPC_ORIGENS", a.origens), ("ORACLE_LIB", a.oracle_lib)):
         if v is not None:
             cfg[k] = str(v)
@@ -1503,6 +1689,8 @@ def main():
     c.add_argument("--utilizador"), c.add_argument("--ca"), c.add_argument("--inseguro", action="store_true")
     c.add_argument("--oracle", action="store_true", help="liga o servico Oracle (pedidos do portal)")
     c.add_argument("--sem-oracle", action="store_true"), c.add_argument("--porta-rpc", type=int)
+    c.add_argument("--gerir-firewall", action="store_true", help="permite alterar a firewall (firewalld/ufw) pelo portal")
+    c.add_argument("--sem-gerir-firewall", action="store_true")
     c.add_argument("--origens", help="IPs ou redes (CIDR) do portal autorizados (vazio = qualquer, com assinatura)")
     c.add_argument("--oracle-lib", help="pasta das bibliotecas do cliente Oracle (modo thick, bases 11g)")
     c.set_defaults(f=cmd_configurar)

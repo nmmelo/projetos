@@ -448,6 +448,7 @@ class Store:
         self._migrate_modulos()
         self._add_column("jobs", "progress", "INTEGER")
         self._add_column("jobs", "runner", "VARCHAR(20)")
+        self._alargar("cliente_comandos", "args", "VARCHAR(4000)")   # firewall: varias operacoes num pedido
         self._alargar("jobs", "runner", "VARCHAR(20)")         # 'agente_oracle' nao cabia em 10 (PG/MariaDB)
         self._add_column("jobs", "n_erros", "INTEGER")
         self._add_column("jobs", "n_avisos", "INTEGER")

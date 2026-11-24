@@ -25,6 +25,7 @@ MODULO = modulos.registar(modulos.Modulo(
         "clientes.gerir": "Criar, editar e apagar clientes, ver o token e testar a ligação (Configuração → Clientes)",
         "clientes.regras": "Criar, editar e apagar regras de notificação",
         "clientes.alarmes": "Criar, editar e apagar alarmes (limiares de disco, CPU, memória, carga, contacto)",
+        "clientes.firewall": "Alterar a firewall (firewalld/ufw) dos clientes pelo agente (aba Firewall do cliente)",
     },
     abas=[
         ("clientes.painel", "Clientes", None),

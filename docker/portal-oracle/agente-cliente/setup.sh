@@ -6,6 +6,8 @@
 #        [--oracle [--porta-rpc 8795] [--origens "IP1 IP2 REDE/24"] [--ipset NOME] [--oracle-lib DIR] [--abrir-firewall]]
 #   --abrir-firewall (firewalld): cria/usa o ipset (--ipset, por omissao "agente-portal") com as --origens e abre a
 #   porta so para ele em todas as zonas ativas. Mais IPs depois: firewall-cmd --permanent --ipset=NOME --add-entry=IP
+#   --gerir-firewall: o portal pode alterar a firewall (firewalld/ufw) deste servidor na aba Firewall do cliente
+#   (--sem-gerir-firewall desliga). Sem isto o portal so le o estado.
 #   sudo bash setup.sh --oracle [...]          # num agente ja instalado: atualiza e liga o servico Oracle
 #   sudo bash setup.sh --verificar --utilizador <utilizador_ssh> [--portal URL]  # verifica e corrige o SSH
 #   sudo bash setup.sh --desinstalar
@@ -18,7 +20,7 @@
 set -euo pipefail
 DIR=/opt/agente-portal; SVC=agente-portal; GRUPO=agente-portal
 PORTAL=""; ID=""; TOKEN=""; UTIL=""; INTERVALO=""; GRUPO_UTIL=""; INSEGURO=0; CA=""; SEM_SSH=0; MODO=instalar
-ORACLE=0; PORTA_RPC=8795; ORIGENS=""; ORACLE_LIB=""; ABRIR_FW=0; WHEEL=""; IPSET=""
+ORACLE=0; PORTA_RPC=8795; ORIGENS=""; ORACLE_LIB=""; ABRIR_FW=0; WHEEL=""; IPSET=""; GERIR_FW=""
 V=$'\e[32m'; A=$'\e[33m'; E=$'\e[31m'; N=$'\e[0m'
 ok()   { echo "  ${V}OK${N}       $*"; }
 corr() { echo "  ${A}CORRIGIDO${N} $*"; }
@@ -44,9 +46,11 @@ while [[ $# -gt 0 ]]; do
         --oracle-lib) ORACLE_LIB=$2; shift ;;
         --oracledb-wheel) WHEEL=$2; shift ;;
         --abrir-firewall) ABRIR_FW=1 ;;
+        --gerir-firewall) GERIR_FW=1 ;;
+        --sem-gerir-firewall) GERIR_FW=0 ;;
         --verificar) MODO=verificar ;;
         --desinstalar) MODO=desinstalar ;;
-        -h|--help) sed -n 2,18p "$0"; exit 0 ;;
+        -h|--help) sed -n 2,20p "$0"; exit 0 ;;
         *) erro "opcao desconhecida: $1" ;;
     esac
     shift
@@ -171,7 +175,9 @@ ARGS=(--portal "$PORTAL")
 [[ -n $ID ]] && ARGS+=(--id "$ID"); [[ -n $TOKEN ]] && ARGS+=(--token "$TOKEN"); [[ -n $INTERVALO ]] && ARGS+=(--intervalo "$INTERVALO")
 [[ -n $UTIL ]] && ARGS+=(--utilizador "$UTIL"); [[ -n $CA ]] && ARGS+=(--ca "$CA"); [[ $INSEGURO == 1 ]] && ARGS+=(--inseguro)
 [[ $ORACLE == 1 ]] && ARGS+=(--oracle --porta-rpc "$PORTA_RPC" --origens "$ORIGENS" --oracle-lib "$ORACLE_LIB")
+[[ $GERIR_FW == 1 ]] && ARGS+=(--gerir-firewall); [[ $GERIR_FW == 0 ]] && ARGS+=(--sem-gerir-firewall)
 "$DIR/agente-portal.py" configurar "${ARGS[@]}" >/dev/null
+[[ $GERIR_FW == 1 ]] && ok "o portal pode alterar a firewall deste servidor (aba Firewall do cliente)"
 chmod 600 "$DIR/.env"; ok ".env 600 com o token cifrado (chave $DIR/.chave 400, ligada a /etc/machine-id)"
 
 getent group $GRUPO >/dev/null || { groupadd -r $GRUPO; corr "grupo $GRUPO criado"; }

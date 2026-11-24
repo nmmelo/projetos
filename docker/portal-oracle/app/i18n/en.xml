@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1921">
+<lingua codigo="en" nome="English" textos="1988">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -7685,5 +7685,273 @@
   <texto>
     <origem>nome do pacote</origem>
     <traducao>package name</traducao>
+  </texto>
+  <texto>
+    <origem>10.0.0.0/24 ou ipset:nome</origem>
+    <traducao>10.0.0.0/24 or ipset:name</traducao>
+  </texto>
+  <texto>
+    <origem>A sua permissão</origem>
+    <traducao>Your permission</traducao>
+  </texto>
+  <texto>
+    <origem>Abre a porta RPC do agente só às origens indicadas: cria o ipset (se não existir), junta as entradas e põe a regra rica em todas as zonas ativas.</origem>
+    <traducao>Opens the agent RPC port only to the given sources: creates the ipset (if missing), adds the entries and puts the rich rule in every active zone.</traducao>
+  </texto>
+  <texto>
+    <origem>Abre a porta RPC do agente só às origens indicadas: uma regra ufw por origem.</origem>
+    <traducao>Opens the agent RPC port only to the given sources: one ufw rule per source.</traducao>
+  </texto>
+  <texto>
+    <origem>Adicionar regra</origem>
+    <traducao>Add rule</traducao>
+  </texto>
+  <texto>
+    <origem>Alterações pelo portal</origem>
+    <traducao>Changes from the portal</traducao>
+  </texto>
+  <texto>
+    <origem>Firewall (serviço Oracle do agente)</origem>
+    <traducao>Firewall (agent Oracle service)</traducao>
+  </texto>
+  <texto>
+    <origem>IP ou rede</origem>
+    <traducao>IP or network</traducao>
+  </texto>
+  <texto>
+    <origem>O portal liga-se a cada cliente na porta do serviço Oracle do agente (8795/tcp). Abra-a só às origens do portal com um ipset. Também pode fazê-lo — e gerir zonas, portas, serviços, regras ricas, ipsets ou regras ufw — na aba</origem>
+    <traducao>The portal connects to each client on the agent Oracle service port (8795/tcp). Open it only to the portal sources with an ipset. You can also do it — and manage zones, ports, services, rich rules, ipsets or ufw rules — in the</traducao>
+  </texto>
+  <texto>
+    <origem>de cada cliente.</origem>
+    <traducao>tab of each client.</traducao>
+  </texto>
+  <texto>
+    <origem>Origens</origem>
+    <traducao>Sources</traducao>
+  </texto>
+  <texto>
+    <origem>Origens (IP ou rede, separados por espaço)</origem>
+    <traducao>Sources (IP or network, space separated)</traducao>
+  </texto>
+  <texto>
+    <origem>Permitir que o portal altere a firewall (aba Firewall)</origem>
+    <traducao>Allow the portal to change the firewall (Firewall tab)</traducao>
+  </texto>
+  <texto>
+    <origem>Sem isto o portal só lê o estado. Desligar: sudo agente-portal configurar --sem-gerir-firewall. Os utilizadores precisam da permissão clientes.firewall.</origem>
+    <traducao>Without this the portal only reads the state. To turn off: sudo agente-portal configurar --sem-gerir-firewall. Users need the clientes.firewall permission.</traducao>
+  </texto>
+  <texto>
+    <origem>Serviço Oracle do agente</origem>
+    <traducao>Agent Oracle service</traducao>
+  </texto>
+  <texto>
+    <origem>Tudo de uma vez pelo setup.sh (ipset em todas as zonas ativas)</origem>
+    <traducao>All at once with setup.sh (ipset in every active zone)</traducao>
+  </texto>
+  <texto>
+    <origem>ativa</origem>
+    <traducao>active</traducao>
+  </texto>
+  <texto>
+    <origem>endereço</origem>
+    <traducao>address</traducao>
+  </texto>
+  <texto>
+    <origem>entradas (opcional, separadas por espaço)</origem>
+    <traducao>entries (optional, space separated)</traducao>
+  </texto>
+  <texto>
+    <origem>ex. https</origem>
+    <traducao>e.g. https</traducao>
+  </texto>
+  <texto>
+    <origem>firewalld ativo</origem>
+    <traducao>firewalld active</traducao>
+  </texto>
+  <texto>
+    <origem>ufw ativo</origem>
+    <traducao>ufw active</traducao>
+  </texto>
+  <texto>
+    <origem>firewalld instalado mas parado</origem>
+    <traducao>firewalld installed but stopped</traducao>
+  </texto>
+  <texto>
+    <origem>ufw instalado mas inativo</origem>
+    <traducao>ufw installed but inactive</traducao>
+  </texto>
+  <texto>
+    <origem>Sem firewalld nem ufw</origem>
+    <traducao>No firewalld or ufw</traducao>
+  </texto>
+  <texto>
+    <origem>firewalld com ipset, ufw, gestão pelo portal</origem>
+    <traducao>firewalld with ipset, ufw, management from the portal</traducao>
+  </texto>
+  <texto>
+    <origem>firewalld: abrir a porta ao ipset (em cada zona ativa)</origem>
+    <traducao>firewalld: open the port to the ipset (in each active zone)</traducao>
+  </texto>
+  <texto>
+    <origem>firewalld: criar o ipset</origem>
+    <traducao>firewalld: create the ipset</traducao>
+  </texto>
+  <texto>
+    <origem>firewalld: juntar origens ao ipset</origem>
+    <traducao>firewalld: add sources to the ipset</traducao>
+  </texto>
+  <texto>
+    <origem>firewalld: retirar uma origem</origem>
+    <traducao>firewalld: remove a source</traducao>
+  </texto>
+  <texto>
+    <origem>firewalld: ver</origem>
+    <traducao>firewalld: show</traducao>
+  </texto>
+  <texto>
+    <origem>firewalld: zonas ativas</origem>
+    <traducao>firewalld: active zones</traducao>
+  </texto>
+  <texto>
+    <origem>ipsets</origem>
+    <traducao>ipsets</traducao>
+  </texto>
+  <texto>
+    <origem>nenhuma</origem>
+    <traducao>none</traducao>
+  </texto>
+  <texto>
+    <origem>nome</origem>
+    <traducao>name</traducao>
+  </texto>
+  <texto>
+    <origem>omissão</origem>
+    <traducao>default</traducao>
+  </texto>
+  <texto>
+    <origem>permitidas neste agente</origem>
+    <traducao>allowed on this agent</traducao>
+  </texto>
+  <texto>
+    <origem>desligadas no agente</origem>
+    <traducao>disabled on the agent</traducao>
+  </texto>
+  <texto>
+    <origem>pode alterar</origem>
+    <traducao>can change</traducao>
+  </texto>
+  <texto>
+    <origem>só consulta (falta clientes.firewall)</origem>
+    <traducao>read only (missing clientes.firewall)</traducao>
+  </texto>
+  <texto>
+    <origem>porta</origem>
+    <traducao>port</traducao>
+  </texto>
+  <texto>
+    <origem>ufw: abrir a porta a uma origem</origem>
+    <traducao>ufw: open the port to a source</traducao>
+  </texto>
+  <texto>
+    <origem>ufw: ver / apagar</origem>
+    <traducao>ufw: show / delete</traducao>
+  </texto>
+  <texto>
+    <origem>→ gerar</origem>
+    <traducao>→ generate</traducao>
+  </texto>
+  <texto>
+    <origem>⇣ Ler o estado</origem>
+    <traducao>⇣ Read the state</traducao>
+  </texto>
+  <texto>
+    <origem>Regras ufw</origem>
+    <traducao>ufw rules</traducao>
+  </texto>
+  <texto>
+    <origem>Comentário</origem>
+    <traducao>Comment</traducao>
+  </texto>
+  <texto>
+    <origem>Direção</origem>
+    <traducao>Direction</traducao>
+  </texto>
+  <texto>
+    <origem>De</origem>
+    <traducao>From</traducao>
+  </texto>
+  <texto>
+    <origem>Ação</origem>
+    <traducao>Action</traducao>
+  </texto>
+  <texto>
+    <origem>Política</origem>
+    <traducao>Policy</traducao>
+  </texto>
+  <texto>
+    <origem>comentário</origem>
+    <traducao>comment</traducao>
+  </texto>
+  <texto>
+    <origem>porta (8795 ou 6000:6010)</origem>
+    <traducao>port (8795 or 6000:6010)</traducao>
+  </texto>
+  <texto>
+    <origem>de (IP/rede, vazio = qualquer)</origem>
+    <traducao>from (IP/network, empty = any)</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhum ipset.</origem>
+    <traducao>No ipsets.</traducao>
+  </texto>
+  <texto>
+    <origem>Sem regras.</origem>
+    <traducao>No rules.</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar a regra</origem>
+    <traducao>Delete the rule</traducao>
+  </texto>
+  <texto>
+    <origem>Os números mudam depois de apagar uma regra: o estado é relido no fim de cada pedido.</origem>
+    <traducao>Numbers change after deleting a rule: the state is re-read at the end of each request.</traducao>
+  </texto>
+  <texto>
+    <origem>Para permitir alterações pelo portal, no servidor:</origem>
+    <traducao>To allow changes from the portal, on the server:</traducao>
+  </texto>
+  <texto>
+    <origem>A pedir o estado da firewall ao agente…</origem>
+    <traducao>Asking the agent for the firewall state…</traducao>
+  </texto>
+  <texto>
+    <origem>Aplicar as regras na firewall do cliente?</origem>
+    <traducao>Apply the rules on the client firewall?</traducao>
+  </texto>
+  <texto>
+    <origem>Remover da firewall?</origem>
+    <traducao>Remove from the firewall?</traducao>
+  </texto>
+  <texto>
+    <origem>Alterar a firewall (firewalld/ufw) dos clientes pelo agente (aba Firewall do cliente)</origem>
+    <traducao>Change the clients' firewall (firewalld/ufw) through the agent (client Firewall tab)</traducao>
+  </texto>
+  <texto>
+    <origem>sem permissão para alterar a firewall (clientes.firewall)</origem>
+    <traducao>no permission to change the firewall (clientes.firewall)</traducao>
+  </texto>
+  <texto>
+    <origem>nada a fazer: o ipset, as entradas e as regras já existem</origem>
+    <traducao>nothing to do: the ipset, entries and rules already exist</traducao>
+  </texto>
+  <texto>
+    <origem>demasiadas operações num pedido: divida em vários</origem>
+    <traducao>too many operations in one request: split it</traducao>
+  </texto>
+  <texto>
+    <origem>operação de firewall desconhecida</origem>
+    <traducao>unknown firewall operation</traducao>
   </texto>
 </lingua>

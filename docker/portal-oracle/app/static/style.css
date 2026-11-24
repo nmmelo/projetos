@@ -906,3 +906,21 @@ details.card.fw-sec { padding: 16px 24px; }
 .upd-filtros { margin: 10px 0; }
 .paginas { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 10px; }
 .ed-row td { background: var(--th-bg); }
+/* clientes: aba Firewall */
+details.cfw-zona { margin-top: 14px; width: 100%; max-width: none; box-sizing: border-box; }
+form.cfw-form input:not([type=hidden]) { flex: 1; min-width: 110px; }
+form.cfw-form.cfw-oracle { display: grid; grid-template-columns: 160px 90px 1fr auto; gap: 8px; align-items: end; }
+form.cfw-oracle label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+details.cfw-zona > summary { cursor: pointer; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cfw-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 8px 0; }
+.cfw-grid h3, details.cfw-zona h3 { font-size: 13px; margin: 6px 0; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.cfw-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.cfw-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 2px 9px; font-size: 12.5px; font-family: var(--mono, monospace); }
+button.cfw-x { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 2px; font-size: 12px; }
+button.cfw-x:hover { color: var(--danger); }
+form.cfw-form { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 4px 0; }
+ul.cfw-rich { list-style: none; padding: 0; margin: 0 0 8px; }
+ul.cfw-rich li { display: flex; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px dashed var(--line); }
+ul.cfw-rich code { white-space: pre-wrap; word-break: break-all; }
+.cfw-builder { display: flex; gap: 6px; flex-wrap: wrap; width: 100%; }
+input.cfw-regra { flex: 1; min-width: 320px; font-family: var(--mono, monospace); }

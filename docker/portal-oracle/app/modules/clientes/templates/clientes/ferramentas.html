@@ -82,6 +82,24 @@
     {{ cmd('Registo do agente', 'sudo journalctl -u agente-portal -n 100 --no-pager') }}
   </div>
 </details>
+<details class="card full fw-sec" id="sec-firewall">
+  <summary><h2>Firewall (serviço Oracle do agente)</h2><small class="muted">firewalld com ipset, ufw, gestão pelo portal</small></summary>
+  <p class="hint">O portal liga-se a cada cliente na porta do serviço Oracle do agente (8795/tcp). Abra-a só às origens do portal com um ipset.
+    Também pode fazê-lo — e gerir zonas, portas, serviços, regras ricas, ipsets ou regras ufw — na aba <b>Firewall</b> de cada cliente.</p>
+  <div class="lista">
+    {{ cmd('Tudo de uma vez pelo setup.sh (ipset em todas as zonas ativas)', 'sudo bash /tmp/setup-agente.sh --oracle --origens "<IP do portal> <IP2> <REDE>/24" --abrir-firewall --ipset agente-portal') }}
+    {{ cmd('Permitir que o portal altere a firewall (aba Firewall)', 'sudo agente-portal configurar --gerir-firewall',
+           'Sem isto o portal só lê o estado. Desligar: sudo agente-portal configurar --sem-gerir-firewall. Os utilizadores precisam da permissão clientes.firewall.') }}
+    {{ cmd('firewalld: zonas ativas', 'sudo firewall-cmd --get-active-zones') }}
+    {{ cmd('firewalld: criar o ipset', 'sudo firewall-cmd --permanent --new-ipset=agente-portal --type=hash:net') }}
+    {{ cmd('firewalld: juntar origens ao ipset', 'for ip in <IP do portal> <IP2> <REDE>/24; do sudo firewall-cmd --permanent --ipset=agente-portal --add-entry=$ip; done') }}
+    {{ cmd('firewalld: abrir a porta ao ipset (em cada zona ativa)', 'for z in $(sudo firewall-cmd --get-active-zones | grep -v "^ "); do\n  sudo firewall-cmd --permanent --zone=$z --add-rich-rule=\'rule source ipset="agente-portal" port port="8795" protocol="tcp" accept\'\ndone\nsudo firewall-cmd --reload') }}
+    {{ cmd('firewalld: ver', 'sudo firewall-cmd --info-ipset=agente-portal; sudo firewall-cmd --list-all --zone=<ZONA>') }}
+    {{ cmd('firewalld: retirar uma origem', 'sudo firewall-cmd --permanent --ipset=agente-portal --remove-entry=<IP> && sudo firewall-cmd --reload') }}
+    {{ cmd('ufw: abrir a porta a uma origem', 'sudo ufw allow from <IP do portal> to any port 8795 proto tcp comment agente-portal') }}
+    {{ cmd('ufw: ver / apagar', 'sudo ufw status numbered\nsudo ufw delete <N>') }}
+  </div>
+</details>
 <details class="card full fw-sec" id="sec-chave">
   <summary><h2>Chave SSH do portal</h2><small class="muted">authorized_keys</small></summary>
   {% if chave %}

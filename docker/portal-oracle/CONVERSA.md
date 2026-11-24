@@ -519,3 +519,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > está a mandar para a zone=public, mas é outra zona — mas eu quero um ipset com vários ips
 
 **Resposta:** setup.sh --abrir-firewall passa a criar (ou usar, com --ipset NOME) o ipset "agente-portal" (hash:net) com as --origens (vários IPs ou redes) e abre a porta 8795 só para o ipset em todas as zonas ativas. O agente 1.6.1 aceita redes CIDR em RPC_ORIGENS. Comandos manuais na resposta.
+
+## 43. Firewall no cliente (firewalld ou ufw) e comandos em Clientes → Ferramentas
+
+**Pergunta:**
+> podemos colocar isso no clientes, ferramentas e criar uma nova area de configurar o firewalld no cliente ou ufw caso seja esse o serviço, de forma organizada.
+
+**Resposta:** Nova secção **Firewall (serviço Oracle do agente)** em Clientes → Ferramentas com os comandos do ipset (criar, juntar origens, regra rica em cada zona ativa, ver, retirar) e do ufw. Nova aba **Firewall** em cada cliente (agente 1.7.0): firewalld — zonas ativas e de omissão com serviços, portas, origens e regras ricas (acrescentar/retirar, construtor de regra rica), ipsets e entradas (criar, apagar); ufw — regras numeradas (acrescentar/apagar). Botão "Serviço Oracle do agente" cria o ipset, junta as origens e abre a porta 8795 em todas as zonas ativas. Cada alteração é um pedido com output em direto e o estado é relido no fim. Alterar exige a permissão `clientes.firewall` e `FIREWALL_GERIR=1` no agente (`agente-portal configurar --gerir-firewall` ou `setup.sh --gerir-firewall`). Testado com firewalld (2 zonas ativas, ipsets, regras) e ufw: 3–5 s por alteração.

@@ -72,7 +72,7 @@ def detalhe(cid):
     from ... import agente_rpc, tarefas_bg, zabbix_api
     aba = request.args.get("aba") or "resumo"
     abas = [("resumo", "Resumo"), ("processos", "Processos"), ("sistema", "Sistema"), ("logs", "Logs"),
-            ("atualizacoes", "Atualizações"), ("bds", "Bases de dados"), ("agente", "Agente")]
+            ("atualizacoes", "Atualizações"), ("bds", "Bases de dados"), ("firewall", "Firewall"), ("agente", "Agente")]
     clientes.expirar_comandos(cid)
     zbx_ok = zabbix_api.configurado()
     if zbx_ok:
@@ -97,7 +97,8 @@ def detalhe(cid):
                            desatualizado=clientes.desatualizado(c),
                            atualizar_pedido=store.get_setting(f"cliente_atualizar:{cid}") or "",
                            comandos=clientes.comandos(cid, 15) if aba == "agente" else [], descrever=clientes.descrever,
-                           intervalos=clientes.intervalos_recolha(),
+                           intervalos=clientes.intervalos_recolha(), fw_ops=clientes.FW_OPS,
+                           fw_v=clientes._v(c.get("versao") or "0") >= (1, 7, 0),
                            livres=[d for d in todas if str(d.get("cliente_id") or "") != str(cid)],
                            modos=agente_rpc.MODOS)
 
@@ -172,6 +173,36 @@ def ler_ficheiro(cid):
         return jsonify(ok=False, erro="só pode abrir os ficheiros configurados nos logs deste cliente"), 403
     cmd = clientes.pedir_leitura(cid, caminho, int(request.form.get("linhas") or 0),
                                  request.form.get("listar") == "1", g.user.username)
+    return jsonify(ok=True, id=cmd)
+
+
+@bp.route("/cliente/<int:cid>/firewall", methods=["POST"])
+@auth.requires(MODULO.acesso)
+def firewall(cid):
+    """Ler o estado (qualquer utilizador do modulo) ou alterar (permissao clientes.firewall). Resposta JSON com o id do pedido."""
+    clientes.obter(cid) or abort(404)
+    f = request.form
+    acao = f.get("acao") or "ler"
+    if acao != "ler" and not g.user.can("clientes.firewall"):
+        return jsonify(ok=False, erro="sem permissão para alterar a firewall (clientes.firewall)"), 403
+    try:
+        if acao == "ler":
+            ops = []
+        elif acao == "oracle":
+            estado = (clientes.dados(cid).get("firewall") or {}).get("dados") or {}
+            entradas = [x for x in re.split(r"[\s,;]+", f.get("entradas") or "") if x]
+            ops = clientes.fw_preset_oracle(estado, (f.get("ipset") or "agente-portal").strip(), entradas, int(f.get("porta") or 8795))
+            if not ops:
+                return jsonify(ok=False, erro="nada a fazer: o ipset, as entradas e as regras já existem"), 400
+        else:
+            ops = [{k: (f.get(k) or "").strip() for k in clientes.FW_CAMPOS if (f.get(k) or "").strip()}]
+            ops[0]["op"] = acao
+            if acao == "ipset_novo" and f.get("entradas"):
+                ops += [{"op": "entrada_add", "nome": ops[0].get("nome", ""), "entrada": x}
+                        for x in re.split(r"[\s,;]+", f.get("entradas")) if x]
+        cmd = clientes.pedir_firewall(cid, ops, g.user.username)
+    except ValueError as exc:
+        return jsonify(ok=False, erro=str(exc)), 400
     return jsonify(ok=True, id=cmd)
 
 
@@ -269,6 +300,8 @@ def agente_comando(cmd_id):
         clientes.comando_linha(cmd_id, str(l)[:1000])
     if r["tipo"] == "ler" and isinstance(d.get("dados"), dict):
         clientes.guardar_leitura(c["id"], cmd_id, d["dados"])
+    if r["tipo"] == "firewall" and isinstance(d.get("dados"), dict):
+        clientes.guardar_dados(c["id"], {"firewall": d["dados"]})
     if d.get("estado") in ("OK", "ERRO"):
         clientes.comando_estado(cmd_id, d["estado"])
     return jsonify(ok=True)
