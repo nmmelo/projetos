@@ -7,8 +7,31 @@
 <p class="muted">Ficheiros e comandos para instalar, atualizar e verificar o agente nos servidores. O servidor precisa de
   chegar ao portal em <code translate="no">{{ url }}</code>; se não chegar, descarregue aqui e copie com <code>scp</code>.</p>
 
-<section class="card full">
-  <h2>Ficheiros do agente</h2>
+{% set desat = agentes|selectattr('desatualizado')|list %}
+<details class="card full fw-sec" id="sec-agentes" open>
+  <summary><h2>Agentes nos clientes</h2><small class="muted">versão no portal <b translate="no">{{ v_portal }}</b> ·
+    {{ desat|length }} desatualizado(s)</small></summary>
+  <div class="table-wrap"><table class="small-tab">
+    <thead><tr><th>Cliente</th><th>Versão</th><th>Contacto</th><th>Última atualização pelo portal</th><th></th></tr></thead>
+    <tbody>{% for a in agentes %}{% set c = a.c %}<tr>
+      <td><a href="{{ url_for('clientes.detalhe', cid=c.id) }}" translate="no"><b>{{ c.nome }}</b></a></td>
+      <td translate="no">{{ c.versao or '—' }} {% if a.desatualizado %}<span class="tag warn">desatualizado</span>{% elif c.versao %}<span class="tag ok">atual</span>{% endif %}</td>
+      <td><small>{{ c.contacto.texto }}</small></td>
+      <td><small>{% if a.pedido %}<span class="spin"></span> pedida {{ a.pedido[5:16] }}{% elif a.ult %}{{ a.ult.de }} → {{ a.ult.para }} ({{ (a.ult.quando or '')[:16]|replace('T', ' ') }}){% if a.ult.erro %} <span class="c-bad">falhou: {{ a.ult.erro }}</span>{% endif %}{% else %}—{% endif %}</small></td>
+      <td class="acts">{% if a.desatualizado and not a.pedido and user.can('clientes.gerir') %}
+        {% if c.versao >= '1.4' %}<form method="post" action="{{ url_for('clientes.atualizar_agente', cid=c.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <input type="hidden" name="voltar" value="{{ url_for('clientes.ferramentas') }}"><button class="btn small primary">⇧ Atualizar</button></form>
+        {% else %}<small class="muted">atualizar com o setup.sh (uma vez)</small>{% endif %}{% endif %}</td></tr>
+    {% else %}<tr><td colspan="5" class="muted">Sem clientes.</td></tr>{% endfor %}</tbody></table></div>
+  {% if desat and user.can('clientes.gerir') %}
+  <form method="post" action="{{ url_for('clientes.atualizar_todos') }}" style="margin-top:10px" onsubmit="return confirm((window.t || String)('Atualizar todos os agentes desatualizados? Cada um reinicia no próximo contacto.'))">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small primary">⇧ Atualizar todos os desatualizados</button></form>{% endif %}
+  <p class="hint">O agente (1.4.0+) descarrega o <code>agente-portal.py</code> do portal, confirma o SHA-256 que o portal lhe indica, substitui-se e reinicia
+    (adia se tiver um shrink a correr). Só atualiza o agente: venv, serviço e chave ficam como estão (para isso, o <code>setup.sh</code>).</p>
+</details>
+
+<details class="card full fw-sec" id="sec-ficheiros">
+  <summary><h2>Ficheiros do agente</h2><small class="muted">setup.sh, agente-portal.py, chave.pub</small></summary>
   <div class="table-wrap"><table>
     <thead><tr><th>Ficheiro</th><th>Para quê</th><th>Versão</th><th>Tamanho</th><th>SHA-256</th><th></th></tr></thead>
     <tbody>{% for f in fich %}
@@ -21,15 +44,15 @@
       <td class="acts"><a class="btn small" href="{{ url_for('clientes.agente_ficheiro', nome='chave.pub') }}" download="portal-chave.pub">⭳ Descarregar</a></td></tr>{% endif %}
     </tbody>
   </table></div>
-</section>
+</details>
 
 {% macro cmd(titulo, texto, nota='') %}
 <div class="cmd-item"><span>{{ titulo }}</span>{% if nota %}<small class="muted">{{ nota }}</small>{% endif %}
   <div class="cmd-linha"><pre class="mono-area small cmd" translate="no">{{ texto }}</pre><button type="button" class="link copiar">Copiar</button></div></div>
 {% endmacro %}
 
-<section class="card full">
-  <h2>Instalar e atualizar (no servidor, como root)</h2>
+<details class="card full fw-sec" id="sec-instalar">
+  <summary><h2>Instalar e atualizar (no servidor, como root)</h2><small class="muted">7 comandos</small></summary>
   <div class="lista">
     {{ cmd('1. Descarregar o instalador', 'curl -fsSL' ~ k ~ ' ' ~ url ~ '/clientes/agente/setup.sh -o /tmp/setup-agente.sh') }}
     {{ cmd('2. Instalação nova', 'sudo bash /tmp/setup-agente.sh --portal ' ~ url ~ ' --id <ID> --token <TOKEN> --utilizador ' ~ utilizador ~ ins,
@@ -42,11 +65,10 @@
     {{ cmd('Servidor sem acesso HTTPS ao portal: copiar os ficheiros', 'scp setup.sh agente-portal.py <servidor>:/tmp/\nssh <servidor> sudo bash /tmp/setup.sh --portal ' ~ url ~ ' --id <ID> --token <TOKEN> --sem-ssh' ~ ins,
            'Descarregue os dois ficheiros acima. Sem o portal, o setup.sh usa o agente-portal.py que está ao lado dele; com --sem-ssh não vai buscar a chave do portal (ponha-a à mão, ao lado). O agente só funciona se depois chegar ao portal.') }}
   </div>
-</section>
+</details>
 
-<div class="smtp-grid setup-grid">
-<section class="card">
-  <h2>Comandos do agente</h2>
+<details class="card full fw-sec" id="sec-comandos">
+  <summary><h2>Comandos do agente</h2><small class="muted">estado, testar, Oracle, intervalo, notificar, registo</small></summary>
   <div class="lista">
     {{ cmd('Estado (sincronização, fila, serviço Oracle)', 'sudo agente-portal estado') }}
     {{ cmd('Testar a ligação ao portal', 'sudo agente-portal testar') }}
@@ -55,9 +77,9 @@
     {{ cmd('Notificar o portal (num script)', 'agente-portal notificar <ID_DA_REGRA> ok "Backup terminado"') }}
     {{ cmd('Registo do agente', 'sudo journalctl -u agente-portal -n 100 --no-pager') }}
   </div>
-</section>
-<section class="card">
-  <h2>Chave SSH do portal</h2>
+</details>
+<details class="card full fw-sec" id="sec-chave">
+  <summary><h2>Chave SSH do portal</h2><small class="muted">authorized_keys</small></summary>
   {% if chave %}
   <p class="hint">O setup.sh acrescenta-a ao <code>authorized_keys</code> do utilizador SSH. Para a pôr à mão (garante a quebra de linha antes):</p>
   <div class="lista">
@@ -67,9 +89,12 @@
            'Corrige o caso em que a chave do portal ficou colada à última linha (ficheiro sem quebra de linha no fim). Cria uma cópia .bak.') }}
   </div>
   {% else %}<p class="muted">A chave do portal ainda não foi criada (é criada ao guardar o primeiro cliente).</p>{% endif %}
-</section>
-</div>
+</details>
 <script>
+document.querySelectorAll('details.fw-sec').forEach(d => {      /* lembra o que ficou aberto */
+  try { const v = localStorage.getItem('ferr.' + d.id); if (v !== null) d.open = v === '1'; } catch (e) {}
+  d.addEventListener('toggle', () => { try { localStorage.setItem('ferr.' + d.id, d.open ? '1' : '0'); } catch (e) {} });
+});
 const T = s => (window.t ? window.t(s) : s);
 document.querySelectorAll('.copiar').forEach(b => b.addEventListener('click', async () => {
   const t = b.parentElement.querySelector('pre, code').textContent;

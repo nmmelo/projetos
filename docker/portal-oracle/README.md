@@ -533,6 +533,14 @@ A página de cada cliente tem, como a Home, a **atualização automática** (man
 | **Bases de dados** | Bases de dados associadas ao cliente com o estado do módulo Oracle (estado, versão, instância, papel, Data Guard, log), quem faz os pedidos e o modo; **associar/desassociar** aqui (o mesmo que em Oracle → Definições) | Cache do módulo Oracle |
 | **Zabbix** | Com a API do Zabbix configurada (Gerir clientes → Zabbix: endereço e token): anfitrião, interfaces, problemas por gravidade e os itens principais (CPU, memória, carga, discos, processos, uptime, versão do agente) e ligação para o Zabbix | API do Zabbix (cache 60 s) |
 
+**Logs — ficheiros seguidos** (agente 1.4.0): além do journal ("Sistema"), cada cliente pode seguir ficheiros de log, agrupados por **tag** na coluna da esquerda. Em **＋ Adicionar / procurar**: *à mão* (pasta, ficheiro — aceita `*` e `?`, usa o mais recente, ex. `alert_*.log` —, descrição, tag e nº de linhas) ou **Procurar ficheiros (scan)**: o agente lista os ficheiros de texto de `/var/log` (sem os rodados/comprimidos) e escolhem-se os que interessam, com descrição e tag. O agente envia as últimas linhas a cada 5 min. Só lê ficheiros dentro de `LOGS_PASTAS` (no `.env` do agente; por omissão `/var/log /u01 /u02 /opt /oracle /app /home`).
+
+| Ficheiro seguido | Adicionar / procurar |
+|---|---|
+| ![Alert log](docs/clientes-logs-ficheiro.png) | ![Gerir](docs/clientes-logs-gerir.png) |
+
+**Atualizar o agente pelo portal** (a partir da 1.4.0): no Resumo do cliente aparece **⇧ Atualizar agente** quando o portal tem uma versão mais nova; em Ferramentas → **Agentes nos clientes**, a versão de cada um e **Atualizar todos os desatualizados**. Na sincronização seguinte o agente descarrega o `agente-portal.py` do portal, confirma o SHA-256 que o portal lhe envia (canal autenticado), guarda a versão anterior (`agente-portal.py.anterior`), substitui-se e reinicia (adia se estiver a correr um shrink). O resultado (de → para, erro) fica no cliente. Agentes anteriores à 1.4.0 atualizam-se uma vez com o `setup.sh`.
+
 **Pedir dados agora** (Processos, Sistema, Logs, Atualizações): o portal responde à sincronização seguinte com o pedido e o agente envia logo esses dados (até um intervalo). A lista de clientes mostra as bases de dados associadas e o número de atualizações pendentes (vermelho com atualizações de segurança, "reiniciar" quando preciso). Requer o agente **1.3.0** (atualize em Ferramentas); `EXTRAS=0` no `.env` do agente desliga estes dados.
 
 | Processos | Atualizações |
@@ -549,7 +557,7 @@ A página de cada cliente tem, como a Home, a **atualização automática** (man
 
 ### Clientes → Ferramentas
 
-Download do `setup.sh`, do `agente-portal.py` (versão, tamanho, SHA-256) e da chave SSH pública do portal, e os comandos prontos a copiar, já com o endereço do portal: descarregar o instalador, instalação nova, serviço Oracle, atualizar (mantém id e token), verificar, desinstalar, instalar num servidor sem acesso HTTPS ao portal (o `setup.sh` usa o `agente-portal.py` que estiver ao lado dele), comandos do agente e como pôr a chave à mão.
+Secções recolhíveis (o estado fica guardado no browser): **Agentes nos clientes** (versões e atualização), download do `setup.sh`, do `agente-portal.py` (versão, tamanho, SHA-256) e da chave SSH pública do portal, e os comandos prontos a copiar, já com o endereço do portal: descarregar o instalador, instalação nova, serviço Oracle, atualizar (mantém id e token), verificar, desinstalar, instalar num servidor sem acesso HTTPS ao portal (o `setup.sh` usa o `agente-portal.py` que estiver ao lado dele), comandos do agente e como pôr a chave à mão.
 
 O `setup.sh` cria o comando `agente-portal` em `/usr/local/bin` e `/usr/bin` (o `sudo` do RHEL não procura em `/usr/local/bin`), a usar o Python do venv quando existe (serviço Oracle). Ao acrescentar a chave do portal ao `authorized_keys`, garante a quebra de linha antes e separa chaves que tenham ficado coladas na mesma linha (guarda uma cópia `authorized_keys.antes-setup`).
 

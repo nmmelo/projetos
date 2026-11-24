@@ -824,8 +824,34 @@ input.filtro { width: 100%; max-width: 360px; margin: 6px 0 10px; }
 .logs-box .lg { padding: 3px 10px; border-bottom: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; }
 .logs-box .lg:last-child { border-bottom: 0; }
 .logs-box .lg-err { color: var(--danger); }
-.logs-box .lg-warn { color: var(--text); }
+.logs-box .lg-warn { color: var(--ink); }
 .spin { display: inline-block; width: 10px; height: 10px; border: 2px solid var(--line); border-top-color: var(--accent);
   border-radius: 50%; animation: girar 0.8s linear infinite; vertical-align: -1px; }
 @keyframes girar { to { transform: rotate(360deg); } }
 #tproc .cmd-cel { max-width: 520px; }
+
+/* Cliente → Logs: fontes à esquerda */
+.logs-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start; }
+.logs-fontes { display: flex; flex-direction: column; gap: 2px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px; }
+.logs-fontes a { display: flex; flex-direction: column; padding: 7px 10px; border-radius: 8px; color: var(--ink); text-decoration: none; }
+.logs-fontes a small { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.logs-fontes a:hover { background: var(--th-bg); }
+.logs-fontes a.on { background: var(--accent); color: #fff; }
+.logs-fontes a.on small { color: rgba(255,255,255,.85); }
+.logs-fontes .lf-tag { margin: 8px 10px 2px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.logs-fontes .lf-gerir { margin-top: 8px; border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; font-weight: 600; color: var(--accent); }
+.logs-main { margin: 0 !important; }
+.inp-small { padding: 4px 8px !important; font-size: 12.5px; min-width: 160px; }
+@media (max-width: 900px) { .logs-grid { grid-template-columns: 1fr; } }
+/* Ferramentas: secções recolhíveis */
+details.card > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary h2 { margin: 0; font-size: 16px; }
+details.card > summary::before { content: "▸"; color: var(--muted); transition: transform .15s; }
+details.card[open] > summary::before { transform: rotate(90deg); }
+details.card > summary small { margin-left: auto; }
+details.card[open] > summary { margin-bottom: 12px; }
+.inline-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.inline-form label { display: flex; flex-direction: column; gap: 4px; }
+details.card.fw-sec + details.card.fw-sec { margin-top: 12px; }
+details.card.fw-sec { padding: 16px 24px; }

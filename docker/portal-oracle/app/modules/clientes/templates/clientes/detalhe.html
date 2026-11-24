@@ -38,6 +38,19 @@
            ('último contacto ' ~ c.ultimo_contacto ~ ' (há ' ~ dur(ct.seg) ~ ')') if c.ultimo_contacto else 'instale o agente (Gerir clientes)') }}
   {{ kv([('Id do cliente', c.codigo), ('Versão do agente', c.versao), ('Intervalo de sincronização', (c.intervalo ~ ' s') if c.intervalo),
          ('Contacta a partir de', c.ip_origem), ('Utilizador SSH', c.ssh_utilizador), ('Tipo', 'Máquina virtual' if c.vm else 'Servidor físico')]) }}
+  {% set ua = i.atualizacao if i else None %}
+  {% if atualizar_pedido %}
+  <p class="flash info"><span class="spin"></span> Atualização para {{ v_portal }} pedida às {{ atualizar_pedido[11:16] }}: o agente descarrega-a no próximo contacto e reinicia.</p>
+  {% elif desatualizado %}
+  <div class="flash warn" style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+    <span>Agente {{ c.versao }} — o portal tem a versão <b>{{ v_portal }}</b>.</span>
+    {% if user.can('clientes.gerir') %}{% if c.versao and c.versao >= '1.4' %}<form method="post" action="{{ url_for('clientes.atualizar_agente', cid=c.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small primary">⇧ Atualizar agente</button></form>
+    {% else %}<small>Esta versão ainda não se atualiza pelo portal: use o comando de Ferramentas (uma vez).</small>{% endif %}{% endif %}
+  </div>
+  {% endif %}
+  {% if ua %}<p class="hint">Última atualização pelo portal: {{ ua.de }} → {{ ua.para }} em {{ (ua.quando or '')|replace('T', ' ') }}
+    {% if ua.erro %}<span class="c-bad">— falhou: {{ ua.erro }}</span>{% else %}<span class="c-ok">— OK</span>{% endif %}</p>{% endif %}
   <p class="hint">O intervalo muda-se no cliente: <code>agente-portal intervalo 120</code> (o portal mostra-o na sincronização seguinte).</p>
 </section>
 <section class="card">
@@ -136,16 +149,99 @@
 </div>
 
 {% elif aba == 'logs' %}
-{% set x = dd.logs %}
-<section class="card full" data-ref="logs">
-  <div class="modulo-head"><h2>Logs <small class="muted">{{ x.dados.fonte if x }}</small></h2>{{ quando(x) }}</div>
+{% set fx = dd.ficheiros.dados if dd.ficheiros else {} %}
+<div class="logs-grid" data-ref="logs">
+<nav class="logs-fontes">
+  <a href="{{ url_for('clientes.detalhe', cid=c.id, aba='logs') }}" class="{{ 'on' if lf == 'sistema' }}"><b>Sistema</b><small>journal · avisos e erros</small></a>
+  {% for g in logs_cfg|groupby('tag') %}
+  {% if g.grouper %}<div class="lf-tag">{{ g.grouper }}</div>{% endif %}
+  {% for l in g.list %}{% set r = fx.get(l.id|string) %}
+  <a href="{{ url_for('clientes.detalhe', cid=c.id, aba='logs', f=l.id) }}" class="{{ 'on' if lf == l.id|string }}" title="{{ l.pasta }}/{{ l.ficheiro }}">
+    <b>{{ l.descricao or l.ficheiro }}</b><small translate="no">{% if r and r.erro %}<span class="c-bad">⚠</span> {% endif %}{{ l.ficheiro }}</small></a>
+  {% endfor %}{% endfor %}
+  {% if user.can('clientes.gerir') %}
+  <a href="{{ url_for('clientes.detalhe', cid=c.id, aba='logs', f='gerir') }}" class="lf-gerir {{ 'on' if lf == 'gerir' }}">＋ Adicionar / procurar</a>
+  {% endif %}
+</nav>
+<section class="card full logs-main">
+{% if lf == 'sistema' %}
+  {% set x = dd.logs %}
+  <div class="modulo-head"><h2>Sistema <small class="muted">{{ x.dados.fonte if x }}</small></h2>{{ quando(x) }}</div>
   {% if x %}
   <input type="search" class="filtro" data-alvo="tlogs" placeholder="Filtrar as linhas">
   <div class="logs-box" id="tlogs">{% for l in x.dados.linhas|reverse %}<div class="lg {{ 'lg-err' if l is matching('(?i).*(error|fail|crit|emerg|alert|denied|segfault|oom|ora-)') else 'lg-warn' }}" translate="no">{{ l }}</div>
   {% else %}<p class="muted">Sem avisos nem erros nas últimas 24 h.</p>{% endfor %}</div>
   <p class="hint">Mais recentes primeiro (até 300 linhas, atualizado a cada 5 min ou com "Pedir dados agora"). No servidor: <code>journalctl -p warning --since -24h</code></p>
   {% else %}<p class="muted">Sem dados (agente 1.3.0+).</p>{% endif %}
+
+{% elif lf == 'gerir' %}
+  <h2>Ficheiros de log</h2>
+  <p class="hint">O agente envia as últimas linhas de cada ficheiro a cada 5 minutos (e com "Pedir dados agora"). Só lê ficheiros nas pastas
+    permitidas no agente (<code>LOGS_PASTAS</code>, por omissão <code>/var/log /u01 /u02 /opt /oracle /app /home</code>). Requer o agente 1.4.0.</p>
+  {% if logs_cfg %}<div class="table-wrap"><table class="small-tab">
+    <thead><tr><th>Descrição</th><th>Tag</th><th>Pasta</th><th>Ficheiro</th><th class="num">Linhas</th><th>Estado</th><th></th></tr></thead>
+    <tbody>{% for l in logs_cfg %}{% set r = fx.get(l.id|string) %}<tr><td><b>{{ l.descricao or '—' }}</b></td><td>{% if l.tag %}<span class="tag">{{ l.tag }}</span>{% endif %}</td>
+      <td translate="no"><small>{{ l.pasta }}</small></td><td translate="no"><code>{{ l.ficheiro }}</code></td><td class="num">{{ l.linhas }}</td>
+      <td>{% if not r %}<small class="muted">à espera do agente</small>{% elif r.erro %}<small class="c-bad">{{ r.erro }}</small>{% else %}<small class="c-ok">OK · {{ r.tamanho|filesizeformat(true) }}</small>{% endif %}</td>
+      <td class="acts"><form method="post" action="{{ url_for('clientes.logs_ficheiros', cid=c.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <input type="hidden" name="acao" value="remover"><input type="hidden" name="lid" value="{{ l.id }}"><button class="btn small danger">Retirar</button></form></td></tr>{% endfor %}</tbody></table></div>{% endif %}
+
+  <h3 style="margin-top:20px">Adicionar à mão</h3>
+  <form method="post" action="{{ url_for('clientes.logs_ficheiros', cid=c.id) }}" class="grid">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="adicionar">
+    <label>Pasta <input name="pasta" required placeholder="/u01/app/oracle/diag/rdbms/prod/PROD/trace" translate="no"></label>
+    <label>Ficheiro <input name="ficheiro" required placeholder="alert_PROD.log" translate="no"><span class="hint">Aceita * e ? (usa o mais recente).</span></label>
+    <label>Descrição <input name="descricao" placeholder="Alert log PROD"></label>
+    <label>Tag <input name="tag" placeholder="oracle" list="tags-log"></label>
+    <label>Linhas <input name="linhas" type="number" min="20" max="2000" value="200"></label>
+    <div class="buttons full"><button class="primary">Adicionar</button></div>
+  </form>
+  <datalist id="tags-log">{% for t in (logs_cfg|map(attribute='tag')|select|unique|list) + ['oracle', 'sistema', 'aplicação', 'segurança', 'backup'] %}<option value="{{ t }}">{% endfor %}</datalist>
+
+  <h3 style="margin-top:20px">Procurar em /var/log</h3>
+  {% set sc = dd.scan %}
+  <form method="post" action="{{ url_for('clientes.logs_ficheiros', cid=c.id) }}" style="display:inline">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="scan">
+    <button class="btn small">⟳ Procurar ficheiros (scan)</button></form>
+  {% if 'scan' in dd._pedido %}<small class="muted"><span class="spin"></span> pedido enviado, à espera do agente…</small>{% elif sc %}<small class="muted">último scan {{ sc.atualizado }}</small>{% endif %}
+  {% if sc and sc.dados.ficheiros %}
+  {% set ja = logs_cfg|map(attribute='pasta')|list %}
+  <form method="post" action="{{ url_for('clientes.logs_ficheiros', cid=c.id) }}" style="margin-top:10px">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="adicionar_scan">
+    <input type="search" class="filtro" data-alvo="tscan" placeholder="Filtrar ficheiros">
+    <div class="table-wrap" style="max-height:420px"><table class="small-tab" id="tscan">
+      <thead><tr><th><input type="checkbox" onclick="this.closest('table').querySelectorAll('tbody tr:not([style*=none]) input[name=sel]:not(:disabled)').forEach(c => c.checked = this.checked)"></th>
+        <th>Ficheiro</th><th class="num">Tamanho</th><th>Alterado</th><th>Descrição</th></tr></thead>
+      <tbody>{% for f in sc.dados.ficheiros %}{% set seguido = logs_cfg|selectattr('pasta', 'equalto', f.pasta)|selectattr('ficheiro', 'equalto', f.ficheiro)|list %}
+      <tr><td><input type="checkbox" name="sel" value="{{ f.caminho }}" {{ 'disabled checked' if seguido }}></td>
+        <td translate="no"><code>{{ f.caminho }}</code>{% if seguido %} <small class="c-ok">já seguido</small>{% endif %}</td>
+        <td class="num">{{ f.tamanho|filesizeformat(true) }}</td><td><small>{{ f.alterado|ts_epoch }}</small></td>
+        <td><input name="d:{{ f.caminho }}" placeholder="{{ f.ficheiro }}" class="inp-small" {{ 'disabled' if seguido }}></td></tr>{% endfor %}</tbody></table></div>
+    <div class="inline-form" style="margin-top:10px">
+      <label>Tag para os selecionados <input name="tag" list="tags-log" placeholder="sistema"></label>
+      <label>Linhas <input name="linhas" type="number" min="20" max="2000" value="200" style="width:90px"></label>
+      <button class="primary small">Adicionar selecionados</button></div>
+  </form>
+  {% elif sc %}<p class="muted">Nenhum ficheiro de texto encontrado.</p>{% endif %}
+
+{% else %}
+  {% set l = (logs_cfg|selectattr('id', 'equalto', lf|int)|list or [None])[0] %}
+  {% if l %}{% set r = fx.get(l.id|string) %}
+  <div class="modulo-head"><h2>{{ l.descricao or l.ficheiro }} {% if l.tag %}<span class="tag">{{ l.tag }}</span>{% endif %}</h2>{{ quando(dd.ficheiros) }}</div>
+  <p class="hint" translate="no"><code>{{ r.caminho if r and r.caminho else l.pasta ~ '/' ~ l.ficheiro }}</code>
+    {% if r and r.tamanho is defined %} · {{ r.tamanho|filesizeformat(true) }} · alterado {{ r.alterado|ts_epoch }}{% if r.correspondencias > 1 %} · o mais recente de {{ r.correspondencias }}{% endif %}{% endif %}</p>
+  {% if not r %}<p class="muted">À espera do agente (próximo contacto; agente 1.4.0+).</p>
+  {% elif r.erro %}<p class="flash error">{{ r.erro }}</p>
+  {% else %}
+  <input type="search" class="filtro" data-alvo="tlogf" placeholder="Filtrar as linhas">
+  <div class="logs-box" id="tlogf">{% for x in r.linhas|reverse %}<div class="lg {{ 'lg-err' if x is matching('(?i).*(error|fail|crit|fatal|denied|ora-|tns-|exception)') else '' }}" translate="no">{{ x }}</div>
+  {% else %}<p class="muted">Ficheiro vazio.</p>{% endfor %}</div>
+  <p class="hint">Últimas {{ l.linhas }} linhas, mais recentes primeiro.</p>
+  {% endif %}
+  {% else %}<p class="muted">Ficheiro de log não encontrado.</p>{% endif %}
+{% endif %}
 </section>
+</div>
 
 {% elif aba == 'atualizacoes' %}
 {% set x = dd.atualizacoes %}

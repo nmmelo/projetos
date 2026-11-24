@@ -148,6 +148,7 @@ def apagar(cid) -> None:
         t.run("DELETE FROM cliente_alarmes WHERE cliente_id = ?", (cid,))
         t.run("DELETE FROM cliente_regras WHERE cliente_id = ?", (cid,))
         t.run("DELETE FROM cliente_dados WHERE cliente_id = ?", (cid,))
+        t.run("DELETE FROM cliente_logs WHERE cliente_id = ?", (cid,))
         t.run("DELETE FROM clientes WHERE id = ?", (cid,))
 
 
@@ -231,7 +232,9 @@ def autenticar(codigo: str, tk: str) -> dict | None:
 
 
 # ============================================================ dados extra do agente (processos, sistema, logs, ...)
-TIPOS_DADOS = {"processos": "Processos", "sistema": "Sistema", "logs": "Logs", "atualizacoes": "Atualizações pendentes"}
+TIPOS_DADOS = {"processos": "Processos", "sistema": "Sistema", "logs": "Logs", "atualizacoes": "Atualizações pendentes",
+               "ficheiros": "Ficheiros de log", "scan": "Ficheiros em /var/log"}
+TIPOS_PEDIDO = ("processos", "sistema", "logs", "atualizacoes", "scan")
 
 
 def guardar_dados(cid: int, extras: dict) -> None:
@@ -267,8 +270,64 @@ def dados(cid: int) -> dict:
 
 def pedir_dados(cid: int, tipos: list[str]) -> None:
     """O agente envia estes dados na proxima sincronizacao (resposta do sync: 'pedidos')."""
-    tipos = [x for x in tipos if x in TIPOS_DADOS] or list(TIPOS_DADOS)
-    store.save_settings({f"cliente_pedido:{cid}": ",".join(tipos)})
+    atual = [x for x in (store.get_setting(f"cliente_pedido:{cid}") or "").split(",") if x]
+    tipos = [x for x in tipos if x in TIPOS_PEDIDO] or list(TIPOS_PEDIDO[:4])
+    store.save_settings({f"cliente_pedido:{cid}": ",".join(dict.fromkeys(atual + tipos))})
+
+
+# ============================================================ ficheiros de log seguidos (por cliente)
+LOG_PASTA_RE = re.compile(r"^/[\w./ -]{0,490}$")
+LOG_FICH_RE = re.compile(r"^[\w.*?\[\] -]{1,200}$")
+
+
+def logs_cfg(cid: int) -> list[dict]:
+    with store.tx() as t:
+        return t.all("SELECT * FROM cliente_logs WHERE cliente_id = ? ORDER BY tag, descricao, ficheiro", (cid,))
+
+
+def guardar_log(cid: int, pasta: str, ficheiro: str, descricao: str = "", tag: str = "", linhas: int = 200) -> None:
+    pasta, ficheiro = (pasta or "").strip().rstrip("/") or "/", (ficheiro or "").strip()
+    if not LOG_PASTA_RE.match(pasta) or ".." in pasta:
+        raise ValueError("Pasta inválida (caminho absoluto, sem '..').")
+    if not LOG_FICH_RE.match(ficheiro) or "/" in ficheiro:
+        raise ValueError("Nome de ficheiro inválido (pode usar * e ?).")
+    linhas = max(20, min(2000, int(linhas or 200)))
+    with store.tx() as t:
+        if t.val("SELECT COUNT(*) FROM cliente_logs WHERE cliente_id = ? AND pasta = ? AND ficheiro = ?", (cid, pasta, ficheiro)):
+            t.run("UPDATE cliente_logs SET descricao = ?, tag = ?, linhas = ? WHERE cliente_id = ? AND pasta = ? AND ficheiro = ?",
+                  ((descricao or "")[:255], (tag or "")[:40], linhas, cid, pasta, ficheiro))
+        else:
+            t.run("INSERT INTO cliente_logs (cliente_id, pasta, ficheiro, descricao, tag, linhas, criado) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                  (cid, pasta, ficheiro, (descricao or "")[:255], (tag or "")[:40], linhas, store.now()))
+
+
+def apagar_log(cid: int, lid: int) -> None:
+    with store.tx() as t:
+        t.run("DELETE FROM cliente_logs WHERE id = ? AND cliente_id = ?", (lid, cid))
+
+
+# ============================================================ atualizacao do agente pelo portal
+def agente_portal() -> tuple[str, str]:
+    """(versao, sha256) do agente-portal.py que o portal distribui."""
+    p = ficheiro_agente("agente-portal.py")
+    if not p:
+        return "", ""
+    dados = open(p, "rb").read()
+    m = re.search(rb'^VERSAO = "([^"]+)"', dados, re.M)
+    return (m.group(1).decode() if m else ""), hashlib.sha256(dados).hexdigest()
+
+
+def _v(x: str) -> tuple:
+    return tuple(int(n) for n in re.findall(r"\d+", x or "0")[:3])
+
+
+def desatualizado(c: dict) -> bool:
+    v, _ = agente_portal()
+    return bool(v and c.get("versao") and _v(c["versao"]) < _v(v))
+
+
+def pedir_atualizacao(cid: int) -> None:
+    store.save_settings({f"cliente_atualizar:{cid}": store.now()})
 
 
 def sync(c: dict, info: dict, ip: str, link: str = "", extras: dict | None = None) -> dict:
@@ -296,7 +355,22 @@ def sync(c: dict, info: dict, ip: str, link: str = "", extras: dict | None = Non
     ped = store.get_setting(f"cliente_pedido:{c['id']}") or ""
     if ped:
         store.save_settings({f"cliente_pedido:{c['id']}": ""})
+    atualizar = None
+    pedido_em = store.get_setting(f"cliente_atualizar:{c['id']}") or ""
+    if pedido_em:
+        v, sha = agente_portal()
+        ult = info.get("atualizacao") if isinstance(info.get("atualizacao"), dict) else {}
+        if ult.get("erro") and ult.get("para") == v and (ult.get("quando") or "").replace("T", " ") >= pedido_em:
+            # falhou depois deste pedido: nao insiste (o erro fica visivel no cliente)
+            store.save_settings({f"cliente_atualizar:{c['id']}": ""})
+        elif v and _v(v) > _v(info.get("versao") or "0"):
+            atualizar = {"versao": v, "sha256": sha}
+        else:
+            store.save_settings({f"cliente_atualizar:{c['id']}": ""})     # ja esta na versao do portal
+    fl = [{"id": r["id"], "pasta": r["pasta"], "ficheiro": r["ficheiro"], "linhas": r["linhas"] or 200}
+          for r in logs_cfg(c["id"])]
     return {"ok": True, "nome": c["nome"], "intervalo": iv, "pedidos": [x for x in ped.split(",") if x],
+            "ficheiros_log": fl, "atualizar": atualizar,
             "regras": [{"id": r["codigo"], "nome": r["nome"], "log": r["log_path"] or "",
                         "padrao_erro": r["padrao_erro"] or "", "padrao_aviso": r["padrao_aviso"] or ""}
                        for r in regras(c["id"], so_ativas=True)]}

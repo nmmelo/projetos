@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1767">
+<lingua codigo="en" nome="English" textos="1810">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -7069,5 +7069,177 @@
   <texto>
     <origem>Zombie</origem>
     <traducao>Zombie</traducao>
+  </texto>
+  <texto>
+    <origem>). Requer o agente 1.4.0.</origem>
+    <traducao>). Requires agent 1.4.0.</traducao>
+  </texto>
+  <texto>
+    <origem>, por omissão</origem>
+    <traducao>, by default</traducao>
+  </texto>
+  <texto>
+    <origem>Aceita * e ? (usa o mais recente).</origem>
+    <traducao>Accepts * and ? (uses the most recent).</traducao>
+  </texto>
+  <texto>
+    <origem>Adicionar</origem>
+    <traducao>Add</traducao>
+  </texto>
+  <texto>
+    <origem>Adicionar selecionados</origem>
+    <traducao>Add selected</traducao>
+  </texto>
+  <texto>
+    <origem>Adicionar à mão</origem>
+    <traducao>Add manually</traducao>
+  </texto>
+  <texto>
+    <origem>Agentes nos clientes</origem>
+    <traducao>Agents on clients</traducao>
+  </texto>
+  <texto>
+    <origem>Contacto</origem>
+    <traducao>Contact</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiros de log</origem>
+    <traducao>Log files</traducao>
+  </texto>
+  <texto>
+    <origem>Filtrar ficheiros</origem>
+    <traducao>Filter files</traducao>
+  </texto>
+  <texto>
+    <origem>Linhas</origem>
+    <traducao>Lines</traducao>
+  </texto>
+  <texto>
+    <origem>O agente ({n}.{n}.{n}+) descarrega o</origem>
+    <traducao>The agent ({n}.{n}.{n}+) downloads</traducao>
+  </texto>
+  <texto>
+    <origem>O agente envia as últimas linhas de cada ficheiro a cada {n} minutos (e com "Pedir dados agora"). Só lê ficheiros nas pastas permitidas no agente (</origem>
+    <traducao>The agent sends the last lines of each file every {n} minutes (and with "Request data now"). It only reads files in the folders allowed on the agent (</traducao>
+  </texto>
+  <texto>
+    <origem>Pasta</origem>
+    <traducao>Folder</traducao>
+  </texto>
+  <texto>
+    <origem>Procurar em /var/log</origem>
+    <traducao>Search /var/log</traducao>
+  </texto>
+  <texto>
+    <origem>Tag</origem>
+    <traducao>Tag</traducao>
+  </texto>
+  <texto>
+    <origem>Tag para os selecionados</origem>
+    <traducao>Tag for the selected</traducao>
+  </texto>
+  <texto>
+    <origem>Tamanho</origem>
+    <traducao>Size</traducao>
+  </texto>
+  <texto>
+    <origem>do portal, confirma o SHA-256 que o portal lhe indica, substitui-se e reinicia (adia se tiver um shrink a correr). Só atualiza o agente: venv, serviço e chave ficam como estão (para isso, o</origem>
+    <traducao>from the portal, checks the SHA-256 the portal gives it, replaces itself and restarts (postponed while a shrink is running). Only the agent is updated: venv, service and key stay as they are (for those, use</traducao>
+  </texto>
+  <texto>
+    <origem>estado, testar, Oracle, intervalo, notificar, registo</origem>
+    <traducao>status, test, Oracle, interval, notify, log</traducao>
+  </texto>
+  <texto>
+    <origem>journal · avisos e erros</origem>
+    <traducao>journal · warnings and errors</traducao>
+  </texto>
+  <texto>
+    <origem>setup.sh, agente-portal.py, chave.pub</origem>
+    <traducao>setup.sh, agente-portal.py, chave.pub</traducao>
+  </texto>
+  <texto>
+    <origem>versão no portal</origem>
+    <traducao>version on the portal</traducao>
+  </texto>
+  <texto>
+    <origem>· {n} desatualizado(s)</origem>
+    <traducao>· {n} outdated</traducao>
+  </texto>
+  <texto>
+    <origem>Última atualização pelo portal</origem>
+    <traducao>Last update by the portal</traducao>
+  </texto>
+  <texto>
+    <origem>Últimas {n} linhas, mais recentes primeiro.</origem>
+    <traducao>Last {n} lines, most recent first.</traducao>
+  </texto>
+  <texto>
+    <origem>último scan {n}-{n}-{n} {n}:{n}:{n}</origem>
+    <traducao>last scan {n}-{n}-{n} {n}:{n}:{n}</traducao>
+  </texto>
+  <texto>
+    <origem>⟳ Procurar ficheiros (scan)</origem>
+    <traducao>⟳ Find files (scan)</traducao>
+  </texto>
+  <texto>
+    <origem>＋ Adicionar / procurar</origem>
+    <traducao>＋ Add / search</traducao>
+  </texto>
+  <texto>
+    <origem>⇧ Atualizar agente</origem>
+    <traducao>⇧ Update agent</traducao>
+  </texto>
+  <texto>
+    <origem>⇧ Atualizar</origem>
+    <traducao>⇧ Update</traducao>
+  </texto>
+  <texto>
+    <origem>⇧ Atualizar todos os desatualizados</origem>
+    <traducao>⇧ Update all outdated</traducao>
+  </texto>
+  <texto>
+    <origem>desatualizado</origem>
+    <traducao>outdated</traducao>
+  </texto>
+  <texto>
+    <origem>atual</origem>
+    <traducao>current</traducao>
+  </texto>
+  <texto>
+    <origem>à espera do agente</origem>
+    <traducao>waiting for the agent</traducao>
+  </texto>
+  <texto>
+    <origem>já seguido</origem>
+    <traducao>already followed</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiro de log não encontrado.</origem>
+    <traducao>Log file not found.</traducao>
+  </texto>
+  <texto>
+    <origem>Ficheiro vazio.</origem>
+    <traducao>Empty file.</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhum ficheiro de texto encontrado.</origem>
+    <traducao>No text files found.</traducao>
+  </texto>
+  <texto>
+    <origem>pedido enviado, à espera do agente…</origem>
+    <traducao>request sent, waiting for the agent…</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar todos os agentes desatualizados? Cada um reinicia no próximo contacto.</origem>
+    <traducao>Update all outdated agents? Each one restarts on its next contact.</traducao>
+  </texto>
+  <texto>
+    <origem>Esta versão ainda não se atualiza pelo portal: use o comando de Ferramentas (uma vez).</origem>
+    <traducao>This version can't update itself from the portal yet: use the command in Tools (once).</traducao>
+  </texto>
+  <texto>
+    <origem>atualizar com o setup.sh (uma vez)</origem>
+    <traducao>update with setup.sh (once)</traducao>
   </texto>
 </lingua>

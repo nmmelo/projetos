@@ -91,7 +91,10 @@ def detalhe(cid):
     return render_template("clientes/detalhe.html", c=c, regras=clientes.regras(cid), bds=bds, url_portal=_url_portal(),
                            eventos=clientes.listar_eventos(cliente_id=cid, limite=50), familias=clientes.FAMILIAS,
                            estados=clientes.ESTADOS_EV, alarmes=clientes_alarmes.ativos(cid), aba=aba, abas=abas,
-                           dd=clientes.dados(cid), zbx=zbx, zbx_ok=zbx_ok,
+                           dd=clientes.dados(cid), zbx=zbx, zbx_ok=zbx_ok, logs_cfg=clientes.logs_cfg(cid),
+                           lf=request.args.get("f") or "sistema", v_portal=clientes.agente_portal()[0],
+                           desatualizado=clientes.desatualizado(c),
+                           atualizar_pedido=store.get_setting(f"cliente_atualizar:{cid}") or "",
                            livres=[d for d in todas if str(d.get("cliente_id") or "") != str(cid)],
                            modos=agente_rpc.MODOS)
 
@@ -117,6 +120,56 @@ def pedir_dados(cid):
         return jsonify(ok=True)
     flash("Pedido enviado: o agente envia os dados no próximo contacto.", "ok")
     return redirect(url_for("clientes.detalhe", cid=cid, aba=request.form.get("aba") or "resumo"))
+
+
+@bp.route("/cliente/<int:cid>/logs", methods=["POST"])
+@auth.requires(MODULO.acesso, "clientes.gerir")
+def logs_ficheiros(cid):
+    clientes.obter(cid) or abort(404)
+    f = request.form
+    acao = f.get("acao")
+    destino = {"cid": cid, "aba": "logs"}
+    try:
+        if acao == "scan":
+            clientes.pedir_dados(cid, ["scan"])
+            flash("Pedido enviado: o agente procura os ficheiros em /var/log no próximo contacto.", "ok")
+            destino["scan"] = 1
+        elif acao == "adicionar":
+            clientes.guardar_log(cid, f.get("pasta"), f.get("ficheiro"), f.get("descricao"), f.get("tag"), f.get("linhas") or 200)
+            flash(f"Ficheiro {f.get('ficheiro')} adicionado: as linhas chegam no próximo contacto.", "ok")
+        elif acao == "adicionar_scan":
+            sel = f.getlist("sel")
+            for caminho in sel:
+                pasta, _, nome = caminho.rpartition("/")
+                clientes.guardar_log(cid, pasta or "/", nome, f.get(f"d:{caminho}") or nome, f.get("tag") or "", f.get("linhas") or 200)
+            flash(f"{len(sel)} ficheiro(s) adicionado(s).", "ok" if sel else "error")
+        elif acao == "remover":
+            clientes.apagar_log(cid, int(f.get("lid") or 0))
+            flash("Ficheiro retirado dos logs.", "ok")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("clientes.detalhe", **destino))
+
+
+@bp.route("/cliente/<int:cid>/atualizar-agente", methods=["POST"])
+@auth.requires(MODULO.acesso, "clientes.gerir")
+def atualizar_agente(cid):
+    c = clientes.obter(cid) or abort(404)
+    clientes.pedir_atualizacao(cid)
+    flash(f"{c['nome']}: o agente atualiza-se para {clientes.agente_portal()[0]} no próximo contacto e reinicia.", "ok")
+    return redirect(request.form.get("voltar") or url_for("clientes.detalhe", cid=cid))
+
+
+@bp.route("/ferramentas/atualizar-todos", methods=["POST"])
+@auth.requires(MODULO.acesso, "clientes.gerir")
+def atualizar_todos():
+    n = 0
+    for c in clientes.listar():
+        if clientes.desatualizado(c):
+            clientes.pedir_atualizacao(c["id"])
+            n += 1
+    flash(f"{n} agente(s) desatualizado(s) vão atualizar-se no próximo contacto." if n else "Todos os agentes estão na versão do portal.", "ok")
+    return redirect(url_for("clientes.ferramentas"))
 
 
 @bp.route("/cliente/<int:cid>/bds", methods=["POST"])
@@ -320,7 +373,11 @@ def ferramentas():
         chave = clientes.chave_publica()
     except RuntimeError:
         chave = ""
-    return render_template("clientes/ferramentas.html", fich=fich, url=_url_portal(), chave=chave,
+    v_portal = clientes.agente_portal()[0]
+    agentes = [{"c": c, "desatualizado": clientes.desatualizado(c),
+                "pedido": store.get_setting(f"cliente_atualizar:{c['id']}") or "",
+                "ult": (c.get("info") or {}).get("atualizacao")} for c in clientes.listar()]
+    return render_template("clientes/ferramentas.html", fich=fich, url=_url_portal(), chave=chave, agentes=agentes, v_portal=v_portal,
                            inseguro=_cfg()["inseguro"], utilizador=_cfg()["ssh_padrao"])
 
 

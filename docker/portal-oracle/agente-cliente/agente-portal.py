@@ -25,6 +25,7 @@ import argparse
 import base64
 import datetime
 import decimal
+import glob
 import grp
 import http.server
 import hashlib
@@ -46,13 +47,14 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.3.0"
+VERSAO = "1.4.0"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
 FILA = os.path.join(BASE, "fila.jsonl")
 ESTADO = os.path.join(BASE, "estado.json")
 SOCKET = os.environ.get("AGENTE_SOCKET", "/run/agente-portal/agente.sock")
+ATUALIZACAO = os.path.join(BASE, "atualizacao.json")
 TLS_CRT = os.path.join(BASE, "tls.crt")
 TLS_KEY = os.path.join(BASE, "tls.key")
 RPC_PORTA = 8795
@@ -122,7 +124,7 @@ def ler_env(decifrado: bool = True) -> dict:
 def gravar_env(cfg: dict) -> None:
     linhas = ["# Agente do portal. Gerado por 'agente-portal configurar'. Valores sensiveis cifrados (enc:).",
               "# Mudar o intervalo: agente-portal intervalo <segundos>"]
-    for k in ("PORTAL_URL", "CLIENTE_ID", "TOKEN", "INTERVALO", "VERIFICAR_TLS", "CA_FICHEIRO", "UTILIZADOR_SSH", "EXTRAS",
+    for k in ("PORTAL_URL", "CLIENTE_ID", "TOKEN", "INTERVALO", "VERIFICAR_TLS", "CA_FICHEIRO", "UTILIZADOR_SSH", "EXTRAS", "LOGS_PASTAS",
               "ORACLE_RPC", "RPC_PORTA", "RPC_ESCUTA", "RPC_ORIGENS", "ORACLE_LIB"):
         if k in cfg:
             v = cfg[k]
@@ -237,6 +239,7 @@ def recolher(cfg: dict) -> dict:
         "discos": discos, "virtual": _cmd("systemd-detect-virt") or "none", "python": platform.python_version(),
         "utilizador_ssh": cfg.get("UTILIZADOR_SSH", ""), "agora": datetime.datetime.now().isoformat(timespec="seconds"),
         "rpc": rpc_info(cfg),
+        "atualizacao": _ler_json(ATUALIZACAO),
     }
 
 
@@ -244,8 +247,10 @@ def recolher(cfg: dict) -> dict:
 # Enviados na sincronizacao quando estao "devidos" (cada tipo tem o seu intervalo) ou quando o portal os pede
 # (botao "Pedir dados agora"). As atualizacoes pendentes sao lentas (dnf/yum consultam os repositorios): correm
 # numa thread e seguem na sincronizacao seguinte. EXTRAS=0 no .env desliga tudo.
-EXTRAS_CADA = {"processos": 0, "sistema": 3600, "logs": 300, "atualizacoes": 6 * 3600}
-_ext = {"ultimo": {}, "prontos": {}, "a_correr": set()}
+EXTRAS_CADA = {"processos": 0, "sistema": 3600, "logs": 300, "ficheiros": 300, "atualizacoes": 6 * 3600, "scan": None}
+_ext = {"ultimo": {}, "prontos": {}, "a_correr": set(), "ficheiros_cfg": []}
+LOGS_PASTAS = "/var/log /u01 /u02 /opt /oracle /app /home"    # onde o portal pode pedir ficheiros (LOGS_PASTAS no .env)
+ROTADO_RE = re.compile(r"([-._]\d{8}(\d{2,6})?|\.\d{1,3})$|\.(gz|xz|bz2|zst|zip|old)$")
 _proc_ant = {"t": None, "d": {}}
 
 
@@ -409,8 +414,77 @@ def recolher_atualizacoes() -> dict:
             "verificado": datetime.datetime.now().isoformat(timespec="seconds")}
 
 
+def _permitido(caminho: str) -> bool:
+    try:
+        pastas = (ler_env().get("LOGS_PASTAS") or LOGS_PASTAS).split()
+    except OSError:
+        pastas = LOGS_PASTAS.split()
+    real = os.path.realpath(caminho)
+    return any(real == p.rstrip("/") or real.startswith(p.rstrip("/") + "/") for p in pastas)
+
+
+def _cauda(caminho: str, n: int) -> list:
+    with open(caminho, "rb") as f:
+        f.seek(0, 2)
+        tam = f.tell()
+        f.seek(max(0, tam - min(tam, max(n, 1) * 512 + 4096)))
+        bloco = f.read()
+    if b"\0" in bloco[-65536:]:
+        raise ValueError("ficheiro binario")
+    linhas = bloco.decode("utf-8", errors="replace").splitlines()
+    if tam > len(bloco) and linhas:
+        linhas = linhas[1:]                     # a primeira pode estar cortada
+    return [l[:500] for l in linhas[-n:]]
+
+
+def recolher_ficheiros() -> dict:
+    """Ultimas linhas dos ficheiros de log configurados no portal (pasta + ficheiro, aceita * e ?)."""
+    out = {}
+    for f in _ext["ficheiros_cfg"]:
+        fid = str(f.get("id"))
+        padrao = os.path.join(f.get("pasta") or "/", f.get("ficheiro") or "")
+        try:
+            cands = [c for c in glob.glob(padrao) if os.path.isfile(c)]
+            if not cands:
+                out[fid] = {"erro": "nao encontrado: " + padrao}
+                continue
+            p = max(cands, key=os.path.getmtime)
+            if not _permitido(p):
+                out[fid] = {"erro": "fora das pastas permitidas no agente (LOGS_PASTAS): " + p}
+                continue
+            st = os.stat(p)
+            out[fid] = {"caminho": p, "tamanho": st.st_size, "alterado": int(st.st_mtime), "correspondencias": len(cands),
+                        "linhas": _cauda(p, min(2000, int(f.get("linhas") or 200)))}
+        except (OSError, ValueError) as e:
+            out[fid] = {"erro": str(e)}
+    return out
+
+
+def recolher_scan() -> dict:
+    """Ficheiros de texto em /var/log (ate 3 niveis), sem os rodados nem comprimidos."""
+    lista, base = [], "/var/log"
+    for raiz, dirs, fichs in os.walk(base):
+        prof = raiz[len(base):].count("/")
+        if prof >= 3 or "/journal" in raiz:
+            dirs[:] = []
+        for n in fichs:
+            if ROTADO_RE.search(n) or n in ("wtmp", "btmp", "lastlog", "faillog", "utmp") or n.endswith((".journal", ".pid", ".lock")):
+                continue
+            p = os.path.join(raiz, n)
+            try:
+                st = os.lstat(p)
+            except OSError:
+                continue
+            if not os.path.isfile(p) or os.path.islink(p) or st.st_size == 0:
+                continue
+            lista.append({"caminho": p, "pasta": raiz, "ficheiro": n, "tamanho": st.st_size, "alterado": int(st.st_mtime)})
+            if len(lista) >= 600:
+                break
+    return {"base": base, "ficheiros": sorted(lista, key=lambda x: x["caminho"])}
+
+
 RECOLHER = {"processos": recolher_processos, "sistema": recolher_sistema, "logs": recolher_logs,
-            "atualizacoes": recolher_atualizacoes}
+            "atualizacoes": recolher_atualizacoes, "ficheiros": recolher_ficheiros, "scan": recolher_scan}
 
 
 def _extra_thread(tipo: str) -> None:
@@ -427,10 +501,17 @@ def extras(cfg: dict, pedidos=()) -> dict:
     if cfg.get("EXTRAS", "1") == "0":
         return {}
     agora, out = time.time(), {}
+    pedidos = set(pedidos or ())
+    if "logs" in pedidos:
+        pedidos.add("ficheiros")
     for tipo, cada in EXTRAS_CADA.items():
         if tipo in _ext["a_correr"]:
             continue
-        if tipo in pedidos or agora - _ext["ultimo"].get(tipo, 0) >= cada:
+        if cada is None and tipo not in pedidos:          # so a pedido (scan)
+            continue
+        if tipo == "ficheiros" and not _ext["ficheiros_cfg"]:
+            continue
+        if tipo in pedidos or agora - _ext["ultimo"].get(tipo, 0) >= (cada or 0):
             _ext["ultimo"][tipo] = agora
             if tipo == "atualizacoes":                      # lento: segue na sincronizacao seguinte
                 _ext["a_correr"].add(tipo)
@@ -445,6 +526,63 @@ def extras(cfg: dict, pedidos=()) -> dict:
     if _ext["a_correr"]:
         out["_a_verificar"] = sorted(_ext["a_correr"])
     return out
+
+
+# ============================================================ atualizacao pelo portal
+def _ler_json(p: str):
+    try:
+        with open(p) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _baixar(cfg: dict, caminho: str, timeout: int = 60) -> bytes:
+    url = cfg["PORTAL_URL"].rstrip("/") + caminho
+    req = urllib.request.Request(url, headers={"User-Agent": f"agente-portal/{VERSAO}"})
+    with urllib.request.urlopen(req, timeout=timeout, context=_ctx(cfg)) as r:
+        return r.read()
+
+
+def atualizar_agente(cfg: dict, alvo: dict) -> None:
+    """O portal pediu (resposta do sync 'atualizar'): descarrega o agente-portal.py do portal, confirma o
+    SHA-256 recebido pelo canal autenticado, substitui-se e reinicia-se (execv; mesmo PID para o systemd)."""
+    eu = os.path.abspath(__file__)
+    with open(eu, "rb") as f:
+        if hashlib.sha256(f.read()).hexdigest() == alvo.get("sha256"):
+            return
+    if any(j["estado"] == "a correr" for j in JOBS.values()):
+        log("atualizacao adiada: ha execucoes Oracle a correr neste agente")
+        return
+    reg = {"de": VERSAO, "para": alvo.get("versao"), "quando": datetime.datetime.now().isoformat(timespec="seconds"), "erro": ""}
+    try:
+        dados = _baixar(cfg, "/clientes/agente/agente-portal.py")
+        if hashlib.sha256(dados).hexdigest() != alvo.get("sha256"):
+            raise RuntimeError("SHA-256 do ficheiro descarregado nao corresponde ao indicado pelo portal")
+        compile(dados, eu, "exec")
+        novo = eu + ".novo"
+        with open(novo, "wb") as f:
+            f.write(dados)
+        os.chmod(novo, 0o755)
+        if os.path.exists(eu):
+            try:
+                import shutil as _sh  # noqa: PLC0415
+                _sh.copy2(eu, eu + ".anterior")
+            except OSError:
+                pass
+        os.replace(novo, eu)
+    except Exception as e:  # noqa: BLE001
+        reg["erro"] = str(e)
+        log(f"atualizacao para {alvo.get('versao')} falhou: {e}")
+        with open(ATUALIZACAO, "w") as f:
+            json.dump(reg, f)
+        return
+    with open(ATUALIZACAO, "w") as f:
+        json.dump(reg, f)
+    log(f"agente atualizado de {VERSAO} para {alvo.get('versao')}: a reiniciar")
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os.execv(sys.executable, [sys.executable, eu, "run"])
 
 
 # ============================================================ fila local (portal indisponivel)
@@ -977,8 +1115,16 @@ def cmd_run(_a):
                 enfileirar(e)
             r = pedido(cfg, "sync", {"info": recolher(cfg), "extras": extras(cfg)})
             regras = r.get("regras", [])
+            if isinstance(r.get("ficheiros_log"), list):
+                novos = r["ficheiros_log"] != _ext["ficheiros_cfg"]
+                _ext["ficheiros_cfg"] = r["ficheiros_log"]
+                if novos and r["ficheiros_log"]:
+                    r.setdefault("pedidos", []).append("ficheiros")
             if r.get("pedidos"):                   # o portal pediu dados agora: envia ja
                 pedido(cfg, "sync", {"info": recolher(cfg), "extras": extras(cfg, r["pedidos"])})
+            if r.get("atualizar"):                 # depois dos pedidos (o reinicio perdia-os)
+                esvaziar_fila(cfg)
+                atualizar_agente(cfg, r["atualizar"])
             esvaziar_fila(cfg)
             if falhas:
                 log("ligacao ao portal recuperada")

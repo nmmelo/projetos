@@ -201,6 +201,16 @@ _SCHEMA = [
         origem VARCHAR(10),
         mensagem TEXT
     ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS cliente_logs (
+        id {ID},
+        cliente_id INTEGER NOT NULL,
+        pasta VARCHAR(500) NOT NULL,
+        ficheiro VARCHAR(255) NOT NULL,
+        descricao VARCHAR(255),
+        tag VARCHAR(40),
+        linhas INTEGER,
+        criado VARCHAR(19)
+    ){SUFFIX}""",
     """CREATE TABLE IF NOT EXISTS cliente_dados (
         id {ID},
         cliente_id INTEGER NOT NULL,
