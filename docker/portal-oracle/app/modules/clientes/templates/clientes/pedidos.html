@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_cartoes.html" import controlos %}
+{% block title %}Clientes · Pedidos{% endblock %}
+{% block content %}
+{% include "clientes/_tabs.html" %}
+{% set cores = {'OK': 'ok', 'ERRO': 'bad', 'EM CURSO': 'accent', 'PENDENTE': 'warn'} %}
+{% set txt = {'OK': 'concluído', 'ERRO': 'falhou', 'EM CURSO': 'em curso', 'PENDENTE': 'à espera do agente'} %}
+<p class="muted">Tudo o que o portal pede aos agentes — dados (processos, sistema, logs, atualizações, scan de /var/log, ficheiros de log novos) e
+  atualizações do agente — com o estado e o output. Os agentes 1.5+ recebem os pedidos em ~5 s; os anteriores na sincronização seguinte.
+  Sem resposta em 15 min, o pedido passa a "falhou" com o motivo.</p>
+<section class="card full" data-ref="pedidos">
+  <div class="modulo-head">
+    <form method="get" class="inline-form">
+      <label>Cliente <select name="cliente"><option value="">Todos</option>{% for c in todos %}<option value="{{ c.id }}" {{ 'selected' if f.cliente == c.id }} translate="no">{{ c.nome }}</option>{% endfor %}</select></label>
+      <label>Pedido <select name="tipo"><option value="">Todos</option>{% for k, t in tipos.items() %}<option value="{{ k }}" {{ 'selected' if f.tipo == k }}>{{ t }}</option>{% endfor %}</select></label>
+      <label>Estado <select name="estado"><option value="">Todos</option>{% for k in ('PENDENTE', 'EM CURSO', 'OK', 'ERRO') %}<option value="{{ k }}" {{ 'selected' if f.estado == k }}>{{ txt[k]|capitalize }}</option>{% endfor %}</select></label>
+      <button class="primary small">Filtrar</button>
+      {% if f.cliente or f.tipo or f.estado %}<a class="btn small" href="{{ url_for('clientes.pedidos') }}">Limpar</a>{% endif %}
+    </form>
+    {{ controlos(editar=False, opcoes=((0, 'manual'), (5, '5 s'), (10, '10 s'), (30, '30 s'))) }}
+  </div>
+  <div class="an-tiles">{% for k in ('PENDENTE', 'EM CURSO', 'OK', 'ERRO') %}{% set n = pedidos|selectattr('estado', 'equalto', k)|list|length %}
+    <div class="an-tile"><span>{{ txt[k]|capitalize }}</span><b class="{{ 'c-bad' if k == 'ERRO' and n else ('c-warn' if k in ('PENDENTE', 'EM CURSO') and n else '') }}">{{ n }}</b></div>{% endfor %}</div>
+  {% if pedidos %}
+  <div class="table-wrap"><table class="small-tab cmd-hist" id="tped">
+    <thead><tr><th class="num">#</th><th>Cliente</th><th>Pedido</th><th>Estado</th><th>Pedido em</th><th class="num">Duração</th><th>Por</th></tr></thead>
+    <tbody>{% for p in pedidos %}<tr data-cmd="{{ p.id }}" data-nome="{{ p.cliente }}" class="{{ 'on' if sel == p.id }}">
+      <td class="num">{{ p.id }}</td>
+      <td><a href="{{ url_for('clientes.detalhe', cid=p.cliente_id, aba='agente') }}" translate="no" onclick="event.stopPropagation()"><b>{{ p.cliente or '?' }}</b></a></td>
+      <td>{{ p.descricao }}</td>
+      <td><span class="tag {{ cores.get(p.estado, '') }}">{% if p.estado in ('PENDENTE', 'EM CURSO') %}<span class="spin"></span> {% endif %}{{ txt.get(p.estado, p.estado) }}</span></td>
+      <td class="nowrap"><small>{{ p.criado[5:19] }}</small></td>
+      <td class="num nowrap"><small>{% if p.duracao is not none %}{{ (p.duracao // 60 ~ ' min ') if p.duracao >= 60 }}{{ p.duracao % 60 }} s{% else %}—{% endif %}</small></td>
+      <td><small>{{ p.pedido_por }}</small></td></tr>{% endfor %}</tbody></table></div>
+  <p class="hint">Clique num pedido para ver o output. Até 300, mais recentes primeiro.</p>
+  {% else %}<p class="muted">Sem pedidos{{ ' com estes filtros' if f.cliente or f.tipo or f.estado }}.</p>{% endif %}
+</section>
+<div id="cmd-out" hidden></div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='painel.js', v=static_v) }}"></script>
+<script src="{{ url_for('static', filename='comandos.js', v=static_v) }}"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id), out = $('cmd-out');
+  let atual = {{ sel or 'null' }};
+  function ligar() {
+    document.querySelectorAll('#tped tr[data-cmd]').forEach(tr => { if (tr.dataset.ok) return; tr.dataset.ok = 1;
+      if (atual && +tr.dataset.cmd === atual) tr.classList.add('on');
+      tr.addEventListener('click', () => { atual = +tr.dataset.cmd;
+        document.querySelectorAll('#tped tr.on').forEach(x => x.classList.remove('on')); tr.classList.add('on');
+        history.replaceState(null, '', (() => { const u = new URL(location.href); u.searchParams.set('cmd', atual); return u; })());
+        PortalComando.seguir(atual, out, null, tr.dataset.nome); out.scrollIntoView({behavior: 'smooth', block: 'nearest'}); }); });
+  }
+  async function blocos() {
+    const r = await fetch(location.href, {cache: 'no-store'}); if (!r.ok) throw new Error(r.status);
+    const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+    for (const sel of ['.an-tiles', '.table-wrap', 'p.muted.vazio']) {
+      const n = doc.querySelector(`[data-ref=pedidos] ${sel}`), el = document.querySelector(`[data-ref=pedidos] ${sel}`);
+      if (n && el && n.innerHTML !== el.innerHTML) el.innerHTML = n.innerHTML;
+    }
+    ligar();
+  }
+  ligar();
+  if (atual) PortalComando.seguir(atual, out, null, (document.querySelector(`#tped tr[data-cmd="${atual}"]`) || {dataset: {}}).dataset.nome);
+  autoAtualizar('pedidos', $('ref'), $('agora'), $('upd'), blocos, '5');
+})();
+</script>
+{% endblock %}

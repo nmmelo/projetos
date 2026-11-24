@@ -7,9 +7,9 @@
   const TXT = {'PENDENTE': 'à espera do agente', 'EM CURSO': 'em curso', 'OK': 'concluído', 'ERRO': 'falhou'};
   function desenhar(el, d, titulo) {
     const fim = d.estado === 'OK' || d.estado === 'ERRO';
-    el.innerHTML = `<div class="cmd-out-h">${titulo ? `<b>${esc(titulo)}</b>` : ''}
+    el.innerHTML = `<div class="cmd-out-h">${titulo ? `<b>${esc(titulo)}</b>` : ''}${d.descricao ? `<span>${esc(T(d.descricao))}</span>` : ''}
         <span class="tag ${COR[d.estado] || ''}">${fim ? '' : '<span class="spin"></span> '}${esc(T(TXT[d.estado] || d.estado))}</span>
-        <small class="muted">#${d.id} · ${esc(d.tipo)} · ${esc(d.pedido_por || '')} · ${esc((d.criado || '').slice(11, 19))}${d.terminado ? ' → ' + esc(d.terminado.slice(11, 19)) : ''}</small></div>
+        <small class="muted">#${d.id} · ${d.cliente ? esc(d.cliente) + ' · ' : ''}${esc(d.pedido_por || '')} · ${esc((d.criado || '').slice(11, 19))}${d.terminado ? ' → ' + esc(d.terminado.slice(11, 19)) : ''}</small></div>
       <pre class="cmd-out-p" translate="no">${esc(d.output || '')}</pre>`;
     const p = el.querySelector('pre'); p.scrollTop = p.scrollHeight;
   }

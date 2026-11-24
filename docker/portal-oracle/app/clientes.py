@@ -268,11 +268,89 @@ def dados(cid: int) -> dict:
     return out
 
 
-def pedir_dados(cid: int, tipos: list[str]) -> None:
-    """O agente envia estes dados na proxima sincronizacao (resposta do sync: 'pedidos')."""
+NOMES_PEDIDO = {"processos": "processos", "sistema": "sistema", "logs": "logs", "atualizacoes": "atualizações pendentes",
+                "scan": "ficheiros em /var/log", "ficheiros": "ficheiros de log"}
+
+
+def pedir_dados(cid: int, tipos: list[str], por: str = "", motivo: str = "") -> int:
+    """Pedido de dados ao agente: fica em Clientes -> Pedidos com estado e output. O agente 1.5+ recebe-o em
+    ~5 s (consulta de comandos), os anteriores na sincronizacao seguinte. Fecha quando os dados chegam."""
     atual = [x for x in (store.get_setting(f"cliente_pedido:{cid}") or "").split(",") if x]
     tipos = [x for x in tipos if x in TIPOS_PEDIDO] or list(TIPOS_PEDIDO[:4])
     store.save_settings({f"cliente_pedido:{cid}": ",".join(dict.fromkeys(atual + tipos))})
+    c = obter(cid) or {}
+    cmd = criar_comando(cid, "dados", json.dumps({"tipos": tipos, "faltam": tipos}), por)
+    comando_linha(cmd, f"pedido por {por or 'portal'}: {', '.join(NOMES_PEDIDO.get(x, x) for x in tipos)}"
+                       + (f" ({motivo})" if motivo else ""))
+    if _v(c.get("versao") or "0") >= (1, 5, 0):
+        comando_linha(cmd, "à espera que o agente receba o pedido (consulta a cada 5 s)")
+    elif _v(c.get("versao") or "0") >= (1, 3, 0):
+        comando_linha(cmd, f"o agente {c.get('versao')} recebe o pedido na próxima sincronização (até {c.get('intervalo') or 60} s)")
+    else:
+        comando_linha(cmd, f"o agente {c.get('versao') or '(sem versão)'} não envia estes dados: atualize-o (aba Agente)")
+        comando_estado(cmd, "ERRO")
+    return cmd
+
+
+def _resumo_dados(tipo: str, d: dict) -> str:
+    if not isinstance(d, dict):
+        return ""
+    if d.get("erro"):
+        return "erro: " + str(d["erro"])[:200]
+    if tipo == "processos":
+        return f"{d.get('total')} processos, {d.get('threads')} threads"
+    if tipo == "logs":
+        return f"{len(d.get('linhas') or [])} linhas ({d.get('fonte')})"
+    if tipo == "sistema":
+        return f"{len(d.get('ips') or [])} endereço(s), {len(d.get('portas') or [])} portas à escuta, {len(d.get('servicos_falhados') or [])} serviço(s) com falha"
+    if tipo == "atualizacoes":
+        return f"{d.get('total')} pacote(s) pendente(s), {d.get('seguranca')} de segurança" + (", reinício necessário" if d.get("reinicio") else "")
+    if tipo == "scan":
+        return f"{len(d.get('ficheiros') or [])} ficheiro(s) em {d.get('base')}"
+    if tipo == "ficheiros":
+        erros = sum(1 for x in d.values() if isinstance(x, dict) and x.get("erro"))
+        return f"{len(d)} ficheiro(s) de log" + (f", {erros} com erro" if erros else "")
+    return ""
+
+
+def _dados_entregues(cid: int, como: str) -> None:
+    with store.tx() as t:
+        pend = t.all("SELECT id FROM cliente_comandos WHERE cliente_id = ? AND tipo = 'dados' AND estado = 'PENDENTE'", (cid,))
+    for p in pend:
+        comando_estado(p["id"], "EM CURSO")
+        comando_linha(p["id"], f"entregue ao agente{(' ' + como) if como else ''}: a recolher os dados")
+
+
+def _dados_recebidos(cid: int, extras: dict) -> None:
+    with store.tx() as t:
+        ativos = t.all("SELECT id, args FROM cliente_comandos WHERE cliente_id = ? AND tipo = 'dados' AND estado IN ('PENDENTE', 'EM CURSO')", (cid,))
+    a_verificar = extras.get("_a_verificar") or []
+    for r in ativos:
+        try:
+            a = json.loads(r["args"] or "{}")
+        except ValueError:
+            a = {}
+        faltam = list(a.get("faltam") or [])
+        mudou = False
+        for tipo in list(faltam):
+            chave = "ficheiros" if tipo == "ficheiros" else tipo
+            if chave in extras:
+                comando_linha(r["id"], f"recebido: {NOMES_PEDIDO.get(tipo, tipo)} — {_resumo_dados(chave, extras[chave])}")
+                if tipo == "logs" and "ficheiros" in extras:
+                    comando_linha(r["id"], f"recebido: ficheiros de log — {_resumo_dados('ficheiros', extras['ficheiros'])}")
+                faltam.remove(tipo)
+                mudou = True
+            elif tipo in a_verificar and not a.get("aviso_" + tipo):
+                comando_linha(r["id"], f"{NOMES_PEDIDO.get(tipo, tipo)}: a verificar no servidor (dnf/yum/apt podem demorar alguns minutos)")
+                a["aviso_" + tipo] = 1
+                mudou = True
+        if mudou:
+            a["faltam"] = faltam
+            with store.tx() as t:
+                t.run("UPDATE cliente_comandos SET args = ? WHERE id = ?", (json.dumps(a)[:500], r["id"]))
+            if not faltam:
+                comando_linha(r["id"], "concluído")
+                comando_estado(r["id"], "OK")
 
 
 # ============================================================ ficheiros de log seguidos (por cliente)
@@ -420,6 +498,52 @@ def comando_ativo(cid: int) -> dict | None:
         return t.one("SELECT * FROM cliente_comandos WHERE cliente_id = ? AND estado IN ('PENDENTE', 'EM CURSO') ORDER BY id DESC", (cid,))
 
 
+TIPOS_COMANDO = {"atualizar": "Atualizar o agente", "dados": "Pedir dados"}
+
+
+def descrever(r: dict) -> str:
+    try:
+        a = json.loads(r.get("args") or "{}")
+    except ValueError:
+        a = {}
+    if r["tipo"] == "dados":
+        return "Pedir dados: " + ", ".join(NOMES_PEDIDO.get(x, x) for x in a.get("tipos") or [])
+    if r["tipo"] == "atualizar":
+        return f"Atualizar o agente para {a.get('versao') or '?'}"
+    return r["tipo"]
+
+
+def todos_comandos(cliente: int | None = None, estado: str = "", tipo: str = "", limite: int = 300) -> list[dict]:
+    sql = ("SELECT c.id, c.cliente_id, c.tipo, c.args, c.estado, c.pedido_por, c.criado, c.iniciado, c.terminado, k.nome AS cliente "
+           "FROM cliente_comandos c LEFT JOIN clientes k ON k.id = c.cliente_id WHERE 1 = 1")
+    par = []
+    if cliente:
+        sql += " AND c.cliente_id = ?"
+        par.append(cliente)
+    if estado:
+        sql += " AND c.estado = ?"
+        par.append(estado)
+    if tipo:
+        sql += " AND c.tipo = ?"
+        par.append(tipo)
+    sql += " ORDER BY c.id DESC LIMIT ?"
+    par.append(limite)
+    with store.tx() as t:
+        rs = t.all(sql, tuple(par))
+    for r in rs:
+        r["descricao"] = descrever(r)
+        a, b = _dtp(r["criado"]), _dtp(r["terminado"]) if r.get("terminado") else None
+        r["duracao"] = int((b - a).total_seconds()) if a and b else None
+    return rs
+
+
+def _dtp(x):
+    try:
+        return datetime.datetime.strptime(str(x)[:19], "%Y-%m-%d %H:%M:%S")
+    except (TypeError, ValueError):
+        return None
+
+
 def comando(cmd_id: int) -> dict | None:
     with store.tx() as t:
         return t.one("SELECT * FROM cliente_comandos WHERE id = ?", (cmd_id,))
@@ -432,8 +556,9 @@ def comandos(cid: int, limite: int = 20) -> list[dict]:
 
 def entregar_comandos(c: dict) -> dict:
     """Consulta do agente (1.5+, a cada ~5 s): comandos pendentes e pedidos de dados."""
-    with store.tx() as t:
-        pend = t.all("SELECT id, tipo, args FROM cliente_comandos WHERE cliente_id = ? AND estado = 'PENDENTE' ORDER BY id", (c["id"],))
+    with store.tx() as t:      # os pedidos de dados vao pela lista 'pedidos' (o agente faz uma sincronizacao com eles)
+        pend = t.all("SELECT id, tipo, args FROM cliente_comandos WHERE cliente_id = ? AND estado = 'PENDENTE' "
+                     "AND tipo <> 'dados' ORDER BY id", (c["id"],))
     out = []
     for p in pend:
         comando_estado(p["id"], "EM CURSO")
@@ -446,6 +571,7 @@ def entregar_comandos(c: dict) -> dict:
     ped = store.get_setting(f"cliente_pedido:{c['id']}") or ""
     if ped:
         store.save_settings({f"cliente_pedido:{c['id']}": ""})
+        _dados_entregues(c["id"], "")
     return {"comandos": out, "pedidos": [x for x in ped.split(",") if x]}
 
 
@@ -500,9 +626,11 @@ def sync(c: dict, info: dict, ip: str, link: str = "", extras: dict | None = Non
                        f"Último contacto anterior: {c.get('ultimo_contacto')}.", link, dados={"cliente": c["nome"]})
     if extras:
         guardar_dados(c["id"], extras)
+        _dados_recebidos(c["id"], extras)
     ped = store.get_setting(f"cliente_pedido:{c['id']}") or ""
     if ped:
         store.save_settings({f"cliente_pedido:{c['id']}": ""})
+        _dados_entregues(c["id"], "na sincronização")
     atualizar = None
     _fechar_atualizacao(c, info)
     pedido_em = store.get_setting(f"cliente_atualizar:{c['id']}") or ""

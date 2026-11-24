@@ -96,7 +96,7 @@ def detalhe(cid):
                            lf=request.args.get("f") or "sistema", v_portal=clientes.agente_portal()[0],
                            desatualizado=clientes.desatualizado(c),
                            atualizar_pedido=store.get_setting(f"cliente_atualizar:{cid}") or "",
-                           comandos=clientes.comandos(cid, 15) if aba == "agente" else [],
+                           comandos=clientes.comandos(cid, 15) if aba == "agente" else [], descrever=clientes.descrever,
                            livres=[d for d in todas if str(d.get("cliente_id") or "") != str(cid)],
                            modos=agente_rpc.MODOS)
 
@@ -117,11 +117,10 @@ def _resumo_bd(db: dict) -> dict:
 @auth.requires(MODULO.acesso)
 def pedir_dados(cid):
     clientes.obter(cid) or abort(404)
-    clientes.pedir_dados(cid, request.form.getlist("tipo"))
+    cmd = clientes.pedir_dados(cid, request.form.getlist("tipo"), g.user.username)
     if request.headers.get("X-Requested-With") == "fetch":
-        return jsonify(ok=True)
-    flash("Pedido enviado: o agente envia os dados no próximo contacto.", "ok")
-    return redirect(url_for("clientes.detalhe", cid=cid, aba=request.form.get("aba") or "resumo"))
+        return jsonify(ok=True, id=cmd)
+    return redirect(url_for("clientes.detalhe", cid=cid, aba=request.form.get("aba") or "resumo", cmd=cmd))
 
 
 @bp.route("/cliente/<int:cid>/logs", methods=["POST"])
@@ -132,19 +131,21 @@ def logs_ficheiros(cid):
     acao = f.get("acao")
     destino = {"cid": cid, "aba": "logs"}
     try:
+        destino["f"] = "gerir"
         if acao == "scan":
-            clientes.pedir_dados(cid, ["scan"])
-            flash("Pedido enviado: o agente procura os ficheiros em /var/log no próximo contacto.", "ok")
-            destino["scan"] = 1
+            destino["cmd"] = clientes.pedir_dados(cid, ["scan"], g.user.username)
         elif acao == "adicionar":
             clientes.guardar_log(cid, f.get("pasta"), f.get("ficheiro"), f.get("descricao"), f.get("tag"), f.get("linhas") or 200)
-            flash(f"Ficheiro {f.get('ficheiro')} adicionado: as linhas chegam no próximo contacto.", "ok")
+            destino["cmd"] = clientes.pedir_dados(cid, ["logs"], g.user.username, f"ficheiro novo: {f.get('ficheiro')}")
         elif acao == "adicionar_scan":
             sel = f.getlist("sel")
             for caminho in sel:
                 pasta, _, nome = caminho.rpartition("/")
                 clientes.guardar_log(cid, pasta or "/", nome, f.get(f"d:{caminho}") or nome, f.get("tag") or "", f.get("linhas") or 200)
-            flash(f"{len(sel)} ficheiro(s) adicionado(s).", "ok" if sel else "error")
+            if sel:
+                destino["cmd"] = clientes.pedir_dados(cid, ["logs"], g.user.username, f"{len(sel)} ficheiro(s) novo(s)")
+            else:
+                flash("Nenhum ficheiro selecionado.", "error")
         elif acao == "remover":
             clientes.apagar_log(cid, int(f.get("lid") or 0))
             flash("Ficheiro retirado dos logs.", "ok")
@@ -189,7 +190,20 @@ def cancelar_comando(cmd_id):
 @auth.requires(MODULO.acesso)
 def api_comando(cmd_id):
     r = clientes.comando(cmd_id) or abort(404)
-    return jsonify({k: r[k] for k in ("id", "cliente_id", "tipo", "estado", "pedido_por", "criado", "iniciado", "terminado", "output")})
+    c = clientes.obter(r["cliente_id"]) or {}
+    return jsonify({**{k: r[k] for k in ("id", "cliente_id", "tipo", "estado", "pedido_por", "criado", "iniciado", "terminado", "output")},
+                    "descricao": clientes.descrever(r), "cliente": c.get("nome", "")})
+
+
+@bp.route("/pedidos")
+@auth.requires(MODULO.acesso)
+def pedidos():
+    clientes.expirar_comandos()
+    f = {"cliente": request.args.get("cliente", type=int), "estado": request.args.get("estado") or "",
+         "tipo": request.args.get("tipo") or ""}
+    lista = clientes.todos_comandos(f["cliente"], f["estado"], f["tipo"])
+    return render_template("clientes/pedidos.html", pedidos=lista, f=f, todos=clientes.listar(), tipos=clientes.TIPOS_COMANDO,
+                           sel=request.args.get("cmd", type=int))
 
 
 @bp.route("/agente/api/comandos", methods=["POST"])

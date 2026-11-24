@@ -23,7 +23,7 @@
     {{ controlos(editar=False, opcoes=((0, 'manual'), (10, '10 s'), (30, '30 s'), (60, '1 min'), (300, '5 min'))) }}
   </div>
 </div>
-<div data-ref="pedido">{% if dd._pedido %}<div class="flash info">Pedido enviado ao agente ({{ dd._pedido|replace(',', ', ') }}): chega no próximo contacto.</div>{% endif %}</div>
+<div id="cmd-out" hidden></div>
 
 {% if aba == 'resumo' %}
 <div data-ref="resumo">
@@ -321,18 +321,17 @@
   {% endif %}
 </section>
 <section class="card">
-  <h2>Comandos enviados ao agente</h2>
+  <h2>Pedidos a este agente</h2>
   {% if comandos %}<div class="table-wrap"><table class="small-tab cmd-hist">
     <thead><tr><th>#</th><th>Comando</th><th>Estado</th><th>Pedido</th><th>Por</th></tr></thead>
     <tbody>{% for k in comandos %}<tr data-cmd="{{ k.id }}" data-ativo="{{ 1 if k.estado in ('PENDENTE', 'EM CURSO') else 0 }}">
-      <td class="num">{{ k.id }}</td><td>{{ {'atualizar': 'Atualizar o agente'}.get(k.tipo, k.tipo) }}</td>
+      <td class="num">{{ k.id }}</td><td>{{ descrever(k) }}</td>
       <td><span class="tag {{ {'OK': 'ok', 'ERRO': 'bad', 'EM CURSO': 'accent'}.get(k.estado, 'warn') }}">{{ k.estado }}</span></td>
       <td><small>{{ k.criado[5:16] }}</small></td><td><small>{{ k.pedido_por }}</small></td></tr>{% endfor %}</tbody></table></div>
-  <p class="hint">Clique num comando para ver o output.</p>
+  <p class="hint">Clique num pedido para ver o output. Todos os pedidos: <a href="{{ url_for('clientes.pedidos', cliente=c.id) }}">Clientes → Pedidos</a>.</p>
   {% else %}<p class="muted">Nenhum comando enviado.</p>{% endif %}
 </section>
 </div>
-<div id="cmd-out" hidden></div>
 
 {% elif aba == 'zabbix' %}
 <section class="card full" data-ref="zabbix">
@@ -434,11 +433,13 @@
   autoAtualizar('cliente', $('ref'), $('agora'), $('upd'), () => blocos(), '30');
   $('upd').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-PT');
   const fp = $('fpedir');
-  if (fp) fp.addEventListener('submit', async ev => {
+  if (fp) fp.addEventListener('submit', async ev => {     /* pedido imediato, com o output em direto */
     ev.preventDefault();
-    await fetch(fp.action, {method: 'POST', body: new FormData(fp), headers: {'X-Requested-With': 'fetch'}});
-    await blocos();
+    const d = await (await fetch(fp.action, {method: 'POST', body: new FormData(fp), headers: {'X-Requested-With': 'fetch'}})).json();
+    PortalComando.seguir(d.id, out, () => blocos(), (window.t || String)('Pedido'));
   });
+  const pc = new URLSearchParams(location.search).get('cmd');      /* vindo de um formulario (scan, ficheiro novo) */
+  if (pc && out) PortalComando.seguir(pc, out, () => blocos(), (window.t || String)('Pedido'));
 })();
 </script>
 {% endblock %}

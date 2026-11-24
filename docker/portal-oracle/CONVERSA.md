@@ -488,3 +488,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > ainda está a correr o atualziar, pedida 11-24 10:31
 
 **Resposta:** O pedido da versão anterior do portal era só uma marca, sem prazo: com um agente anterior à 1.4.0 (que não conhece o pedido) ficava "pedida" para sempre. Agora: pedidos sem resposta passam a erro ao fim de 15 min com o motivo; agentes anteriores à 1.4.0 recebem logo a explicação (atualizar uma vez com o setup.sh); botão para cancelar (aba Agente e Ferramentas, com "ver" o output); as marcas antigas sem comando são limpas automaticamente.
+
+## 40. Clientes → Pedidos (todos os pedidos aos agentes, com estado e output)
+
+**Pergunta:**
+> nas interaccções com o cliente, diz que fica agendado no proximo contato, contudo não tenho como ver , no clientes, deve haver uma aba com o nome sujetivo onde ficam todos os pedidos, o pedido devia ser feito de forma automatica e logo, podemos depois nessa aba ver o estado do pedido e ao clicar no pedido ver o output.
+
+**Resposta:** Nova aba Clientes → Pedidos: cada interação (pedir dados, scan de /var/log, ficheiro de log novo, atualizar o agente) é um pedido com estado e output, filtros e atualização automática; clicar mostra o output em direto. No cliente, o pedido é enviado logo e o output aparece na página; fecha quando os dados chegam. Agente 1.5.1: o pedido de logs também envia já as linhas de um ficheiro acabado de adicionar. Testado: atualizar 10 s, processos 4 s, atualizações 9 s, scan 4 s, ficheiro novo 4 s.

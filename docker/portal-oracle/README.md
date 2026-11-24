@@ -547,6 +547,10 @@ O agente **1.5.0** consulta o portal a cada 5 s (`COMANDOS_CADA` no `.env`; sem 
 |---|---|
 | ![Agente](docs/clientes-agente.png) | ![Atualizar selecionados](docs/clientes-ferramentas.png) |
 
+**Clientes → Pedidos**: tudo o que o portal pede aos agentes fica registado como um *pedido* com estado (à espera do agente, em curso, concluído, falhou) e output: pedir dados (processos, sistema, logs, atualizações), scan de `/var/log`, ficheiro de log novo e atualização do agente. Filtros por cliente, tipo e estado, atualização automática (5 s) e, ao clicar num pedido, o output em direto. Ao pedir no cliente (botão, scan, ficheiro novo), o output aparece logo na própria página; o pedido fecha quando os dados chegam ("recebido: processos — 312 processos…"). Agentes 1.5+ recebem-no em ~5 s; sem resposta em 15 min passa a "falhou" com o motivo.
+
+![Clientes → Pedidos](docs/clientes-pedidos.png)
+
 **Pedir dados agora** (Processos, Sistema, Logs, Atualizações): o portal responde à sincronização seguinte com o pedido e o agente envia logo esses dados (até um intervalo). A lista de clientes mostra as bases de dados associadas e o número de atualizações pendentes (vermelho com atualizações de segurança, "reiniciar" quando preciso). Requer o agente **1.3.0** (atualize em Ferramentas); `EXTRAS=0` no `.env` do agente desliga estes dados.
 
 | Processos | Atualizações |

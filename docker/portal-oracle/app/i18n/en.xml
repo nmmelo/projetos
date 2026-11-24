@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1848">
+<lingua codigo="en" nome="English" textos="1867">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -7393,5 +7393,81 @@
   <texto>
     <origem>Ver em Agente →</origem>
     <traducao>See in Agent →</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar o agente para {n}.{n}.{n}</origem>
+    <traducao>Update the agent to {n}.{n}.{n}</traducao>
+  </texto>
+  <texto>
+    <origem>Clientes → Pedidos</origem>
+    <traducao>Clients → Requests</traducao>
+  </texto>
+  <texto>
+    <origem>Clique num pedido para ver o output. Até {n}, mais recentes primeiro.</origem>
+    <traducao>Click a request to see its output. Up to {n}, most recent first.</traducao>
+  </texto>
+  <texto>
+    <origem>Clique num pedido para ver o output. Todos os pedidos:</origem>
+    <traducao>Click a request to see its output. All requests:</traducao>
+  </texto>
+  <texto>
+    <origem>Concluído</origem>
+    <traducao>Completed</traducao>
+  </texto>
+  <texto>
+    <origem>Pedido em</origem>
+    <traducao>Requested at</traducao>
+  </texto>
+  <texto>
+    <origem>Pedidos</origem>
+    <traducao>Requests</traducao>
+  </texto>
+  <texto>
+    <origem>Pedidos a este agente</origem>
+    <traducao>Requests to this agent</traducao>
+  </texto>
+  <texto>
+    <origem>Pedir dados</origem>
+    <traducao>Request data</traducao>
+  </texto>
+  <texto>
+    <origem>Pedir dados: atualizações pendentes</origem>
+    <traducao>Request data: pending updates</traducao>
+  </texto>
+  <texto>
+    <origem>Pedir dados: ficheiros em /var/log</origem>
+    <traducao>Request data: files in /var/log</traducao>
+  </texto>
+  <texto>
+    <origem>Pedir dados: logs</origem>
+    <traducao>Request data: logs</traducao>
+  </texto>
+  <texto>
+    <origem>Pedir dados: processos</origem>
+    <traducao>Request data: processes</traducao>
+  </texto>
+  <texto>
+    <origem>Pedir dados: sistema</origem>
+    <traducao>Request data: system</traducao>
+  </texto>
+  <texto>
+    <origem>Pedir dados: processos, sistema, logs, atualizações pendentes</origem>
+    <traducao>Request data: processes, system, logs, pending updates</traducao>
+  </texto>
+  <texto>
+    <origem>Tudo o que o portal pede aos agentes — dados (processos, sistema, logs, atualizações, scan de /var/log, ficheiros de log novos) e atualizações do agente — com o estado e o output. Os agentes {n}.{n}+ recebem os pedidos em ~{n} s; os anteriores na sincronização seguinte. Sem resposta em {n} min, o pedido passa a "falhou" com o motivo.</origem>
+    <traducao>Everything the portal asks the agents — data (processes, system, logs, updates, /var/log scan, new log files) and agent updates — with status and output. Agents {n}.{n}+ get requests in ~{n} s; older ones on the next sync. Without an answer in {n} min, the request is marked "failed" with the reason.</traducao>
+  </texto>
+  <texto>
+    <origem>À espera do agente</origem>
+    <traducao>Waiting for the agent</traducao>
+  </texto>
+  <texto>
+    <origem>Cancelar este pedido ao agente?</origem>
+    <traducao>Cancel this request to the agent?</traducao>
+  </texto>
+  <texto>
+    <origem>Sem pedidos</origem>
+    <traducao>No requests</traducao>
   </texto>
 </lingua>

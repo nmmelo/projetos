@@ -47,7 +47,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.5.0"
+VERSAO = "1.5.1"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -650,7 +650,9 @@ def ciclo_comandos() -> None:
                 reportado = _reportar_reinicio(cfg)
             r = pedido(cfg, "comandos", {}, timeout=15)
             if r.get("pedidos"):
-                sincronizar(cfg, r["pedidos"])
+                r2 = sincronizar(cfg, r["pedidos"])
+                if r2.get("pedidos"):               # ex.: ficheiro de log novo -> envia ja as linhas
+                    sincronizar(cfg, r2["pedidos"])
             for c in r.get("comandos") or []:
                 executar_comando(cfg, c)
         except Exception:  # noqa: BLE001 - portal em baixo: o ciclo principal regista as falhas
@@ -661,8 +663,16 @@ _sync_trava = threading.Lock()
 
 
 def sincronizar(cfg: dict, pedidos=()) -> dict:
+    """Sincronizacao (info + dados devidos/pedidos). Aplica a lista de ficheiros de log que o portal devolve:
+    se mudou (ficheiro novo), acrescenta 'ficheiros' aos pedidos para enviar ja as linhas."""
     with _sync_trava:
-        return pedido(cfg, "sync", {"info": recolher(cfg), "extras": extras(cfg, pedidos)})
+        r = pedido(cfg, "sync", {"info": recolher(cfg), "extras": extras(cfg, pedidos)})
+        if isinstance(r.get("ficheiros_log"), list):
+            novos = r["ficheiros_log"] != _ext["ficheiros_cfg"]
+            _ext["ficheiros_cfg"] = r["ficheiros_log"]
+            if novos and r["ficheiros_log"] and "ficheiros" not in (pedidos or ()):
+                r.setdefault("pedidos", []).append("ficheiros")
+        return r
 
 
 # ============================================================ fila local (portal indisponivel)
@@ -1196,11 +1206,6 @@ def cmd_run(_a):
                 enfileirar(e)
             r = sincronizar(cfg)
             regras = r.get("regras", [])
-            if isinstance(r.get("ficheiros_log"), list):
-                novos = r["ficheiros_log"] != _ext["ficheiros_cfg"]
-                _ext["ficheiros_cfg"] = r["ficheiros_log"]
-                if novos and r["ficheiros_log"]:
-                    r.setdefault("pedidos", []).append("ficheiros")
             if r.get("pedidos"):                   # o portal pediu dados agora: envia ja
                 sincronizar(cfg, r["pedidos"])
             if r.get("atualizar"):                 # depois dos pedidos (o reinicio perdia-os)
