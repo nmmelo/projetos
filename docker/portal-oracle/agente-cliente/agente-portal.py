@@ -47,7 +47,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.6.0"
+VERSAO = "1.6.1"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -1146,10 +1146,28 @@ def rpc_tratar(caminho: str, d: dict) -> dict:
     raise LookupError("pedido desconhecido: " + caminho)
 
 
+def _origem_ok(ip: str, origens: list) -> bool:
+    """IPs ou redes (CIDR, ex. 10.31.241.0/24) autorizados a fazer pedidos ao servico Oracle."""
+    import ipaddress  # noqa: PLC0415
+    try:
+        a = ipaddress.ip_address(ip)
+        if getattr(a, "ipv4_mapped", None):
+            a = a.ipv4_mapped
+    except ValueError:
+        return False
+    for o in origens:
+        try:
+            if a in ipaddress.ip_network(o, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 def _autenticar(cab, caminho: str, corpo: bytes, ip: str) -> str:
     cfg = ler_env()
     origens = [x.strip() for x in re.split(r"[,\s]+", cfg.get("RPC_ORIGENS", "")) if x.strip()]
-    if origens and ip not in origens:
+    if origens and not _origem_ok(ip, origens):
         return "origem nao autorizada: " + ip
     ts, nonce, assin = cab.get("X-Ts", ""), cab.get("X-Nonce", ""), cab.get("X-Assinatura", "")
     if not ts.isdigit() or abs(time.time() - int(ts)) > 300:
@@ -1485,7 +1503,7 @@ def main():
     c.add_argument("--utilizador"), c.add_argument("--ca"), c.add_argument("--inseguro", action="store_true")
     c.add_argument("--oracle", action="store_true", help="liga o servico Oracle (pedidos do portal)")
     c.add_argument("--sem-oracle", action="store_true"), c.add_argument("--porta-rpc", type=int)
-    c.add_argument("--origens", help="IPs do portal autorizados (vazio = qualquer, com assinatura)")
+    c.add_argument("--origens", help="IPs ou redes (CIDR) do portal autorizados (vazio = qualquer, com assinatura)")
     c.add_argument("--oracle-lib", help="pasta das bibliotecas do cliente Oracle (modo thick, bases 11g)")
     c.set_defaults(f=cmd_configurar)
     n = sp.add_parser("notificar", help="envia uma notificacao ao portal: notificar <ID> [ok|aviso|erro|info] mensagem")

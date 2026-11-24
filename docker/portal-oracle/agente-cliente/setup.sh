@@ -3,7 +3,9 @@
 #
 #   sudo bash setup.sh --portal https://<portal> --id <ID> --token <TOKEN> [--utilizador <utilizador_ssh>]
 #        [--intervalo 60] [--grupo "oracle postgres"] [--inseguro] [--ca /caminho/ca.pem] [--sem-ssh]
-#        [--oracle [--porta-rpc 8795] [--origens "IP_DO_PORTAL"] [--oracle-lib DIR] [--abrir-firewall]]
+#        [--oracle [--porta-rpc 8795] [--origens "IP1 IP2 REDE/24"] [--ipset NOME] [--oracle-lib DIR] [--abrir-firewall]]
+#   --abrir-firewall (firewalld): cria/usa o ipset (--ipset, por omissao "agente-portal") com as --origens e abre a
+#   porta so para ele em todas as zonas ativas. Mais IPs depois: firewall-cmd --permanent --ipset=NOME --add-entry=IP
 #   sudo bash setup.sh --oracle [...]          # num agente ja instalado: atualiza e liga o servico Oracle
 #   sudo bash setup.sh --verificar --utilizador <utilizador_ssh> [--portal URL]  # verifica e corrige o SSH
 #   sudo bash setup.sh --desinstalar
@@ -16,7 +18,7 @@
 set -euo pipefail
 DIR=/opt/agente-portal; SVC=agente-portal; GRUPO=agente-portal
 PORTAL=""; ID=""; TOKEN=""; UTIL=""; INTERVALO=""; GRUPO_UTIL=""; INSEGURO=0; CA=""; SEM_SSH=0; MODO=instalar
-ORACLE=0; PORTA_RPC=8795; ORIGENS=""; ORACLE_LIB=""; ABRIR_FW=0; WHEEL=""
+ORACLE=0; PORTA_RPC=8795; ORIGENS=""; ORACLE_LIB=""; ABRIR_FW=0; WHEEL=""; IPSET=""
 V=$'\e[32m'; A=$'\e[33m'; E=$'\e[31m'; N=$'\e[0m'
 ok()   { echo "  ${V}OK${N}       $*"; }
 corr() { echo "  ${A}CORRIGIDO${N} $*"; }
@@ -37,7 +39,8 @@ while [[ $# -gt 0 ]]; do
         --sem-ssh) SEM_SSH=1 ;;
         --oracle) ORACLE=1 ;;
         --porta-rpc) PORTA_RPC=$2; shift ;;
-        --origens) ORIGENS=$2; shift ;;
+        --origens) ORIGENS=${2//,/ }; shift ;;
+        --ipset) IPSET=$2; shift ;;
         --oracle-lib) ORACLE_LIB=$2; shift ;;
         --oracledb-wheel) WHEEL=$2; shift ;;
         --abrir-firewall) ABRIR_FW=1 ;;
@@ -176,25 +179,36 @@ for u in $GRUPO_UTIL; do
     if id "$u" >/dev/null 2>&1; then usermod -aG $GRUPO "$u"; ok "$u no grupo $GRUPO (pode usar 'agente-portal notificar')"; else avs "utilizador $u nao existe"; fi
 done
 
-abrir_firewall() {        # abre $PORTA_RPC/tcp (so para $ORIGENS, se indicadas) no firewalld (zonas ativas) ou ufw
+abrir_firewall() {        # firewalld: ipset com as origens + regra para o ipset nas zonas ativas; ufw: por IP
     if command -v firewall-cmd >/dev/null && firewall-cmd --state >/dev/null 2>&1; then
-        local zonas z ip ok=0
+        local zonas z ip ok=0 nome regra
         zonas=$(firewall-cmd --get-active-zones 2>/dev/null | grep -v '^[[:space:]]')
         [[ -n $zonas ]] || zonas=$(firewall-cmd --get-default-zone)
-        for z in $zonas; do
-            if [[ -n $ORIGENS ]]; then
-                for ip in $ORIGENS; do
-                    firewall-cmd -q --permanent --zone="$z" --add-rich-rule="rule family=$([[ $ip == *:* ]] && echo ipv6 || echo ipv4) source address=$ip port port=$PORTA_RPC protocol=tcp accept" 2>/dev/null || true
-                done
-            else firewall-cmd -q --permanent --zone="$z" --add-port="$PORTA_RPC/tcp" 2>/dev/null || true; fi
-        done
-        firewall-cmd -q --reload
-        for z in $zonas; do
-            if firewall-cmd --zone="$z" --list-all | grep -q "port=\"$PORTA_RPC\"\|$PORTA_RPC/tcp"; then
-                ok=1; corr "firewalld: porta $PORTA_RPC/tcp aberta${ORIGENS:+ para $ORIGENS} na zona $z"
-                firewall-cmd --zone="$z" --list-all | grep -E "$PORTA_RPC" | sed 's/^/      /'
-            fi
-        done
+        if [[ -n $ORIGENS || -n $IPSET ]]; then
+            nome=${IPSET:-agente-portal}
+            if ! firewall-cmd --permanent --get-ipsets | tr ' ' '\n' | grep -qx "$nome"; then
+                firewall-cmd -q --permanent --new-ipset="$nome" --type=hash:net || erro "nao consegui criar o ipset $nome"
+                corr "ipset $nome criado (hash:net)"
+            else ok "ipset $nome ja existe: acrescenta as origens que faltarem"; fi
+            for ip in $ORIGENS; do
+                if [[ $ip == *:* ]]; then avs "$ip e IPv6: o ipset $nome e IPv4 (ponha a mao num ipset inet6)"; continue; fi
+                firewall-cmd -q --permanent --ipset="$nome" --add-entry="$ip" 2>/dev/null || true
+            done
+            regra="rule source ipset=$nome port port=$PORTA_RPC protocol=tcp accept"
+            for z in $zonas; do firewall-cmd -q --permanent --zone="$z" --add-rich-rule="$regra" 2>/dev/null || true; done
+            firewall-cmd -q --reload
+            ok "ipset $nome: $(firewall-cmd --ipset="$nome" --get-entries | tr '\n' ' ')"
+            for z in $zonas; do
+                if firewall-cmd --zone="$z" --list-rich-rules | grep -q "ipset=\"$nome\".*$PORTA_RPC"; then
+                    ok=1; corr "zona $z: porta $PORTA_RPC/tcp aberta para o ipset $nome"
+                fi
+            done
+            avs "mais IPs: sudo firewall-cmd --permanent --ipset=$nome --add-entry=IP && sudo firewall-cmd --reload"
+        else
+            for z in $zonas; do firewall-cmd -q --permanent --zone="$z" --add-port="$PORTA_RPC/tcp" 2>/dev/null || true; done
+            firewall-cmd -q --reload
+            for z in $zonas; do firewall-cmd --zone="$z" --list-ports | grep -qw "$PORTA_RPC/tcp" && { ok=1; corr "zona $z: porta $PORTA_RPC/tcp aberta para todos"; }; done
+        fi
         [[ $ok == 1 ]] || avs "firewalld: nao consegui confirmar a regra para $PORTA_RPC/tcp (zonas: $zonas)"
     elif command -v ufw >/dev/null && ufw status | grep -q active; then
         if [[ -n $ORIGENS ]]; then for ip in $ORIGENS; do ufw allow from "$ip" to any port "$PORTA_RPC" proto tcp >/dev/null; done

@@ -514,3 +514,8 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > bash setup-agente.sh --oracle --origens <IP do portal> e isto bash setup-agente.sh --abrir-firewall e nada
 
 **Resposta:** O --abrir-firewall só atuava no mesmo comando que o --oracle. Agora também funciona sozinho (usa a porta e as origens já guardadas no agente), abre a regra em todas as zonas ativas do firewalld (não só na predefinida) e confirma-a, mostrando a regra.
+
+**Pergunta:**
+> está a mandar para a zone=public, mas é outra zona — mas eu quero um ipset com vários ips
+
+**Resposta:** setup.sh --abrir-firewall passa a criar (ou usar, com --ipset NOME) o ipset "agente-portal" (hash:net) com as --origens (vários IPs ou redes) e abre a porta 8795 só para o ipset em todas as zonas ativas. O agente 1.6.1 aceita redes CIDR em RPC_ORIGENS. Comandos manuais na resposta.
