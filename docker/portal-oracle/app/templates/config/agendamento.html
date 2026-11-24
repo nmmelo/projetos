@@ -2,6 +2,7 @@
 {% block title %}Configuração · Agendamento{% endblock %}
 {% block content %}
 {% include "config/_tabs.html" %}
+{% include "config/_agendamento_tabs.html" %}
 <div class="smtp-grid">
 <section class="card">
   <h2>Agendamentos</h2>
@@ -24,7 +25,7 @@
     Se ativar o "Backup do portal" aqui, fica com dois: desligue um deles.</p>{% endif %}
 </section>
 <section class="card">
-  <h2>Últimas execuções</h2>
+  <div class="modulo-head"><h2>Últimas execuções</h2><a class="btn small" href="{{ url_for('portal.cfg_agendamento', aba='eventos') }}">Ver todos os eventos →</a></div>
   {% if historico %}
   <div class="lista">
   {% for h in historico %}{% set c = {'SUCESSO': 'ok', 'AVISO': 'warn', 'A CORRER': 'accent'}.get(h.estado, 'bad') %}

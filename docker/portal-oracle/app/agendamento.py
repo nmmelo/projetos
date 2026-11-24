@@ -242,6 +242,35 @@ def historico(tid: str | None = None, limite: int = 50) -> list[dict]:
         return t.all("SELECT * FROM agendamento_execucoes ORDER BY id DESC LIMIT ?", (limite,))
 
 
+PERIODOS = {"24h": 1, "7d": 7, "30d": 30, "90d": 90, "todos": None}
+
+
+def eventos(tarefa: str = "", estado: str = "", periodo: str = "7d", q: str = "", limite: int = 500) -> list[dict]:
+    """Execucoes das tarefas (Configuracao -> Agendamento -> Eventos), com duracao."""
+    sql, par = "SELECT * FROM agendamento_execucoes WHERE 1 = 1", []
+    if tarefa:
+        sql += " AND tarefa = ?"
+        par.append(tarefa)
+    if estado:
+        sql += " AND estado = ?"
+        par.append(estado)
+    dias = PERIODOS.get(periodo, 7)
+    if dias:
+        sql += " AND inicio >= ?"
+        par.append((dt.datetime.now() - dt.timedelta(days=dias)).strftime("%Y-%m-%d %H:%M:%S"))
+    if q:
+        sql += " AND (msg LIKE ? OR origem LIKE ?)"
+        par += [f"%{q}%", f"%{q}%"]
+    sql += " ORDER BY id DESC LIMIT ?"
+    par.append(limite)
+    with store.tx() as t:
+        rs = t.all(sql, tuple(par))
+    for r in rs:
+        a, b = _dt(str(r["inicio"])[:19]), _dt(str(r["fim"])[:19]) if r.get("fim") else None
+        r["duracao"] = int((b - a).total_seconds()) if a and b else None
+    return rs
+
+
 # ============================================================================ executar
 def executar(tid: str, origem: str = "agendamento") -> tuple[str, str]:
     """Corre uma tarefa agora (no processo atual). Devolve (estado, mensagem)."""

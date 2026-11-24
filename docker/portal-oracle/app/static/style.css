@@ -855,3 +855,13 @@ details.card[open] > summary { margin-bottom: 12px; }
 .inline-form label { display: flex; flex-direction: column; gap: 4px; }
 details.card.fw-sec + details.card.fw-sec { margin-top: 12px; }
 details.card.fw-sec { padding: 16px 24px; }
+
+/* Output de comandos para os agentes */
+.cmd-out { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 12px; background: var(--card); }
+.cmd-out-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--th-bg); }
+.cmd-out-h small { margin-left: auto; }
+.cmd-out-p { margin: 0; padding: 10px 12px; max-height: 320px; overflow: auto; font-size: 12.5px; line-height: 1.5;
+  background: #0f141c; color: #d7e0ea; white-space: pre-wrap; }
+.tag.accent { background: var(--info-bg); color: var(--accent); }
+.cmd-hist tr { cursor: pointer; }
+.cmd-hist tr.on td { background: var(--th-bg); }

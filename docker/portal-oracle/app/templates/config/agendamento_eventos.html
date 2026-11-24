@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "_cartoes.html" import controlos %}
+{% block title %}Configuração · Agendamento · Eventos{% endblock %}
+{% block content %}
+{% include "config/_tabs.html" %}
+{% include "config/_agendamento_tabs.html" %}
+{% set cores = {'SUCESSO': 'ok', 'AVISO': 'warn', 'A CORRER': 'accent', 'ERRO': 'bad'} %}
+<section class="card full" data-ref="eventos">
+  <div class="modulo-head"><h2>Eventos das tarefas agendadas</h2>
+    {{ controlos(editar=False, opcoes=((0, 'manual'), (10, '10 s'), (30, '30 s'), (60, '1 min'))) }}</div>
+  <form method="get" class="inline-form" style="margin-bottom:12px">
+    <input type="hidden" name="aba" value="eventos">
+    <label>Tarefa <select name="tarefa"><option value="">Todas</option>{% for t in tarefas %}
+      <option value="{{ t.id }}" {{ 'selected' if f.tarefa == t.id }}>{{ t.modulo }} · {{ t.nome }}</option>{% endfor %}</select></label>
+    <label>Estado <select name="estado"><option value="">Todos</option>{% for e in ('SUCESSO', 'AVISO', 'ERRO', 'A CORRER') %}
+      <option value="{{ e }}" {{ 'selected' if f.estado == e }}>{{ e|capitalize }}</option>{% endfor %}</select></label>
+    <label>Período <select name="periodo">{% for k, t in (('24h', 'Últimas 24 h'), ('7d', 'Últimos 7 dias'), ('30d', 'Últimos 30 dias'), ('90d', 'Últimos 90 dias'), ('todos', 'Todos')) %}
+      <option value="{{ k }}" {{ 'selected' if f.periodo == k }}>{{ t }}</option>{% endfor %}</select></label>
+    <label>Procurar <input type="search" name="q" value="{{ f.q }}" placeholder="texto da mensagem ou origem"></label>
+    <button class="primary small">Filtrar</button>
+    {% if f.tarefa or f.estado or f.q or f.periodo != '7d' %}<a class="btn small" href="{{ url_for('portal.cfg_agendamento', aba='eventos') }}">Limpar</a>{% endif %}
+  </form>
+  <div class="an-tiles">
+    <div class="an-tile"><span>Execuções</span><b>{{ eventos|length }}</b></div>
+    {% for e in ('SUCESSO', 'AVISO', 'ERRO', 'A CORRER') %}{% set k = eventos|selectattr('estado', 'equalto', e)|list|length %}
+    <div class="an-tile"><span>{{ e|capitalize }}</span><b class="{{ 'c-bad' if e == 'ERRO' and k else ('c-warn' if e == 'AVISO' and k else '') }}">{{ k }}</b></div>{% endfor %}
+  </div>
+  {% if eventos %}
+  <div class="table-wrap"><table class="small-tab">
+    <thead><tr><th>Início</th><th>Tarefa</th><th>Estado</th><th class="num">Duração</th><th>Origem</th><th>Mensagem</th></tr></thead>
+    <tbody>{% for e in eventos %}<tr>
+      <td class="nowrap"><small>{{ (e.inicio|string)[:19] }}</small></td>
+      <td><a href="{{ url_for('portal.cfg_tarefa', tid=e.tarefa) }}"><b>{{ nomes.get(e.tarefa, e.tarefa) }}</b></a><br><small class="muted">{{ modulos.get(e.tarefa, '') }}</small></td>
+      <td><span class="tag {{ cores.get(e.estado, 'bad') }}">{{ e.estado|capitalize }}</span></td>
+      <td class="num nowrap">{% if e.duracao is not none %}{{ e.duracao // 60 ~ ' min ' if e.duracao >= 60 }}{{ e.duracao % 60 }} s{% elif e.estado == 'A CORRER' %}<span class="spin"></span>{% else %}—{% endif %}</td>
+      <td><small>{{ e.origem or '' }}</small></td>
+      <td>{% if e.msg %}{% set l = e.msg.split('\n') %}{% if l|length > 1 or l[0]|length > 120 %}
+        <details><summary>{{ l[0][:120] }}</summary><pre class="mono-area small" translate="no">{{ e.msg }}</pre></details>
+        {% else %}{{ l[0] }}{% endif %}{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+  <p class="hint">Até 500 eventos, mais recentes primeiro.</p>
+  {% else %}<p class="muted">Sem eventos com estes filtros.</p>{% endif %}
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='painel.js', v=static_v) }}"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  async function blocos() {
+    const r = await fetch(location.href, {cache: 'no-store'}); if (!r.ok) throw new Error(r.status);
+    const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+    const n = doc.querySelector('[data-ref=eventos] .table-wrap, [data-ref=eventos] p.muted'), el = document.querySelector('[data-ref=eventos] .table-wrap, [data-ref=eventos] p.muted');
+    const t1 = doc.querySelector('[data-ref=eventos] .an-tiles'), t0 = document.querySelector('[data-ref=eventos] .an-tiles');
+    if (n && el && n.outerHTML !== el.outerHTML) el.outerHTML = n.outerHTML;
+    if (t1 && t0) t0.innerHTML = t1.innerHTML;
+  }
+  autoAtualizar('ag-eventos', $('ref'), $('agora'), $('upd'), blocos, '30');
+})();
+</script>
+{% endblock %}

@@ -11,22 +11,24 @@
 <details class="card full fw-sec" id="sec-agentes" open>
   <summary><h2>Agentes nos clientes</h2><small class="muted">versão no portal <b translate="no">{{ v_portal }}</b> ·
     {{ desat|length }} desatualizado(s)</small></summary>
-  <div class="table-wrap"><table class="small-tab">
-    <thead><tr><th>Cliente</th><th>Versão</th><th>Contacto</th><th>Última atualização pelo portal</th><th></th></tr></thead>
-    <tbody>{% for a in agentes %}{% set c = a.c %}<tr>
-      <td><a href="{{ url_for('clientes.detalhe', cid=c.id) }}" translate="no"><b>{{ c.nome }}</b></a></td>
+  <div class="table-wrap"><table class="small-tab" id="tagentes">
+    <thead><tr><th>{% if user.can('clientes.gerir') %}<input type="checkbox" id="sel-todos" title="Selecionar os desatualizados">{% endif %}</th>
+      <th>Cliente</th><th>Versão</th><th>Contacto</th><th>Comandos</th><th>Última atualização pelo portal</th></tr></thead>
+    <tbody>{% for a in agentes %}{% set c = a.c %}{% set pode = c.versao and c.versao >= '1.4' %}<tr>
+      <td>{% if user.can('clientes.gerir') %}<input type="checkbox" name="cid" value="{{ c.id }}" data-desat="{{ 1 if a.desatualizado else 0 }}" {{ '' if pode else 'disabled' }}>{% endif %}</td>
+      <td><a href="{{ url_for('clientes.detalhe', cid=c.id, aba='agente') }}" translate="no"><b>{{ c.nome }}</b></a></td>
       <td translate="no">{{ c.versao or '—' }} {% if a.desatualizado %}<span class="tag warn">desatualizado</span>{% elif c.versao %}<span class="tag ok">atual</span>{% endif %}</td>
       <td><small>{{ c.contacto.texto }}</small></td>
-      <td><small>{% if a.pedido %}<span class="spin"></span> pedida {{ a.pedido[5:16] }}{% elif a.ult %}{{ a.ult.de }} → {{ a.ult.para }} ({{ (a.ult.quando or '')[:16]|replace('T', ' ') }}){% if a.ult.erro %} <span class="c-bad">falhou: {{ a.ult.erro }}</span>{% endif %}{% else %}—{% endif %}</small></td>
-      <td class="acts">{% if a.desatualizado and not a.pedido and user.can('clientes.gerir') %}
-        {% if c.versao >= '1.4' %}<form method="post" action="{{ url_for('clientes.atualizar_agente', cid=c.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
-          <input type="hidden" name="voltar" value="{{ url_for('clientes.ferramentas') }}"><button class="btn small primary">⇧ Atualizar</button></form>
-        {% else %}<small class="muted">atualizar com o setup.sh (uma vez)</small>{% endif %}{% endif %}</td></tr>
-    {% else %}<tr><td colspan="5" class="muted">Sem clientes.</td></tr>{% endfor %}</tbody></table></div>
-  {% if desat and user.can('clientes.gerir') %}
-  <form method="post" action="{{ url_for('clientes.atualizar_todos') }}" style="margin-top:10px" onsubmit="return confirm((window.t || String)('Atualizar todos os agentes desatualizados? Cada um reinicia no próximo contacto.'))">
-    <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small primary">⇧ Atualizar todos os desatualizados</button></form>{% endif %}
-  <p class="hint">O agente (1.4.0+) descarrega o <code>agente-portal.py</code> do portal, confirma o SHA-256 que o portal lhe indica, substitui-se e reinicia
+      <td><small>{{ 'imediatos' if c.versao and c.versao >= '1.5' else ('na sincronização' if pode else 'atualizar com o setup.sh') }}</small></td>
+      <td><small>{% if a.pedido %}<span class="spin"></span> pedida {{ a.pedido[5:16] }}{% elif a.ult %}{{ a.ult.de }} → {{ a.ult.para }} ({{ (a.ult.quando or '')[:16]|replace('T', ' ') }}){% if a.ult.erro %} <span class="c-bad">falhou: {{ a.ult.erro }}</span>{% endif %}{% else %}—{% endif %}</small></td></tr>
+    {% else %}<tr><td colspan="6" class="muted">Sem clientes.</td></tr>{% endfor %}</tbody></table></div>
+  {% if user.can('clientes.gerir') %}
+  <div style="margin-top:10px;display:flex;gap:10px;align-items:center">
+    <button type="button" class="btn small primary" id="btn-atualizar-sel" disabled>⇧ Atualizar selecionados</button>
+    <small class="muted" id="n-sel"></small></div>
+  <div id="saidas"></div>{% endif %}
+  <p class="hint">Selecione os clientes e carregue em Atualizar: o output de cada um aparece em direto. Os agentes 1.5+ recebem o pedido em ~5 s;
+    os 1.4 na sincronização seguinte. O agente descarrega o <code>agente-portal.py</code> do portal, confirma o SHA-256 que o portal lhe indica, substitui-se e reinicia
     (adia se tiver um shrink a correr). Só atualiza o agente: venv, serviço e chave ficam como estão (para isso, o <code>setup.sh</code>).</p>
 </details>
 
@@ -90,7 +92,27 @@
   </div>
   {% else %}<p class="muted">A chave do portal ainda não foi criada (é criada ao guardar o primeiro cliente).</p>{% endif %}
 </details>
+<script src="{{ url_for('static', filename='comandos.js', v=static_v) }}"></script>
 <script>
+(() => {      /* Agentes: selecionar e atualizar com output em direto */
+  const cbs = [...document.querySelectorAll('#tagentes input[name=cid]')], btn = document.getElementById('btn-atualizar-sel');
+  if (!btn) return;
+  const conta = () => { const n = cbs.filter(c => c.checked).length; btn.disabled = !n;
+    document.getElementById('n-sel').textContent = n ? n + ' ' + (window.t || String)('selecionado(s)') : ''; };
+  cbs.forEach(c => c.addEventListener('change', conta));
+  document.getElementById('sel-todos').addEventListener('change', e => { cbs.forEach(c => { if (!c.disabled) c.checked = e.target.checked && c.dataset.desat === '1'; }); conta(); });
+  btn.addEventListener('click', async () => {
+    const sel = cbs.filter(c => c.checked);
+    if (!confirm((window.t || String)('Atualizar os agentes selecionados? Cada um descarrega a versão do portal e reinicia.'))) return;
+    btn.disabled = true;
+    const fd = new FormData(); fd.append('csrf', '{{ csrf_token }}'); sel.forEach(c => fd.append('cid', c.value));
+    const d = await (await fetch('{{ url_for('clientes.atualizar_selecionados') }}', {method: 'POST', body: fd})).json();
+    const caixa = document.getElementById('saidas'); caixa.innerHTML = '';
+    await Promise.all(d.comandos.map(k => { const el = document.createElement('div'); caixa.appendChild(el);
+      return PortalComando.seguir(k.id, el, null, k.nome); }));
+    btn.disabled = false;
+  });
+})();
 document.querySelectorAll('details.fw-sec').forEach(d => {      /* lembra o que ficou aberto */
   try { const v = localStorage.getItem('ferr.' + d.id); if (v !== null) d.open = v === '1'; } catch (e) {}
   d.addEventListener('toggle', () => { try { localStorage.setItem('ferr.' + d.id, d.open ? '1' : '0'); } catch (e) {} });

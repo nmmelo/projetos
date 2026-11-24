@@ -47,7 +47,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.4.0"
+VERSAO = "1.5.0"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -124,7 +124,7 @@ def ler_env(decifrado: bool = True) -> dict:
 def gravar_env(cfg: dict) -> None:
     linhas = ["# Agente do portal. Gerado por 'agente-portal configurar'. Valores sensiveis cifrados (enc:).",
               "# Mudar o intervalo: agente-portal intervalo <segundos>"]
-    for k in ("PORTAL_URL", "CLIENTE_ID", "TOKEN", "INTERVALO", "VERIFICAR_TLS", "CA_FICHEIRO", "UTILIZADOR_SSH", "EXTRAS", "LOGS_PASTAS",
+    for k in ("PORTAL_URL", "CLIENTE_ID", "TOKEN", "INTERVALO", "VERIFICAR_TLS", "CA_FICHEIRO", "UTILIZADOR_SSH", "EXTRAS", "LOGS_PASTAS", "COMANDOS_CADA",
               "ORACLE_RPC", "RPC_PORTA", "RPC_ESCUTA", "RPC_ORIGENS", "ORACLE_LIB"):
         if k in cfg:
             v = cfg[k]
@@ -544,45 +544,125 @@ def _baixar(cfg: dict, caminho: str, timeout: int = 60) -> bytes:
         return r.read()
 
 
-def atualizar_agente(cfg: dict, alvo: dict) -> None:
-    """O portal pediu (resposta do sync 'atualizar'): descarrega o agente-portal.py do portal, confirma o
-    SHA-256 recebido pelo canal autenticado, substitui-se e reinicia-se (execv; mesmo PID para o systemd)."""
+def atualizar_agente(cfg: dict, alvo: dict, cmd_id=None) -> None:
+    """Descarrega o agente-portal.py do portal, confirma o SHA-256 recebido pelo canal autenticado, guarda a
+    versao anterior, substitui-se e reinicia (execv; mesmo PID para o systemd). Com cmd_id, cada passo vai
+    para o output do comando no portal; depois do reinicio, o processo novo fecha o comando."""
+    def passo(texto, estado=None):
+        log("atualizacao: " + texto)
+        if cmd_id:
+            _cmd_post(cfg, cmd_id, [texto], estado)
+
     eu = os.path.abspath(__file__)
     with open(eu, "rb") as f:
         if hashlib.sha256(f.read()).hexdigest() == alvo.get("sha256"):
+            passo(f"o agente ja esta na versao {VERSAO} (igual a do portal)", "OK")
             return
-    if any(j["estado"] == "a correr" for j in JOBS.values()):
-        log("atualizacao adiada: ha execucoes Oracle a correr neste agente")
-        return
-    reg = {"de": VERSAO, "para": alvo.get("versao"), "quando": datetime.datetime.now().isoformat(timespec="seconds"), "erro": ""}
+    espera = 0
+    while any(j["estado"] == "a correr" for j in JOBS.values()):
+        if espera % 300 == 0:
+            passo("ha execucoes Oracle a correr neste agente: a atualizacao espera que terminem")
+        if espera >= 7200:
+            passo("desisti: execucoes Oracle ainda a correr ao fim de 2 h", "ERRO")
+            return
+        time.sleep(30)
+        espera += 30
+    reg = {"de": VERSAO, "para": alvo.get("versao"), "quando": datetime.datetime.now().isoformat(timespec="seconds"),
+           "erro": "", "cmd": cmd_id, "reportado": False}
     try:
+        url = cfg["PORTAL_URL"].rstrip("/") + "/clientes/agente/agente-portal.py"
+        passo(f"a descarregar {url}")
         dados = _baixar(cfg, "/clientes/agente/agente-portal.py")
-        if hashlib.sha256(dados).hexdigest() != alvo.get("sha256"):
-            raise RuntimeError("SHA-256 do ficheiro descarregado nao corresponde ao indicado pelo portal")
+        sha = hashlib.sha256(dados).hexdigest()
+        passo(f"descarregado: {len(dados) // 1024} KB, SHA-256 {sha[:16]}...")
+        if sha != alvo.get("sha256"):
+            raise RuntimeError("o SHA-256 nao corresponde ao indicado pelo portal (ficheiro alterado no caminho?)")
+        passo("SHA-256 confirmado (igual ao indicado pelo portal)")
         compile(dados, eu, "exec")
+        passo(f"sintaxe verificada com Python {platform.python_version()} ({sys.executable})")
         novo = eu + ".novo"
         with open(novo, "wb") as f:
             f.write(dados)
         os.chmod(novo, 0o755)
         if os.path.exists(eu):
             try:
-                import shutil as _sh  # noqa: PLC0415
-                _sh.copy2(eu, eu + ".anterior")
-            except OSError:
-                pass
+                shutil.copy2(eu, eu + ".anterior")
+                passo(f"versao {VERSAO} guardada em {eu}.anterior")
+            except OSError as e:
+                passo(f"aviso: nao foi possivel guardar a versao anterior ({e})")
         os.replace(novo, eu)
+        passo(f"{eu} substituido pela versao {alvo.get('versao')}")
     except Exception as e:  # noqa: BLE001
-        reg["erro"] = str(e)
-        log(f"atualizacao para {alvo.get('versao')} falhou: {e}")
+        reg["erro"], reg["reportado"] = str(e), True
+        passo(f"falhou: {e}", "ERRO")
         with open(ATUALIZACAO, "w") as f:
             json.dump(reg, f)
         return
     with open(ATUALIZACAO, "w") as f:
         json.dump(reg, f)
-    log(f"agente atualizado de {VERSAO} para {alvo.get('versao')}: a reiniciar")
+    passo(f"a reiniciar o agente (PID {os.getpid()})...")
     sys.stdout.flush()
     sys.stderr.flush()
     os.execv(sys.executable, [sys.executable, eu, "run"])
+
+
+def _cmd_post(cfg: dict, cmd_id, linhas=None, estado=None) -> bool:
+    try:
+        pedido(cfg, f"comando/{cmd_id}", {"linhas": linhas or [], "estado": estado}, timeout=15)
+        return True
+    except Exception as e:  # noqa: BLE001
+        log(f"comando {cmd_id}: nao foi possivel enviar ao portal: {e}")
+        return False
+
+
+def _reportar_reinicio(cfg: dict) -> bool:
+    """Depois de uma atualizacao pelo portal: o processo novo fecha o comando (OK ou ERRO)."""
+    reg = _ler_json(ATUALIZACAO) or {}
+    if not reg.get("cmd") or reg.get("reportado"):
+        return True
+    ok = reg.get("para") == VERSAO
+    linhas = [f"agente {VERSAO} a correr (PID {os.getpid()}, Python {platform.python_version()})",
+              "atualizacao concluida" if ok else f"esperava a versao {reg.get('para')} e arrancou a {VERSAO}"]
+    if _cmd_post(cfg, reg["cmd"], linhas, "OK" if ok else "ERRO"):
+        reg["reportado"] = True
+        with open(ATUALIZACAO, "w") as f:
+            json.dump(reg, f)
+        return True
+    return False
+
+
+def executar_comando(cfg: dict, c: dict) -> None:
+    if c.get("tipo") == "atualizar":
+        atualizar_agente(cfg, c.get("args") or {}, c.get("id"))
+    else:
+        _cmd_post(cfg, c.get("id"), [f"comando desconhecido nesta versao ({VERSAO}): {c.get('tipo')}"], "ERRO")
+
+
+def ciclo_comandos() -> None:
+    """Consulta o portal a cada COMANDOS_CADA s (5): comandos (atualizar) e pedidos de dados ficam quase
+    imediatos, sem abrir portas no servidor."""
+    reportado = False
+    while True:
+        try:
+            cfg = ler_env()
+            time.sleep(max(2, int(cfg.get("COMANDOS_CADA") or 5)))
+            if not reportado:
+                reportado = _reportar_reinicio(cfg)
+            r = pedido(cfg, "comandos", {}, timeout=15)
+            if r.get("pedidos"):
+                sincronizar(cfg, r["pedidos"])
+            for c in r.get("comandos") or []:
+                executar_comando(cfg, c)
+        except Exception:  # noqa: BLE001 - portal em baixo: o ciclo principal regista as falhas
+            time.sleep(5)
+
+
+_sync_trava = threading.Lock()
+
+
+def sincronizar(cfg: dict, pedidos=()) -> dict:
+    with _sync_trava:
+        return pedido(cfg, "sync", {"info": recolher(cfg), "extras": extras(cfg, pedidos)})
 
 
 # ============================================================ fila local (portal indisponivel)
@@ -1097,6 +1177,7 @@ def cmd_run(_a):
     threading.Thread(target=servidor_socket, args=(cfg,), daemon=True).start()
     if cfg.get("ORACLE_RPC") == "1":
         threading.Thread(target=servidor_rpc, args=(cfg,), daemon=True).start()
+    threading.Thread(target=ciclo_comandos, daemon=True).start()
     mem = {}
     try:
         with open(ESTADO) as f:
@@ -1113,7 +1194,7 @@ def cmd_run(_a):
             evs = verificar_logs(regras, mem)
             for e in evs:
                 enfileirar(e)
-            r = pedido(cfg, "sync", {"info": recolher(cfg), "extras": extras(cfg)})
+            r = sincronizar(cfg)
             regras = r.get("regras", [])
             if isinstance(r.get("ficheiros_log"), list):
                 novos = r["ficheiros_log"] != _ext["ficheiros_cfg"]
@@ -1121,7 +1202,7 @@ def cmd_run(_a):
                 if novos and r["ficheiros_log"]:
                     r.setdefault("pedidos", []).append("ficheiros")
             if r.get("pedidos"):                   # o portal pediu dados agora: envia ja
-                pedido(cfg, "sync", {"info": recolher(cfg), "extras": extras(cfg, r["pedidos"])})
+                sincronizar(cfg, r["pedidos"])
             if r.get("atualizar"):                 # depois dos pedidos (o reinicio perdia-os)
                 esvaziar_fila(cfg)
                 atualizar_agente(cfg, r["atualizar"])

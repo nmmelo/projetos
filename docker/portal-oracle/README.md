@@ -539,7 +539,13 @@ A página de cada cliente tem, como a Home, a **atualização automática** (man
 |---|---|
 | ![Alert log](docs/clientes-logs-ficheiro.png) | ![Gerir](docs/clientes-logs-gerir.png) |
 
-**Atualizar o agente pelo portal** (a partir da 1.4.0): no Resumo do cliente aparece **⇧ Atualizar agente** quando o portal tem uma versão mais nova; em Ferramentas → **Agentes nos clientes**, a versão de cada um e **Atualizar todos os desatualizados**. Na sincronização seguinte o agente descarrega o `agente-portal.py` do portal, confirma o SHA-256 que o portal lhe envia (canal autenticado), guarda a versão anterior (`agente-portal.py.anterior`), substitui-se e reinicia (adia se estiver a correr um shrink). O resultado (de → para, erro) fica no cliente. Agentes anteriores à 1.4.0 atualizam-se uma vez com o `setup.sh`.
+**Aba Agente e atualização pelo portal**: no cliente, a aba **Agente** mostra a versão instalada e a do portal, o Python, o modo dos comandos, o serviço Oracle e a última atualização, o botão **⇧ Atualizar** e o histórico de **comandos enviados ao agente** — clicar num mostra o output. Em Ferramentas → **Agentes nos clientes** escolhem-se os clientes (caixas; a do cabeçalho seleciona os desatualizados) e **Atualizar selecionados** mostra o output de cada um em direto.
+
+O agente **1.5.0** consulta o portal a cada 5 s (`COMANDOS_CADA` no `.env`; sem abrir portas no servidor): a atualização e o "Pedir dados agora" começam em segundos. O output mostra cada passo — descarregar, SHA-256 confirmado (o valor vem do portal pelo canal autenticado), sintaxe verificada, versão anterior guardada em `agente-portal.py.anterior`, substituição, reinício (mesmo PID) e "agente X a correr", enviado pelo processo novo. Com um shrink a correr no agente, a atualização espera que termine. Os agentes 1.4 recebem o pedido na sincronização seguinte (o output mostra a entrega e a versão nova quando sincroniza); anteriores à 1.4 atualizam-se uma vez com o `setup.sh`.
+
+| Cliente → Agente | Ferramentas → Agentes nos clientes |
+|---|---|
+| ![Agente](docs/clientes-agente.png) | ![Atualizar selecionados](docs/clientes-ferramentas.png) |
 
 **Pedir dados agora** (Processos, Sistema, Logs, Atualizações): o portal responde à sincronização seguinte com o pedido e o agente envia logo esses dados (até um intervalo). A lista de clientes mostra as bases de dados associadas e o número de atualizações pendentes (vermelho com atualizações de segurança, "reiniciar" quando preciso). Requer o agente **1.3.0** (atualize em Ferramentas); `EXTRAS=0` no `.env` do agente desliga estes dados.
 
@@ -560,8 +566,6 @@ A página de cada cliente tem, como a Home, a **atualização automática** (man
 Secções recolhíveis (o estado fica guardado no browser): **Agentes nos clientes** (versões e atualização), download do `setup.sh`, do `agente-portal.py` (versão, tamanho, SHA-256) e da chave SSH pública do portal, e os comandos prontos a copiar, já com o endereço do portal: descarregar o instalador, instalação nova, serviço Oracle, atualizar (mantém id e token), verificar, desinstalar, instalar num servidor sem acesso HTTPS ao portal (o `setup.sh` usa o `agente-portal.py` que estiver ao lado dele), comandos do agente e como pôr a chave à mão.
 
 O `setup.sh` cria o comando `agente-portal` em `/usr/local/bin` e `/usr/bin` (o `sudo` do RHEL não procura em `/usr/local/bin`), a usar o Python do venv quando existe (serviço Oracle). Ao acrescentar a chave do portal ao `authorized_keys`, garante a quebra de linha antes e separa chaves que tenham ficado coladas na mesma linha (guarda uma cópia `authorized_keys.antes-setup`).
-
-![Clientes → Ferramentas](docs/clientes-ferramentas.png)
 
 ### Pedidos às bases de dados pelo agente cliente (serviço Oracle)
 
@@ -591,6 +595,14 @@ journalctl -u agente-portal -f   # "servico Oracle a escutar...", "job ... inici
 | Base de dados → Agente cliente | Clientes → Serviço Oracle |
 |---|---|
 | ![Editar base de dados](docs/oracle-bd-agente.png) | ![Serviço Oracle](docs/clientes-oracle.png) |
+
+---
+
+## Configuração → Agendamento → Eventos
+
+A página de Agendamento tem duas abas: **Geral** (estado, últimas execuções e as tarefas de cada módulo, como antes) e **Eventos**: todas as execuções das tarefas com filtros por tarefa, estado (sucesso, aviso, erro, a correr), período (24 h, 7, 30, 90 dias, todos) e texto; totais por estado, duração, origem (agendamento ou manual, com o utilizador) e a mensagem completa (expandir). Atualização automática como na Home.
+
+![Agendamento → Eventos](docs/config-agendamento-eventos.png)
 
 ---
 

@@ -39,15 +39,8 @@
   {{ kv([('Id do cliente', c.codigo), ('Versão do agente', c.versao), ('Intervalo de sincronização', (c.intervalo ~ ' s') if c.intervalo),
          ('Contacta a partir de', c.ip_origem), ('Utilizador SSH', c.ssh_utilizador), ('Tipo', 'Máquina virtual' if c.vm else 'Servidor físico')]) }}
   {% set ua = i.atualizacao if i else None %}
-  {% if atualizar_pedido %}
-  <p class="flash info"><span class="spin"></span> Atualização para {{ v_portal }} pedida às {{ atualizar_pedido[11:16] }}: o agente descarrega-a no próximo contacto e reinicia.</p>
-  {% elif desatualizado %}
-  <div class="flash warn" style="display:flex;align-items:center;gap:10px;justify-content:space-between">
-    <span>Agente {{ c.versao }} — o portal tem a versão <b>{{ v_portal }}</b>.</span>
-    {% if user.can('clientes.gerir') %}{% if c.versao and c.versao >= '1.4' %}<form method="post" action="{{ url_for('clientes.atualizar_agente', cid=c.id) }}">
-      <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small primary">⇧ Atualizar agente</button></form>
-    {% else %}<small>Esta versão ainda não se atualiza pelo portal: use o comando de Ferramentas (uma vez).</small>{% endif %}{% endif %}
-  </div>
+  {% if desatualizado %}
+  <p class="flash warn">Há uma versão nova do agente ({{ v_portal }}). <a href="{{ url_for('clientes.detalhe', cid=c.id, aba='agente') }}">Ver em Agente →</a></p>
   {% endif %}
   {% if ua %}<p class="hint">Última atualização pelo portal: {{ ua.de }} → {{ ua.para }} em {{ (ua.quando or '')|replace('T', ' ') }}
     {% if ua.erro %}<span class="c-bad">— falhou: {{ ua.erro }}</span>{% else %}<span class="c-ok">— OK</span>{% endif %}</p>{% endif %}
@@ -305,6 +298,41 @@
   {% endif %}
 </section>
 
+{% elif aba == 'agente' %}
+{% set ua = i.atualizacao if i else None %}
+<div class="smtp-grid setup-grid" data-ref="agente">
+<section class="card">
+  <h2>Agente</h2>
+  {{ saude('ok' if not desatualizado and c.versao else ('warn' if c.versao else 'bad'),
+           ('Atualizado — versão ' ~ c.versao) if not desatualizado and c.versao else (('Versão ' ~ c.versao ~ ' — há a ' ~ v_portal) if c.versao else 'Agente nunca contactou o portal'),
+           'versão no portal: ' ~ v_portal) }}
+  {{ kv([('Versão instalada', c.versao), ('Versão no portal', v_portal), ('Python', i.python if i else ''),
+         ('Último contacto', c.ultimo_contacto), ('Intervalo de sincronização', (c.intervalo ~ ' s') if c.intervalo),
+         ('Comandos do portal', 'imediatos (consulta a cada 5 s)' if c.versao and c.versao >= '1.5' else ('na sincronização (até ' ~ (c.intervalo or 60) ~ ' s)' if c.versao and c.versao >= '1.4' else 'não suportados: atualize com o setup.sh')),
+         ('Serviço Oracle', ('ativo, porta ' ~ i.rpc.porta) if i and i.rpc and i.rpc.ativo else 'desligado'),
+         ('Última atualização pelo portal', (ua.de ~ ' → ' ~ ua.para ~ ' em ' ~ (ua.quando or '')|replace('T', ' ') ~ (' — falhou: ' ~ ua.erro if ua.erro else ' — OK')) if ua else '—')]) }}
+  {% if user.can('clientes.gerir') %}
+  <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    {% if c.versao and c.versao >= '1.4' %}
+    <button type="button" class="btn primary small" id="btn-atualizar" data-url="{{ url_for('clientes.atualizar_agente', cid=c.id) }}">⇧ {{ 'Atualizar para ' ~ v_portal if desatualizado else 'Reinstalar a versão do portal' }}</button>
+    {% else %}<small class="muted">Esta versão não se atualiza pelo portal: use uma vez o comando de Ferramentas → Instalar e atualizar.</small>{% endif %}
+  </div>
+  {% endif %}
+</section>
+<section class="card">
+  <h2>Comandos enviados ao agente</h2>
+  {% if comandos %}<div class="table-wrap"><table class="small-tab cmd-hist">
+    <thead><tr><th>#</th><th>Comando</th><th>Estado</th><th>Pedido</th><th>Por</th></tr></thead>
+    <tbody>{% for k in comandos %}<tr data-cmd="{{ k.id }}" data-ativo="{{ 1 if k.estado in ('PENDENTE', 'EM CURSO') else 0 }}">
+      <td class="num">{{ k.id }}</td><td>{{ {'atualizar': 'Atualizar o agente'}.get(k.tipo, k.tipo) }}</td>
+      <td><span class="tag {{ {'OK': 'ok', 'ERRO': 'bad', 'EM CURSO': 'accent'}.get(k.estado, 'warn') }}">{{ k.estado }}</span></td>
+      <td><small>{{ k.criado[5:16] }}</small></td><td><small>{{ k.pedido_por }}</small></td></tr>{% endfor %}</tbody></table></div>
+  <p class="hint">Clique num comando para ver o output.</p>
+  {% else %}<p class="muted">Nenhum comando enviado.</p>{% endif %}
+</section>
+</div>
+<div id="cmd-out" hidden></div>
+
 {% elif aba == 'zabbix' %}
 <section class="card full" data-ref="zabbix">
   {% set z = zbx.dados if zbx else None %}
@@ -342,6 +370,7 @@
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='painel.js', v=static_v) }}"></script>
+<script src="{{ url_for('static', filename='comandos.js', v=static_v) }}"></script>
 <script>
 (() => {
   const $ = id => document.getElementById(id);
@@ -361,7 +390,7 @@
     });
   }
   filtros();
-  async function blocos() {
+  let blocos = async function () {
     const r = await fetch(location.href, {cache: 'no-store'});
     if (!r.ok) throw new Error(r.status);
     const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
@@ -373,8 +402,30 @@
       el.querySelectorAll('input.filtro').forEach((f, k) => { f.value = q[k] || ''; });
     });
     filtros(); document.querySelectorAll('input.filtro').forEach(f => f.value && f._ap && f._ap());
+  };
+  /* aba Agente: atualizar com output em direto */
+  const out = $('cmd-out');
+  function ligarAgente() {
+    const b = $('btn-atualizar');
+    if (b && !b.dataset.ok) { b.dataset.ok = 1; b.addEventListener('click', async () => {
+      if (!confirm((window.t || String)('Atualizar o agente? Ele descarrega a versão do portal e reinicia.'))) return;
+      b.disabled = true;
+      const fd = new FormData(); fd.append('csrf', '{{ csrf_token }}');
+      const r = await fetch(b.dataset.url, {method: 'POST', body: fd, headers: {'X-Requested-With': 'fetch'}});
+      const d = await r.json();
+      out.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+      await PortalComando.seguir(d.id, out, () => { b.disabled = false; blocos(); });
+    }); }
+    document.querySelectorAll('.cmd-hist tr[data-cmd]').forEach(tr => { if (tr.dataset.ok) return; tr.dataset.ok = 1;
+      tr.addEventListener('click', () => { document.querySelectorAll('.cmd-hist tr.on').forEach(x => x.classList.remove('on')); tr.classList.add('on');
+        PortalComando.seguir(tr.dataset.cmd, out); }); });
+    const ativo = document.querySelector('.cmd-hist tr[data-ativo="1"]');
+    if (ativo && out.hidden) { ativo.classList.add('on'); PortalComando.seguir(ativo.dataset.cmd, out, () => blocos()); }
   }
-  autoAtualizar('cliente', $('ref'), $('agora'), $('upd'), blocos, '30');
+  if (out) ligarAgente();
+  const _blocos = blocos;
+  blocos = async () => { await _blocos(); if (out) ligarAgente(); };
+  autoAtualizar('cliente', $('ref'), $('agora'), $('upd'), () => blocos(), '30');
   $('upd').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-PT');
   const fp = $('fpedir');
   if (fp) fp.addEventListener('submit', async ev => {

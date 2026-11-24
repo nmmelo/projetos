@@ -326,8 +326,112 @@ def desatualizado(c: dict) -> bool:
     return bool(v and c.get("versao") and _v(c["versao"]) < _v(v))
 
 
-def pedir_atualizacao(cid: int) -> None:
+def pedir_atualizacao(cid: int, por: str = "") -> int:
+    """Cria (ou devolve, se ja houver) o comando 'atualizar' deste cliente. Agentes 1.5+ recebem-no em ~5 s
+    (consulta de comandos); os 1.4 na sincronizacao seguinte."""
+    with store.tx() as t:
+        r = t.one("SELECT id FROM cliente_comandos WHERE cliente_id = ? AND tipo = 'atualizar' "
+                  "AND estado IN ('PENDENTE', 'EM CURSO') ORDER BY id DESC", (cid,))
+    if r:
+        return r["id"]
+    v, sha = agente_portal()
+    c = obter(cid) or {}
+    cmd = criar_comando(cid, "atualizar", json.dumps({"versao": v, "sha256": sha}), por)
+    comando_linha(cmd, f"pedido por {por or 'portal'}: atualizar o agente {c.get('versao') or '?'} -> {v}")
+    if _v(c.get("versao") or "0") < (1, 5, 0):
+        comando_linha(cmd, f"o agente {c.get('versao') or '?'} recebe o pedido na próxima sincronização "
+                           f"(até {c.get('intervalo') or 60} s); a partir da 1.5.0 é imediato")
+    else:
+        comando_linha(cmd, "à espera que o agente receba o pedido (consulta a cada 5 s)")
     store.save_settings({f"cliente_atualizar:{cid}": store.now()})
+    return cmd
+
+
+# ============================================================ comandos para o agente (com output)
+def criar_comando(cid: int, tipo: str, args: str = "", por: str = "") -> int:
+    with store.tx() as t:
+        t.run("INSERT INTO cliente_comandos (cliente_id, tipo, args, estado, pedido_por, criado, output) "
+              "VALUES (?, ?, ?, 'PENDENTE', ?, ?, '')", (cid, tipo, args[:500], (por or "")[:100], store.now()))
+        return t.val("SELECT MAX(id) FROM cliente_comandos WHERE cliente_id = ?", (cid,))
+
+
+def comando_linha(cmd_id: int, texto: str) -> None:
+    linha = f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {texto}"
+    with store.tx() as t:
+        r = t.one("SELECT output FROM cliente_comandos WHERE id = ?", (cmd_id,))
+        if r is not None:
+            t.run("UPDATE cliente_comandos SET output = ? WHERE id = ?", (((r["output"] or "") + linha + "\n")[-200_000:], cmd_id))
+
+
+def comando_estado(cmd_id: int, estado: str) -> None:
+    with store.tx() as t:
+        if estado == "EM CURSO":
+            t.run("UPDATE cliente_comandos SET estado = ?, iniciado = COALESCE(iniciado, ?) WHERE id = ?", (estado, store.now(), cmd_id))
+        else:
+            t.run("UPDATE cliente_comandos SET estado = ?, terminado = ? WHERE id = ?", (estado, store.now(), cmd_id))
+    if estado in ("OK", "ERRO"):
+        with store.tx() as t:
+            r = t.one("SELECT cliente_id, tipo FROM cliente_comandos WHERE id = ?", (cmd_id,))
+        if r and r["tipo"] == "atualizar":
+            store.save_settings({f"cliente_atualizar:{r['cliente_id']}": ""})
+
+
+def comando(cmd_id: int) -> dict | None:
+    with store.tx() as t:
+        return t.one("SELECT * FROM cliente_comandos WHERE id = ?", (cmd_id,))
+
+
+def comandos(cid: int, limite: int = 20) -> list[dict]:
+    with store.tx() as t:
+        return t.all("SELECT * FROM cliente_comandos WHERE cliente_id = ? ORDER BY id DESC LIMIT ?", (cid, limite))
+
+
+def entregar_comandos(c: dict) -> dict:
+    """Consulta do agente (1.5+, a cada ~5 s): comandos pendentes e pedidos de dados."""
+    with store.tx() as t:
+        pend = t.all("SELECT id, tipo, args FROM cliente_comandos WHERE cliente_id = ? AND estado = 'PENDENTE' ORDER BY id", (c["id"],))
+    out = []
+    for p in pend:
+        comando_estado(p["id"], "EM CURSO")
+        comando_linha(p["id"], "entregue ao agente")
+        try:
+            args = json.loads(p["args"] or "{}")
+        except ValueError:
+            args = {}
+        out.append({"id": p["id"], "tipo": p["tipo"], "args": args})
+    ped = store.get_setting(f"cliente_pedido:{c['id']}") or ""
+    if ped:
+        store.save_settings({f"cliente_pedido:{c['id']}": ""})
+    return {"comandos": out, "pedidos": [x for x in ped.split(",") if x]}
+
+
+def _fechar_atualizacao(c: dict, info: dict) -> None:
+    """Agentes sem consulta de comandos (1.4): fecha o comando pela versao/erro que o agente reporta."""
+    with store.tx() as t:
+        r = t.one("SELECT * FROM cliente_comandos WHERE cliente_id = ? AND tipo = 'atualizar' AND estado IN ('PENDENTE', 'EM CURSO') "
+                  "ORDER BY id DESC", (c["id"],))
+    if not r:
+        return
+    try:
+        alvo = json.loads(r["args"] or "{}").get("versao") or ""
+    except ValueError:
+        alvo = ""
+    ult = info.get("atualizacao") if isinstance(info.get("atualizacao"), dict) else {}
+    if _v(info.get("versao") or "0") >= (1, 5, 0):
+        # 1.5+: o proprio agente recebe e fecha o comando; a sincronizacao so serve de recurso (2 min depois)
+        if r["estado"] == "PENDENTE" or not r["iniciado"]:
+            return
+        try:
+            if (datetime.datetime.now() - datetime.datetime.strptime(r["iniciado"], "%Y-%m-%d %H:%M:%S")).total_seconds() < 120:
+                return
+        except ValueError:
+            return
+    if alvo and _v(info.get("versao") or "0") >= _v(alvo):
+        comando_linha(r["id"], f"o agente sincronizou com a versão {info.get('versao')}")
+        comando_estado(r["id"], "OK")
+    elif ult.get("erro") and ult.get("para") == alvo and (ult.get("quando") or "").replace("T", " ") >= r["criado"]:
+        comando_linha(r["id"], f"o agente reportou erro: {ult['erro']}")
+        comando_estado(r["id"], "ERRO")
 
 
 def sync(c: dict, info: dict, ip: str, link: str = "", extras: dict | None = None) -> dict:
@@ -356,7 +460,10 @@ def sync(c: dict, info: dict, ip: str, link: str = "", extras: dict | None = Non
     if ped:
         store.save_settings({f"cliente_pedido:{c['id']}": ""})
     atualizar = None
+    _fechar_atualizacao(c, info)
     pedido_em = store.get_setting(f"cliente_atualizar:{c['id']}") or ""
+    if pedido_em and _v(info.get("versao") or "0") >= (1, 5, 0):
+        pedido_em = ""                      # 1.5+: recebe pela consulta de comandos
     if pedido_em:
         v, sha = agente_portal()
         ult = info.get("atualizacao") if isinstance(info.get("atualizacao"), dict) else {}
@@ -365,6 +472,13 @@ def sync(c: dict, info: dict, ip: str, link: str = "", extras: dict | None = Non
             store.save_settings({f"cliente_atualizar:{c['id']}": ""})
         elif v and _v(v) > _v(info.get("versao") or "0"):
             atualizar = {"versao": v, "sha256": sha}
+            with store.tx() as t:
+                r = t.one("SELECT id, estado FROM cliente_comandos WHERE cliente_id = ? AND tipo = 'atualizar' "
+                          "AND estado IN ('PENDENTE', 'EM CURSO') ORDER BY id DESC", (c["id"],))
+            if r and r["estado"] == "PENDENTE":
+                comando_estado(r["id"], "EM CURSO")
+                comando_linha(r["id"], f"entregue ao agente {info.get('versao')} na sincronização: vai descarregar, "
+                                       "substituir-se e reiniciar")
         else:
             store.save_settings({f"cliente_atualizar:{c['id']}": ""})     # ja esta na versao do portal
     fl = [{"id": r["id"], "pasta": r["pasta"], "ficheiro": r["ficheiro"], "linhas": r["linhas"] or 200}

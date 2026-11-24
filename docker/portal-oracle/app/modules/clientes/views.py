@@ -72,7 +72,7 @@ def detalhe(cid):
     from ... import agente_rpc, tarefas_bg, zabbix_api
     aba = request.args.get("aba") or "resumo"
     abas = [("resumo", "Resumo"), ("processos", "Processos"), ("sistema", "Sistema"), ("logs", "Logs"),
-            ("atualizacoes", "Atualizações"), ("bds", "Bases de dados")]
+            ("atualizacoes", "Atualizações"), ("bds", "Bases de dados"), ("agente", "Agente")]
     zbx_ok = zabbix_api.configurado()
     if zbx_ok:
         abas.append(("zabbix", "Zabbix"))
@@ -95,6 +95,7 @@ def detalhe(cid):
                            lf=request.args.get("f") or "sistema", v_portal=clientes.agente_portal()[0],
                            desatualizado=clientes.desatualizado(c),
                            atualizar_pedido=store.get_setting(f"cliente_atualizar:{cid}") or "",
+                           comandos=clientes.comandos(cid, 15) if aba == "agente" else [],
                            livres=[d for d in todas if str(d.get("cliente_id") or "") != str(cid)],
                            modos=agente_rpc.MODOS)
 
@@ -155,21 +156,53 @@ def logs_ficheiros(cid):
 @auth.requires(MODULO.acesso, "clientes.gerir")
 def atualizar_agente(cid):
     c = clientes.obter(cid) or abort(404)
-    clientes.pedir_atualizacao(cid)
-    flash(f"{c['nome']}: o agente atualiza-se para {clientes.agente_portal()[0]} no próximo contacto e reinicia.", "ok")
-    return redirect(request.form.get("voltar") or url_for("clientes.detalhe", cid=cid))
+    cmd = clientes.pedir_atualizacao(cid, g.user.username)
+    if request.headers.get("X-Requested-With") == "fetch":
+        return jsonify(ok=True, id=cmd, cid=cid, nome=c["nome"])
+    flash(f"{c['nome']}: atualização do agente pedida.", "ok")
+    return redirect(request.form.get("voltar") or url_for("clientes.detalhe", cid=cid, aba="agente"))
 
 
-@bp.route("/ferramentas/atualizar-todos", methods=["POST"])
+@bp.route("/ferramentas/atualizar", methods=["POST"])
 @auth.requires(MODULO.acesso, "clientes.gerir")
-def atualizar_todos():
-    n = 0
-    for c in clientes.listar():
-        if clientes.desatualizado(c):
-            clientes.pedir_atualizacao(c["id"])
-            n += 1
-    flash(f"{n} agente(s) desatualizado(s) vão atualizar-se no próximo contacto." if n else "Todos os agentes estão na versão do portal.", "ok")
-    return redirect(url_for("clientes.ferramentas"))
+def atualizar_selecionados():
+    out = []
+    for x in request.form.getlist("cid"):
+        c = clientes.obter(int(x)) if x.isdigit() else None
+        if c:
+            out.append({"cid": c["id"], "nome": c["nome"], "id": clientes.pedir_atualizacao(c["id"], g.user.username)})
+    return jsonify(ok=True, comandos=out)
+
+
+@bp.route("/api/comando/<int:cmd_id>")
+@auth.requires(MODULO.acesso)
+def api_comando(cmd_id):
+    r = clientes.comando(cmd_id) or abort(404)
+    return jsonify({k: r[k] for k in ("id", "cliente_id", "tipo", "estado", "pedido_por", "criado", "iniciado", "terminado", "output")})
+
+
+@bp.route("/agente/api/comandos", methods=["POST"])
+def agente_comandos():
+    c = _agente()
+    if not c:
+        return _negado()
+    return jsonify(clientes.entregar_comandos(c))
+
+
+@bp.route("/agente/api/comando/<int:cmd_id>", methods=["POST"])
+def agente_comando(cmd_id):
+    c = _agente()
+    if not c:
+        return _negado()
+    r = clientes.comando(cmd_id)
+    if not r or r["cliente_id"] != c["id"]:
+        abort(404)
+    d = request.get_json(silent=True) or {}
+    for l in (d.get("linhas") or ([d["linha"]] if d.get("linha") else []))[:50]:
+        clientes.comando_linha(cmd_id, str(l)[:1000])
+    if d.get("estado") in ("OK", "ERRO"):
+        clientes.comando_estado(cmd_id, d["estado"])
+    return jsonify(ok=True)
 
 
 @bp.route("/cliente/<int:cid>/bds", methods=["POST"])

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1810">
+<lingua codigo="en" nome="English" textos="1848">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -7241,5 +7241,157 @@
   <texto>
     <origem>atualizar com o setup.sh (uma vez)</origem>
     <traducao>update with setup.sh (once)</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar o agente</origem>
+    <traducao>Update the agent</traducao>
+  </texto>
+  <texto>
+    <origem>Até {n} eventos, mais recentes primeiro.</origem>
+    <traducao>Up to {n} events, most recent first.</traducao>
+  </texto>
+  <texto>
+    <origem>Clique num comando para ver o output.</origem>
+    <traducao>Click a command to see its output.</traducao>
+  </texto>
+  <texto>
+    <origem>Comandos</origem>
+    <traducao>Commands</traducao>
+  </texto>
+  <texto>
+    <origem>Comandos do portal</origem>
+    <traducao>Portal commands</traducao>
+  </texto>
+  <texto>
+    <origem>Comandos enviados ao agente</origem>
+    <traducao>Commands sent to the agent</traducao>
+  </texto>
+  <texto>
+    <origem>Eventos das tarefas agendadas</origem>
+    <traducao>Scheduled task events</traducao>
+  </texto>
+  <texto>
+    <origem>Pedido</origem>
+    <traducao>Requested</traducao>
+  </texto>
+  <texto>
+    <origem>Procurar</origem>
+    <traducao>Search</traducao>
+  </texto>
+  <texto>
+    <origem>Selecionar os desatualizados</origem>
+    <traducao>Select the outdated ones</traducao>
+  </texto>
+  <texto>
+    <origem>Selecione os clientes e carregue em Atualizar: o output de cada um aparece em direto. Os agentes {n}.{n}+ recebem o pedido em ~{n} s; os {n}.{n} na sincronização seguinte. O agente descarrega o</origem>
+    <traducao>Select the clients and press Update: each one's output appears live. Agents {n}.{n}+ get the request in ~{n} s; {n}.{n} agents on the next sync. The agent downloads</traducao>
+  </texto>
+  <texto>
+    <origem>Ver todos os eventos →</origem>
+    <traducao>See all events →</traducao>
+  </texto>
+  <texto>
+    <origem>Versão instalada</origem>
+    <traducao>Installed version</traducao>
+  </texto>
+  <texto>
+    <origem>Versão no portal</origem>
+    <traducao>Version on the portal</traducao>
+  </texto>
+  <texto>
+    <origem>Serviço Oracle</origem>
+    <traducao>Oracle service</traducao>
+  </texto>
+  <texto>
+    <origem>ativo, porta {n}</origem>
+    <traducao>active, port {n}</traducao>
+  </texto>
+  <texto>
+    <origem>atualizar com o setup.sh</origem>
+    <traducao>update with setup.sh</traducao>
+  </texto>
+  <texto>
+    <origem>imediatos (consulta a cada {n} s)</origem>
+    <traducao>immediate (polls every {n} s)</traducao>
+  </texto>
+  <texto>
+    <origem>texto da mensagem ou origem</origem>
+    <traducao>message text or origin</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizado — versão {n}.{n}.{n}</origem>
+    <traducao>Up to date — version {n}.{n}.{n}</traducao>
+  </texto>
+  <texto>
+    <origem>imediatos</origem>
+    <traducao>immediate</traducao>
+  </texto>
+  <texto>
+    <origem>na sincronização</origem>
+    <traducao>on sync</traducao>
+  </texto>
+  <texto>
+    <origem>⇧ Atualizar selecionados</origem>
+    <traducao>⇧ Update selected</traducao>
+  </texto>
+  <texto>
+    <origem>selecionado(s)</origem>
+    <traducao>selected</traducao>
+  </texto>
+  <texto>
+    <origem>Reinstalar a versão do portal</origem>
+    <traducao>Reinstall the portal version</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar o agente? Ele descarrega a versão do portal e reinicia.</origem>
+    <traducao>Update the agent? It downloads the portal version and restarts.</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar os agentes selecionados? Cada um descarrega a versão do portal e reinicia.</origem>
+    <traducao>Update the selected agents? Each downloads the portal version and restarts.</traducao>
+  </texto>
+  <texto>
+    <origem>falhou</origem>
+    <traducao>failed</traducao>
+  </texto>
+  <texto>
+    <origem>Últimas 24 h</origem>
+    <traducao>Last 24 h</traducao>
+  </texto>
+  <texto>
+    <origem>Últimos 7 dias</origem>
+    <traducao>Last 7 days</traducao>
+  </texto>
+  <texto>
+    <origem>Últimos 30 dias</origem>
+    <traducao>Last 30 days</traducao>
+  </texto>
+  <texto>
+    <origem>Últimos 90 dias</origem>
+    <traducao>Last 90 days</traducao>
+  </texto>
+  <texto>
+    <origem>Sem eventos com estes filtros.</origem>
+    <traducao>No events with these filters.</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhum comando enviado.</origem>
+    <traducao>No commands sent.</traducao>
+  </texto>
+  <texto>
+    <origem>Agente nunca contactou o portal</origem>
+    <traducao>Agent never contacted the portal</traducao>
+  </texto>
+  <texto>
+    <origem>versão no portal: {n}.{n}.{n}</origem>
+    <traducao>version on the portal: {n}.{n}.{n}</traducao>
+  </texto>
+  <texto>
+    <origem>Há uma versão nova do agente (</origem>
+    <traducao>There is a new agent version (</traducao>
+  </texto>
+  <texto>
+    <origem>Ver em Agente →</origem>
+    <traducao>See in Agent →</traducao>
   </texto>
 </lingua>

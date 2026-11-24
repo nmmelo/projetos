@@ -1,0 +1,4 @@
+<nav class="subtabs" style="margin-bottom:16px">
+  <a href="{{ url_for('portal.cfg_agendamento') }}" class="{{ 'on' if request.args.get('aba') != 'eventos' }}">Geral</a>
+  <a href="{{ url_for('portal.cfg_agendamento', aba='eventos') }}" class="{{ 'on' if request.args.get('aba') == 'eventos' }}">Eventos</a>
+</nav>

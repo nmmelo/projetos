@@ -231,6 +231,13 @@ def cfg_agendamento():
         return redirect(url_for("portal.cfg_agendamento"))
     agendamento.garantir_padrao()
     tarefas = agendamento.listar()
+    if request.args.get("aba") == "eventos":
+        f = {"tarefa": request.args.get("tarefa") or "", "estado": request.args.get("estado") or "",
+             "periodo": request.args.get("periodo") or "7d", "q": (request.args.get("q") or "").strip()}
+        evs = agendamento.eventos(f["tarefa"], f["estado"], f["periodo"], f["q"])
+        return render_template("config/agendamento_eventos.html", eventos=evs, f=f, tarefas=tarefas,
+                               nomes={t["id"]: t["nome"] for t in tarefas},
+                               modulos={t["id"]: t["modulo"] for t in tarefas}, tab="portal", sub="agendamento")
     grupos: dict[str, list] = {}
     for t in tarefas:
         grupos.setdefault(t["modulo"], []).append(t)
