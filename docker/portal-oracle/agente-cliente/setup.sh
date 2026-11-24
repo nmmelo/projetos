@@ -176,6 +176,33 @@ for u in $GRUPO_UTIL; do
     if id "$u" >/dev/null 2>&1; then usermod -aG $GRUPO "$u"; ok "$u no grupo $GRUPO (pode usar 'agente-portal notificar')"; else avs "utilizador $u nao existe"; fi
 done
 
+abrir_firewall() {        # abre $PORTA_RPC/tcp (so para $ORIGENS, se indicadas) no firewalld (zonas ativas) ou ufw
+    if command -v firewall-cmd >/dev/null && firewall-cmd --state >/dev/null 2>&1; then
+        local zonas z ip ok=0
+        zonas=$(firewall-cmd --get-active-zones 2>/dev/null | grep -v '^[[:space:]]')
+        [[ -n $zonas ]] || zonas=$(firewall-cmd --get-default-zone)
+        for z in $zonas; do
+            if [[ -n $ORIGENS ]]; then
+                for ip in $ORIGENS; do
+                    firewall-cmd -q --permanent --zone="$z" --add-rich-rule="rule family=$([[ $ip == *:* ]] && echo ipv6 || echo ipv4) source address=$ip port port=$PORTA_RPC protocol=tcp accept" 2>/dev/null || true
+                done
+            else firewall-cmd -q --permanent --zone="$z" --add-port="$PORTA_RPC/tcp" 2>/dev/null || true; fi
+        done
+        firewall-cmd -q --reload
+        for z in $zonas; do
+            if firewall-cmd --zone="$z" --list-all | grep -q "port=\"$PORTA_RPC\"\|$PORTA_RPC/tcp"; then
+                ok=1; corr "firewalld: porta $PORTA_RPC/tcp aberta${ORIGENS:+ para $ORIGENS} na zona $z"
+                firewall-cmd --zone="$z" --list-all | grep -E "$PORTA_RPC" | sed 's/^/      /'
+            fi
+        done
+        [[ $ok == 1 ]] || avs "firewalld: nao consegui confirmar a regra para $PORTA_RPC/tcp (zonas: $zonas)"
+    elif command -v ufw >/dev/null && ufw status | grep -q active; then
+        if [[ -n $ORIGENS ]]; then for ip in $ORIGENS; do ufw allow from "$ip" to any port "$PORTA_RPC" proto tcp >/dev/null; done
+        else ufw allow "$PORTA_RPC/tcp" >/dev/null; fi
+        corr "ufw: porta $PORTA_RPC/tcp aberta${ORIGENS:+ para $ORIGENS}"
+    else avs "sem firewalld/ufw ativo: nada a abrir (se houver firewall na rede, abra $PORTA_RPC/tcp de ${ORIGENS:-portal} para este servidor)"; fi
+}
+
 # ---------------------------------------------------------------- servico Oracle (opcional)
 PY=/usr/bin/python3
 if [[ $ORACLE == 1 ]]; then
@@ -204,22 +231,20 @@ if [[ $ORACLE == 1 ]]; then
     fi
     ok "python-oracledb $("$DIR/venv/bin/python" -c 'import oracledb; print(oracledb.__version__)')"
     PY=$DIR/venv/bin/python
-    if [[ $ABRIR_FW == 1 ]]; then
-        if command -v firewall-cmd >/dev/null && firewall-cmd --state >/dev/null 2>&1; then
-            if [[ -n $ORIGENS ]]; then
-                for ip in $ORIGENS; do firewall-cmd -q --permanent --add-rich-rule="rule family=$([[ $ip == *:* ]] && echo ipv6 || echo ipv4) source address=$ip port port=$PORTA_RPC protocol=tcp accept"; done
-            else firewall-cmd -q --permanent --add-port=$PORTA_RPC/tcp; fi
-            firewall-cmd -q --reload; corr "firewalld: porta $PORTA_RPC/tcp aberta${ORIGENS:+ para $ORIGENS}"
-        elif command -v ufw >/dev/null && ufw status | grep -q active; then
-            if [[ -n $ORIGENS ]]; then for ip in $ORIGENS; do ufw allow from "$ip" to any port "$PORTA_RPC" proto tcp >/dev/null; done
-            else ufw allow "$PORTA_RPC/tcp" >/dev/null; fi
-            corr "ufw: porta $PORTA_RPC/tcp aberta${ORIGENS:+ para $ORIGENS}"
-        else avs "sem firewalld/ufw ativo: nada a abrir"; fi
-    else
-        avs "o portal tem de chegar a este servidor na porta $PORTA_RPC/tcp (use --abrir-firewall ou abra a mao)"
+    if [[ $ABRIR_FW == 1 ]]; then abrir_firewall
+    else avs "o portal tem de chegar a este servidor na porta $PORTA_RPC/tcp (use --abrir-firewall ou abra a mao)"; fi
+else
+    [[ -x $DIR/venv/bin/python ]] && PY=$DIR/venv/bin/python
+    if [[ $ABRIR_FW == 1 ]]; then                   # so --abrir-firewall: usa a porta e as origens ja configuradas
+        if grep -q '^ORACLE_RPC=1' "$DIR/.env" 2>/dev/null; then
+            v=$(sed -n 's/^RPC_PORTA=//p' "$DIR/.env"); [[ $v =~ ^[0-9]+$ ]] && PORTA_RPC=$v
+            [[ -n $ORIGENS ]] || ORIGENS=$(sed -n 's/^RPC_ORIGENS=//p' "$DIR/.env" | tr ',' ' ')
+            tit "Firewall (servico Oracle na porta $PORTA_RPC)"
+            abrir_firewall
+        else
+            avs "o servico Oracle do agente nao esta ligado: use --oracle --origens \"<IP do portal>\" --abrir-firewall"
+        fi
     fi
-elif [[ -x $DIR/venv/bin/python ]]; then
-    PY=$DIR/venv/bin/python
 fi
 
 cat > /etc/systemd/system/$SVC.service <<UNIT

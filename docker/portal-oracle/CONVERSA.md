@@ -509,3 +509,8 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > no shrink está a dar este aviso, Portal sem ligação a <servidor>:8795 ([Errno 113] No route to host) · agente Oracle
 
 **Resposta:** A base de dados está associada ao agente (modo Automático) mas a firewall do servidor da BD rejeita a porta 8795; o shrink foi feito pelo portal (como antes). Abrir a porta só para o IP do portal (firewall-cmd rich-rule ou setup.sh --oracle --abrir-firewall --origens) ou desligar o agente nessa BD. A mensagem passa a indicar a causa provável (113 firewall, 111 serviço parado, timeout rede).
+
+**Pergunta:**
+> bash setup-agente.sh --oracle --origens <IP do portal> e isto bash setup-agente.sh --abrir-firewall e nada
+
+**Resposta:** O --abrir-firewall só atuava no mesmo comando que o --oracle. Agora também funciona sozinho (usa a porta e as origens já guardadas no agente), abre a regra em todas as zonas ativas do firewalld (não só na predefinida) e confirma-a, mostrando a regra.
