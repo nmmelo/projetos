@@ -561,3 +561,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > nas base de dados, quero ter uma nova aba com recyclebin , onde ele verifica todos os recyclebin dos schemas, o espaço por schema e o total, podendo executar para limpar uma recyclebin , duas ou mais recyclebin. parecido ao shrink
 
 **Resposta:** Nova aba Oracle → **Recyclebin**: totais (espaço, objetos, schemas, mais antigo), tabela por schema (objetos, tabelas, espaço com barra, tablespaces, datas, lista de objetos) e total. Seleção de um, vários ou todos os schemas, modo ANÁLISE/EXECUTAR, agora ou agendado. Corre como o shrink (bloco PL/SQL `recyclebin_block.sql`, output em direto, histórico em Execuções, notificação), com ganho estimado/espaço libertado por schema e "🗑 Limpar agora" a partir da análise. PURGE TABLESPACE … USER por tablespace e, o que ficar, PURGE TABLE/INDEX. Permissões `oracle.recyclebin` e `oracle.recyclebin.limpar`.
+
+## 49. Botão para voltar às Execuções
+
+**Pergunta:**
+> na janela de uma execução não tem o botão de voltar a pagina de execuções principal.
+
+**Resposta:** Botão **← Execuções** ao lado do título de cada execução (volta à lista) e, nas limpezas da recyclebin, também **♻ Recyclebin** (volta à aba com a mesma base de dados).

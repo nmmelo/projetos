@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="2064">
+<lingua codigo="en" nome="English" textos="2067">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -8257,5 +8257,17 @@
   <texto>
     <origem>Recyclebin — limpar (PURGE em modo EXECUTAR)</origem>
     <traducao>Recyclebin — purge (EXECUTE mode)</traducao>
+  </texto>
+  <texto>
+    <origem>← Execuções</origem>
+    <traducao>← Runs</traducao>
+  </texto>
+  <texto>
+    <origem>Voltar à lista de execuções</origem>
+    <traducao>Back to the list of runs</traducao>
+  </texto>
+  <texto>
+    <origem>♻ Recyclebin</origem>
+    <traducao>♻ Recyclebin</traducao>
   </texto>
 </lingua>

@@ -7,8 +7,12 @@
 {% set rb = job.params.tipo == 'recyclebin' %}
 {% set alvo = (job.params.schemas|join(', ') if job.params.schemas else 'todos os schemas') if rb else job.params.ts %}
 <div class="head">
-  <h2>Execução #{{ job.id }} — {{ job.db_name }}</h2>
+  <div class="job-titulo">
+    <a class="btn voltar" href="{{ url_for('oracle.jobs_list') }}" title="Voltar à lista de execuções">← Execuções</a>
+    <h2>Execução #{{ job.id }} — {{ job.db_name }}</h2>
+  </div>
   <div class="buttons">
+    {% if rb %}<a class="btn" href="{{ url_for('oracle.recyclebin', db=job.db_id) }}">♻ Recyclebin</a>{% endif %}
     <a class="btn" href="{{ url_for('oracle.job_log', job_id=job.id) }}">Descarregar log</a>
     {% if not running and not agendado and user.can('oracle.execucoes.apagar') %}
     <form method="post" action="{{ url_for('oracle.jobs_delete') }}" onsubmit="return confirm('Apagar a execução #{{ job.id }}?')">

@@ -1022,3 +1022,6 @@ tr.rb-det > td { background: var(--bg); padding: 10px 14px 14px 48px; }
 .confirm.pisca { outline: 3px solid var(--danger); transition: outline .2s; }
 .rb-h2 { margin-top: 22px; }
 .tag.rb { background: var(--ok-bg); color: var(--ok); }
+.job-titulo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.job-titulo h2 { margin: 0; }
+.btn.voltar { padding: 6px 12px; font-weight: 500; }
