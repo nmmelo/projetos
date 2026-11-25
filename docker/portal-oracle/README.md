@@ -695,6 +695,14 @@ Cada execução fica registada (início, fim, estado, origem: agendamento ou man
 
 ---
 
+## Caixas de confirmação e aviso
+
+As confirmações (apagar, atualizar o agente, desativar um módulo…) e os avisos usam uma caixa própria do portal em vez da janela do browser (que mostrava o endereço do servidor, ex. "<servidor> says"): título com a pergunta, texto explicativo, ícone, fundo desfocado, animação curta, tema claro/escuro/Oracle e botões **Voltar** / **Confirmar**. Ações destrutivas (apagar, remover, desativar, cancelar…) ficam a vermelho e com o foco em **Voltar**; `Esc` ou clicar fora cancela.
+
+Está em `app/static/dialogo.js` (HTML5 `<dialog>` + CSS) e é carregado em todas as páginas. O código existente não muda: `onsubmit="return confirm(...)"` e `if (!confirm(...)) return;` passam a abrir esta caixa; ao confirmar, o formulário é submetido / o clique é repetido. Para código novo: `await PortalDialogo.confirmar('Apagar X? Texto.', {perigo: true})` e `PortalDialogo.aviso('...')`.
+
+![Caixa de confirmação (claro e escuro)](docs/dialogo-confirmar.png)
+
 ## Línguas (português e inglês)
 
 O portal é escrito em português. Ao lado do sininho há as **bandeiras**: cada utilizador escolhe a língua (fica guardada para ele e num cookie, para a página de entrada). Para quem ainda não escolheu, vale a **língua por omissão**.

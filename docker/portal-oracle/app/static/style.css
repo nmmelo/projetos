@@ -924,3 +924,34 @@ ul.cfw-rich li { display: flex; gap: 6px; align-items: center; padding: 3px 0; b
 ul.cfw-rich code { white-space: pre-wrap; word-break: break-all; }
 .cfw-builder { display: flex; gap: 6px; flex-wrap: wrap; width: 100%; }
 input.cfw-regra { flex: 1; min-width: 320px; font-family: var(--mono, monospace); }
+
+/* caixas de confirmacao / aviso (dialogo.js) */
+dialog.pdlg { border: 0; padding: 0; background: transparent; max-width: min(460px, calc(100vw - 32px)); width: 100%; overflow: visible; color: var(--ink); }
+dialog.pdlg::backdrop { background: rgba(15, 20, 28, .45); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+dialog.pdlg[open] { animation: pdlg-entra .16s ease-out; }
+dialog.pdlg[open]::backdrop { animation: pdlg-fundo .16s ease-out; }
+@keyframes pdlg-entra { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes pdlg-fundo { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { dialog.pdlg[open], dialog.pdlg[open]::backdrop { animation: none; } }
+.pdlg-caixa { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; padding: 22px 22px 18px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: 0 24px 48px -12px rgba(15, 20, 28, .35), 0 2px 6px rgba(15, 20, 28, .08); }
+.pdlg-icone { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.pdlg-icone::before { content: ""; width: 20px; height: 20px; background: currentColor;
+  -webkit-mask: var(--pdlg-svg) center / contain no-repeat; mask: var(--pdlg-svg) center / contain no-repeat;
+  --pdlg-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9.5'/%3E%3Cpath d='M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6'/%3E%3Cpath d='M12 17.2h.01'/%3E%3C/svg%3E"); }
+dialog.pdlg[data-tipo="perigo"] .pdlg-icone { background: var(--danger-bg); color: var(--danger); }
+dialog.pdlg[data-tipo="perigo"] .pdlg-icone::before,
+dialog.pdlg[data-tipo="aviso"] .pdlg-icone::before {
+  --pdlg-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z'/%3E%3Cpath d='M12 9.2v4.3'/%3E%3Cpath d='M12 17h.01'/%3E%3C/svg%3E"); }
+dialog.pdlg[data-tipo="aviso"] .pdlg-icone { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.pdlg-texto { min-width: 0; align-self: center; }
+.pdlg-botoes .btn:focus { outline: none; }
+.pdlg-botoes .btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.pdlg-titulo { margin: 0; font-size: 16.5px; font-weight: 650; line-height: 1.35; letter-spacing: -.005em; overflow-wrap: anywhere; }
+.pdlg-corpo { margin-top: 6px; color: var(--muted); font-size: 14px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; max-height: 50vh; overflow: auto; }
+.pdlg-botoes { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.pdlg-botoes .btn { min-width: 96px; text-align: center; padding: 8px 16px; border-radius: 10px; font-weight: 600; }
+.pdlg-botoes .primary.danger:hover { background: var(--danger); border-color: var(--danger); filter: brightness(.92); }
+@media (max-width: 480px) { .pdlg-botoes { flex-direction: column-reverse; } .pdlg-botoes .btn { width: 100%; } }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1988">
+<lingua codigo="en" nome="English" textos="1989">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -7953,5 +7953,9 @@
   <texto>
     <origem>operação de firewall desconhecida</origem>
     <traducao>unknown firewall operation</traducao>
+  </texto>
+  <texto>
+    <origem>Confirmar</origem>
+    <traducao>Confirm</traducao>
   </texto>
 </lingua>
