@@ -13,6 +13,11 @@
   </div>
   <div class="buttons">
     {% if rb %}<a class="btn" href="{{ url_for('oracle.recyclebin', db=job.db_id) }}">♻ Recyclebin</a>{% endif %}
+    {% if job.status in ('ERRO', 'INTERROMPIDO', 'CANCELADO') and pode_repetir %}
+    <form method="post" action="{{ url_for('oracle.job_repetir', job_id=job.id) }}"
+          onsubmit="return confirm('Retomar a execução #{{ job.id }}? {{ 'Nova execução em modo ' ~ job.params.modo ~ ' com os mesmos parâmetros' }}{{ ': o que já foi feito fica, o shrink continua com o que falta.' if job.params.modo == 'EXECUTAR' and not rb else '.' }}')">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="primary">↻ Retomar</button>
+    </form>{% endif %}
     <a class="btn" href="{{ url_for('oracle.job_log', job_id=job.id) }}">Descarregar log</a>
     {% if not running and not agendado and user.can('oracle.execucoes.apagar') %}
     <form method="post" action="{{ url_for('oracle.jobs_delete') }}" onsubmit="return confirm('Apagar a execução #{{ job.id }}?')">
@@ -29,6 +34,10 @@
   </div>
 </div>
 
+{% if job.params.repete or retomas %}<p class="retoma-info">
+  {% if job.params.repete %}↻ Retoma da execução <a href="{{ url_for('oracle.job_detail', job_id=job.params.repete) }}">#{{ job.params.repete }}</a>.{% endif %}
+  {% if retomas %}Retomada em: {% for x in retomas %}<a href="{{ url_for('oracle.job_detail', job_id=x.id) }}">#{{ x.id }}</a>
+    <span class="status s-{{ x.status|replace(' ', '-') }}">{{ x.status }}</span>{{ ',' if not loop.last }} {% endfor %}{% endif %}</p>{% endif %}
 {# Painel de andamento (ao estilo do "TESLA a carregar..." do portal): palavra animada, barra, passo e tempo #}
 <section class="run-panel {{ 'is-running' if running else 'is-done s-' ~ job.status|replace(' ', '-') }}" id="panel"
          data-progress="{{ job.progress if job.progress is not none else '' }}">

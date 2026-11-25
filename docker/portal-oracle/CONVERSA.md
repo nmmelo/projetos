@@ -575,3 +575,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > nos tablespace mostrar os garficos de tablespace que ocupam mais, por exempo grafico de fatias
 
 **Resposta:** Oracle → Tablespaces passa a ter dois gráficos de fatias por cima da tabela: espaço usado por tablespace e espaço livre (candidatos a shrink). Top 8 + "Outros", legenda com valor e %, realce ao passar o rato (% no centro) e, no do livre, clique abre o Shrink com o tablespace. SVG próprio, sem bibliotecas.
+
+## 51. Retomar execuções interrompidas e repetir pedidos que falharam
+
+**Pergunta:**
+> os pedidos que são interrupitos ou falham podemos a partir desse retormar o mesmo.
+
+**Resposta:** Oracle → Execuções: **↻ Retomar** numa execução interrompida, cancelada ou com erro (página e janela do output) cria outra com os mesmos parâmetros e modo; no shrink EXECUTAR continua o que falta. Ligações "Retoma da execução #N" / "Retomada em #M". Clientes → Pedidos: **↻ Repetir** nos pedidos que falharam (tabela e output), com o output do novo pedido logo a seguir. Mesmas permissões que o pedido original.

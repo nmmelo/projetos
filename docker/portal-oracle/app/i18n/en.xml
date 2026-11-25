@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="2076">
+<lingua codigo="en" nome="English" textos="2083">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -8305,5 +8305,33 @@
   <texto>
     <origem>Sem dados.</origem>
     <traducao>No data.</traducao>
+  </texto>
+  <texto>
+    <origem>↻ Retomar</origem>
+    <traducao>↻ Resume</traducao>
+  </texto>
+  <texto>
+    <origem>↻ Repetir</origem>
+    <traducao>↻ Retry</traducao>
+  </texto>
+  <texto>
+    <origem>Repetir</origem>
+    <traducao>Retry</traducao>
+  </texto>
+  <texto>
+    <origem>Fazer de novo o mesmo pedido</origem>
+    <traducao>Do the same request again</traducao>
+  </texto>
+  <texto>
+    <origem>Retoma da execução</origem>
+    <traducao>Resumes run</traducao>
+  </texto>
+  <texto>
+    <origem>Retomada em:</origem>
+    <traducao>Resumed in:</traducao>
+  </texto>
+  <texto>
+    <origem>Só uma execução interrompida, cancelada ou com erro pode ser retomada.</origem>
+    <traducao>Only an interrupted, cancelled or failed run can be resumed.</traducao>
   </texto>
 </lingua>

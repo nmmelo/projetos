@@ -280,10 +280,45 @@ def job_detail(job_id):
             seguintes = t.all("SELECT id, status, ganho_mb FROM jobs WHERE params LIKE ? ORDER BY id",
                               (f'%"de_analise": {job["id"]}}}',))
     origem = job["params"].get("de_analise")
+    with store.tx() as t:                         # retomas desta execucao
+        retomas = t.all("SELECT id, status FROM jobs WHERE params LIKE ? ORDER BY id", (f'%"repete": {job["id"]}%',))
+    retomas = [x for x in retomas if ((store.get_job(x["id"]) or {}).get("params") or {}).get("repete") == job["id"]]
     return render_template("oracle/job.html", job=job, can_cancel=can_cancel, elapsed=_elapsed(job), ganho=ganho,
                            can_exec=g.user.can("oracle.recyclebin.limpar" if job["params"].get("tipo") == "recyclebin"
                                                else "oracle.shrink.executar"), seguintes=seguintes, origem=origem,
-                           agente_ativo=_agente_ativo())
+                           agente_ativo=_agente_ativo(), retomas=retomas, pode_repetir=_pode_lancar(job["params"]))
+
+
+def _pode_lancar(params: dict) -> bool:
+    rb = params.get("tipo") == "recyclebin"
+    if params.get("modo") == "EXECUTAR":
+        return g.user.can("oracle.recyclebin.limpar" if rb else "oracle.shrink.executar")
+    return (_pode_rb() if rb else _can_shrink())
+
+
+@bp.route("/execucoes/<int:job_id>/repetir", methods=["POST"])
+@auth.login_required
+def job_repetir(job_id):
+    """Retoma uma execucao interrompida, cancelada ou com erro: nova execucao com os mesmos parametros e modo.
+    No shrink EXECUTAR continua o trabalho (o que ja foi movido/reduzido fica; o bloco recalcula o que falta)."""
+    job = _job_or_403(job_id)
+    if not _pode_lancar(job["params"]):
+        abort(403)
+    if job["status"] not in ("ERRO", "INTERROMPIDO", "CANCELADO"):
+        flash("Só uma execução interrompida, cancelada ou com erro pode ser retomada.", "error")
+        return redirect(url_for("oracle.job_detail", job_id=job_id))
+    p = {k: v for k, v in job["params"].items() if k not in ("repete", "de_analise")}
+    p["repete"] = job_id
+    if job["params"].get("de_analise"):
+        p["de_analise"] = job["params"]["de_analise"]          # fica no fim (procura das execucoes da analise)
+    try:
+        _db_or_403(int(job["db_id"]))
+        novo = jobs.start(job["db_id"], p, g.user.username)
+    except (oracle.ValidationError, ValueError) as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("oracle.job_detail", job_id=job_id))
+    flash(f"Execução #{job_id} retomada como #{novo} (mesmos parâmetros, modo {p.get('modo')}).", "ok")
+    return redirect(url_for("oracle.job_detail", job_id=novo))
 
 
 @bp.route("/execucoes/<int:job_id>/executar", methods=["POST"])

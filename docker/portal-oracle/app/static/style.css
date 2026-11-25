@@ -1045,3 +1045,5 @@ tr.rb-det > td { background: var(--bg); padding: 10px 14px 14px 48px; }
 .ts-graficos { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 14px; margin: 0 0 16px; }
 .ts-graficos .card h3 { margin: 0 0 10px; font-size: 14px; }
 .ts-graficos .card .hint { margin: -6px 0 10px; display: block; }
+.retoma-info { margin: 0 0 10px; font-size: 13px; color: var(--muted); } .retoma-info a { font-weight: 600; }
+.ped-rep, .cmd-out-rep { white-space: nowrap; }

@@ -259,6 +259,26 @@ def cancelar_comando(cmd_id):
     return redirect(request.form.get("voltar") or url_for("clientes.detalhe", cid=r["cliente_id"], aba="agente"))
 
 
+@bp.route("/comando/<int:cmd_id>/repetir", methods=["POST"])
+@auth.requires(MODULO.acesso)
+def repetir_comando(cmd_id):
+    """Repete um pedido que falhou, com os mesmos argumentos (JSON com o id do novo pedido)."""
+    r = clientes.comando(cmd_id) or abort(404)
+    try:
+        args = json.loads(r.get("args") or "{}")
+    except ValueError:
+        args = {}
+    precisa = ("clientes.gerir" if r["tipo"] == "atualizar" else
+               "clientes.firewall" if r["tipo"] == "firewall" and args.get("ops") else None)
+    if precisa and not g.user.can(precisa):
+        return jsonify(ok=False, erro=f"sem permissão ({precisa})"), 403
+    try:
+        novo = clientes.repetir_comando(cmd_id, g.user.username)
+    except ValueError as exc:
+        return jsonify(ok=False, erro=str(exc)), 400
+    return jsonify(ok=True, id=novo)
+
+
 @bp.route("/api/comando/<int:cmd_id>")
 @auth.requires(MODULO.acesso)
 def api_comando(cmd_id):

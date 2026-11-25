@@ -134,6 +134,13 @@ Se a BD responder em menos de ~1 s, os dados vêm logo no mesmo pedido. A cache 
 |---|---|
 | ![Execuções](docs/execucoes.png) | ![Janela](docs/execucao-janela.png) |
 
+### Retomar execuções e repetir pedidos
+
+| Onde | Como |
+|---|---|
+| **Oracle → Execuções** | Numa execução **interrompida, cancelada ou com erro** (shrink ou recyclebin, análise ou executar), o botão **↻ Retomar** (na página da execução e na janela do output) cria uma nova execução com os mesmos parâmetros e modo. No shrink EXECUTAR o que já foi feito fica e o bloco recalcula o que falta. A página indica "Retoma da execução #N" e, na original, "Retomada em: #M". Exige a mesma permissão que lançar (análise/executar) |
+| **Clientes → Pedidos** | Num pedido que **falhou** (dados, abrir ficheiro, atualizar o agente, firewall), **↻ Repetir** na tabela ou no output faz o mesmo pedido de novo e mostra logo o output do novo. Atualizar exige `clientes.gerir`; alterações de firewall exigem `clientes.firewall` |
+
 ### Oracle → Tablespaces: gráficos de fatias
 
 Por cima da tabela de tablespaces, dois gráficos de fatias (donut): **Espaço usado por tablespace** (quem ocupa mais) e **Espaço livre por tablespace** (alocado mas livre: candidatos a shrink). Mostram os 8 maiores e o resto em "Outros", com legenda (valor e %); passar o rato numa fatia ou na legenda realça-a e mostra a % no centro; no gráfico do livre, clicar abre o Shrink já com o tablespace escolhido. Sem bibliotecas externas (`PortalGrafico.fatias` em `static/graficos.js`).

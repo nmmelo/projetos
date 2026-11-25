@@ -23,7 +23,7 @@
     <div class="an-tile"><span>{{ txt[k]|capitalize }}</span><b class="{{ 'c-bad' if k == 'ERRO' and n else ('c-warn' if k in ('PENDENTE', 'EM CURSO') and n else '') }}">{{ n }}</b></div>{% endfor %}</div>
   {% if pedidos %}
   <div class="table-wrap"><table class="small-tab cmd-hist" id="tped">
-    <thead><tr><th class="num">#</th><th>Cliente</th><th>Pedido</th><th>Estado</th><th>Pedido em</th><th class="num">Duração</th><th>Por</th></tr></thead>
+    <thead><tr><th class="num">#</th><th>Cliente</th><th>Pedido</th><th>Estado</th><th>Pedido em</th><th class="num">Duração</th><th>Por</th><th></th></tr></thead>
     <tbody>{% for p in pedidos %}<tr data-cmd="{{ p.id }}" data-nome="{{ p.cliente }}" class="{{ 'on' if sel == p.id }}">
       <td class="num">{{ p.id }}</td>
       <td><a href="{{ url_for('clientes.detalhe', cid=p.cliente_id, aba='agente') }}" translate="no" onclick="event.stopPropagation()"><b>{{ p.cliente or '?' }}</b></a></td>
@@ -31,7 +31,8 @@
       <td><span class="tag {{ cores.get(p.estado, '') }}">{% if p.estado in ('PENDENTE', 'EM CURSO') %}<span class="spin"></span> {% endif %}{{ txt.get(p.estado, p.estado) }}</span></td>
       <td class="nowrap"><small>{{ p.criado[5:19] }}</small></td>
       <td class="num nowrap"><small>{% if p.duracao is not none %}{{ (p.duracao // 60 ~ ' min ') if p.duracao >= 60 }}{{ p.duracao % 60 }} s{% else %}—{% endif %}</small></td>
-      <td><small>{{ p.pedido_por }}</small></td></tr>{% endfor %}</tbody></table></div>
+      <td><small>{{ p.pedido_por }}</small></td>
+      <td>{% if p.estado == 'ERRO' %}<button type="button" class="btn small ped-rep" data-rep="{{ p.id }}" title="Fazer de novo o mesmo pedido">↻ Repetir</button>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
   <p class="hint">Clique num pedido para ver o output. Até 300, mais recentes primeiro.</p>
   {% else %}<p class="muted">Sem pedidos{{ ' com estes filtros' if f.cliente or f.tipo or f.estado }}.</p>{% endif %}
 </section>
@@ -61,6 +62,17 @@
     }
     ligar();
   }
+  /* repetir um pedido que falhou: abre logo o output do novo pedido */
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('.ped-rep'); if (!b) return;
+    e.stopPropagation(); b.disabled = true;
+    const novo = await PortalComando.repetir(+b.dataset.rep);
+    if (!novo) { b.disabled = false; return; }
+    atual = novo; PortalComando.seguir(novo, out, () => blocos(), b.closest('tr').dataset.nome);
+    out.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    blocos();
+  }, true);
+  window.addEventListener('portal:comando', () => blocos());
   ligar();
   if (atual) PortalComando.seguir(atual, out, null, (document.querySelector(`#tped tr[data-cmd="${atual}"]`) || {dataset: {}}).dataset.nome);
   autoAtualizar('pedidos', $('ref'), $('agora'), $('upd'), blocos, '5');

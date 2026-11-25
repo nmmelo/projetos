@@ -152,6 +152,11 @@ function kind(l) {
   return '';
 }
 const CAN_EXEC = {{ 'true' if user.can('oracle.shrink.executar') else 'false' }}, CAN_RB = {{ 'true' if user.can('oracle.recyclebin.limpar') else 'false' }};
+const REP = "{{ url_for('oracle.job_repetir', job_id=0) }}";
+const PODE = {shrinkA: {{ 'true' if user.can('oracle.shrink.analise') or user.can('oracle.shrink.executar') else 'false' }},
+              shrinkE: CAN_EXEC, rbA: {{ 'true' if user.can('oracle.recyclebin') or user.can('oracle.recyclebin.limpar') else 'false' }}, rbE: CAN_RB};
+function podeLancar(j) { const rb = j.tipo === 'recyclebin', ex = (j.params || {}).modo === 'EXECUTAR';
+  return rb ? (ex ? PODE.rbE : PODE.rbA) : (ex ? PODE.shrinkE : PODE.shrinkA); }
 function mbFmt(v) { return v >= 1024 ? (v / 1024).toFixed(1).replace('.', ',') + ' GB' : v + ' MB'; }
 async function abrir(id) {
   const r = await fetch(JOB.replace('/0', '/' + id) + '?full=1');
@@ -166,7 +171,10 @@ async function abrir(id) {
     <span>Início <b>${esc(j.started_at)}</b></span><span>Duração <b>${dur(j.duracao)}</b></span><span>Por <b>${esc(j.created_by)}</b></span>`
     + (j.ganho_mb != null ? `<span>${p.modo === 'EXECUTAR' ? 'Libertado' : 'Ganho estimado'} <b class="${p.modo === 'EXECUTAR' ? 'g-lib' : ''}">${mbFmt(j.ganho_mb)}</b></span>` : '')
     + ((j.tipo === 'recyclebin' ? CAN_RB : CAN_EXEC) && p.modo === 'ANALISE' && ['OK', 'ERRO'].includes(j.status)
-       ? `<a class="btn small primary" href="${PAGE.replace('/0', '/' + id)}#resultado">▶ Executar com estes parâmetros…</a>` : '');
+       ? `<a class="btn small primary" href="${PAGE.replace('/0', '/' + id)}#resultado">▶ Executar com estes parâmetros…</a>` : '')
+    + (['ERRO', 'INTERROMPIDO', 'CANCELADO'].includes(j.status) && podeLancar(j)
+       ? `<form method="post" action="${REP.replace('/0/', '/' + id + '/')}" class="inline-form" onsubmit="return confirm('Retomar a execução #${id}? Nova execução em modo ${esc(p.modo)} com os mesmos parâmetros.')">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small primary">↻ Retomar</button></form>` : '');
   $('d-err').hidden = !j.error; $('d-err').textContent = j.error ? 'Falhou: ' + j.error : '';
   if ($('d-del')) $('d-del').disabled = ATIVOS.includes(j.status);
   $('d-only').checked = false;

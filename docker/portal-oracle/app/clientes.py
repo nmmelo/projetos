@@ -652,6 +652,33 @@ def descrever(r: dict) -> str:
     return r["tipo"]
 
 
+def repetir_comando(cmd_id: int, por: str = "") -> int:
+    """Volta a fazer um pedido que falhou (ou foi interrompido/cancelado) com os mesmos argumentos. Devolve o novo id."""
+    r = comando(cmd_id)
+    if not r:
+        raise ValueError("pedido não encontrado")
+    if r["estado"] in ("PENDENTE", "EM CURSO"):
+        raise ValueError("o pedido ainda está a decorrer")
+    try:
+        a = json.loads(r.get("args") or "{}")
+    except ValueError:
+        a = {}
+    cid = r["cliente_id"]
+    if r["tipo"] == "dados":
+        novo = pedir_dados(cid, a.get("tipos") or [], por, f"repete o pedido #{cmd_id}")
+    elif r["tipo"] == "atualizar":
+        novo = pedir_atualizacao(cid, por)
+    elif r["tipo"] == "ler":
+        novo = pedir_leitura(cid, a.get("caminho") or "", a.get("linhas") or 0, bool(a.get("listar")), por)
+    elif r["tipo"] == "firewall":
+        novo = pedir_firewall(cid, a.get("ops") or [], por)
+    else:
+        raise ValueError(f"não é possível repetir pedidos do tipo {r['tipo']}")
+    if r["tipo"] != "dados":
+        comando_linha(novo, f"repete o pedido #{cmd_id}")
+    return novo
+
+
 def todos_comandos(cliente: int | None = None, estado: str = "", tipo: str = "", limite: int = 300) -> list[dict]:
     sql = ("SELECT c.id, c.cliente_id, c.tipo, c.args, c.estado, c.pedido_por, c.criado, c.iniciado, c.terminado, k.nome AS cliente "
            "FROM cliente_comandos c LEFT JOIN clientes k ON k.id = c.cliente_id WHERE 1 = 1")

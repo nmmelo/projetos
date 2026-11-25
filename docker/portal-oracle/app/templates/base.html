@@ -13,6 +13,7 @@
   {% endif %}
   <script src="{{ url_for('static', filename='i18n.js', v=static_v) }}"></script>
   <script src="{{ url_for('static', filename='dialogo.js', v=static_v) }}"></script>
+  {% if user %}<meta name="csrf" content="{{ csrf_token }}">{% endif %}
 </head>
 <body>
 <header class="top">
