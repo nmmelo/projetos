@@ -13,6 +13,7 @@ utilização e um `CONVERSA.md` com o resumo do chat que deu origem ao projeto.
 | watchtower-ui | [`docker`](docker) › [`watchtower-ui`](docker/watchtower-ui) | Portal web (Ubuntu 26.04, nginx + Flask + SSH) para um Watchtower já existente: login com verificação humana, histórico de versões por contentor (SQLite no mount), atualizar todos ou por imagem, métricas, utilizadores, auditoria e logs; utilizador SSH com chave e sudo |
 | Shrink de tablespaces | [`oracledb`](oracledb) › [`query`](oracledb/query) › [`shrink_tablespace`](oracledb/query/shrink_tablespace) | Script SQL*Plus que verifica se um tablespace (ou todos) pode ser reduzido, reorganiza os segmentos no fim dos datafiles (MOVE/REBUILD ONLINE) e faz o resize. Inclui notas sobre o SYSAUX |
 | Monitor RMAN | [`oracledb`](oracledb) › [`scripts`](oracledb/scripts) › [`rman`](oracledb/scripts/rman) | Monitor pós-backup RMAN (Bash + Python): valida o log, apaga backups antigos quando a partição passa os 90% e envia email por SMTP com password cifrada |
+| Oracle Wallet | [`oracledb`](oracledb) › [`scripts`](oracledb/scripts) › [`oracle-wallet`](oracledb/scripts/oracle-wallet) | Script Python que valida um Oracle Wallet sem credenciais (lê o `cwallet.sso`): validade de todos os certificados (dias e estado, código de saída para monitorização) e credenciais guardadas com password mascarada; `discover` dos wallets do servidor; gestão com `orapki`/`mkstore`: criar wallet, importar certificado por ficheiro ou texto `.crt`, remover, exportar, autoassinado, CSR, criar/alterar/remover credenciais, com backup antes |
 | Internet na VM por USB | [`linux`](linux) › [`geral`](linux/geral) › [`usb-wifi`](linux/geral/usb-wifi) | VM Ubuntu no VirtualBox com internet por uma pen LTE USB (passthrough), netplan e funções `rede-trabalho` / `rede-casa` para alternar entre a pen e o NAT |
 | Mount is live | [`linux`](linux) › [`geral`](linux/geral) › [`mount-islive`](linux/geral/mount-islive) | Testa de X em X minutos se os mounts do fstab respondem (escrita de `teste.txt` com timeout), refaz o mount e envia email SMTP com a hora da falha e do teste com sucesso. Setup interativo com `.env` e password cifrada |
 | Migração mod_php → php-fpm | [`linux`](linux) › [`geral`](linux/geral) › [`migrate-php-fpm`](linux/geral/migrate-php-fpm) | Script interativo (um a um ou AUTO) que migra os virtualhosts ativos do Apache de mod_php para php-fpm: backup, diretivas `php_*` convertidas para um pool por site, SetHandler em 80/443, `.htaccess` → `.user.ini`, validação com a linha do erro, reload, log e desativação do mod_php |
@@ -52,6 +53,7 @@ projetos/
 │   │   └── shrink_tablespace/      # Script de shrink de tablespaces
 │   └── scripts/                    # Scripts de operação
 │       ├── README.md
+│       ├── oracle-wallet/          # Validação e gestão de Oracle Wallets
 │       └── rman/                   # Monitor pós-backup RMAN
 ├── outros/                         # Scripts diversos
 │   ├── README.md
