@@ -540,3 +540,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > (imagem da barra "✓ Oracle <servidor> · lista de tablespaces — atualizado · 0,2 s") quero que os pedidos como na imagem fiquei no canto direito em baixo, sendo que deve ser apenas uma caixa com todos, deve indicar o numero de pedidos ou processos em execução, ao clicar na caixa ele extende para o lado para vermos o que está a correr.
 
 **Resposta:** A barra ao centro passa a ser uma única caixa no canto inferior direito com o número em execução. Ao clicar estende-se com a lista agrupada: atualização de dados, execuções Oracle (shrink em curso/na fila, passo e %) e pedidos aos agentes, com tempo, quem pediu e barra de progresso; cada item abre a execução ou o pedido. Mostra ✓/✕ ao acabar, lembra se estava aberta, respeita o acesso aos módulos, `Esc` recolhe.
+
+## 46. Executar o shrink a partir da análise e espaço libertado
+
+**Pergunta:**
+> depois de executar o shrink de um tablespace em modo analise, devia no output ou na aba execução, ter a possbilidade de fazer o shrink em modo executar, para não ter que de fazer tudo de novo, e na executção deve indicar o espaço que ficou livre.
+
+**Resposta:** Na página de uma análise terminada aparece o cartão **Ganho estimado** com **▶ Executar agora** (mesmos parâmetros, com confirmação), **Agendar…** e **Ajustar parâmetros** (formulário já preenchido em EXECUTAR); na janela do output em Execuções, **▶ Executar com estes parâmetros…**. Na execução, o cartão **Espaço libertado** (antes → depois, %) com ligação à análise; a análise lista as execuções feitas a partir dela. Nova coluna **Ganho** em Execuções e o ganho na notificação de fim. Os valores vêm do RESUMO GLOBAL do output (execuções antigas são preenchidas automaticamente).

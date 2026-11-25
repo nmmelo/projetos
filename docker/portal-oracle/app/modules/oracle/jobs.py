@@ -235,6 +235,9 @@ def _notificar(job_id: int) -> None:
     linhas = [f"Base de dados : {j['db_name']}", f"Tablespace    : {p.get('ts')}", f"Modo          : {p.get('modo')}",
               f"Estado        : {j['status']} ({j['resultado']})", f"Início / fim  : {j['started_at']} -> {j['finished_at']}",
               f"Lançado por   : {j['created_by']}"]
+    if (j.get("ganho_mb") or -1) >= 0:
+        rot = "Espaço libertado" if p.get("modo") == "EXECUTAR" else "Ganho estimado"
+        linhas.append(f"{rot.ljust(14)}: {j['ganho_mb']} MB")
     if j.get("n_erros") or j.get("n_avisos"):
         linhas.append(f"Linhas        : {j.get('n_erros') or 0} com erro, {j.get('n_avisos') or 0} com aviso")
     if j.get("error"):

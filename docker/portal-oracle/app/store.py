@@ -462,6 +462,7 @@ class Store:
         self._add_column("oracle_dbs", "agente_modo", "VARCHAR(12)")     # nao | auto | obrigatorio
         self._add_column("jobs", "via", "VARCHAR(120)")                  # quem tratou: portal / agente cliente
         self._add_column("jobs", "remoto", "VARCHAR(80)")                # <cliente_id>:<job no agente>
+        self._add_column("jobs", "ganho_mb", "INTEGER")                  # total do RESUMO GLOBAL (-1 = sem resumo)
 
     def _alargar(self, table: str, col: str, ddl: str) -> None:
         """Aumenta o tamanho de uma coluna VARCHAR (no SQLite o tamanho nao conta)."""
@@ -703,7 +704,7 @@ def delete_user(uid) -> None:
 
 # ------------------------------------------------------------------ execucoes
 JOB_RESUMO = ("id, db_id, db_name, params, status, started_at, finished_at, current_action, progress, "
-              "created_by, runner, n_erros, n_avisos, error, agendado_para, via")
+              "created_by, runner, n_erros, n_avisos, error, agendado_para, via, ganho_mb")
 
 
 def create_job(db: dict, params: dict, user: str, status: str = "EM CURSO", runner: str = "portal",
@@ -715,6 +716,9 @@ def create_job(db: dict, params: dict, user: str, status: str = "EM CURSO", runn
 
 
 def update_job(job_id: int, **fields) -> None:
+    if "output" in fields and "finished_at" in fields and "ganho_mb" not in fields:
+        r = resumo_ganho(fields["output"])
+        fields["ganho_mb"] = r["total"] if r else -1
     if fields:
         with tx() as t:
             t.update("jobs", job_id, fields)
@@ -755,6 +759,32 @@ def contar(output: str) -> tuple[int, int]:
     return erros, avisos
 
 
+def resumo_ganho(output: str) -> dict | None:
+    """Le o "RESUMO GLOBAL" do output do bloco PL/SQL: {modo, total, linhas: [{ts, antes, depois, ganho, reorg,
+    erros, estado}]} (MB). ANALISE = ganho estimado; EXECUTAR = espaco libertado. None se nao houver resumo."""
+    import re
+    linhas = (output or "").splitlines()
+    ini = next((i for i in range(len(linhas) - 1, -1, -1) if "===== RESUMO GLOBAL" in linhas[i]), None)
+    if ini is None:
+        return None
+    modo = "EXECUTAR" if "(EXECUTAR" in linhas[ini] else "ANALISE"
+    out, total = [], None
+    rx = re.compile(r"^(\S+)\s+(-|\d+)\s+(-|\d+)\s+(-|-?\d+)\s+(SIM|NAO|-)\s+(\d+)\s{2}(.*)$")
+    num = lambda v: None if v == "-" else int(v)  # noqa: E731
+    for l in linhas[ini + 1:]:
+        m = re.match(r"^TOTAL\s+(-?\d+)\s*$", l)
+        if m:
+            total = int(m.group(1))
+            break
+        m = rx.match(l.rstrip())
+        if m and m.group(1) != "TABLESPACE":
+            out.append({"ts": m.group(1), "antes": num(m.group(2)), "depois": num(m.group(3)), "ganho": num(m.group(4)),
+                        "reorg": m.group(5), "erros": int(m.group(6)), "estado": m.group(7).strip()})
+    if total is None:
+        total = sum(x["ganho"] or 0 for x in out)
+    return {"modo": modo, "total": total, "linhas": out}
+
+
 def get_job(job_id) -> dict | None:
     with tx() as t:
         return _job(t.one("SELECT * FROM jobs WHERE id = ?", (job_id,)))
@@ -786,6 +816,14 @@ def search_jobs(texto: str = "", limit: int = 1000) -> list[dict]:
             for r in rows:
                 if r["id"] == jid:
                     r["n_erros"], r["n_avisos"] = e, a
+        falta = [r["id"] for r in rows if r.get("ganho_mb") is None and r["status"] in ("OK", "ERRO", "CANCELADO", "INTERROMPIDO")]
+        for jid in falta[:200]:
+            g = resumo_ganho(t.val("SELECT output FROM jobs WHERE id = ?", (jid,)) or "")
+            v = g["total"] if g else -1
+            t.run("UPDATE jobs SET ganho_mb = ? WHERE id = ?", (v, jid))
+            for r in rows:
+                if r["id"] == jid:
+                    r["ganho_mb"] = v
     return [_job(r) for r in rows]
 
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1999">
+<lingua codigo="en" nome="English" textos="2021">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -7997,5 +7997,93 @@
   <texto>
     <origem>cancelado</origem>
     <traducao>cancelled</traducao>
+  </texto>
+  <texto>
+    <origem>Ganho estimado</origem>
+    <traducao>Estimated gain</traducao>
+  </texto>
+  <texto>
+    <origem>Espaço libertado</origem>
+    <traducao>Space freed</traducao>
+  </texto>
+  <texto>
+    <origem>Agendar…</origem>
+    <traducao>Schedule…</traducao>
+  </texto>
+  <texto>
+    <origem>Ajustar parâmetros</origem>
+    <traducao>Adjust parameters</traducao>
+  </texto>
+  <texto>
+    <origem>Agendar execução</origem>
+    <traducao>Schedule run</traducao>
+  </texto>
+  <texto>
+    <origem>Já executada:</origem>
+    <traducao>Already run:</traducao>
+  </texto>
+  <texto>
+    <origem>libertados</origem>
+    <traducao>freed</traducao>
+  </texto>
+  <texto>
+    <origem>com os parâmetros da</origem>
+    <traducao>with the parameters of the</traducao>
+  </texto>
+  <texto>
+    <origem>Por tablespace</origem>
+    <traducao>Per tablespace</traducao>
+  </texto>
+  <texto>
+    <origem>Ganho</origem>
+    <traducao>Gain</traducao>
+  </texto>
+  <texto>
+    <origem>Ganho est.</origem>
+    <traducao>Est. gain</traducao>
+  </texto>
+  <texto>
+    <origem>Libertado</origem>
+    <traducao>Freed</traducao>
+  </texto>
+  <texto>
+    <origem>Reorg.</origem>
+    <traducao>Reorg.</traducao>
+  </texto>
+  <texto>
+    <origem>(estimado)</origem>
+    <traducao>(estimated)</traducao>
+  </texto>
+  <texto>
+    <origem>O seu perfil não permite o modo EXECUTAR.</origem>
+    <traducao>Your profile does not allow EXECUTE mode.</traducao>
+  </texto>
+  <texto>
+    <origem>Mesmos parâmetros:</origem>
+    <traducao>Same parameters:</traducao>
+  </texto>
+  <texto>
+    <origem>▶ Executar com estes parâmetros…</origem>
+    <traducao>▶ Run with these parameters…</traducao>
+  </texto>
+  <texto>
+    <origem>Ganho estimado </origem>
+    <traducao>Estimated gain </traducao>
+  </texto>
+  <texto>
+    <origem>estimado</origem>
+    <traducao>estimated</traducao>
+  </texto>
+  <texto>
+    <origem>libertado</origem>
+    <traducao>freed</traducao>
+  </texto>
+  <texto>
+    <origem>Só uma análise terminada pode ser executada.</origem>
+    <traducao>Only a finished analysis can be run.</traducao>
+  </texto>
+  <texto>
+    <origem>Análise: ganho estimado · Executar: espaço libertado</origem>
+    <traducao>Analysis: estimated gain · Execute: space freed</traducao>
   </texto>
 </lingua>

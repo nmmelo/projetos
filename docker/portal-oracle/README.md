@@ -134,6 +134,21 @@ Se a BD responder em menos de ~1 s, os dados vêm logo no mesmo pedido. A cache 
 |---|---|
 | ![Execuções](docs/execucoes.png) | ![Janela](docs/execucao-janela.png) |
 
+### Da análise à execução e espaço libertado
+
+No fim de cada execução, o portal lê o **RESUMO GLOBAL** do output e mostra um cartão por cima dos detalhes:
+
+| Modo | Cartão |
+|---|---|
+| **ANÁLISE** | **Ganho estimado** (ex. 21,8 GB; tamanho antes → depois estimado e %) e os botões **▶ Executar agora** (mesmos parâmetros: tablespace, ONLINE, ganho mínimo, margem, paralelismo, purge — sem preencher o formulário de novo), **Agendar…** (com o agente ativo) e **Ajustar parâmetros** (abre o Shrink já preenchido em modo EXECUTAR). Mostra também as execuções já feitas a partir desta análise, com o espaço libertado |
+| **EXECUTAR** | **Espaço libertado** (tamanho antes → depois e %), com ligação à análise de origem |
+
+Com vários tablespaces (TODOS), o detalhe por tablespace fica em **Por tablespace**. Em **Execuções** há a coluna **Ganho** (estimado na análise, a verde o libertado na execução) e, na janela do output de uma análise, **▶ Executar com estes parâmetros…**. O e-mail/notificação de fim de execução inclui o ganho. Executar exige a permissão `oracle.shrink.executar` e a confirmação.
+
+| | |
+|---|---|
+| ![Análise com Executar agora](docs/oracle-analise-executar.png) | ![Espaço libertado](docs/oracle-espaco-libertado.png) |
+
 ### Execução em direto
 
 Ao lançar um shrink (ANÁLISE ou EXECUTAR), a página da execução mostra um painel ao estilo do "TESLA a carregar…" do portal:

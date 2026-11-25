@@ -45,6 +45,53 @@
   <div class="run-action"><span class="muted">Passo atual:</span> <span id="action">{{ job.current_action or '—' }}</span></div>
 </section>
 
+
+{% macro mb(v) %}{% if v is none %}—{% elif v >= 1024 %}{{ '{:,.1f}'.format(v / 1024).replace(',', ' ').replace('.', ',') }} GB{% else %}{{ '{:,}'.format(v).replace(',', ' ') }} MB{% endif %}{% endmacro %}
+{% if ganho %}{% set analise = job.params.modo == 'ANALISE' %}
+{% set ant = ganho.linhas|selectattr('antes')|map(attribute='antes')|sum %}{% set dep = ganho.linhas|selectattr('depois')|map(attribute='depois')|sum %}
+<section class="card ganho-card {{ 'g-analise' if analise else 'g-exec' }}" id="resultado">
+  <div class="ganho-top">
+    <div class="ganho-num">
+      <span class="ganho-rot">{{ 'Ganho estimado' if analise else 'Espaço libertado' }}</span>
+      <b>{{ mb(ganho.total) }}</b>
+      {% if ant %}<small class="muted">{{ mb(ant) }} → {{ mb(dep) }}{{ ' (estimado)' if analise }}{% if ant %} · {{ ((ganho.total or 0) * 100 / ant)|round(1)|string|replace('.', ',') }}%{% endif %}</small>{% endif %}
+      {% if not analise and origem %}<small class="muted">com os parâmetros da <a href="{{ url_for('oracle.job_detail', job_id=origem) }}">análise #{{ origem }}</a></small>{% endif %}
+    </div>
+    {% if analise %}
+    <div class="ganho-acoes">
+      {% if seguintes %}<p class="ganho-feito">Já executada:
+        {% for x in seguintes %}<a href="{{ url_for('oracle.job_detail', job_id=x.id) }}">#{{ x.id }}</a>
+          <span class="status s-{{ x.status|replace(' ', '-') }}">{{ x.status }}</span>{% if x.ganho_mb is not none and x.ganho_mb >= 0 %} {{ mb(x.ganho_mb) }} libertados{% endif %}{{ ',' if not loop.last }}
+        {% endfor %}</p>{% endif %}
+      {% if can_exec and job.status in ('OK', 'ERRO') %}
+      <form method="post" action="{{ url_for('oracle.job_executar', job_id=job.id) }}" class="ganho-form"
+            onsubmit="return confirm(this.quando.value === 'agendar' ? 'Agendar o shrink em modo EXECUTAR? ' + '{{ job.params.ts }} em {{ job.db_name }}, com os mesmos parâmetros desta análise.' : 'Executar o shrink de {{ job.params.ts }} em {{ job.db_name }}? Vai fazer MOVE/REBUILD/RESIZE com os mesmos parâmetros desta análise.')">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="quando" value="agora">
+        <div class="buttons">
+          <button class="primary" onclick="this.form.quando.value = 'agora'">▶ Executar agora</button>
+          {% if agente_ativo %}<button type="button" class="btn" id="bAgendar">Agendar…</button>{% endif %}
+          <a class="btn" href="{{ url_for('oracle.shrink', de=job.id) }}">Ajustar parâmetros</a>
+        </div>
+        {% if agente_ativo %}<div class="agendar-box" id="gAg" hidden>
+          <input type="datetime-local" name="agendado_para" step="60">
+          <button class="btn small" onclick="this.form.quando.value = 'agendar'">Agendar execução</button>
+        </div>{% endif %}
+        <span class="hint">Mesmos parâmetros: {{ job.params.ts }} · ONLINE {{ job.params.online }} · ganho mín. {{ job.params.min_ganho }} MB · margem {{ job.params.margem }}% · paralelismo {{ job.params.paralelo or 1 }} · purge {{ job.params.purge }}</span>
+      </form>
+      {% elif not can_exec %}<p class="hint">O seu perfil não permite o modo EXECUTAR.</p>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% if ganho.linhas|length > 1 %}
+  <details class="ganho-det"><summary>Por tablespace ({{ ganho.linhas|length }})</summary>
+    <div class="table-wrap"><table class="small-tab"><thead><tr><th>Tablespace</th><th class="num">Antes</th><th class="num">Depois</th>
+      <th class="num">{{ 'Ganho est.' if analise else 'Libertado' }}</th><th>Reorg.</th><th>Estado</th></tr></thead><tbody>
+    {% for l in ganho.linhas %}<tr><td><b>{{ l.ts }}</b></td><td class="num">{{ mb(l.antes) }}</td><td class="num">{{ mb(l.depois) }}</td>
+      <td class="num"><b>{{ mb(l.ganho) }}</b></td><td>{{ l.reorg }}</td><td><small>{{ l.estado }}</small></td></tr>{% endfor %}
+    </tbody></table></div></details>
+  {% endif %}
+</section>
+{% endif %}
 <table class="kv">
   <tr><th>Tablespace</th><td>{{ job.params.ts }}</td></tr>
   <tr><th>Parâmetros</th><td>{{ job.params.modo }} · ONLINE {{ job.params.online }} · ganho mín. {{ job.params.min_ganho }} MB · margem {{ job.params.margem }}% · purge {{ job.params.purge }}</td></tr>
@@ -121,6 +168,10 @@ setSteps(document.getElementById('action').textContent);
 elEl.textContent = fmt(elapsed);
 
 {% if agendado %}setTimeout(() => location.reload(), 30000);{% endif %}
+{ const b = document.getElementById('bAgendar'), box = document.getElementById('gAg');
+  if (b && box) b.onclick = () => { box.hidden = !box.hidden; const i = box.querySelector('input');
+    if (!i.value) { const d = new Date(); d.setHours(22, 0, 0, 0); if (d < new Date()) d.setDate(d.getDate() + 1);
+      i.value = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); } }; }
 if (running) {
   setInterval(() => { elapsed++; elEl.textContent = fmt(elapsed); }, 1000);
   const timer = setInterval(async () => {

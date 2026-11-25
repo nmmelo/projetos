@@ -984,3 +984,22 @@ dialog.pdlg[data-tipo="aviso"] .pdlg-icone { background: color-mix(in srgb, var(
 .pdlg-botoes .btn { min-width: 96px; text-align: center; padding: 8px 16px; border-radius: 10px; font-weight: 600; }
 .pdlg-botoes .primary.danger:hover { background: var(--danger); border-color: var(--danger); filter: brightness(.92); }
 @media (max-width: 480px) { .pdlg-botoes { flex-direction: column-reverse; } .pdlg-botoes .btn { width: 100%; } }
+
+/* Oracle > execucao: resultado (ganho estimado / espaco libertado) e executar a partir da analise */
+.ganho-card { margin: 14px 0; border-left: 4px solid var(--accent); }
+.ganho-card.g-exec { border-left-color: var(--ok); }
+.ganho-top { display: flex; flex-wrap: wrap; gap: 18px 32px; align-items: flex-start; justify-content: space-between; }
+.ganho-num { display: flex; flex-direction: column; gap: 2px; }
+.ganho-rot { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+.ganho-num b { font-size: 30px; line-height: 1.15; font-variant-numeric: tabular-nums; color: var(--accent); }
+.g-exec .ganho-num b { color: var(--ok); }
+.ganho-acoes { flex: 1; min-width: 300px; max-width: 620px; display: flex; flex-direction: column; gap: 8px; }
+.ganho-form { display: flex; flex-direction: column; gap: 8px; }
+.ganho-form .buttons { flex-wrap: wrap; justify-content: flex-end; }
+.ganho-form .hint { text-align: right; }
+.ganho-form .agendar-box { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+.ganho-form .agendar-box[hidden] { display: none; }
+.ganho-feito { margin: 0; text-align: right; font-size: 13px; }
+.ganho-det { margin-top: 12px; }
+.ganho-det summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.g-lib { color: var(--ok); font-weight: 600; }

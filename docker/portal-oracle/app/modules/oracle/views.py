@@ -127,8 +127,14 @@ def shrink():
             return redirect(url_for("oracle.jobs_list", novo=job_id))
         except (oracle.ValidationError, ValueError) as exc:
             flash(str(exc), "error")
+    pre = {}
+    de = request.args.get("de", type=int)
+    if de:                                        # "Ajustar e executar" a partir de uma analise
+        j = store.get_job(de)
+        if j and g.user.can_db(j["db_id"]):
+            pre = {**j["params"], "db_id": j["db_id"], "modo": "EXECUTAR"}
     return render_template("oracle/shrink.html", dbs=g.user.visible_dbs(store.list_dbs()),
-                           sel_db=request.args.get("db", type=int),
+                           sel_db=pre.get("db_id") or request.args.get("db", type=int), pre=pre,
                            can_exec=g.user.can("oracle.shrink.executar"),
                            can_analise=g.user.can("oracle.shrink.analise"), agente_ativo=_agente_ativo(),
                            dop_padrao=int(store.get_setting("agente_oracle.dop") or 1))
@@ -166,7 +172,8 @@ def _resumo(j: dict) -> dict:
             "n_avisos": j.get("n_avisos") or 0, "started_at": j["started_at"], "finished_at": j["finished_at"],
             "duracao": _elapsed(j), "created_by": j["created_by"], "progress": j.get("progress"),
             "runner": j.get("runner") or "portal", "erro": (j.get("error") or "")[:300],
-            "agendado_para": j.get("agendado_para"), "via": j.get("via") or ""}
+            "agendado_para": j.get("agendado_para"), "via": j.get("via") or "",
+            "ganho_mb": j.get("ganho_mb") if (j.get("ganho_mb") or 0) >= 0 else None}
 
 
 @bp.route("/api/jobs")
@@ -204,7 +211,41 @@ def _job_or_403(job_id) -> dict:
 def job_detail(job_id):
     job = _job_or_403(job_id)
     can_cancel = g.user.can("oracle.shrink.executar") or job["created_by"] == g.user.username
-    return render_template("oracle/job.html", job=job, can_cancel=can_cancel, elapsed=_elapsed(job))
+    ganho = store.resumo_ganho(job.get("output") or "") if job["status"] not in ("EM CURSO", "PENDENTE", "AGENDADO") else None
+    seguintes = []
+    if job["params"].get("modo") == "ANALISE":   # execucoes lancadas a partir desta analise
+        with store.tx() as t:
+            seguintes = t.all("SELECT id, status, ganho_mb FROM jobs WHERE params LIKE ? ORDER BY id",
+                              (f'%"de_analise": {job["id"]}}}',))
+    origem = job["params"].get("de_analise")
+    return render_template("oracle/job.html", job=job, can_cancel=can_cancel, elapsed=_elapsed(job), ganho=ganho,
+                           can_exec=g.user.can("oracle.shrink.executar"), seguintes=seguintes, origem=origem,
+                           agente_ativo=_agente_ativo())
+
+
+@bp.route("/execucoes/<int:job_id>/executar", methods=["POST"])
+@auth.login_required
+def job_executar(job_id):
+    """Executa o shrink com os mesmos parametros de uma analise (sem preencher o formulario de novo)."""
+    job = _job_or_403(job_id)
+    if not g.user.can("oracle.shrink.executar"):
+        abort(403)
+    try:
+        if job["params"].get("modo") != "ANALISE" or job["status"] not in ("OK", "ERRO"):
+            raise oracle.ValidationError("Só uma análise terminada pode ser executada.")
+        db = _db_or_403(int(job["db_id"]))
+        params = oracle.validate_shrink_params({**job["params"], "tablespace": job["params"].get("ts"), "modo": "EXECUTAR"})
+        params["de_analise"] = job["id"]
+        quando = None
+        if request.form.get("quando") == "agendar":
+            quando = _hora_agendada(request.form.get("agendado_para", ""))
+        novo = jobs.start(db["id"], params, g.user.username, quando)
+    except (oracle.ValidationError, ValueError) as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("oracle.job_detail", job_id=job_id))
+    flash(f"Shrink de {params['ts']} em modo EXECUTAR {'agendado para ' + quando[:16] if quando else 'a correr'} "
+          f"(#{novo}), com os parâmetros da análise #{job_id}.", "ok")
+    return redirect(url_for("oracle.job_detail", job_id=novo))
 
 
 @bp.route("/api/jobs/<int:job_id>")

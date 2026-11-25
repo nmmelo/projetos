@@ -35,11 +35,12 @@
     <th data-s="ts" class="sortable">Tablespace</th>
     <th data-s="modo" class="sortable">Modo</th>
     <th data-s="resultado" class="sortable">Resultado</th>
+    <th data-s="ganho_mb" class="num sortable" title="Análise: ganho estimado · Executar: espaço libertado">Ganho</th>
     <th data-s="started_at" class="sortable">Início</th>
     <th data-s="duracao" class="num sortable">Duração</th>
     <th data-s="created_by" class="sortable">Por</th>
   </tr></thead>
-  <tbody id="rows"><tr><td colspan="9" class="muted">A carregar…</td></tr></tbody>
+  <tbody id="rows"><tr><td colspan="10" class="muted">A carregar…</td></tr></tbody>
 </table>
 </div>
 <div class="jx-pager"><span id="pinfo" class="muted small"></span>
@@ -120,8 +121,9 @@ function desenhar() {
         ${j.status === 'PENDENTE' ? '<span class="cnt">na fila do agente</span>' : ''}
         ${j.status === 'AGENDADO' ? `<span class="cnt" title="O agente corre-a a esta hora">⏰ ${esc((j.agendado_para || '').slice(0, 16))}</span>` : ''}
         ${j.status === 'EM CURSO' && j.progress != null ? `<span class="minibar"><span style="width:${j.progress / 10}%"></span></span>` : ''}</td>
+      <td class="num">${j.ganho_mb == null ? '<span class="muted">—</span>' : `<span class="${j.modo === 'EXECUTAR' ? 'g-lib' : 'muted'}" title="${j.modo === 'EXECUTAR' ? 'libertado' : 'estimado'}">${mbFmt(j.ganho_mb)}</span>`}</td>
       <td class="small">${esc(j.started_at)}</td><td class="num">${dur(j.duracao)}</td><td>${esc(j.created_by)}</td>
-    </tr>`).join('') : `<tr><td colspan="9" class="muted">Nenhuma execução${todos.length ? ' com estes filtros' : ''}.</td></tr>`;
+    </tr>`).join('') : `<tr><td colspan="10" class="muted">Nenhuma execução${todos.length ? ' com estes filtros' : ''}.</td></tr>`;
   const tot = vis.length, np = Math.max(1, Math.ceil(tot / POR_PAG));
   $('pinfo').textContent = tot ? `${ini + 1}–${Math.min(ini + POR_PAG, tot)} de ${tot}` + (todos.length !== tot ? ` (${todos.length} no total)` : '') : '';
   $('prev').disabled = pag === 0; $('next').disabled = pag >= np - 1;
@@ -149,6 +151,8 @@ function kind(l) {
   if (/^(ALTER|PURGE|DROP)\b/.test(l)) return 'l-cmd';
   return '';
 }
+const CAN_EXEC = {{ 'true' if user.can('oracle.shrink.executar') else 'false' }};
+function mbFmt(v) { return v >= 1024 ? (v / 1024).toFixed(1).replace('.', ',') + ' GB' : v + ' MB'; }
 async function abrir(id) {
   const r = await fetch(JOB.replace('/0', '/' + id) + '?full=1');
   if (!r.ok) return;
@@ -159,7 +163,10 @@ async function abrir(id) {
   const p = j.params || {};
   $('d-info').innerHTML = `<span>Modo <b>${esc(p.modo)}</b></span><span>ONLINE <b>${esc(p.online)}</b></span>
     <span>Ganho mín. <b>${esc(p.min_ganho)} MB</b></span><span>Margem <b>${esc(p.margem)}%</b></span>
-    <span>Início <b>${esc(j.started_at)}</b></span><span>Duração <b>${dur(j.duracao)}</b></span><span>Por <b>${esc(j.created_by)}</b></span>`;
+    <span>Início <b>${esc(j.started_at)}</b></span><span>Duração <b>${dur(j.duracao)}</b></span><span>Por <b>${esc(j.created_by)}</b></span>`
+    + (j.ganho_mb != null ? `<span>${p.modo === 'EXECUTAR' ? 'Libertado' : 'Ganho estimado'} <b class="${p.modo === 'EXECUTAR' ? 'g-lib' : ''}">${mbFmt(j.ganho_mb)}</b></span>` : '')
+    + (CAN_EXEC && p.modo === 'ANALISE' && ['OK', 'ERRO'].includes(j.status)
+       ? `<a class="btn small primary" href="${PAGE.replace('/0', '/' + id)}#resultado">▶ Executar com estes parâmetros…</a>` : '');
   $('d-err').hidden = !j.error; $('d-err').textContent = j.error ? 'Falhou: ' + j.error : '';
   if ($('d-del')) $('d-del').disabled = ATIVOS.includes(j.status);
   $('d-only').checked = false;

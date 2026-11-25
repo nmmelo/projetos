@@ -7,6 +7,7 @@
   {% if not dbs %}
     <p class="muted">Não tem bases de dados atribuídas ao seu perfil.</p>
   {% else %}
+  {% if pre %}<p class="flash ok">Parâmetros da análise <a href="{{ url_for('oracle.job_detail', job_id=request.args.get('de')) }}">#{{ request.args.get('de') }}</a>, em modo EXECUTAR: ajuste o que precisar e confirme.</p>{% endif %}
   <form method="post" class="grid" id="shrinkForm">
     <input type="hidden" name="csrf" value="{{ csrf_token }}">
 
@@ -19,31 +20,31 @@
       </select></label>
 
     <label class="full">Tablespace
-      <select name="tablespace" id="ts" disabled data-pre="{{ request.args.get('ts', '') }}">
+      <select name="tablespace" id="ts" disabled data-pre="{{ pre.ts or request.args.get('ts', '') }}">
         <option value="TODOS">TODOS (exceto SYSTEM, SYSAUX, UNDO e TEMP)</option>
       </select>
       <span class="hint" id="tsStatus">Escolha a base de dados para carregar a lista.</span></label>
 
     <fieldset class="full">
       <legend>Modo</legend>
-      <label class="inline"><input type="radio" name="modo" value="ANALISE" {{ 'checked' if can_analise else 'disabled' }}>
+      <label class="inline"><input type="radio" name="modo" value="ANALISE" {{ 'checked' if can_analise and not (pre and can_exec) }} {{ 'disabled' if not can_analise }}>
         <span>ANÁLISE — só mostra os comandos</span></label>
-      <label class="inline"><input type="radio" name="modo" value="EXECUTAR" {{ 'disabled' if not can_exec }} {{ 'checked' if can_exec and not can_analise }}>
+      <label class="inline"><input type="radio" name="modo" value="EXECUTAR" {{ 'disabled' if not can_exec }} {{ 'checked' if can_exec and (not can_analise or pre) }}>
         <span>EXECUTAR — faz o shrink{% if not can_exec %} <em class="muted">(sem permissão)</em>{% endif %}</span></label>
     </fieldset>
 
     <label>Ganho mínimo (MB)
-      <input name="min_ganho" type="number" min="0" value="100">
+      <input name="min_ganho" type="number" min="0" value="{{ pre.min_ganho if pre else 100 }}">
       <span class="hint">Com TODOS, tablespaces com menos espaço livre são ignorados.</span></label>
     <label>Margem livre por datafile (%)
-      <input name="margem" type="number" min="0" max="100" value="10"></label>
+      <input name="margem" type="number" min="0" max="100" value="{{ pre.margem if pre else 10 }}"></label>
     <label>Paralelismo do MOVE/REBUILD
-      <input name="paralelo" type="number" min="1" max="32" value="{{ dop_padrao }}">
+      <input name="paralelo" type="number" min="1" max="32" value="{{ pre.paralelo or dop_padrao if pre else dop_padrao }}">
       <span class="hint">1 = em série. 2–8 acelera tabelas e índices grandes (Enterprise Edition; usa mais CPU e I/O na BD).
         O grau de cada objeto é reposto no fim. Valor por omissão em Sistema → Agentes → Agente Oracle.</span></label>
 
-    <label class="inline"><input type="checkbox" name="online" value="S" checked> <span>Operações ONLINE (requer Enterprise Edition)</span></label>
-    <label class="inline"><input type="checkbox" name="purge" value="S"> <span>PURGE da recyclebin do tablespace</span></label>
+    <label class="inline"><input type="checkbox" name="online" value="S" {{ 'checked' if not pre or pre.online == 'S' }}> <span>Operações ONLINE (requer Enterprise Edition)</span></label>
+    <label class="inline"><input type="checkbox" name="purge" value="S" {{ 'checked' if pre and pre.purge == 'S' }}> <span>PURGE da recyclebin do tablespace</span></label>
 
     <fieldset class="full">
       <legend>Quando</legend>
