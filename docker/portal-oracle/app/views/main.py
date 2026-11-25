@@ -235,13 +235,16 @@ def _processos(recentes: int = 20) -> list[dict]:
             for r in rs:
                 a = r["status"] in ("EM CURSO", "PENDENTE")
                 det = (r["current_action"] or "") if a else ""
-                if a and r["progress"] is not None:
-                    det = f"{det} · {r['progress']}%" if det else f"{r['progress']}%"
+                pct = None
+                if a and r["progress"] is not None:            # jobs.progress esta em permilagem (0-1000)
+                    pct = round(min(max(float(r["progress"]), 0), 1000) / 10, 1)
+                    txt = f"{pct:.1f}".rstrip("0").rstrip(".").replace(".", ",") + "%"
+                    det = f"{det} · {txt}" if det else txt
                 out.append({"chave": f"job:{r['id']}", "grupo": "oracle", "titulo": f"Shrink #{r['id']} · {r['db_name']}",
                             "estado": "a_atualizar" if a else ("ok" if r["status"] == "OK" else "erro"),
                             "detalhe": det or ("na fila" if r["status"] == "PENDENTE" else ""), "por": r["created_by"],
                             "segundos": seg(r["started_at"]) if a else None, "duracao": None if a else dur(r["started_at"], r["finished_at"]),
-                            "progresso": r["progress"] if a else None, "link": url_for("oracle.job_detail", job_id=r["id"]),
+                            "progresso": pct, "link": url_for("oracle.job_detail", job_id=r["id"]),
                             "erro": r["status"].lower() if not a and r["status"] != "OK" else None})
     except Exception:  # noqa: BLE001 - a caixa de processos nunca pode partir a pagina
         current_app.logger.exception("caixa de processos (oracle)")

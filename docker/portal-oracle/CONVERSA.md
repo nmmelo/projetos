@@ -596,3 +596,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > falta fazer uma coisa, depois de aplicar a regra na firewall, deve fazer restart ao serviço no cliente, as regras de ipset o ficheiro deve ter a sintaxe, ipset-agente-portal.xml e a rich rule deve ser rule family="ipv4" source ipset="ipset-agente-portal" port port="8975" protocol="tcp" accept
 
 **Resposta:** Agente 1.7.1 e setup.sh: depois das alterações, `firewall-cmd --reload` + `systemctl restart firewalld` (espera que volte a "running"; no ufw `ufw reload`). O ipset por omissão passa a `ipset-agente-portal` (ficheiro `/etc/firewalld/ipsets/ipset-agente-portal.xml`) e a regra rica a `rule family="ipv4" source ipset="ipset-agente-portal" port port="<porta RPC>" protocol="tcp" accept` (aba Firewall, setup.sh --abrir-firewall, comandos em Ferramentas e construtor de regras).
+
+## 54. Percentagem diferente na caixa de processos
+
+**Pergunta:**
+> as duas barras de progressão não estão iguais a de cima vai em 5% e a outra das notificações vai em 50%, alguma coisa não está correto
+
+**Resposta:** A caixa de processos mostrava o progresso guardado em permilagem (0–1000) como se fosse percentagem: 50 ‰ aparecia como 50 %. Agora converte (5 %), igual à página da execução. Na mesma imagem, "HTTP 401 hora do pedido invalida" vem dos relógios do portal e do cliente diferirem mais de 5 min: o agente 1.7.2 indica a diferença em segundos e como ativar o NTP.

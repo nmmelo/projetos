@@ -47,7 +47,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.7.1"
+VERSAO = "1.7.2"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -1375,8 +1375,13 @@ def _autenticar(cab, caminho: str, corpo: bytes, ip: str) -> str:
     if origens and not _origem_ok(ip, origens):
         return "origem nao autorizada: " + ip
     ts, nonce, assin = cab.get("X-Ts", ""), cab.get("X-Nonce", ""), cab.get("X-Assinatura", "")
-    if not ts.isdigit() or abs(time.time() - int(ts)) > 300:
-        return "hora do pedido invalida (relogios do portal e do agente diferentes?)"
+    if not ts.isdigit():
+        return "hora do pedido invalida"
+    dif = int(time.time()) - int(ts)
+    if abs(dif) > 300:
+        return (f"hora do pedido invalida: o relogio deste servidor esta {abs(dif)} s "
+                f"{'adiantado' if dif > 0 else 'atrasado'} em relacao ao portal (maximo 300 s; ative o NTP: "
+                "timedatectl set-ntp true / chronyc tracking)")
     if not re.match(r"^[0-9a-f]{16,64}$", nonce):
         return "pedido sem nonce"
     esperado = hmac.new(cfg["TOKEN"].encode(), ("%s\n%s\n%s\n" % (ts, nonce, caminho)).encode() + corpo,
