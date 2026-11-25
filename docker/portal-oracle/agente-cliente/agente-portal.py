@@ -47,7 +47,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.7.0"
+VERSAO = "1.7.1"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -649,6 +649,25 @@ def _fw_args(op: dict) -> list:
     raise ValueError("operacao desconhecida: " + t)
 
 
+def fw_reiniciar(cfg: dict, cmd_id, svc: str) -> None:
+    """Reinicia o servico da firewall depois das alteracoes (ipsets novos so ficam ativos de certeza assim)
+    e espera que volte a responder."""
+    if svc == "ufw":
+        rc, out, err = _run(["ufw", "reload"], timeout=120)
+        _cmd_post(cfg, cmd_id, ["$ ufw reload", f"  {(out + err).strip() or 'ok'}"])
+        return
+    rc, out, err = _run(["systemctl", "restart", "firewalld"], timeout=180)
+    _cmd_post(cfg, cmd_id, ["$ systemctl restart firewalld", f"  {(out + err).strip() or ('ok' if rc == 0 else 'erro')}"])
+    if rc != 0:
+        raise RuntimeError("restart do firewalld falhou: " + (out + err).strip())
+    for _ in range(30):
+        if _run(["firewall-cmd", "--state"], timeout=20)[1].strip() == "running":
+            _cmd_post(cfg, cmd_id, ["  firewalld ativo (running)"])
+            return
+        time.sleep(1)
+    raise RuntimeError("o firewalld nao voltou a ficar ativo depois do restart")
+
+
 def firewall_comando(cfg: dict, cmd_id, args: dict) -> None:
     try:
         ops = args.get("ops") or []
@@ -656,7 +675,7 @@ def firewall_comando(cfg: dict, cmd_id, args: dict) -> None:
             if cfg.get("FIREWALL_GERIR") != "1":
                 raise PermissionError("este agente nao permite alterar a firewall pelo portal: no servidor, "
                                       "sudo agente-portal configurar --gerir-firewall (ou setup.sh --gerir-firewall)")
-            precisa_reload = False
+            precisa_reload = usa_ufw = False
             for op in ops:
                 a = _fw_args(op)
                 rc, out, err = _run(a, timeout=120)
@@ -665,11 +684,15 @@ def firewall_comando(cfg: dict, cmd_id, args: dict) -> None:
                 if rc != 0 and "ALREADY_ENABLED" not in txt and "NOT_ENABLED" not in txt:
                     raise RuntimeError(f"falhou (codigo {rc}): {txt}")
                 precisa_reload = precisa_reload or a[0] == "firewall-cmd"
+                usa_ufw = usa_ufw or a[0] == "ufw"
             if precisa_reload:
                 rc, out, err = _run(["firewall-cmd", "--reload"], timeout=120)
                 _cmd_post(cfg, cmd_id, ["$ firewall-cmd --reload", f"  {(out + err).strip() or 'ok'}"])
                 if rc != 0:
                     raise RuntimeError("reload falhou: " + (out + err).strip())
+                fw_reiniciar(cfg, cmd_id, "firewalld")
+            if usa_ufw:
+                fw_reiniciar(cfg, cmd_id, "ufw")
         d = fw_estado()
         pedido(cfg, f"comando/{cmd_id}", {"linhas": [f"estado lido ({d['backend'] or 'sem firewalld/ufw'})"], "estado": "OK",
                                           "dados": d}, timeout=60)

@@ -191,7 +191,7 @@ def firewall(cid):
         elif acao == "oracle":
             estado = (clientes.dados(cid).get("firewall") or {}).get("dados") or {}
             entradas = [x for x in re.split(r"[\s,;]+", f.get("entradas") or "") if x]
-            ops = clientes.fw_preset_oracle(estado, (f.get("ipset") or "agente-portal").strip(), entradas, int(f.get("porta") or 8795))
+            ops = clientes.fw_preset_oracle(estado, (f.get("ipset") or "ipset-agente-portal").strip(), entradas, int(f.get("porta") or 8795))
             if not ops:
                 return jsonify(ok=False, erro="nada a fazer: o ipset, as entradas e as regras já existem"), 400
         else:

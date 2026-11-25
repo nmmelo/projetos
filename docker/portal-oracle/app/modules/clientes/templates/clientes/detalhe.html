@@ -410,9 +410,9 @@
 {% if fw and fw.backend in ('firewalld', 'ufw') %}
 <section class="card">
   <h2>Serviço Oracle do agente</h2>
-  <p class="hint">Abre a porta RPC do agente só às origens indicadas{% if fw.backend == 'firewalld' %}: cria o ipset (se não existir), junta as entradas e põe a regra rica em todas as zonas ativas{% else %}: uma regra ufw por origem{% endif %}.</p>
+  <p class="hint">Abre a porta RPC do agente só às origens indicadas{% if fw.backend == 'firewalld' %}: cria o ipset (se não existir), junta as entradas e põe a regra rica em todas as zonas ativas e reinicia o firewalld{% else %}: uma regra ufw por origem{% endif %}.</p>
   <form class="cfw-form cfw-oracle" data-acao="oracle"{% if fw.backend != 'firewalld' %} style="grid-template-columns: 90px 1fr auto"{% endif %}>
-    {% if fw.backend == 'firewalld' %}<label>ipset<input name="ipset" value="agente-portal" translate="no"></label>{% endif %}
+    {% if fw.backend == 'firewalld' %}<label>ipset<input name="ipset" value="ipset-agente-portal" translate="no"></label>{% endif %}
     <label>porta<input name="porta" value="{{ (i.rpc.porta if i and i.rpc and i.rpc.porta) or 8795 }}"></label>
     <label>Origens (IP ou rede, separados por espaço)<input name="entradas" placeholder="<IP do portal> 10.0.0.0/24" required></label>
     <button class="btn small primary" {{ 'disabled' if not pode }}>Aplicar</button>
@@ -444,7 +444,7 @@
   <ul class="cfw-rich">{% for r in z.rich or [] %}<li><code translate="no">{{ r }}</code>{{ x('rich_del', 'Remover', zona=z.nome, regra=r) }}</li>{% else %}<li class="muted">nenhuma</li>{% endfor %}</ul>
   {% if pode %}<form class="cfw-form cfw-rich-form" data-acao="rich_add"><input type="hidden" name="zona" value="{{ z.nome }}">
     <div class="cfw-builder"><select data-b="tipo"><option value="ipset">ipset</option><option value="address">endereço</option></select>
-      <input data-b="origem" placeholder="agente-portal / 10.0.0.5" size="16"><input data-b="porta" placeholder="porta" size="6">
+      <input data-b="origem" placeholder="ipset-agente-portal / 10.0.0.5" size="16"><input data-b="porta" placeholder="porta" size="6">
       <select data-b="proto"><option>tcp</option><option>udp</option></select>
       <select data-b="acao"><option>accept</option><option>reject</option><option>drop</option></select>
       <button type="button" class="btn small" data-b-gerar>→ gerar</button></div>
@@ -630,7 +630,7 @@
     if (b.hasAttribute('data-b-gerar')) {       /* construtor simples de regra rica */
       const f = b.closest('form'), g = k => f.querySelector(`[data-b=${k}]`).value.trim();
       const src = g('origem') ? (g('tipo') === 'ipset' ? ` source ipset="${g('origem')}"` : ` source address="${g('origem')}"`) : '';
-      const fam = g('tipo') === 'address' ? ' family="ipv4"' : '';
+      const fam = ' family="ipv4"';
       f.querySelector('.cfw-regra').value = `rule${fam}${src}${g('porta') ? ` port port="${g('porta')}" protocol="${g('proto')}"` : ''} ${g('acao')}`;
       return;
     }

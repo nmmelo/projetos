@@ -624,7 +624,7 @@ def fw_preset_oracle(estado: dict, ipset: str, entradas: list, porta: int) -> li
         for e in entradas:
             if not existe or e not in existe.get("entradas", []):
                 ops.append({"op": "entrada_add", "nome": ipset, "entrada": e})
-        regra = f'rule source ipset="{ipset}" port port="{porta}" protocol="tcp" accept'
+        regra = f'rule family="ipv4" source ipset="{ipset}" port port="{porta}" protocol="tcp" accept'
         for z in (estado.get("ativas") or {}) or [estado.get("zona_omissao") or "public"]:
             zd = next((x for x in estado.get("zonas") or [] if x["nome"] == z), {})
             if not any(f'ipset="{ipset}"' in r and f'port="{porta}"' in r for r in zd.get("rich", [])):

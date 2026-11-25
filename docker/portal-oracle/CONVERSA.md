@@ -589,3 +589,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > WARNING: Retrying (Retry(total=4, ...)) after connection broken by 'NewConnectionError(... [Errno 101] Network is unreachable')': /simple/oracledb/
 
 **Resposta:** O setup.sh --oracle passa a instalar o python-oracledb com wheels guardados no portal (escolhe os do Python/arquitetura do cliente, pip --no-index); só depois tenta a internet (1 tentativa) e, sem rede, explica o que fazer. Nova secção Clientes → Ferramentas → **Serviço Oracle sem internet**: obter os wheels no portal (pip download para Python 3.8–3.13, x86_64/aarch64), carregar à mão, listar e apagar. O instalar.sh tenta obtê-los na primeira instalação.
+
+## 53. Firewall: restart do serviço, nome do ipset e regra com family
+
+**Pergunta:**
+> falta fazer uma coisa, depois de aplicar a regra na firewall, deve fazer restart ao serviço no cliente, as regras de ipset o ficheiro deve ter a sintaxe, ipset-agente-portal.xml e a rich rule deve ser rule family="ipv4" source ipset="ipset-agente-portal" port port="8975" protocol="tcp" accept
+
+**Resposta:** Agente 1.7.1 e setup.sh: depois das alterações, `firewall-cmd --reload` + `systemctl restart firewalld` (espera que volte a "running"; no ufw `ufw reload`). O ipset por omissão passa a `ipset-agente-portal` (ficheiro `/etc/firewalld/ipsets/ipset-agente-portal.xml`) e a regra rica a `rule family="ipv4" source ipset="ipset-agente-portal" port port="<porta RPC>" protocol="tcp" accept` (aba Firewall, setup.sh --abrir-firewall, comandos em Ferramentas e construtor de regras).
