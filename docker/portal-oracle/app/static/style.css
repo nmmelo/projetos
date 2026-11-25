@@ -1047,3 +1047,4 @@ tr.rb-det > td { background: var(--bg); padding: 10px 14px 14px 48px; }
 .ts-graficos .card .hint { margin: -6px 0 10px; display: block; }
 .retoma-info { margin: 0 0 10px; font-size: 13px; color: var(--muted); } .retoma-info a { font-weight: 600; }
 .ped-rep, .cmd-out-rep { white-space: nowrap; }
+pre.cmd-log { max-height: 260px; overflow: auto; background: var(--code-bg, #0f172a); color: #e2e8f0; padding: 10px 12px; border-radius: 8px; font-size: 12.5px; white-space: pre-wrap; }

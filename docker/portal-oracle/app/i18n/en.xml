@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="2083">
+<lingua codigo="en" nome="English" textos="2095">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -8333,5 +8333,53 @@
   <texto>
     <origem>Só uma execução interrompida, cancelada ou com erro pode ser retomada.</origem>
     <traducao>Only an interrupted, cancelled or failed run can be resumed.</traducao>
+  </texto>
+  <texto>
+    <origem>Serviço Oracle sem internet (python-oracledb)</origem>
+    <traducao>Oracle service without internet (python-oracledb)</traducao>
+  </texto>
+  <texto>
+    <origem>⇣ Obter no portal (pip download)</origem>
+    <traducao>⇣ Get on the portal (pip download)</traducao>
+  </texto>
+  <texto>
+    <origem>⇡ Carregar wheels…</origem>
+    <traducao>⇡ Upload wheels…</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar selecionados</origem>
+    <traducao>Delete selected</traducao>
+  </texto>
+  <texto>
+    <origem>Wheel</origem>
+    <traducao>Wheel</traducao>
+  </texto>
+  <texto>
+    <origem>Noutra máquina com internet (mesma versão do Python e arquitetura do cliente)</origem>
+    <traducao>On another machine with internet (same Python version and architecture as the client)</traducao>
+  </texto>
+  <texto>
+    <origem>Ou, no cliente, instalar com wheels já copiados</origem>
+    <traducao>Or, on the client, install with already copied wheels</traducao>
+  </texto>
+  <texto>
+    <origem>Ver o que o portal tem</origem>
+    <traducao>See what the portal has</traducao>
+  </texto>
+  <texto>
+    <origem>A carregar</origem>
+    <traducao>Uploading</traducao>
+  </texto>
+  <texto>
+    <origem>Apagar os wheels selecionados?</origem>
+    <traducao>Delete the selected wheels?</traducao>
+  </texto>
+  <texto>
+    <origem>Obter: o portal precisa de internet; descarrega para Python 3.8–3.13, x86_64 e aarch64.</origem>
+    <traducao>Get: the portal needs internet; downloads for Python 3.8–3.13, x86_64 and aarch64.</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhum wheel no portal: o setup.sh --oracle vai precisar de internet no cliente.</origem>
+    <traducao>No wheels on the portal: setup.sh --oracle will need internet on the client.</traducao>
   </texto>
 </lingua>

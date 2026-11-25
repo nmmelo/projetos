@@ -82,6 +82,35 @@
     {{ cmd('Registo do agente', 'sudo journalctl -u agente-portal -n 100 --no-pager') }}
   </div>
 </details>
+<details class="card full fw-sec" id="sec-wheels">
+  <summary><h2>Serviço Oracle sem internet (python-oracledb)</h2>
+    <small class="muted">{{ wheels|length }} wheel(s) no portal · o setup.sh --oracle instala a partir daqui</small></summary>
+  <p class="hint">O serviço Oracle do agente precisa do <code>python-oracledb</code> (e do <code>cryptography</code>/<code>cffi</code>). Num cliente sem
+    internet, o <code>setup.sh --oracle</code> pede ao portal os wheels compatíveis com o Python e a arquitetura do cliente e instala-os com
+    <code>pip --no-index</code>; só se não houver nenhum é que tenta a internet. Os wheels ficam guardados no portal.</p>
+  <div class="buttons">
+    {% if user.can('clientes.gerir') %}
+    <button type="button" class="btn primary" id="wObter" {{ 'disabled' if wheels_a_correr }}>⇣ Obter no portal (pip download)</button>
+    <label class="btn">⇡ Carregar wheels… <input type="file" id="wFich" accept=".whl" multiple hidden></label>
+    {% endif %}
+    <span class="hint" id="wInfo">{{ 'Obter: o portal precisa de internet; descarrega para Python 3.8–3.13, x86_64 e aarch64.' }}</span>
+  </div>
+  <pre class="cmd-log" id="wLog" {{ 'hidden' if not (wheels_a_correr or wheels_log) }}>{{ wheels_log }}</pre>
+  <div class="table-wrap" id="wTab">
+    <table class="small-tab"><thead><tr>{% if user.can('clientes.gerir') %}<th class="cb"><input type="checkbox" id="wTodos"></th>{% endif %}
+      <th>Wheel</th><th>Pacote</th><th class="num">Tamanho</th></tr></thead><tbody>
+    {% for w in wheels %}<tr>{% if user.can('clientes.gerir') %}<td class="cb"><input type="checkbox" class="wcb" value="{{ w.nome }}"></td>{% endif %}
+      <td><a href="{{ url_for('clientes.agente_wheel', nome=w.nome) }}" translate="no">{{ w.nome }}</a></td><td>{{ w.pacote }}</td>
+      <td class="num">{{ (w.bytes / 1048576)|round(1) }} MB</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">Nenhum wheel no portal: o setup.sh --oracle vai precisar de internet no cliente.</td></tr>{% endfor %}
+    </tbody></table></div>
+  {% if wheels and user.can('clientes.gerir') %}<div class="buttons"><button type="button" class="btn small danger" id="wApagar" disabled>Apagar selecionados</button></div>{% endif %}
+  <div class="lista">
+    {{ cmd('Noutra máquina com internet (mesma versão do Python e arquitetura do cliente)', 'python3 -m pip download oracledb --only-binary=:all: -d wheels-oracledb\n# carregue aqui os .whl da pasta wheels-oracledb (oracledb, cryptography, cffi, pycparser...)') }}
+    {{ cmd('Ou, no cliente, instalar com wheels já copiados', 'sudo bash /tmp/setup-agente.sh --oracle --oracledb-wheel /tmp/wheels-oracledb/oracledb-*.whl') }}
+    {{ cmd('Ver o que o portal tem', 'curl -s ' ~ url ~ '/clientes/agente/wheels/') }}
+  </div>
+</details>
 <details class="card full fw-sec" id="sec-firewall">
   <summary><h2>Firewall (serviço Oracle do agente)</h2><small class="muted">firewalld com ipset, ufw, gestão pelo portal</small></summary>
   <p class="hint">O portal liga-se a cada cliente na porta do serviço Oracle do agente (8795/tcp). Abra-a só às origens do portal com um ipset.
@@ -132,6 +161,42 @@
       return PortalComando.seguir(k.id, el, null, k.nome); }));
     btn.disabled = false;
   });
+})();
+(() => {      /* wheels do python-oracledb */
+  const ob = document.getElementById('wObter'), lg = document.getElementById('wLog'), fi = document.getElementById('wFich');
+  const ap = document.getElementById('wApagar'), cbs = [...document.querySelectorAll('.wcb')], td = document.getElementById('wTodos');
+  const csrf = '{{ csrf_token }}', T = s => (window.t ? window.t(s) : s);
+  let tmr = null;
+  async function estado() {
+    const d = await (await fetch("{{ url_for('clientes.wheels_estado') }}")).json();
+    lg.hidden = !d.log; lg.textContent = d.log; lg.scrollTop = lg.scrollHeight;
+    if (d.a_correr) { tmr = setTimeout(estado, 1500); if (ob) ob.disabled = true; }
+    else if (tmr !== null) { tmr = null; location.reload(); }
+  }
+  if (ob) ob.onclick = async () => {
+    ob.disabled = true; const fd = new FormData(); fd.append('csrf', csrf);
+    await fetch("{{ url_for('clientes.wheels_obter') }}", {method: 'POST', body: fd}); tmr = 0; estado();
+  };
+  {% if wheels_a_correr %}tmr = 0; estado();{% endif %}
+  if (fi) fi.onchange = async () => {
+    const info = document.getElementById('wInfo');
+    for (const f of fi.files) {          /* um de cada vez (limite de tamanho por pedido) */
+      info.textContent = T('A carregar') + ' ' + f.name + '…';
+      const fd = new FormData(); fd.append('csrf', csrf); fd.append('wheel', f);
+      const d = await (await fetch("{{ url_for('clientes.wheels_carregar') }}", {method: 'POST', body: fd})).json().catch(() => ({ok: false, erro: f.name}));
+      if (!d.ok) { PortalDialogo.aviso(d.erro || f.name); break; }
+    }
+    location.reload();
+  };
+  const conta = () => { if (ap) ap.disabled = !cbs.some(c => c.checked); };
+  cbs.forEach(c => c.addEventListener('change', conta));
+  if (td) td.onchange = () => { cbs.forEach(c => c.checked = td.checked); conta(); };
+  if (ap) ap.onclick = async () => {
+    const sel = cbs.filter(c => c.checked).map(c => c.value);
+    if (!await PortalDialogo.confirmar(T('Apagar os wheels selecionados?') + ' ' + sel.length, {perigo: true})) return;
+    const fd = new FormData(); fd.append('csrf', csrf); sel.forEach(n => fd.append('nome', n));
+    await fetch("{{ url_for('clientes.wheels_apagar') }}", {method: 'POST', body: fd}); location.reload();
+  };
 })();
 document.querySelectorAll('.ver-cmd').forEach(a => a.addEventListener('click', ev => { ev.preventDefault();
   const el = document.createElement('div'); document.getElementById('saidas').prepend(el); PortalComando.seguir(a.dataset.cmd, el, null, a.dataset.nome); }));

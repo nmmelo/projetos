@@ -8,6 +8,8 @@
 #   porta so para ele em todas as zonas ativas. Mais IPs depois: firewall-cmd --permanent --ipset=NOME --add-entry=IP
 #   --gerir-firewall: o portal pode alterar a firewall (firewalld/ufw) deste servidor na aba Firewall do cliente
 #   (--sem-gerir-firewall desliga). Sem isto o portal so le o estado.
+#   Sem internet no cliente: o python-oracledb e instalado com os wheels guardados no portal
+#   (Clientes > Ferramentas > Servico Oracle sem internet); ou --oracledb-wheel FICHEIRO.whl (dependencias na mesma pasta).
 #   sudo bash setup.sh --oracle [...]          # num agente ja instalado: atualiza e liga o servico Oracle
 #   sudo bash setup.sh --verificar --utilizador <utilizador_ssh> [--portal URL]  # verifica e corrige o SSH
 #   sudo bash setup.sh --desinstalar
@@ -50,7 +52,7 @@ while [[ $# -gt 0 ]]; do
         --sem-gerir-firewall) GERIR_FW=0 ;;
         --verificar) MODO=verificar ;;
         --desinstalar) MODO=desinstalar ;;
-        -h|--help) sed -n 2,20p "$0"; exit 0 ;;
+        -h|--help) sed -n 2,22p "$0"; exit 0 ;;
         *) erro "opcao desconhecida: $1" ;;
     esac
     shift
@@ -185,6 +187,31 @@ for u in $GRUPO_UTIL; do
     if id "$u" >/dev/null 2>&1; then usermod -aG $GRUPO "$u"; ok "$u no grupo $GRUPO (pode usar 'agente-portal notificar')"; else avs "utilizador $u nao existe"; fi
 done
 
+# Instala o python-oracledb com os wheels guardados no portal (clientes sem internet): escolhe os do Python e da
+# arquitetura deste servidor (cpXY, abi3 ou py3-none-any) e faz pip --no-index. Devolve !=0 se o portal nao tiver.
+oracledb_do_portal() {
+    local lista tag arq d n ok=0
+    lista=$(curl -fsS ${K[@]+"${K[@]}"} "$PORTAL/clientes/agente/wheels/" 2>/dev/null) || return 1
+    grep -q '^oracledb-' <<< "$lista" || return 1
+    tag=$("$DIR/venv/bin/python" -c 'import sys; print("cp%d%d" % sys.version_info[:2])')
+    arq=$(uname -m)
+    d=$(mktemp -d /tmp/agente-wheels.XXXXXX)
+    while read -r n; do
+        [[ $n == *.whl ]] || continue
+        case $n in *-none-any.whl) ;; *"$arq"*) case $n in *"-$tag-"*|*-abi3-*) ;; *) continue ;; esac ;; *) continue ;; esac
+        curl -fsS ${K[@]+"${K[@]}"} "$PORTAL/clientes/agente/wheels/$n" -o "$d/$n" && ok=$((ok + 1))
+    done <<< "$lista"
+    if (( ok )) && ls "$d"/oracledb-* >/dev/null 2>&1 \
+       && "$DIR/venv/bin/pip" install -q --disable-pip-version-check --no-index --find-links "$d" oracledb; then
+        corr "python-oracledb instalado com $ok wheel(s) do portal ($tag, $arq)"
+        find "$d" -name '*.whl' -delete; rmdir "$d"
+        return 0
+    fi
+    find "$d" -name '*.whl' -delete; rmdir "$d" 2>/dev/null
+    avs "o portal nao tem wheels do oracledb para $tag/$arq: a tentar a internet"
+    return 1
+}
+
 abrir_firewall() {        # firewalld: ipset com as origens + regra para o ipset nas zonas ativas; ufw: por IP
     if command -v firewall-cmd >/dev/null && firewall-cmd --state >/dev/null 2>&1; then
         local zonas z ip ok=0 nome regra
@@ -243,11 +270,15 @@ if [[ $ORACLE == 1 ]]; then
     [[ -n $BASEPY ]] || erro "precisa de Python 3.8 ou superior com venv (o python-oracledb nao suporta versoes anteriores)"
     ok "python base: $BASEPY ($($BASEPY -V 2>&1))"
     [[ -x $DIR/venv/bin/python ]] || { $BASEPY -m venv "$DIR/venv" || erro "falhou: $BASEPY -m venv $DIR/venv (Debian: apt install python3-venv)"; corr "venv criado em $DIR/venv"; }
+    PIPQ=("$DIR/venv/bin/pip" install -q --disable-pip-version-check)
     if [[ -n $WHEEL ]]; then
-        "$DIR/venv/bin/pip" install -q --disable-pip-version-check --no-index "$WHEEL" || erro "pip install $WHEEL falhou"
-    else
-        "$DIR/venv/bin/pip" install -q --disable-pip-version-check --upgrade oracledb \
-            || erro "pip install oracledb falhou (sem acesso a internet? descarregue o wheel noutra maquina e use --oracledb-wheel FICHEIRO)"
+        # o(s) wheel(s) indicados; as dependencias (cryptography, cffi...) na mesma pasta
+        "${PIPQ[@]}" --no-index --find-links "$(dirname "$WHEEL")" "$WHEEL" || erro "pip install $WHEEL falhou (faltam dependencias na mesma pasta? cryptography, cffi, pycparser)"
+    elif ! oracledb_do_portal; then
+        "${PIPQ[@]}" --retries 1 --timeout 15 --upgrade oracledb 2>/tmp/agente-pip.err || {
+            grep -qiE "unreachable|Failed to establish|Name or service|Temporary failure|timed out" /tmp/agente-pip.err \
+                && erro "sem acesso a internet para instalar o python-oracledb. No portal: Clientes > Ferramentas > Servico Oracle sem internet > Obter/Carregar wheels; depois corra de novo este comando."
+            cat /tmp/agente-pip.err >&2; erro "pip install oracledb falhou"; }
     fi
     ok "python-oracledb $("$DIR/venv/bin/python" -c 'import oracledb; print(oracledb.__version__)')"
     PY=$DIR/venv/bin/python

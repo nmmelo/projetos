@@ -582,3 +582,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > os pedidos que são interrupitos ou falham podemos a partir desse retormar o mesmo.
 
 **Resposta:** Oracle → Execuções: **↻ Retomar** numa execução interrompida, cancelada ou com erro (página e janela do output) cria outra com os mesmos parâmetros e modo; no shrink EXECUTAR continua o que falta. Ligações "Retoma da execução #N" / "Retomada em #M". Clientes → Pedidos: **↻ Repetir** nos pedidos que falharam (tabela e output), com o output do novo pedido logo a seguir. Mesmas permissões que o pedido original.
+
+## 52. python-oracledb em clientes sem internet
+
+**Pergunta:**
+> WARNING: Retrying (Retry(total=4, ...)) after connection broken by 'NewConnectionError(... [Errno 101] Network is unreachable')': /simple/oracledb/
+
+**Resposta:** O setup.sh --oracle passa a instalar o python-oracledb com wheels guardados no portal (escolhe os do Python/arquitetura do cliente, pip --no-index); só depois tenta a internet (1 tentativa) e, sem rede, explica o que fazer. Nova secção Clientes → Ferramentas → **Serviço Oracle sem internet**: obter os wheels no portal (pip download para Python 3.8–3.13, x86_64/aarch64), carregar à mão, listar e apagar. O instalar.sh tenta obtê-los na primeira instalação.

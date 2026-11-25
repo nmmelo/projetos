@@ -1054,6 +1054,12 @@ titulo "Ambiente Python"
 como_portal env PIP_NO_CACHE_DIR=1 "$DIR/.venv/bin/pip" install -q --disable-pip-version-check --upgrade pip
 como_portal env PIP_NO_CACHE_DIR=1 "$DIR/.venv/bin/pip" install -q --disable-pip-version-check -r "$DIR/requirements.txt"
 ok "pacotes Python instalados em $DIR/.venv"
+# wheels do python-oracledb para os agentes dos clientes sem internet (setup.sh --oracle); so na 1.a vez
+# (depois: Clientes > Ferramentas > Servico Oracle sem internet). Sem internet no portal, so avisa.
+if ! ls "$DIR"/data/wheels/oracledb-*.whl >/dev/null 2>&1; then
+    ( cd "$DIR" && timeout 900 runuser -u "$UTIL" -- "$DIR/.venv/bin/python" -m app.wheels obter --silencioso 2>/dev/null ) \
+        | sed 's/^/  /' || aviso "nao foi possivel obter os wheels do oracledb para os agentes"
+fi
 
 # ---------------------------------------------------------------------------- base de dados
 titulo "Base de dados do portal"

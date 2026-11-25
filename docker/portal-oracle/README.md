@@ -134,6 +134,16 @@ Se a BD responder em menos de ~1 s, os dados vêm logo no mesmo pedido. A cache 
 |---|---|
 | ![Execuções](docs/execucoes.png) | ![Janela](docs/execucao-janela.png) |
 
+### Serviço Oracle do agente em clientes sem internet
+
+O `setup.sh --oracle` instala o `python-oracledb` (e `cryptography`, `cffi`, `pycparser`) num venv. Sem internet no cliente, o pip falhava com `Network is unreachable`. Agora:
+
+1. **Primeiro os wheels do portal**: o setup.sh pede a lista (`/clientes/agente/wheels/`), descarrega só os compatíveis com o Python e a arquitetura do cliente (`cpXY`, `abi3`, `py3-none-any`; x86_64/aarch64) e instala com `pip --no-index`.
+2. Se o portal não tiver, tenta a internet (1 tentativa, 15 s) e, sem rede, diz o que fazer em vez de repetir 5 vezes.
+3. Ou `--oracledb-wheel FICHEIRO.whl` (dependências na mesma pasta).
+
+Os wheels ficam em `data/wheels` do portal e geridos em **Clientes → Ferramentas → Serviço Oracle sem internet**: **Obter no portal** (`pip download` para Python 3.8–3.13, x86_64 e aarch64, glibc ≥ 2.17; precisa de internet no portal; o `instalar.sh` tenta isto na primeira instalação), **Carregar wheels…** (descarregados noutra máquina com `pip download oracledb --only-binary=:all: -d pasta`), lista, download e apagar.
+
 ### Retomar execuções e repetir pedidos
 
 | Onde | Como |

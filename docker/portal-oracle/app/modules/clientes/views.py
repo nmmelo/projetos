@@ -549,8 +549,60 @@ def ferramentas():
     agentes = [{"c": c, "desatualizado": clientes.desatualizado(c), "ativo": clientes.comando_ativo(c["id"]),
                 "pedido": "",
                 "ult": (c.get("info") or {}).get("atualizacao")} for c in clientes.listar()]
+    from ... import wheels
     return render_template("clientes/ferramentas.html", fich=fich, url=_url_portal(), chave=chave, agentes=agentes, v_portal=v_portal,
-                           inseguro=_cfg()["inseguro"], utilizador=_cfg()["ssh_padrao"])
+                           inseguro=_cfg()["inseguro"], utilizador=_cfg()["ssh_padrao"], wheels=wheels.listar(),
+                           wheels_a_correr=wheels.a_correr(), wheels_log=wheels.log())
+
+
+# ============================================================ wheels do python-oracledb (clientes sem internet)
+@bp.route("/wheels/estado")
+@auth.requires(MODULO.acesso)
+def wheels_estado():
+    from ... import wheels
+    return jsonify(a_correr=wheels.a_correr(), log=wheels.log(), wheels=wheels.listar())
+
+
+@bp.route("/wheels/obter", methods=["POST"])
+@auth.requires(MODULO.acesso, "clientes.gerir")
+def wheels_obter():
+    from ... import wheels
+    return jsonify(ok=wheels.obter_em_fundo())
+
+
+@bp.route("/wheels/carregar", methods=["POST"])
+@auth.requires(MODULO.acesso, "clientes.gerir")
+def wheels_carregar():
+    from ... import wheels
+    nomes = []
+    try:
+        for f in request.files.getlist("wheel"):
+            nomes.append(wheels.guardar(f.filename, f.read()))
+    except ValueError as exc:
+        return jsonify(ok=False, erro=str(exc)), 400
+    return jsonify(ok=True, nomes=nomes)
+
+
+@bp.route("/wheels/apagar", methods=["POST"])
+@auth.requires(MODULO.acesso, "clientes.gerir")
+def wheels_apagar():
+    from ... import wheels
+    n = sum(wheels.apagar(x) for x in request.form.getlist("nome"))
+    return jsonify(ok=True, apagados=n)
+
+
+@bp.route("/agente/wheels/")
+def agente_wheels():
+    """Lista (um nome por linha) dos wheels guardados no portal; o setup.sh escolhe os compativeis com o cliente."""
+    from ... import wheels
+    return Response("".join(w["nome"] + "\n" for w in wheels.listar()), mimetype="text/plain")
+
+
+@bp.route("/agente/wheels/<nome>")
+def agente_wheel(nome):
+    from ... import wheels
+    p = wheels.caminho(nome) or abort(404)
+    return send_file(p, mimetype="application/octet-stream", as_attachment=True, download_name=nome, max_age=0)
 
 
 # ============================================================ API do agente (sem sessao; token)
