@@ -134,6 +134,12 @@ Se a BD responder em menos de ~1 s, os dados vêm logo no mesmo pedido. A cache 
 |---|---|
 | ![Execuções](docs/execucoes.png) | ![Janela](docs/execucao-janela.png) |
 
+### Oracle → Tablespaces: gráficos de fatias
+
+Por cima da tabela de tablespaces, dois gráficos de fatias (donut): **Espaço usado por tablespace** (quem ocupa mais) e **Espaço livre por tablespace** (alocado mas livre: candidatos a shrink). Mostram os 8 maiores e o resto em "Outros", com legenda (valor e %); passar o rato numa fatia ou na legenda realça-a e mostra a % no centro; no gráfico do livre, clicar abre o Shrink já com o tablespace escolhido. Sem bibliotecas externas (`PortalGrafico.fatias` em `static/graficos.js`).
+
+![Tablespaces - gráficos](docs/oracle-tablespaces-graficos.png)
+
 ### Oracle → Recyclebin
 
 Nova aba **Recyclebin**: escolhe-se a base de dados e vê-se a recyclebin de **todos os schemas** (DBA_RECYCLEBIN): espaço total, objetos, schemas e o mais antigo; por schema, objetos, tabelas, **espaço** (com barra), tablespaces, mais antigo/recente e **Objetos ▾** (lista dos objetos: nome original, tipo, tablespace, data do DROP, espaço). Linha de **total** no fim.

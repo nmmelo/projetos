@@ -568,3 +568,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > na janela de uma execução não tem o botão de voltar a pagina de execuções principal.
 
 **Resposta:** Botão **← Execuções** ao lado do título de cada execução (volta à lista) e, nas limpezas da recyclebin, também **♻ Recyclebin** (volta à aba com a mesma base de dados).
+
+## 50. Gráficos de fatias nos tablespaces
+
+**Pergunta:**
+> nos tablespace mostrar os garficos de tablespace que ocupam mais, por exempo grafico de fatias
+
+**Resposta:** Oracle → Tablespaces passa a ter dois gráficos de fatias por cima da tabela: espaço usado por tablespace e espaço livre (candidatos a shrink). Top 8 + "Outros", legenda com valor e %, realce ao passar o rato (% no centro) e, no do livre, clique abre o Shrink com o tablespace. SVG próprio, sem bibliotecas.

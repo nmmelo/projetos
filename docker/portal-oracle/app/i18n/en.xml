@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="2067">
+<lingua codigo="en" nome="English" textos="2076">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -8269,5 +8269,41 @@
   <texto>
     <origem>♻ Recyclebin</origem>
     <traducao>♻ Recyclebin</traducao>
+  </texto>
+  <texto>
+    <origem>Espaço usado por tablespace</origem>
+    <traducao>Used space per tablespace</traducao>
+  </texto>
+  <texto>
+    <origem>Espaço livre por tablespace</origem>
+    <traducao>Free space per tablespace</traducao>
+  </texto>
+  <texto>
+    <origem>Quem ocupa mais (dados).</origem>
+    <traducao>Who uses the most (data).</traducao>
+  </texto>
+  <texto>
+    <origem>Alocado mas livre: candidatos a shrink</origem>
+    <traducao>Allocated but free: shrink candidates</traducao>
+  </texto>
+  <texto>
+    <origem>(clique para abrir o Shrink)</origem>
+    <traducao>(click to open Shrink)</traducao>
+  </texto>
+  <texto>
+    <origem>usado</origem>
+    <traducao>used</traducao>
+  </texto>
+  <texto>
+    <origem>livre</origem>
+    <traducao>free</traducao>
+  </texto>
+  <texto>
+    <origem>total</origem>
+    <traducao>total</traducao>
+  </texto>
+  <texto>
+    <origem>Sem dados.</origem>
+    <traducao>No data.</traducao>
   </texto>
 </lingua>

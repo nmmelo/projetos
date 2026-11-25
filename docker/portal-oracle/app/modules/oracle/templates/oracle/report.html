@@ -25,6 +25,15 @@
 {% if rows is not none %}
 <p class="muted small">Exclui SYSTEM, SYSAUX, UNDO e TEMP. Ordenado do maior para o mais pequeno.
   {% if not exact %}Fonte: DBA_TABLESPACE_USAGE_METRICS (atualizado periodicamente pelo MMON).{% endif %}</p>
+{% if rows %}
+<div class="ts-graficos">
+  <section class="card"><h3>Espaço usado por tablespace</h3><span class="hint">Quem ocupa mais (dados).</span><div id="gUsado"></div></section>
+  <section class="card"><h3>Espaço livre por tablespace</h3><span class="hint">Alocado mas livre: candidatos a shrink{% if user.can('oracle.shrink.analise') or user.can('oracle.shrink.executar') %} (clique para abrir o Shrink){% endif %}.</span><div id="gLivre"></div></section>
+</div>
+<script type="application/json" id="tsDados">{{ rows|map(attribute='tablespace_name')|list|tojson }}</script>
+<script type="application/json" id="tsUsado">{{ rows|map(attribute='usado_mb')|map('float')|list|tojson }}</script>
+<script type="application/json" id="tsLivre">{{ rows|map(attribute='livre_mb')|map('float')|list|tojson }}</script>
+{% endif %}
 <table>
   <thead><tr><th>Tablespace</th><th class="num">Tamanho MB</th><th class="num">Usado MB</th>
     <th class="num">Livre MB</th><th class="num">% Livre</th><th>Ocupação</th><th class="num">Máx. MB</th><th></th></tr></thead>
@@ -49,6 +58,20 @@
 {% endif %}
 {% endblock %}
 {% block scripts %}
+{% if rows %}
+<script src="{{ url_for('static', filename='graficos.js', v=static_v) }}"></script>
+<script>
+(() => {
+  const j = id => JSON.parse(document.getElementById(id).textContent);
+  const nomes = j('tsDados'), usado = j('tsUsado'), livre = j('tsLivre');
+  const shrink = {{ 'true' if user.can('oracle.shrink.analise') or user.can('oracle.shrink.executar') else 'false' }};
+  const URL_S = "{{ url_for('oracle.shrink', db=db_id) }}";
+  PortalGrafico.fatias(document.getElementById('gUsado'), {itens: nomes.map((n, i) => ({nome: n, valor: usado[i]})), unidade: 'MB', centro: (window.t || String)('usado')});
+  PortalGrafico.fatias(document.getElementById('gLivre'), {itens: nomes.map((n, i) => ({nome: n, valor: livre[i],
+    link: shrink ? URL_S + '&ts=' + encodeURIComponent(n) : null})), unidade: 'MB', centro: (window.t || String)('livre')});
+})();
+</script>
+{% endif %}
 {% if meta %}
 <script>
 (() => {

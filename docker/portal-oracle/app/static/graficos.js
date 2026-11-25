@@ -82,5 +82,58 @@
     });
     area.addEventListener('mouseleave', () => { tip.hidden = true; guia.setAttribute('visibility', 'hidden'); });
   }
-  window.PortalGrafico = {desenhar, fmt, fmtBytes};
+
+  /* Grafico de fatias (donut): PortalGrafico.fatias(caixa, {itens: [{nome, valor, link}], unidade: 'MB', max: 8,
+     titulo, centro}) — os 'max' maiores e o resto em "Outros"; legenda com valor e %; passar o rato realca a fatia. */
+  const CORES = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#475569'];
+  const fmtMB = v => v >= 1048576 ? (v / 1048576).toFixed(2).replace('.', ',') + ' TB' : v >= 1024 ? (v / 1024).toFixed(1).replace('.', ',') + ' GB'
+    : Math.round(v).toLocaleString('pt-PT') + ' MB';
+  function fatias(caixa, o) {
+    caixa.innerHTML = '';
+    const max = o.max || 8;
+    let itens = (o.itens || []).filter(i => i.valor > 0).sort((a, b) => b.valor - a.valor);
+    if (itens.length > max) {
+      const resto = itens.slice(max - 1);
+      itens = [...itens.slice(0, max - 1), {nome: `${T('Outros')} (${resto.length})`, valor: resto.reduce((a, i) => a + i.valor, 0), outros: true}];
+    }
+    const total = itens.reduce((a, i) => a + i.valor, 0);
+    const wrap = document.createElement('div'); wrap.className = 'pf-wrap'; caixa.appendChild(wrap);
+    if (!total) { wrap.innerHTML = `<p class="muted">${T('Sem dados.')}</p>`; return; }
+    const R = 80, r = 52, C = 100;
+    const svg = el('svg', {viewBox: '0 0 200 200', class: 'pf-svg', role: 'img', 'aria-label': o.titulo || ''}, wrap);
+    const fmtv = o.unidade === 'MB' ? fmtMB : v => fmt(v, o.unidade);
+    const centroV = el('text', {x: C, y: C - 2, 'text-anchor': 'middle', class: 'pf-c1'}, null);
+    const centroT = el('text', {x: C, y: C + 16, 'text-anchor': 'middle', class: 'pf-c2'}, null);
+    const leg = document.createElement('ul'); leg.className = 'pf-leg'; wrap.appendChild(leg);
+    const repor = () => { centroV.textContent = fmtv(total); centroT.textContent = o.centro || T('total'); };
+    let ang = -Math.PI / 2;
+    const pt = (a, rr) => [C + rr * Math.cos(a), C + rr * Math.sin(a)];
+    itens.forEach((it, i) => {
+      const cor = it.outros ? '#94a3b8' : CORES[i % CORES.length];
+      const frac = it.valor / total, a2 = ang + frac * 2 * Math.PI, grande = frac > .5 ? 1 : 0;
+      let fatia;
+      if (frac >= .9999) {
+        fatia = el('path', {d: `M ${C - R} ${C} a ${R} ${R} 0 1 0 ${2 * R} 0 a ${R} ${R} 0 1 0 ${-2 * R} 0 M ${C - r} ${C} a ${r} ${r} 0 1 1 ${2 * r} 0 a ${r} ${r} 0 1 1 ${-2 * r} 0`,
+                            fill: cor, 'fill-rule': 'evenodd', class: 'pf-f'}, svg);
+      } else {
+        const [x1, y1] = pt(ang, R), [x2, y2] = pt(a2, R), [x3, y3] = pt(a2, r), [x4, y4] = pt(ang, r);
+        fatia = el('path', {d: `M ${x1} ${y1} A ${R} ${R} 0 ${grande} 1 ${x2} ${y2} L ${x3} ${y3} A ${r} ${r} 0 ${grande} 0 ${x4} ${y4} Z`,
+                            fill: cor, class: 'pf-f'}, svg);
+      }
+      const pct = (frac * 100).toFixed(frac < .1 ? 1 : 0).replace('.', ',') + '%';
+      el('title', {}, fatia).textContent = `${it.nome}: ${fmtv(it.valor)} (${pct})`;
+      const li = document.createElement('li');
+      li.innerHTML = `<i style="background:${cor}"></i><span class="pf-n" translate="no"></span><span class="pf-v">${fmtv(it.valor)}</span><span class="pf-p">${pct}</span>`;
+      li.querySelector('.pf-n').textContent = it.nome;
+      if (it.link) { li.classList.add('pf-link'); li.onclick = () => { location.href = it.link; }; fatia.style.cursor = 'pointer'; fatia.onclick = li.onclick; }
+      leg.appendChild(li);
+      const on = v => { fatia.classList.toggle('on', v); li.classList.toggle('on', v); svg.classList.toggle('foco', v);
+        if (v) { centroV.textContent = pct; centroT.textContent = it.nome.length > 16 ? it.nome.slice(0, 15) + '…' : it.nome; } else repor(); };
+      fatia.addEventListener('mouseenter', () => on(true)); fatia.addEventListener('mouseleave', () => on(false));
+      li.addEventListener('mouseenter', () => on(true)); li.addEventListener('mouseleave', () => on(false));
+      ang = a2;
+    });
+    svg.appendChild(centroV); svg.appendChild(centroT); repor();
+  }
+  window.PortalGrafico = {desenhar, fmt, fmtBytes, fatias};
 })();
