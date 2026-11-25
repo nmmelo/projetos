@@ -1385,6 +1385,10 @@ A pasta `data/` não é alterada por atualizações. Faça backup dela, sobretud
 
 ### Problemas conhecidos
 
+**`job-working-directory: error retrieving current directory: getcwd: cannot access parent directories`**
+
+Aparecia ao correr o `instalar.sh --atualizar` de dentro de uma pasta da instalação (ex. `/opt/<instância>/app`): o código é substituído e a pasta onde o terminal estava deixa de existir. É só um aviso (a atualização continua); o script passa agora para `/` antes de copiar o código. No terminal, faça `cd /opt/<instância>` para voltar a uma pasta válida.
+
 **O portal fica indisponível (erro 500 ou 502) depois de sincronizar o código**
 
 Ver [Atualizar o código](#6-atualizar-o-código-sincronizar-com-o-repositório): `sudo ./instalar.sh --verificar <nome>` e depois `sudo ./instalar.sh --reaplicar <nome>`.

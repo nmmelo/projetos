@@ -547,3 +547,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > depois de executar o shrink de um tablespace em modo analise, devia no output ou na aba execução, ter a possbilidade de fazer o shrink em modo executar, para não ter que de fazer tudo de novo, e na executção deve indicar o espaço que ficou livre.
 
 **Resposta:** Na página de uma análise terminada aparece o cartão **Ganho estimado** com **▶ Executar agora** (mesmos parâmetros, com confirmação), **Agendar…** e **Ajustar parâmetros** (formulário já preenchido em EXECUTAR); na janela do output em Execuções, **▶ Executar com estes parâmetros…**. Na execução, o cartão **Espaço libertado** (antes → depois, %) com ligação à análise; a análise lista as execuções feitas a partir dela. Nova coluna **Ganho** em Execuções e o ganho na notificação de fim. Os valores vêm do RESUMO GLOBAL do output (execuções antigas são preenchidas automaticamente).
+
+## 47. instalar.sh: avisos "getcwd" e certificado wildcard
+
+**Pergunta:**
+> (output do `instalar.sh --atualizar` com várias linhas `job-working-directory: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory` e `AVISO o nome '<servidor>.<dominio>' nao aparece nos nomes do certificado.` com um certificado `*.<dominio>`)
+
+**Resposta:** Os avisos getcwd vinham de o terminal estar numa pasta da instalação que o --atualizar apaga e recria (só aviso, a atualização continua). O script passa para `/` se a pasta atual não existir e antes de copiar o código. O aviso do certificado era falso: a verificação não percebia nomes wildcard; agora `*.dominio` cobre `nome.dominio` (um nível, como nos browsers).

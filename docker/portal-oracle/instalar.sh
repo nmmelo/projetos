@@ -13,6 +13,9 @@ REPO_PASTA_PADRAO="docker/portal-oracle"
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 SCRIPT_SHA=$(sha256sum "${BASH_SOURCE[0]}" 2>/dev/null | cut -d" " -f1)   # para reexecutar se o --atualizar trouxer outro
+# Pasta atual apagada (ex. corrida de dentro de /opt/<instancia>/app, que o --atualizar substitui): sem isto,
+# cada comando mostra "job-working-directory: error retrieving current directory". Passa para /.
+pwd -P >/dev/null 2>&1 || cd /
 ESTADO_DIR="/etc/portal-oracle"          # registo das instancias: <nome>.conf (respostas, sem passwords)
 ESTADO_LEGADO=".instalacao"              # versoes anteriores guardavam na pasta da instalacao
 AUTO=0                                   # 1 = aceitar os valores guardados sem perguntar (reaplicar)
@@ -240,9 +243,23 @@ limpar_docker() {
     return 0
 }
 
+# nome_no_certificado NOME "DNS:a, DNS:*.b"  -> 0 se o NOME estiver nos nomes (aceita *.dominio, so um nivel)
+nome_no_certificado() {
+    local nome=${1,,} n nomes
+    IFS=', ' read -ra nomes <<< "${2,,}"           # read -a: sem expandir o * como ficheiros
+    for n in "${nomes[@]}"; do
+        n=${n#dns:}
+        [[ $n == "$nome" ]] && return 0
+        [[ $n == \*.* && $nome == *."${n#\*.}" && ${nome%."${n#\*.}"} != *.* ]] && return 0
+    done
+    return 1
+}
+
 copiar_codigo() {   # copiar_codigo ORIGEM  -> $DIR (nunca toca em data/, .env, .venv)
     local src=$1 item nome p
     [[ $(realpath "$src") == $(realpath "$DIR") ]] && return 0
+    # as pastas de codigo vao ser apagadas e recriadas: nao ficar dentro de uma delas
+    case "$(pwd -P 2>/dev/null)/" in "$(realpath "$DIR")"/*) cd / ;; esac
     # Substitui cada entrada de codigo da origem (ex. app/ inteira), para nao ficarem ficheiros
     # antigos (modulos, templates ou rotas que ja nao existem). O que nao vem na origem fica.
     for item in "$src"/* "$src"/.[!.]*; do
@@ -882,7 +899,7 @@ if [[ $SSL_MODO == proprio ]]; then
             san=$(openssl x509 -in "$SSL_CERT_ORIG" -noout -ext subjectAltName 2>/dev/null | tail -n +2 | xargs || true)
             [[ -n $san ]] && info "Nomes: $san"
             openssl x509 -in "$SSL_CERT_ORIG" -noout -checkend 0 >/dev/null || aviso "o certificado JA EXPIROU."
-            [[ $SERVER_NAME != _ && -n $san && $san != *"$SERVER_NAME"* ]] \
+            [[ $SERVER_NAME != _ && -n $san ]] && ! nome_no_certificado "$SERVER_NAME" "$san" \
                 && aviso "o nome '$SERVER_NAME' nao aparece nos nomes do certificado."
             break
         fi
