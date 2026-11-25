@@ -533,3 +533,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > (imagem da janela "<servidor> says — Atualizar o agente? Ele descarrega a versão do portal e reinicia.") melhorar o aspeto da caixa que está na imagem, pode ser com html5 e css, tornar mais moderna
 
 **Resposta:** Nova caixa de confirmação/aviso (HTML5 `<dialog>` + CSS, `app/static/dialogo.js`) para todo o portal: título com a pergunta e texto por baixo, ícone, fundo desfocado, animação, temas claro/escuro/Oracle, botões Voltar/Confirmar (vermelho e foco em Voltar nas ações destrutivas), Esc/clicar fora cancela. Substitui todos os confirm()/alert() existentes sem os alterar (ao confirmar, repete a submissão ou o clique). Deixa de aparecer o endereço do servidor na caixa.
+
+## 45. Caixa de processos no canto inferior direito
+
+**Pergunta:**
+> (imagem da barra "✓ Oracle <servidor> · lista de tablespaces — atualizado · 0,2 s") quero que os pedidos como na imagem fiquei no canto direito em baixo, sendo que deve ser apenas uma caixa com todos, deve indicar o numero de pedidos ou processos em execução, ao clicar na caixa ele extende para o lado para vermos o que está a correr.
+
+**Resposta:** A barra ao centro passa a ser uma única caixa no canto inferior direito com o número em execução. Ao clicar estende-se com a lista agrupada: atualização de dados, execuções Oracle (shrink em curso/na fila, passo e %) e pedidos aos agentes, com tempo, quem pediu e barra de progresso; cada item abre a execução ou o pedido. Mostra ✓/✕ ao acabar, lembra se estava aberta, respeita o acesso aos módulos, `Esc` recolhe.

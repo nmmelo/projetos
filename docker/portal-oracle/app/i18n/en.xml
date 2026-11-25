@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="1989">
+<lingua codigo="en" nome="English" textos="1999">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -7957,5 +7957,45 @@
   <texto>
     <origem>Confirmar</origem>
     <traducao>Confirm</traducao>
+  </texto>
+  <texto>
+    <origem>Atualização de dados</origem>
+    <traducao>Data refresh</traducao>
+  </texto>
+  <texto>
+    <origem>Pedidos aos agentes</origem>
+    <traducao>Agent requests</traducao>
+  </texto>
+  <texto>
+    <origem>Processos em execução</origem>
+    <traducao>Running processes</traducao>
+  </texto>
+  <texto>
+    <origem>Recolher</origem>
+    <traducao>Collapse</traducao>
+  </texto>
+  <texto>
+    <origem>em execução</origem>
+    <traducao>running</traducao>
+  </texto>
+  <texto>
+    <origem>com erro</origem>
+    <traducao>with errors</traducao>
+  </texto>
+  <texto>
+    <origem>concluído(s)</origem>
+    <traducao>done</traducao>
+  </texto>
+  <texto>
+    <origem>Concluídos</origem>
+    <traducao>Done</traducao>
+  </texto>
+  <texto>
+    <origem>interrompido</origem>
+    <traducao>interrupted</traducao>
+  </texto>
+  <texto>
+    <origem>cancelado</origem>
+    <traducao>cancelled</traducao>
   </texto>
 </lingua>

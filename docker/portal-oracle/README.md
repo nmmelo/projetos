@@ -104,7 +104,11 @@ As consultas às bases de dados (estado, janela de cada BD, Tablespaces e a list
 | Erro | Ficam os dados anteriores e a mensagem "Última atualização falhou" |
 | **↻ Atualizar** | Força a leitura (ignora a idade da cache) |
 
-A **barra em baixo** mostra as tarefas em curso do utilizador (várias ao mesmo tempo), com o tempo decorrido; ao acabar mostra ✓ ou ✕ e desaparece. Continua noutras páginas (o estado está no servidor) e clicar numa tarefa abre a vista correspondente. Se a BD responder em menos de ~1 s, os dados vêm logo no mesmo pedido. A cache de uma BD é apagada quando a sua definição é alterada; as entradas com mais de 7 dias saem com a tarefa **Limpeza do histórico**.
+A **caixa de processos** (canto inferior direito) junta numa só caixa tudo o que está a correr: as atualizações de dados em segundo plano do utilizador, as **execuções Oracle** (shrink em curso ou na fila, com o passo e a %) e os **pedidos aos agentes** dos clientes. Fechada mostra só o número em execução (⟳ 3 em execução); ao clicar estende-se para o lado com a lista por grupo (título, passo, tempo decorrido, quem pediu, barra de progresso) e clicar num item abre a execução ou o pedido. Ao acabar mostra ✓ ou ✕ uns segundos e desaparece. Fica aberta ou fechada como a deixou, continua noutras páginas (o estado está no servidor) e só mostra os módulos a que o utilizador tem acesso; `Esc` recolhe.
+
+![Caixa de processos](docs/processos-caixa.png)
+
+Se a BD responder em menos de ~1 s, os dados vêm logo no mesmo pedido. A cache de uma BD é apagada quando a sua definição é alterada; as entradas com mais de 7 dias saem com a tarefa **Limpeza do histórico**.
 
 ![Oracle a carregar em segundo plano](docs/oracle-cache-a-carregar.png)
 ![Dados em cache](docs/oracle-cache.png)

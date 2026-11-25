@@ -201,7 +201,68 @@ def _ctx_portal(user) -> dict:
 @auth.login_required
 def api_tarefas():
     from .. import tarefas_bg
-    return jsonify(tarefas=tarefas_bg.tarefas(g.user.username))
+    return jsonify(tarefas=tarefas_bg.tarefas(g.user.username), processos=_processos())
+
+
+def _processos(recentes: int = 20) -> list[dict]:
+    """Execucoes Oracle e pedidos aos agentes em curso (ou acabados ha menos de 'recentes' s), para a caixa
+    de processos em baixo a direita. So dos modulos ativos a que o utilizador tem acesso."""
+    import datetime
+    from .. import modulos
+    agora = datetime.datetime.now()
+    lim = (agora - datetime.timedelta(seconds=recentes)).strftime("%Y-%m-%d %H:%M:%S")
+
+    def seg(v):
+        try:
+            return max(0, int((agora - datetime.datetime.fromisoformat(str(v)[:19].replace("T", " "))).total_seconds()))
+        except (TypeError, ValueError):
+            return None
+
+    def dur(a, b):
+        try:
+            return int((datetime.datetime.fromisoformat(str(b)[:19].replace("T", " "))
+                        - datetime.datetime.fromisoformat(str(a)[:19].replace("T", " "))).total_seconds())
+        except (TypeError, ValueError):
+            return None
+    out = []
+    ativos = modulos.ativos()
+    pode = lambda k: k in ativos and k in modulos.REGISTO and g.user.can(modulos.REGISTO[k].acesso)  # noqa: E731
+    try:
+        if pode("oracle"):
+            with store.tx() as t:
+                rs = t.all("SELECT id, db_name, params, status, started_at, finished_at, current_action, progress, created_by, via "
+                           "FROM jobs WHERE status IN ('EM CURSO', 'PENDENTE') OR finished_at >= ? ORDER BY id DESC LIMIT 30", (lim,))
+            for r in rs:
+                a = r["status"] in ("EM CURSO", "PENDENTE")
+                det = (r["current_action"] or "") if a else ""
+                if a and r["progress"] is not None:
+                    det = f"{det} · {r['progress']}%" if det else f"{r['progress']}%"
+                out.append({"chave": f"job:{r['id']}", "grupo": "oracle", "titulo": f"Shrink #{r['id']} · {r['db_name']}",
+                            "estado": "a_atualizar" if a else ("ok" if r["status"] == "OK" else "erro"),
+                            "detalhe": det or ("na fila" if r["status"] == "PENDENTE" else ""), "por": r["created_by"],
+                            "segundos": seg(r["started_at"]) if a else None, "duracao": None if a else dur(r["started_at"], r["finished_at"]),
+                            "progresso": r["progress"] if a else None, "link": url_for("oracle.job_detail", job_id=r["id"]),
+                            "erro": r["status"].lower() if not a and r["status"] != "OK" else None})
+    except Exception:  # noqa: BLE001 - a caixa de processos nunca pode partir a pagina
+        current_app.logger.exception("caixa de processos (oracle)")
+    try:
+        if pode("clientes"):
+            from .. import clientes
+            with store.tx() as t:
+                rs = t.all("SELECT c.id, c.cliente_id, c.tipo, c.args, c.estado, c.pedido_por, c.criado, c.terminado, k.nome AS cliente "
+                           "FROM cliente_comandos c LEFT JOIN clientes k ON k.id = c.cliente_id "
+                           "WHERE c.estado IN ('PENDENTE', 'EM CURSO') OR c.terminado >= ? ORDER BY c.id DESC LIMIT 30", (lim,))
+            for r in rs:
+                a = r["estado"] in ("PENDENTE", "EM CURSO")
+                out.append({"chave": f"cmd:{r['id']}", "grupo": "clientes", "titulo": f"{r['cliente'] or '#' + str(r['cliente_id'])} · "
+                            f"{clientes.descrever(r)}", "estado": "a_atualizar" if a else ("ok" if r["estado"] == "OK" else "erro"),
+                            "detalhe": ("à espera do agente" if r["estado"] == "PENDENTE" else "em curso") if a else "",
+                            "por": r["pedido_por"], "segundos": seg(r["criado"]) if a else None,
+                            "duracao": None if a else dur(r["criado"], r["terminado"]),
+                            "link": url_for("clientes.pedidos") + f"?cmd={r['id']}", "erro": None if a or r["estado"] == "OK" else "falhou"})
+    except Exception:  # noqa: BLE001 - a caixa de processos nunca pode partir a pagina
+        current_app.logger.exception("caixa de processos (clientes)")
+    return out
 
 
 # Sininho: notificacoes do utilizador (regras em SMTP > Notificacoes)
