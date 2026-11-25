@@ -232,8 +232,22 @@ def validate_shrink_params(form) -> dict:
             "min_ganho": min_ganho, "margem": margem, "paralelo": paralelo}
 
 
+def validate_recyclebin_params(form) -> dict:
+    """Purge da recyclebin: schemas (lista; vazia = todos os que tem objetos) e modo."""
+    lista = form.getlist("schemas") if hasattr(form, "getlist") else (form.get("schemas") or [])
+    schemas = sorted({valid_ident(x, "Schema") for x in lista if str(x).strip()})
+    if len(schemas) > 200:
+        raise ValidationError("No maximo 200 schemas de cada vez (ou escolha todos).")
+    modo = (form.get("modo") or "ANALISE").upper()
+    if modo not in ("ANALISE", "EXECUTAR"):
+        raise ValidationError("Modo invalido.")
+    return {"tipo": "recyclebin", "ts": "RECYCLEBIN", "modo": modo, "schemas": schemas}
+
+
 def build_block(p: dict, pipe: str = "") -> str:
     """Substitui os marcadores &p_* do bloco PL/SQL (valores ja validados: sem aspas nem codigo)."""
+    if p.get("tipo") == "recyclebin":
+        return _build_recyclebin(p, pipe)
     with open(os.path.join(SQL_DIR, "shrink_block.sql")) as fh:
         block = fh.read()
     block = block[block.index("DECLARE"):]          # sem o comentario de cabecalho
@@ -264,6 +278,19 @@ def read_dbms_output(conn) -> list[str]:
             if n < chunk:
                 break
     return lines
+
+
+def _build_recyclebin(p: dict, pipe: str) -> str:
+    with open(os.path.join(SQL_DIR, "recyclebin_block.sql")) as fh:
+        block = fh.read()
+    block = block[block.index("DECLARE"):].rstrip().removesuffix("/").rstrip()
+    schemas = ", ".join(f"'{valid_ident(x, 'Schema')}'" for x in p.get("schemas") or [])
+    modo = "EXECUTAR" if p.get("modo") == "EXECUTAR" else "ANALISE"
+    for key, val in (("&p_modo", modo), ("&p_schemas", schemas), ("&p_pipe", pipe)):
+        block = block.replace(key, str(val))
+    if "&p_" in block:
+        raise RuntimeError("Marcador por substituir no bloco PL/SQL.")
+    return block
 
 
 def run_shrink(conn, params: dict, pipe: str = "") -> list[str]:

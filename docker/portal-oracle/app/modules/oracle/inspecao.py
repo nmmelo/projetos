@@ -167,8 +167,10 @@ def _d_jobs(conn, _x):
 
 def _d_recyclebin(conn, _x):
     por_dono = _q(conn, """/* portal:recyclebin */ SELECT r.owner, COUNT(*) AS objetos,
-        ROUND(SUM(r.space * t.block_size) / 1048576, 1) AS espaco_mb, MIN(r.droptime) AS mais_antigo
-        FROM dba_recyclebin r JOIN dba_tablespaces t ON t.tablespace_name = r.ts_name
+        ROUND(SUM(r.space * NVL(t.block_size, 8192)) / 1048576, 1) AS espaco_mb, MIN(r.droptime) AS mais_antigo,
+        MAX(r.droptime) AS mais_recente, SUM(CASE WHEN r.type = 'TABLE' THEN 1 ELSE 0 END) AS tabelas,
+        COUNT(DISTINCT r.ts_name) AS tablespaces
+        FROM dba_recyclebin r LEFT JOIN dba_tablespaces t ON t.tablespace_name = r.ts_name
         GROUP BY r.owner ORDER BY espaco_mb DESC""", tolerar=True)
     return {"donos": por_dono, "total_mb": round(sum(float(x["espaco_mb"] or 0) for x in por_dono), 1),
             "total_objetos": sum(int(x["objetos"] or 0) for x in por_dono)}
@@ -177,8 +179,8 @@ def _d_recyclebin(conn, _x):
 def _d_recyclebin_owner(conn, x):
     dono = bd.valid_ident(x.get("owner", ""), "Owner")
     objs = _q(conn, """/* portal:recyclebin_owner */ SELECT r.object_name, r.original_name, r.type, r.ts_name, r.droptime,
-        ROUND(r.space * t.block_size / 1048576, 2) AS espaco_mb, r.can_purge
-        FROM dba_recyclebin r JOIN dba_tablespaces t ON t.tablespace_name = r.ts_name
+        ROUND(r.space * NVL(t.block_size, 8192) / 1048576, 2) AS espaco_mb, r.can_purge
+        FROM dba_recyclebin r LEFT JOIN dba_tablespaces t ON t.tablespace_name = r.ts_name
         WHERE r.owner = :o ORDER BY r.space DESC FETCH FIRST 300 ROWS ONLY""", {"o": dono})
     return {"owner": dono, "objetos": objs}
 
@@ -237,6 +239,7 @@ GRANTS = [
     ("ALTER ANY TABLE", "shrink: MOVE de tabelas, partições e LOBs"),
     ("ALTER ANY INDEX", "shrink: REBUILD de índices"),
     ("ALTER SYSTEM", "cancelar uma execução (ALTER SYSTEM KILL SESSION)"),
+    ("DROP ANY TABLE", "recyclebin: PURGE dos objetos apagados de outros schemas"),
 ]
 NOME_RE = re.compile(r"^(C##)?[A-Z][A-Z0-9_$#]{0,29}$")
 

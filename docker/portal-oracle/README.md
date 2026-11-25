@@ -134,6 +134,18 @@ Se a BD responder em menos de ~1 s, os dados vêm logo no mesmo pedido. A cache 
 |---|---|
 | ![Execuções](docs/execucoes.png) | ![Janela](docs/execucao-janela.png) |
 
+### Oracle → Recyclebin
+
+Nova aba **Recyclebin**: escolhe-se a base de dados e vê-se a recyclebin de **todos os schemas** (DBA_RECYCLEBIN): espaço total, objetos, schemas e o mais antigo; por schema, objetos, tabelas, **espaço** (com barra), tablespaces, mais antigo/recente e **Objetos ▾** (lista dos objetos: nome original, tipo, tablespace, data do DROP, espaço). Linha de **total** no fim.
+
+Como no shrink: selecionam-se **um, dois ou mais schemas** (ou **Todos os schemas…**), o modo **ANÁLISE** (mostra os comandos e o espaço a libertar) ou **EXECUTAR** (faz o PURGE, com confirmação) e **agora** ou **agendado**. Corre como uma execução (output em direto, histórico em Execuções com ♻ recyclebin, notificação no fim) e o cartão mostra o **ganho estimado** / **espaço libertado** por schema; da análise pode-se **🗑 Limpar agora** com os mesmos schemas.
+
+Por schema: `PURGE TABLESPACE "<ts>" USER "<schema>"` em cada tablespace; o que ficar (sem privilégio para o purge por tablespace, objetos sem tablespace) é limpo objeto a objeto (`PURGE TABLE` e depois `PURGE INDEX`). O bloco está em `app/modules/oracle/sql/recyclebin_block.sql`. Permissões: `oracle.recyclebin` (ver e analisar) e `oracle.recyclebin.limpar` (EXECUTAR). O utilizador Oracle precisa de `DROP ANY TABLE` (ou SYSDBA) para limpar a recyclebin de outros schemas.
+
+| | |
+|---|---|
+| ![Recyclebin](docs/oracle-recyclebin.png) | ![Purge da recyclebin](docs/oracle-recyclebin-execucao.png) |
+
 ### Da análise à execução e espaço libertado
 
 No fim de cada execução, o portal lê o **RESUMO GLOBAL** do output e mostra um cartão por cima dos detalhes:

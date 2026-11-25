@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="2021">
+<lingua codigo="en" nome="English" textos="2064">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -8085,5 +8085,177 @@
   <texto>
     <origem>Análise: ganho estimado · Executar: espaço libertado</origem>
     <traducao>Analysis: estimated gain · Execute: space freed</traducao>
+  </texto>
+  <texto>
+    <origem>Recyclebin</origem>
+    <traducao>Recyclebin</traducao>
+  </texto>
+  <texto>
+    <origem>Espaço total</origem>
+    <traducao>Total space</traducao>
+  </texto>
+  <texto>
+    <origem>Objetos</origem>
+    <traducao>Objects</traducao>
+  </texto>
+  <texto>
+    <origem>Schemas</origem>
+    <traducao>Schemas</traducao>
+  </texto>
+  <texto>
+    <origem>Mais antigo</origem>
+    <traducao>Oldest</traducao>
+  </texto>
+  <texto>
+    <origem>Mais recente</origem>
+    <traducao>Newest</traducao>
+  </texto>
+  <texto>
+    <origem>Tabelas</origem>
+    <traducao>Tables</traducao>
+  </texto>
+  <texto>
+    <origem>Espaço</origem>
+    <traducao>Space</traducao>
+  </texto>
+  <texto>
+    <origem>Total</origem>
+    <traducao>Total</traducao>
+  </texto>
+  <texto>
+    <origem>Objetos ▾</origem>
+    <traducao>Objects ▾</traducao>
+  </texto>
+  <texto>
+    <origem>Objetos ▴</origem>
+    <traducao>Objects ▴</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhum schema selecionado</origem>
+    <traducao>No schema selected</traducao>
+  </texto>
+  <texto>
+    <origem>schema(s) selecionado(s)</origem>
+    <traducao>schema(s) selected</traducao>
+  </texto>
+  <texto>
+    <origem>Limpar recyclebin</origem>
+    <traducao>Purge recyclebin</traducao>
+  </texto>
+  <texto>
+    <origem>Analisar</origem>
+    <traducao>Analyse</traducao>
+  </texto>
+  <texto>
+    <origem>Todos os schemas…</origem>
+    <traducao>All schemas…</traducao>
+  </texto>
+  <texto>
+    <origem>ANÁLISE — mostra os comandos e o espaço a libertar</origem>
+    <traducao>ANALYSIS — shows the commands and the space to free</traducao>
+  </texto>
+  <texto>
+    <origem>EXECUTAR — faz o PURGE</origem>
+    <traducao>EXECUTE — runs the PURGE</traducao>
+  </texto>
+  <texto>
+    <origem>Agora, em segundo plano</origem>
+    <traducao>Now, in the background</traducao>
+  </texto>
+  <texto>
+    <origem>A recyclebin está vazia.</origem>
+    <traducao>The recyclebin is empty.</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhum schema tem objetos apagados a ocupar espaço.</origem>
+    <traducao>No schema has dropped objects using space.</traducao>
+  </texto>
+  <texto>
+    <origem>Objetos apagados (DROP) que ainda ocupam espaço na recyclebin de cada schema (DBA_RECYCLEBIN).</origem>
+    <traducao>Dropped objects (DROP) still using space in each schema recyclebin (DBA_RECYCLEBIN).</traducao>
+  </texto>
+  <texto>
+    <origem>Últimas limpezas nesta base de dados</origem>
+    <traducao>Latest purges on this database</traducao>
+  </texto>
+  <texto>
+    <origem>Nome original</origem>
+    <traducao>Original name</traducao>
+  </texto>
+  <texto>
+    <origem>Apagado em</origem>
+    <traducao>Dropped at</traducao>
+  </texto>
+  <texto>
+    <origem>Pode limpar</origem>
+    <traducao>Can purge</traducao>
+  </texto>
+  <texto>
+    <origem>Nome na recyclebin</origem>
+    <traducao>Recyclebin name</traducao>
+  </texto>
+  <texto>
+    <origem>Sem objetos.</origem>
+    <traducao>No objects.</traducao>
+  </texto>
+  <texto>
+    <origem>Mostra os 300 maiores.</origem>
+    <traducao>Shows the 300 largest.</traducao>
+  </texto>
+  <texto>
+    <origem>Limpar a recyclebin de TODOS os schemas?</origem>
+    <traducao>Purge the recyclebin of ALL schemas?</traducao>
+  </texto>
+  <texto>
+    <origem>Os objetos ficam apagados definitivamente.</origem>
+    <traducao>Objects are permanently deleted.</traducao>
+  </texto>
+  <texto>
+    <origem>Analisar a recyclebin de todos os schemas?</origem>
+    <traducao>Analyse the recyclebin of all schemas?</traducao>
+  </texto>
+  <texto>
+    <origem>Limpar a recyclebin de</origem>
+    <traducao>Purge the recyclebin of</traducao>
+  </texto>
+  <texto>
+    <origem>🗑 Limpar agora</origem>
+    <traducao>🗑 Purge now</traducao>
+  </texto>
+  <texto>
+    <origem>Escolher outros schemas</origem>
+    <traducao>Choose other schemas</traducao>
+  </texto>
+  <texto>
+    <origem>Mesmos schemas:</origem>
+    <traducao>Same schemas:</traducao>
+  </texto>
+  <texto>
+    <origem>Por schema</origem>
+    <traducao>Per schema</traducao>
+  </texto>
+  <texto>
+    <origem>Schema</origem>
+    <traducao>Schema</traducao>
+  </texto>
+  <texto>
+    <origem>Operação</origem>
+    <traducao>Operation</traducao>
+  </texto>
+  <texto>
+    <origem>Todos os que têm objetos na recyclebin</origem>
+    <traducao>All with objects in the recyclebin</traducao>
+  </texto>
+  <texto>
+    <origem>Escolha pelo menos um schema.</origem>
+    <traducao>Choose at least one schema.</traducao>
+  </texto>
+  <texto>
+    <origem>Recyclebin — ver o espaço por schema e analisar o purge</origem>
+    <traducao>Recyclebin — view space per schema and analyse the purge</traducao>
+  </texto>
+  <texto>
+    <origem>Recyclebin — limpar (PURGE em modo EXECUTAR)</origem>
+    <traducao>Recyclebin — purge (EXECUTE mode)</traducao>
   </texto>
 </lingua>

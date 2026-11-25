@@ -1003,3 +1003,22 @@ dialog.pdlg[data-tipo="aviso"] .pdlg-icone { background: color-mix(in srgb, var(
 .ganho-det { margin-top: 12px; }
 .ganho-det summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 .g-lib { color: var(--ok); font-weight: 600; }
+
+/* Oracle > Recyclebin */
+.rb-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 4px 0 14px; }
+.rb-kpi { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; }
+.rb-kpi span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+.rb-kpi b { font-size: 24px; font-variant-numeric: tabular-nums; }
+.rb-kpi b.rb-kpi-txt { font-size: 16px; padding-top: 6px; }
+table.rb-tab tr.sel td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+table.rb-tab td.cb, table.rb-tab th.cb { width: 34px; }
+table.rb-tab .rb-barcol { width: 18%; min-width: 120px; }
+table.rb-tab tfoot td { border-top: 2px solid var(--line); background: var(--th-bg); }
+tr.rb-det > td { background: var(--bg); padding: 10px 14px 14px 48px; }
+.rb-acao { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: none; box-sizing: border-box; }
+.rb-acao fieldset { padding: 6px 12px; }
+.rb-sel { font-weight: 600; }
+.rb-acao .buttons { justify-content: flex-start; }
+.confirm.pisca { outline: 3px solid var(--danger); transition: outline .2s; }
+.rb-h2 { margin-top: 22px; }
+.tag.rb { background: var(--ok-bg); color: var(--ok); }

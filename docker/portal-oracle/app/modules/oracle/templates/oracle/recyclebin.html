@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Oracle · Recyclebin{% endblock %}
+{% macro mb(v) %}{% set v = (v or 0)|float %}{% if v >= 1024 %}{{ '{:,.1f}'.format(v / 1024).replace(',', ' ').replace('.', ',') }} GB{% else %}{{ '{:,.1f}'.format(v).replace(',', ' ').replace('.', ',') }} MB{% endif %}{% endmacro %}
+{% macro dt(s) %}{{ (s[:10] ~ ' ' ~ s[11:16]) if s else '—' }}{% endmacro %}
+
+{% block content %}
+{% include "oracle/_tabs.html" %}
+<form method="get" class="toolbar">
+  <select name="db" required onchange="this.form.submit()">
+    <option value="">— base de dados —</option>
+    {% for d in dbs %}<option value="{{ d.id }}" {{ 'selected' if db_id == d.id }}>{{ d.name }}</option>{% endfor %}
+  </select>
+  <button class="primary">Ver</button>
+  <span class="hint">Objetos apagados (DROP) que ainda ocupam espaço na recyclebin de cada schema (DBA_RECYCLEBIN).</span>
+</form>
+
+{% if meta %}<div class="cache-info" id="cinfo" data-chave="{{ meta.chave }}">
+  {% if meta.atualizado %}<span>Dados de {{ meta.atualizado[11:19] }} ({{ 'há ' ~ meta.idade ~ ' s' if meta.idade < 120 else 'há ' ~ (meta.idade // 60) ~ ' min' }})</span>{% endif %}
+  {% if meta.a_atualizar %}<span class="a">a atualizar em segundo plano…</span>{% else %}
+  <a href="{{ url_for('oracle.recyclebin', db=db_id, atualizar=1) }}">↻ Atualizar</a>{% endif %}</div>{% endif %}
+{% if error %}<div class="flash error">{% if dados is not none %}Última atualização falhou: {% endif %}{{ error }}</div>{% endif %}
+{% if dados is none and meta and meta.a_atualizar %}
+<div class="carregar-bg"><b>Oracle a carregar…</b><br><small>A consulta corre em segundo plano: pode mudar de página; esta página atualiza-se quando os dados chegarem.</small></div>
+{% endif %}
+
+{% if dados is not none %}
+{% set donos = dados.donos or [] %}
+{% set maior = (donos|map(attribute='espaco_mb')|map('float')|max) if donos else 0 %}
+<div class="rb-kpis">
+  <div class="rb-kpi"><span>Espaço total</span><b>{{ mb(dados.total_mb) }}</b></div>
+  <div class="rb-kpi"><span>Objetos</span><b>{{ '{:,}'.format(dados.total_objetos or 0).replace(',', ' ') }}</b></div>
+  <div class="rb-kpi"><span>Schemas</span><b>{{ donos|length }}</b></div>
+  <div class="rb-kpi"><span>Mais antigo</span><b class="rb-kpi-txt">{{ dt(donos|map(attribute='mais_antigo')|select|min) if donos else '—' }}</b></div>
+</div>
+
+{% if not donos %}
+<div class="vazio card"><b>A recyclebin está vazia.</b> Nenhum schema tem objetos apagados a ocupar espaço.</div>
+{% else %}
+<form method="post" id="rbForm">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="db_id" value="{{ db_id }}">
+  <input type="hidden" name="todos" id="todos" value="0">
+  <div class="table-wrap"><table class="rb-tab">
+    <thead><tr><th class="cb"><input type="checkbox" id="rbAll" title="Selecionar todos"></th><th>Schema</th>
+      <th class="num">Objetos</th><th class="num">Tabelas</th><th class="num">Espaço</th><th class="rb-barcol"></th>
+      <th class="num">Tablespaces</th><th>Mais antigo</th><th>Mais recente</th><th></th></tr></thead>
+    <tbody>
+    {% for d in donos %}
+      <tr data-owner="{{ d.owner }}" data-mb="{{ d.espaco_mb or 0 }}">
+        <td class="cb"><input type="checkbox" name="schemas" value="{{ d.owner }}" class="rbcb"></td>
+        <td><strong translate="no">{{ d.owner }}</strong></td>
+        <td class="num">{{ d.objetos }}</td>
+        <td class="num">{{ d.tabelas if d.tabelas is defined and d.tabelas is not none else '—' }}</td>
+        <td class="num"><b>{{ mb(d.espaco_mb) }}</b></td>
+        <td class="rb-barcol"><div class="bar"><span style="width: {{ ((d.espaco_mb or 0)|float * 100 / maior)|round(1) if maior else 0 }}%"></span></div></td>
+        <td class="num">{{ d.tablespaces if d.tablespaces is defined and d.tablespaces is not none else '—' }}</td>
+        <td class="small">{{ dt(d.mais_antigo) }}</td>
+        <td class="small">{{ dt(d.mais_recente) if d.mais_recente is defined else '—' }}</td>
+        <td><button type="button" class="btn small rb-ver" data-owner="{{ d.owner }}">Objetos ▾</button></td>
+      </tr>
+      <tr class="rb-det" data-det="{{ d.owner }}" hidden><td colspan="10"><div class="rb-det-in muted">A carregar…</div></td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr><td></td><td><b>Total</b></td><td class="num"><b>{{ dados.total_objetos }}</b></td><td></td>
+      <td class="num"><b>{{ mb(dados.total_mb) }}</b></td><td colspan="5"></td></tr></tfoot>
+  </table></div>
+
+  <section class="card rb-acao">
+    <div class="rb-sel"><span id="selTxt">Nenhum schema selecionado</span><span class="muted" id="selMb"></span></div>
+    <fieldset>
+      <legend>Modo</legend>
+      <label class="inline"><input type="radio" name="modo" value="ANALISE" checked> <span>ANÁLISE — mostra os comandos e o espaço a libertar</span></label>
+      <label class="inline"><input type="radio" name="modo" value="EXECUTAR" {{ 'disabled' if not can_limpar }}>
+        <span>EXECUTAR — faz o PURGE{% if not can_limpar %} <em class="muted">(sem permissão)</em>{% endif %}</span></label>
+    </fieldset>
+    <fieldset>
+      <legend>Quando</legend>
+      <label class="inline"><input type="radio" name="quando" value="agora" checked> <span>Agora, em segundo plano</span></label>
+      <label class="inline"><input type="radio" name="quando" value="agendar" {{ 'disabled' if not agente_ativo }}>
+        <span>Agendar{% if not agente_ativo %} <em class="muted">(precisa do agente do portal ativo)</em>{% endif %}</span></label>
+      <input type="datetime-local" name="agendado_para" id="rbQuando" step="60" hidden>
+    </fieldset>
+    <div class="confirm" id="rbConf" hidden><label class="inline"><input type="checkbox" id="rbConfirm">
+      <span>Confirmo que quero <strong>apagar definitivamente</strong> os objetos da recyclebin destes schemas (deixa de ser possível o FLASHBACK TABLE … TO BEFORE DROP).</span></label></div>
+    <div class="buttons">
+      <button class="primary" id="rbGo" disabled>Analisar</button>
+      <button type="button" class="btn" id="rbTodos">Todos os schemas…</button>
+    </div>
+    <p class="hint">Por schema: <code>PURGE TABLESPACE "ts" USER "schema"</code> em cada tablespace; o que ficar é limpo objeto a objeto
+      (<code>PURGE TABLE</code> / <code>PURGE INDEX</code>). Corre como uma execução: output em direto, histórico em Execuções e, no fim, o espaço libertado.</p>
+  </section>
+</form>
+{% endif %}
+
+{% if ultimas %}
+<h2 class="rb-h2">Últimas limpezas nesta base de dados</h2>
+<table class="small-tab">
+  <thead><tr><th>#</th><th>Modo</th><th>Schemas</th><th>Estado</th><th class="num">Ganho</th><th>Início</th><th>Por</th></tr></thead>
+  <tbody>{% for j in ultimas %}
+    <tr><td><a href="{{ url_for('oracle.job_detail', job_id=j.id) }}">#{{ j.id }}</a></td>
+      <td><span class="tag {{ 'warn' if j.params.modo == 'EXECUTAR' }}">{{ j.params.modo }}</span></td>
+      <td><small>{{ j.params.schemas|join(', ') if j.params.schemas else 'todos' }}</small></td>
+      <td><span class="status s-{{ j.status|replace(' ', '-') }}">{{ j.status }}</span></td>
+      <td class="num">{% if j.ganho_mb is not none and j.ganho_mb >= 0 %}<span class="{{ 'g-lib' if j.params.modo == 'EXECUTAR' else 'muted' }}">{{ mb(j.ganho_mb) }}</span>{% else %}—{% endif %}</td>
+      <td class="small">{{ j.started_at }}</td><td>{{ j.created_by }}</td></tr>
+  {% endfor %}</tbody>
+</table>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const ci = document.getElementById('cinfo');
+  if (ci) {
+    {% if meta and meta.a_atualizar %}window.PortalTarefas && PortalTarefas.vigiar(ci.dataset.chave);{% endif %}
+    window.addEventListener('portal:tarefa', e => { if (e.detail.chave === ci.dataset.chave) {
+      const u = new URL(location.href); u.searchParams.delete('atualizar'); location.replace(u); } });
+  }
+  const f = document.getElementById('rbForm'); if (!f) return;
+  const T = s => (window.t ? window.t(s) : s);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const cbs = [...f.querySelectorAll('.rbcb')], all = document.getElementById('rbAll');
+  const go = document.getElementById('rbGo'), conf = document.getElementById('rbConf'), confirmar = document.getElementById('rbConfirm');
+  const fmt = v => v >= 1024 ? (v / 1024).toFixed(1).replace('.', ',') + ' GB' : v.toFixed(1).replace('.', ',') + ' MB';
+  const modo = () => f.querySelector('input[name=modo]:checked').value;
+  function sync() {
+    const sel = cbs.filter(c => c.checked);
+    const mbs = sel.reduce((a, c) => a + parseFloat(c.closest('tr').dataset.mb || 0), 0);
+    document.getElementById('selTxt').textContent = sel.length ? `${sel.length} ${T('schema(s) selecionado(s)')}` : T('Nenhum schema selecionado');
+    document.getElementById('selMb').textContent = sel.length ? ` · ${fmt(mbs)}` : '';
+    all.checked = sel.length === cbs.length; all.indeterminate = sel.length > 0 && sel.length < cbs.length;
+    const ex = modo() === 'EXECUTAR';
+    conf.hidden = !ex;
+    go.classList.toggle('danger', ex);
+    go.textContent = ex ? `${T('Limpar recyclebin')}${sel.length ? ` (${sel.length} · ${fmt(mbs)})` : ''}` : T('Analisar');
+    go.disabled = !sel.length || (ex && !confirmar.checked);
+    cbs.forEach(c => c.closest('tr').classList.toggle('sel', c.checked));
+  }
+  cbs.forEach(c => c.addEventListener('change', sync));
+  all.addEventListener('change', () => { cbs.forEach(c => c.checked = all.checked); sync(); });
+  f.querySelectorAll('input[name=modo]').forEach(r => r.addEventListener('change', sync));
+  confirmar.addEventListener('change', sync);
+  f.querySelectorAll('input[name=quando]').forEach(r => r.addEventListener('change', () => {
+    const q = document.getElementById('rbQuando'); q.hidden = f.quando.value !== 'agendar'; q.required = !q.hidden;
+    if (!q.hidden && !q.value) { const d = new Date(); d.setHours(22, 0, 0, 0); if (d < new Date()) d.setDate(d.getDate() + 1);
+      q.value = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
+  }));
+  f.addEventListener('submit', e => { if (f.todos.value !== '1' && !cbs.some(c => c.checked)) e.preventDefault(); });
+  /* todos os schemas: inclui os que tiverem objetos na altura em que corre */
+  document.getElementById('rbTodos').onclick = async () => {
+    const ex = modo() === 'EXECUTAR';
+    if (ex && !confirmar.checked) { confirmar.focus(); conf.classList.add('pisca'); setTimeout(() => conf.classList.remove('pisca'), 900); return; }
+    const ok = await PortalDialogo.confirmar(ex ? T('Limpar a recyclebin de TODOS os schemas?') + ' ' + T('Os objetos ficam apagados definitivamente.')
+                                               : T('Analisar a recyclebin de todos os schemas?'), {perigo: ex});
+    if (!ok) return;
+    cbs.forEach(c => c.checked = false); f.todos.value = '1'; f.submit();
+  };
+  go.addEventListener('click', async e => {
+    if (modo() !== 'EXECUTAR') return;
+    e.preventDefault();
+    const sel = cbs.filter(c => c.checked).map(c => c.value);
+    const ok = await PortalDialogo.confirmar(`${T('Limpar a recyclebin de')} ${sel.length} schema(s)? ${sel.slice(0, 8).join(', ')}${sel.length > 8 ? '…' : ''}\n${T('Os objetos ficam apagados definitivamente.')}`, {perigo: true});
+    if (ok) f.submit();
+  });
+  /* objetos de um schema (pedido direto, por schema) */
+  const URL_OBJ = "{{ url_for('oracle.api_recyclebin_owner', db_id=db_id or 0) }}";
+  f.addEventListener('click', async e => {
+    const b = e.target.closest('.rb-ver'); if (!b) return;
+    const det = f.querySelector(`tr[data-det="${CSS.escape(b.dataset.owner)}"]`);
+    det.hidden = !det.hidden; b.textContent = det.hidden ? T('Objetos') + ' ▾' : T('Objetos') + ' ▴';
+    if (det.hidden || det.dataset.ok) return;
+    const box = det.querySelector('.rb-det-in');
+    try {
+      const d = await (await fetch(URL_OBJ + '?owner=' + encodeURIComponent(b.dataset.owner))).json();
+      if (!d.ok) { box.textContent = d.error || 'erro'; return; }
+      det.dataset.ok = 1;
+      box.classList.remove('muted');
+      box.innerHTML = `<table class="small-tab"><thead><tr><th>${T('Nome original')}</th><th>${T('Tipo')}</th><th>Tablespace</th>
+        <th>${T('Apagado em')}</th><th class="num">${T('Espaço')}</th><th>${T('Pode limpar')}</th><th>${T('Nome na recyclebin')}</th></tr></thead><tbody>${
+        d.objetos.map(o => `<tr><td><b>${esc(o.original_name)}</b></td><td>${esc(o.type)}</td><td>${esc(o.ts_name || '—')}</td>
+          <td class="small">${esc((o.droptime || '').replace(/^(\d{4}-\d\d-\d\d):/, '$1 '))}</td><td class="num">${fmt(parseFloat(o.espaco_mb || 0))}</td>
+          <td>${o.can_purge === 'YES' ? '✓' : '—'}</td><td><small class="muted" translate="no">${esc(o.object_name)}</small></td></tr>`).join('')
+        || `<tr><td colspan="7" class="muted">${T('Sem objetos.')}</td></tr>`}</tbody></table>${d.objetos.length >= 300 ? `<p class="hint">${T('Mostra os 300 maiores.')}</p>` : ''}`;
+    } catch (err) { box.textContent = String(err); }
+  });
+  sync();
+})();
+</script>
+{% endblock %}

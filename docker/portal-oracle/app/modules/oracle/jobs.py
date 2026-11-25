@@ -231,7 +231,11 @@ def _notificar(job_id: int) -> None:
     if not j or j["resultado"] not in ROTULO:
         return
     p = j["params"]
-    titulo = f"Shrink {p.get('modo')} de {p.get('ts')} em {j['db_name']} {ROTULO[j['resultado']]} (#{j['id']})"
+    if p.get("tipo") == "recyclebin":
+        alvo = ", ".join(p.get("schemas") or []) or "todos os schemas"
+        titulo = f"Purge da recyclebin {p.get('modo')} ({alvo}) em {j['db_name']} {ROTULO[j['resultado']]} (#{j['id']})"
+    else:
+        titulo = f"Shrink {p.get('modo')} de {p.get('ts')} em {j['db_name']} {ROTULO[j['resultado']]} (#{j['id']})"
     linhas = [f"Base de dados : {j['db_name']}", f"Tablespace    : {p.get('ts')}", f"Modo          : {p.get('modo')}",
               f"Estado        : {j['status']} ({j['resultado']})", f"Início / fim  : {j['started_at']} -> {j['finished_at']}",
               f"Lançado por   : {j['created_by']}"]

@@ -554,3 +554,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > (output do `instalar.sh --atualizar` com várias linhas `job-working-directory: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory` e `AVISO o nome '<servidor>.<dominio>' nao aparece nos nomes do certificado.` com um certificado `*.<dominio>`)
 
 **Resposta:** Os avisos getcwd vinham de o terminal estar numa pasta da instalação que o --atualizar apaga e recria (só aviso, a atualização continua). O script passa para `/` se a pasta atual não existir e antes de copiar o código. O aviso do certificado era falso: a verificação não percebia nomes wildcard; agora `*.dominio` cobre `nome.dominio` (um nível, como nos browsers).
+
+## 48. Oracle → Recyclebin (espaço por schema e purge)
+
+**Pergunta:**
+> nas base de dados, quero ter uma nova aba com recyclebin , onde ele verifica todos os recyclebin dos schemas, o espaço por schema e o total, podendo executar para limpar uma recyclebin , duas ou mais recyclebin. parecido ao shrink
+
+**Resposta:** Nova aba Oracle → **Recyclebin**: totais (espaço, objetos, schemas, mais antigo), tabela por schema (objetos, tabelas, espaço com barra, tablespaces, datas, lista de objetos) e total. Seleção de um, vários ou todos os schemas, modo ANÁLISE/EXECUTAR, agora ou agendado. Corre como o shrink (bloco PL/SQL `recyclebin_block.sql`, output em direto, histórico em Execuções, notificação), com ganho estimado/espaço libertado por schema e "🗑 Limpar agora" a partir da análise. PURGE TABLESPACE … USER por tablespace e, o que ficar, PURGE TABLE/INDEX. Permissões `oracle.recyclebin` e `oracle.recyclebin.limpar`.

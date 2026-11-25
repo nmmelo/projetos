@@ -158,6 +158,67 @@ def _hora_agendada(valor: str) -> str:
     return d.strftime("%Y-%m-%d %H:%M:00")
 
 
+# ====================================================================== Recyclebin
+def _pode_rb() -> bool:
+    return g.user.can("oracle.recyclebin") or g.user.can("oracle.recyclebin.limpar")
+
+
+@bp.route("/recyclebin", methods=["GET", "POST"])
+@auth.login_required
+def recyclebin():
+    """Recyclebin por schema (espaco e objetos) e purge de um, varios ou todos, como o shrink:
+    ANALISE mostra os comandos; EXECUTAR faz o PURGE. Corre como uma execucao (output em direto, historico)."""
+    if not _pode_rb():
+        abort(403)
+    if request.method == "POST":
+        try:
+            db = _db_or_403(int(request.form.get("db_id", "0")))
+            params = oracle.validate_recyclebin_params(request.form)
+            if request.form.get("todos") != "1" and not params["schemas"]:
+                raise oracle.ValidationError("Escolha pelo menos um schema.")
+            if request.form.get("todos") == "1":
+                params["schemas"] = []
+            need = "oracle.recyclebin.limpar" if params["modo"] == "EXECUTAR" else "oracle.recyclebin"
+            if not g.user.can(need) and not (need == "oracle.recyclebin" and g.user.can("oracle.recyclebin.limpar")):
+                raise oracle.ValidationError(f"O seu perfil não permite o modo {params['modo']}.")
+            quando = None
+            if request.form.get("quando") == "agendar":
+                quando = _hora_agendada(request.form.get("agendado_para", ""))
+            job_id = jobs.start(db["id"], params, g.user.username, quando)
+            return redirect(url_for("oracle.job_detail", job_id=job_id))
+        except (oracle.ValidationError, ValueError) as exc:
+            flash(str(exc), "error")
+    dbs = g.user.visible_dbs(store.list_dbs())
+    db_id = request.args.get("db", type=int) or request.form.get("db_id", type=int)
+    dados, error, meta = None, None, None
+    if db_id:
+        db = _db_or_403(db_id)
+        r = _cache(db, "recyclebin", "recyclebin",
+                   lambda: inspecao.detalhe(db, crypto.decrypt(db["password_enc"]), "recyclebin"),
+                   url_for("oracle.recyclebin", db=db_id), max_idade=60, espera=2)
+        dados, meta = r["dados"], _meta(r)["cache"]
+        error = r["erro"]
+    ultimas = []
+    if db_id:
+        ultimas = [j for j in store.list_jobs(300) if j["db_id"] == db_id and j["params"].get("tipo") == "recyclebin"][:5]
+    return render_template("oracle/recyclebin.html", dbs=dbs, db_id=db_id, dados=dados, error=error, meta=meta,
+                           ultimas=ultimas, can_limpar=g.user.can("oracle.recyclebin.limpar"),
+                           agente_ativo=_agente_ativo())
+
+
+@bp.route("/api/recyclebin/<int:db_id>/owner")
+@auth.login_required
+def api_recyclebin_owner(db_id):
+    if not _pode_rb():
+        abort(403)
+    db = _db_or_403(db_id)
+    try:
+        return jsonify(ok=True, **inspecao.detalhe(db, crypto.decrypt(db["password_enc"]), "recyclebin_owner",
+                                                   {"owner": request.args.get("owner", "")}))
+    except Exception as exc:  # noqa: BLE001
+        return jsonify(ok=False, error=str(exc).splitlines()[0][:400])
+
+
 # ====================================================================== Execucoes
 @bp.route("/execucoes")
 @auth.login_required
@@ -173,7 +234,8 @@ def _resumo(j: dict) -> dict:
             "duracao": _elapsed(j), "created_by": j["created_by"], "progress": j.get("progress"),
             "runner": j.get("runner") or "portal", "erro": (j.get("error") or "")[:300],
             "agendado_para": j.get("agendado_para"), "via": j.get("via") or "",
-            "ganho_mb": j.get("ganho_mb") if (j.get("ganho_mb") or 0) >= 0 else None}
+            "ganho_mb": j.get("ganho_mb") if (j.get("ganho_mb") or 0) >= 0 else None,
+            "tipo": p.get("tipo") or "shrink", "schemas": p.get("schemas") or []}
 
 
 @bp.route("/api/jobs")
@@ -219,7 +281,8 @@ def job_detail(job_id):
                               (f'%"de_analise": {job["id"]}}}',))
     origem = job["params"].get("de_analise")
     return render_template("oracle/job.html", job=job, can_cancel=can_cancel, elapsed=_elapsed(job), ganho=ganho,
-                           can_exec=g.user.can("oracle.shrink.executar"), seguintes=seguintes, origem=origem,
+                           can_exec=g.user.can("oracle.recyclebin.limpar" if job["params"].get("tipo") == "recyclebin"
+                                               else "oracle.shrink.executar"), seguintes=seguintes, origem=origem,
                            agente_ativo=_agente_ativo())
 
 
@@ -228,13 +291,20 @@ def job_detail(job_id):
 def job_executar(job_id):
     """Executa o shrink com os mesmos parametros de uma analise (sem preencher o formulario de novo)."""
     job = _job_or_403(job_id)
-    if not g.user.can("oracle.shrink.executar"):
+    rb = job["params"].get("tipo") == "recyclebin"
+    if not g.user.can("oracle.recyclebin.limpar" if rb else "oracle.shrink.executar"):
         abort(403)
     try:
         if job["params"].get("modo") != "ANALISE" or job["status"] not in ("OK", "ERRO"):
             raise oracle.ValidationError("Só uma análise terminada pode ser executada.")
         db = _db_or_403(int(job["db_id"]))
-        params = oracle.validate_shrink_params({**job["params"], "tablespace": job["params"].get("ts"), "modo": "EXECUTAR"})
+        if job["params"].get("tipo") == "recyclebin":
+            if not g.user.can("oracle.recyclebin.limpar"):
+                abort(403)
+            params = {**job["params"], "modo": "EXECUTAR"}
+            params.pop("de_analise", None)
+        else:
+            params = oracle.validate_shrink_params({**job["params"], "tablespace": job["params"].get("ts"), "modo": "EXECUTAR"})
         params["de_analise"] = job["id"]
         quando = None
         if request.form.get("quando") == "agendar":
@@ -243,7 +313,7 @@ def job_executar(job_id):
     except (oracle.ValidationError, ValueError) as exc:
         flash(str(exc), "error")
         return redirect(url_for("oracle.job_detail", job_id=job_id))
-    flash(f"Shrink de {params['ts']} em modo EXECUTAR {'agendado para ' + quando[:16] if quando else 'a correr'} "
+    flash(f"{'Purge da recyclebin' if rb else 'Shrink de ' + params['ts']} em modo EXECUTAR {'agendado para ' + quando[:16] if quando else 'a correr'} "
           f"(#{novo}), com os parâmetros da análise #{job_id}.", "ok")
     return redirect(url_for("oracle.job_detail", job_id=novo))
 

@@ -4,6 +4,8 @@
 {% include "oracle/_tabs.html" %}
 {% set running = job.status in ('EM CURSO', 'PENDENTE') %}
 {% set agendado = job.status == 'AGENDADO' %}
+{% set rb = job.params.tipo == 'recyclebin' %}
+{% set alvo = (job.params.schemas|join(', ') if job.params.schemas else 'todos os schemas') if rb else job.params.ts %}
 <div class="head">
   <h2>Execução #{{ job.id }} — {{ job.db_name }}</h2>
   <div class="buttons">
@@ -28,7 +30,7 @@
          data-progress="{{ job.progress if job.progress is not none else '' }}">
   <div class="run-top">
     <span class="run-word" aria-hidden="true">{% for c in 'ORACLE' %}<span style="--i:{{ loop.index0 }}">{{ c }}</span>{% endfor %}</span>
-    <span class="run-text" id="runtext">{% if agendado %}agendada para {{ (job.agendado_para or '')[:16] }}: o agente começa {{ job.params.ts }} a essa hora{% elif job.status == 'PENDENTE' %}na fila do agente: {{ job.params.ts }} começa dentro de segundos…{% elif running %}{{ 'a analisar' if job.params.modo == 'ANALISE' else 'a executar' }} {{ job.params.ts }}…{% else %}{{ 'Análise' if job.params.modo == 'ANALISE' else 'Execução' }} de {{ job.params.ts }} {{ {'OK': 'concluída', 'ERRO': 'terminou com erros', 'CANCELADO': 'cancelada', 'INTERROMPIDO': 'interrompida'}.get(job.status, '') }}{% endif %}</span>
+    <span class="run-text" id="runtext">{% if agendado %}agendada para {{ (job.agendado_para or '')[:16] }}: o agente começa {{ alvo }} a essa hora{% elif job.status == 'PENDENTE' %}na fila do agente: {{ alvo }} começa dentro de segundos…{% elif running %}{{ 'a analisar' if job.params.modo == 'ANALISE' else 'a executar' }} {{ alvo }}…{% else %}{{ ('Análise do purge da recyclebin' if job.params.modo == 'ANALISE' else 'Purge da recyclebin') if rb else ('Análise' if job.params.modo == 'ANALISE' else 'Execução') }} de {{ alvo }} {{ {'OK': 'concluída', 'ERRO': 'terminou com erros', 'CANCELADO': 'cancelada', 'INTERROMPIDO': 'interrompida'}.get(job.status, '') }}{% endif %}</span>
     <span class="run-right">
       <span class="status s-{{ job.status|replace(' ', '-') }}" id="status">{{ job.status }}</span>
       <span class="run-pct" id="pct"></span>
@@ -36,7 +38,7 @@
     </span>
   </div>
   <div class="run-bar {{ 'indet' if running and job.progress is none }}" id="bar"><span id="barfill"></span></div>
-  <ol class="run-steps" id="steps">
+  <ol class="run-steps" id="steps" {{ 'hidden' if rb }}>
     {% for n, nome in [(1, 'Deteção'), (2, 'Cálculo do HWM'), (3, 'Diagnóstico'), (4, 'Shrink direto'),
                        (5, 'Reorganização'), (6, 'Índices'), (7, 'Shrink final')] %}
     <li data-step="{{ n }}"><span class="dot"></span>{{ nome }}</li>
@@ -65,26 +67,28 @@
         {% endfor %}</p>{% endif %}
       {% if can_exec and job.status in ('OK', 'ERRO') %}
       <form method="post" action="{{ url_for('oracle.job_executar', job_id=job.id) }}" class="ganho-form"
-            onsubmit="return confirm(this.quando.value === 'agendar' ? 'Agendar o shrink em modo EXECUTAR? ' + '{{ job.params.ts }} em {{ job.db_name }}, com os mesmos parâmetros desta análise.' : 'Executar o shrink de {{ job.params.ts }} em {{ job.db_name }}? Vai fazer MOVE/REBUILD/RESIZE com os mesmos parâmetros desta análise.')">
+            onsubmit="return confirm(this.quando.value === 'agendar' ? 'Agendar {{ 'o purge da recyclebin' if rb else 'o shrink' }} em modo EXECUTAR? ' + '{{ alvo }} em {{ job.db_name }}, com os mesmos parâmetros desta análise.' : {% if rb %}'Limpar a recyclebin de {{ alvo }} em {{ job.db_name }}? Os objetos ficam apagados definitivamente (PURGE, sem FLASHBACK).'{% else %}'Executar o shrink de {{ job.params.ts }} em {{ job.db_name }}? Vai fazer MOVE/REBUILD/RESIZE com os mesmos parâmetros desta análise.'{% endif %})">
         <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="quando" value="agora">
         <div class="buttons">
-          <button class="primary" onclick="this.form.quando.value = 'agora'">▶ Executar agora</button>
+          <button class="primary {{ 'danger' if rb }}" onclick="this.form.quando.value = 'agora'">{{ '🗑 Limpar agora' if rb else '▶ Executar agora' }}</button>
           {% if agente_ativo %}<button type="button" class="btn" id="bAgendar">Agendar…</button>{% endif %}
-          <a class="btn" href="{{ url_for('oracle.shrink', de=job.id) }}">Ajustar parâmetros</a>
+          {% if rb %}<a class="btn" href="{{ url_for('oracle.recyclebin', db=job.db_id) }}">Escolher outros schemas</a>
+          {% else %}<a class="btn" href="{{ url_for('oracle.shrink', de=job.id) }}">Ajustar parâmetros</a>{% endif %}
         </div>
         {% if agente_ativo %}<div class="agendar-box" id="gAg" hidden>
           <input type="datetime-local" name="agendado_para" step="60">
           <button class="btn small" onclick="this.form.quando.value = 'agendar'">Agendar execução</button>
         </div>{% endif %}
-        <span class="hint">Mesmos parâmetros: {{ job.params.ts }} · ONLINE {{ job.params.online }} · ganho mín. {{ job.params.min_ganho }} MB · margem {{ job.params.margem }}% · paralelismo {{ job.params.paralelo or 1 }} · purge {{ job.params.purge }}</span>
+        {% if rb %}<span class="hint">Mesmos schemas: {{ job.params.schemas|join(', ') if job.params.schemas else 'todos' }}</span>{% else %}
+        <span class="hint">Mesmos parâmetros: {{ job.params.ts }} · ONLINE {{ job.params.online }} · ganho mín. {{ job.params.min_ganho }} MB · margem {{ job.params.margem }}% · paralelismo {{ job.params.paralelo or 1 }} · purge {{ job.params.purge }}</span>{% endif %}
       </form>
-      {% elif not can_exec %}<p class="hint">O seu perfil não permite o modo EXECUTAR.</p>{% endif %}
+      {% elif not can_exec %}<p class="hint">O seu perfil não permite o modo EXECUTAR{{ ' (oracle.recyclebin.limpar)' if rb }}.</p>{% endif %}
     </div>
     {% endif %}
   </div>
   {% if ganho.linhas|length > 1 %}
-  <details class="ganho-det"><summary>Por tablespace ({{ ganho.linhas|length }})</summary>
-    <div class="table-wrap"><table class="small-tab"><thead><tr><th>Tablespace</th><th class="num">Antes</th><th class="num">Depois</th>
+  <details class="ganho-det"><summary>{{ 'Por schema' if rb else 'Por tablespace' }} ({{ ganho.linhas|length }})</summary>
+    <div class="table-wrap"><table class="small-tab"><thead><tr><th>{{ 'Schema' if rb else 'Tablespace' }}</th><th class="num">Antes</th><th class="num">Depois</th>
       <th class="num">{{ 'Ganho est.' if analise else 'Libertado' }}</th><th>Reorg.</th><th>Estado</th></tr></thead><tbody>
     {% for l in ganho.linhas %}<tr><td><b>{{ l.ts }}</b></td><td class="num">{{ mb(l.antes) }}</td><td class="num">{{ mb(l.depois) }}</td>
       <td class="num"><b>{{ mb(l.ganho) }}</b></td><td>{{ l.reorg }}</td><td><small>{{ l.estado }}</small></td></tr>{% endfor %}
@@ -93,8 +97,13 @@
 </section>
 {% endif %}
 <table class="kv">
+  {% if rb %}
+  <tr><th>Operação</th><td>Purge da recyclebin · {{ job.params.modo }}</td></tr>
+  <tr><th>Schemas</th><td>{{ job.params.schemas|join(', ') if job.params.schemas else 'Todos os que têm objetos na recyclebin' }}</td></tr>
+  {% else %}
   <tr><th>Tablespace</th><td>{{ job.params.ts }}</td></tr>
   <tr><th>Parâmetros</th><td>{{ job.params.modo }} · ONLINE {{ job.params.online }} · ganho mín. {{ job.params.min_ganho }} MB · margem {{ job.params.margem }}% · purge {{ job.params.purge }}</td></tr>
+  {% endif %}
   <tr><th>Início / fim</th><td>{{ job.started_at }} → <span id="fin">{{ job.finished_at or '…' }}</span></td></tr>
   <tr><th>Lançado por</th><td>{{ job.created_by }}</td></tr>
   <tr><th>Executado por</th><td>{% if (job.via or '').startswith('agente') %}<span class="via via-verde"><span class="dot d-ok"></span>{{ job.via|replace('agente cliente', 'Agente cliente') }}</span>
@@ -185,7 +194,7 @@ if (running) {
     s.textContent = j.status; s.className = 'status s-' + j.status.replace(' ', '-');
     if (j.status === 'PENDENTE') return;
     const rt = document.getElementById('runtext');
-    if (rt.textContent.startsWith('na fila')) rt.textContent = "{{ 'a analisar' if job.params.modo == 'ANALISE' else 'a executar' }} {{ job.params.ts }}…";
+    if (rt.textContent.startsWith('na fila')) rt.textContent = "{{ 'a analisar' if job.params.modo == 'ANALISE' else 'a executar' }} {{ alvo }}…";
     if (j.status !== 'EM CURSO') { clearInterval(timer); setTimeout(() => location.reload(), 800); }
   }, 2000);
 }

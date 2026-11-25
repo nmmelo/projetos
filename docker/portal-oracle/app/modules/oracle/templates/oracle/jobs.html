@@ -113,7 +113,7 @@ function desenhar() {
   $('rows').innerHTML = linhas.length ? linhas.map(j => `
     <tr data-id="${j.id}" class="${sel.has(j.id) ? 'sel' : ''}${j.id === NOVO ? ' novo-job' : ''}">
       ${CAN_DEL ? `<td class="cb"><input type="checkbox" data-id="${j.id}" ${sel.has(j.id) ? 'checked' : ''} ${ATIVOS.includes(j.status) ? 'disabled' : ''}></td>` : ''}
-      <td class="num">${j.id}</td><td>${esc(j.db_name)}${j.via.startsWith('agente') ? `<br><small class="via via-verde" title="${esc(j.via)}">⇄ agente</small>` : ''}</td><td><strong>${esc(j.ts)}</strong></td>
+      <td class="num">${j.id}</td><td>${esc(j.db_name)}${j.via.startsWith('agente') ? `<br><small class="via via-verde" title="${esc(j.via)}">⇄ agente</small>` : ''}</td><td>${j.tipo === 'recyclebin' ? `<span class="tag rb">♻ recyclebin</span><br><small class="muted">${esc(j.schemas.length ? j.schemas.slice(0, 3).join(', ') + (j.schemas.length > 3 ? ' +' + (j.schemas.length - 3) : '') : 'todos os schemas')}</small>` : `<strong>${esc(j.ts)}</strong>`}</td>
       <td><span class="tag ${j.modo === 'EXECUTAR' ? 'warn' : ''}">${esc(j.modo)}</span></td>
       <td><span class="res r-${j.resultado.replace(' ', '-')}">${ROTULO[j.resultado] || j.resultado}</span>
         ${j.n_erros ? `<span class="cnt e" title="linhas com erro">${j.n_erros} erro(s)</span>` : ''}
@@ -151,13 +151,13 @@ function kind(l) {
   if (/^(ALTER|PURGE|DROP)\b/.test(l)) return 'l-cmd';
   return '';
 }
-const CAN_EXEC = {{ 'true' if user.can('oracle.shrink.executar') else 'false' }};
+const CAN_EXEC = {{ 'true' if user.can('oracle.shrink.executar') else 'false' }}, CAN_RB = {{ 'true' if user.can('oracle.recyclebin.limpar') else 'false' }};
 function mbFmt(v) { return v >= 1024 ? (v / 1024).toFixed(1).replace('.', ',') + ' GB' : v + ' MB'; }
 async function abrir(id) {
   const r = await fetch(JOB.replace('/0', '/' + id) + '?full=1');
   if (!r.ok) return;
   const j = atual = await r.json();
-  $('d-title').textContent = `Execução #${j.id} — ${j.ts}`;
+  $('d-title').textContent = `Execução #${j.id} — ${j.tipo === 'recyclebin' ? 'recyclebin' : j.ts}`;
   $('d-sub').innerHTML = `${esc(j.db_name)} · <span class="res r-${j.resultado.replace(' ', '-')}">${ROTULO[j.resultado] || j.resultado}</span> · ${esc(j.status)}`;
   $('d-open').href = PAGE.replace('/0', '/' + id); $('d-log').href = LOG.replace('/0', '/' + id);
   const p = j.params || {};
@@ -165,7 +165,7 @@ async function abrir(id) {
     <span>Ganho mín. <b>${esc(p.min_ganho)} MB</b></span><span>Margem <b>${esc(p.margem)}%</b></span>
     <span>Início <b>${esc(j.started_at)}</b></span><span>Duração <b>${dur(j.duracao)}</b></span><span>Por <b>${esc(j.created_by)}</b></span>`
     + (j.ganho_mb != null ? `<span>${p.modo === 'EXECUTAR' ? 'Libertado' : 'Ganho estimado'} <b class="${p.modo === 'EXECUTAR' ? 'g-lib' : ''}">${mbFmt(j.ganho_mb)}</b></span>` : '')
-    + (CAN_EXEC && p.modo === 'ANALISE' && ['OK', 'ERRO'].includes(j.status)
+    + ((j.tipo === 'recyclebin' ? CAN_RB : CAN_EXEC) && p.modo === 'ANALISE' && ['OK', 'ERRO'].includes(j.status)
        ? `<a class="btn small primary" href="${PAGE.replace('/0', '/' + id)}#resultado">▶ Executar com estes parâmetros…</a>` : '');
   $('d-err').hidden = !j.error; $('d-err').textContent = j.error ? 'Falhou: ' + j.error : '';
   if ($('d-del')) $('d-del').disabled = ATIVOS.includes(j.status);
