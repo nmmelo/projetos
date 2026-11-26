@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="2111">
+<lingua codigo="en" nome="English" textos="2128">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -8445,5 +8445,73 @@
   <texto>
     <origem>nada a fazer: o IP do portal já tem todos os acessos</origem>
     <traducao>nothing to do: the portal IP already has all access</traducao>
+  </texto>
+  <texto>
+    <origem>Zonas e regras</origem>
+    <traducao>Zones and rules</traducao>
+  </texto>
+  <texto>
+    <origem>↻ Reiniciar a firewall</origem>
+    <traducao>↻ Restart the firewall</traducao>
+  </texto>
+  <texto>
+    <origem>com regras mostradas</origem>
+    <traducao>with rules shown</traducao>
+  </texto>
+  <texto>
+    <origem>entradas</origem>
+    <traducao>entries</traducao>
+  </texto>
+  <texto>
+    <origem>Guardar entradas</origem>
+    <traducao>Save entries</traducao>
+  </texto>
+  <texto>
+    <origem>Junta as novas e retira as que apagar, num só pedido (reload + restart no fim).</origem>
+    <traducao>Adds the new ones and removes the deleted ones in one request (reload + restart at the end).</traducao>
+  </texto>
+  <texto>
+    <origem>Reiniciar a firewall do cliente?</origem>
+    <traducao>Restart the client firewall?</traducao>
+  </texto>
+  <texto>
+    <origem>As ligações abertas mantêm-se; as regras permanentes ficam ativas.</origem>
+    <traducao>Open connections are kept; permanent rules become active.</traducao>
+  </texto>
+  <texto>
+    <origem>Editar a regra</origem>
+    <traducao>Edit the rule</traducao>
+  </texto>
+  <texto>
+    <origem>Serviços monitorizados</origem>
+    <traducao>Monitored services</traducao>
+  </texto>
+  <texto>
+    <origem>✎ Serviços</origem>
+    <traducao>✎ Services</traducao>
+  </texto>
+  <texto>
+    <origem>Escolher os serviços a monitorizar</origem>
+    <traducao>Choose the services to monitor</traducao>
+  </texto>
+  <texto>
+    <origem>Serviços (systemd, separados por espaço)</origem>
+    <traducao>Services (systemd, space separated)</traducao>
+  </texto>
+  <texto>
+    <origem>O agente recebe a lista na próxima sincronização e envia o estado na seguinte.</origem>
+    <traducao>The agent gets the list on the next sync and sends the state on the following one.</traducao>
+  </texto>
+  <texto>
+    <origem>Nenhum serviço monitorizado.</origem>
+    <traducao>No monitored services.</traducao>
+  </texto>
+  <texto>
+    <origem>a regra não mudou</origem>
+    <traducao>the rule did not change</traducao>
+  </texto>
+  <texto>
+    <origem>as entradas não mudaram</origem>
+    <traducao>the entries did not change</traducao>
   </texto>
 </lingua>

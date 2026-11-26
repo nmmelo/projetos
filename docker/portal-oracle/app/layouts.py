@@ -1,9 +1,9 @@
-"""Disposicao dos paineis de cartoes (Home, Sistema), por utilizador: ordem e cartoes escondidos."""
+"""Disposicao dos paineis de cartoes (Home, Sistema, resumo do cliente), por utilizador: ordem e cartoes escondidos."""
 import json
 
 from . import store
 
-PAINEIS = ("home", "sistema")
+PAINEIS = ("home", "sistema", "cliente")
 
 
 def _chave(painel: str, user_key: str) -> str:

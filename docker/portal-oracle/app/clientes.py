@@ -584,7 +584,8 @@ FW_OPS = {"porta_add": "abrir a porta {porta} na zona {zona}", "porta_del": "fec
           "fonte_add": "origem {fonte} na zona {zona}", "fonte_del": "retirar a origem {fonte} da zona {zona}",
           "ipset_novo": "criar o ipset {nome} ({tipo})", "ipset_apagar": "apagar o ipset {nome}",
           "entrada_add": "adicionar {entrada} ao ipset {nome}", "entrada_del": "retirar {entrada} do ipset {nome}",
-          "ufw_regra": "ufw {acao} porta {porta}/{proto} de {de}", "ufw_apagar": "ufw apagar a regra n.º {numero}"}
+          "ufw_regra": "ufw {acao} porta {porta}/{proto} de {de}", "ufw_apagar": "ufw apagar a regra n.º {numero}",
+          "reiniciar": "reiniciar o serviço da firewall"}
 FW_CAMPOS = ("op", "zona", "porta", "servico", "regra", "fonte", "nome", "tipo", "entrada", "acao", "proto", "de", "numero", "comentario")
 
 
@@ -608,6 +609,10 @@ def pedir_firewall(cid: int, ops: list | None = None, por: str = "") -> int:
     c = obter(cid) or {}
     cmd = criar_comando(cid, "firewall", args, por)
     comando_linha(cmd, f"pedido por {por or 'portal'}: " + ("; ".join(fw_descrever(o) for o in ops) if ops else "ler o estado da firewall"))
+    if any(o.get("op") == "reiniciar" for o in ops) and _v(c.get("versao") or "0") < (1, 7, 4):
+        comando_linha(cmd, f"o agente {c.get('versao') or '?'} não reinicia a firewall a pedido (a partir da 1.7.4): atualize-o na aba Agente")
+        comando_estado(cmd, "ERRO")
+        return cmd
     if _v(c.get("versao") or "0") < (1, 7, 0):
         comando_linha(cmd, f"o agente {c.get('versao') or '(sem versão)'} não gere a firewall (a partir da 1.7.0): atualize-o na aba Agente")
         comando_estado(cmd, "ERRO")
@@ -713,7 +718,8 @@ def fw_acessos(c: dict) -> dict:
         ok = aberto or any(v["tem"] for v in via)
         falta = sorted({v["nome"] for v in via if v["tipo"] == "ipset" and not v["tem"]})
         linhas.append({**a, "via": via, "aberto": aberto, "ok": ok, "falta": falta})
-    return {"ip": ip, "backend": fw.get("backend") or "", "lido": fw.get("lido"), "linhas": linhas}
+    erro = "" if ip else f"não foi possível saber o IP de origem do portal para {c['endereco']} (o nome resolve no portal?)"
+    return {"ip": ip, "backend": fw.get("backend") or "", "lido": fw.get("lido"), "linhas": linhas if ip else [], "erro": erro}
 
 
 def fw_ops_acessos(c: dict, ipsets: list | None = None) -> list:
@@ -732,6 +738,44 @@ def fw_ops_acessos(c: dict, ipsets: list | None = None) -> list:
                 ops.append({"op": "ufw_regra", "acao": "allow", "porta": str(l["porta"]), "proto": "tcp", "de": ip,
                             "comentario": "portal " + l["acesso"].split()[0].lower()})
     return ops
+
+
+def fw_ops_ipset_editar(c: dict, nome: str, texto: str) -> list:
+    """Editar as entradas de um ipset de uma vez (texto, uma por linha ou separadas por espacos): junta as novas e
+    retira as que sairam, em relacao ao ultimo estado lido."""
+    fw = ((dados(c["id"]).get("firewall") or {}).get("dados")) or {}
+    s = next((x for x in fw.get("ipsets") or [] if x["nome"] == nome), None)
+    if not s:
+        raise ValueError(f"ipset {nome} não encontrado (leia o estado da firewall)")
+    if (s.get("total") or 0) > len(s.get("entradas") or []):
+        raise ValueError(f"o ipset {nome} tem {s['total']} entradas e só foram lidas {len(s['entradas'])}: edite uma a uma")
+    novas = [x for x in re.split(r"[\s,;]+", texto or "") if x]
+    antes = list(s.get("entradas") or [])
+    ops = [{"op": "entrada_add", "nome": nome, "entrada": x} for x in novas if x not in antes]
+    ops += [{"op": "entrada_del", "nome": nome, "entrada": x} for x in antes if x not in novas]
+    return ops
+
+
+def servicos_monit(cid: int) -> list[str]:
+    from . import store
+    try:
+        v = json.loads(store.get_setting(f"clientes.servicos.{cid}") or "[]")
+    except ValueError:
+        v = []
+    return [str(x) for x in v if isinstance(x, str)][:60]
+
+
+def guardar_servicos(cid: int, nomes) -> list[str]:
+    from . import store
+    lim = []
+    for n in nomes:
+        n = (n or "").strip()
+        if n and n not in lim:
+            if not re.match(r"^[A-Za-z0-9@_.:-]{1,120}$", n):
+                raise ValueError(f"nome de serviço inválido: {n}")
+            lim.append(n)
+    store.save_settings({f"clientes.servicos.{cid}": json.dumps(lim[:60])})
+    return lim
 
 
 def fw_preset_oracle(estado: dict, ipset: str, entradas: list, porta: int) -> list:
@@ -943,6 +987,7 @@ def sync(c: dict, info: dict, ip: str, link: str = "", extras: dict | None = Non
           for r in logs_cfg(c["id"])]
     return {"ok": True, "nome": c["nome"], "intervalo": iv, "pedidos": [x for x in ped.split(",") if x],
             "ficheiros_log": fl, "atualizar": atualizar, "intervalos": intervalos_recolha(),
+            "servicos": servicos_monit(c["id"]),
             "regras": [{"id": r["codigo"], "nome": r["nome"], "log": r["log_path"] or "",
                         "padrao_erro": r["padrao_erro"] or "", "padrao_aviso": r["padrao_aviso"] or ""}
                        for r in regras(c["id"], so_ativas=True)]}

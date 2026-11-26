@@ -47,7 +47,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.7.3"
+VERSAO = "1.7.4"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -55,6 +55,7 @@ FILA = os.path.join(BASE, "fila.jsonl")
 ESTADO = os.path.join(BASE, "estado.json")
 SOCKET = os.environ.get("AGENTE_SOCKET", "/run/agente-portal/agente.sock")
 ATUALIZACAO = os.path.join(BASE, "atualizacao.json")
+SERVICOS_F = os.path.join(BASE, "servicos.json")     # servicos monitorizados (lista vinda do portal)
 TLS_CRT = os.path.join(BASE, "tls.crt")
 TLS_KEY = os.path.join(BASE, "tls.key")
 RPC_PORTA = 8795
@@ -240,7 +241,28 @@ def recolher(cfg: dict) -> dict:
         "utilizador_ssh": cfg.get("UTILIZADOR_SSH", ""), "agora": datetime.datetime.now().isoformat(timespec="seconds"),
         "rpc": rpc_info(cfg),
         "atualizacao": _ler_json(ATUALIZACAO),
+        "servicos": estado_servicos(),
     }
+
+
+SERV_RE = re.compile(r"^[A-Za-z0-9@_.:-]{1,120}$")
+
+
+def estado_servicos() -> list:
+    """Estado dos servicos monitorizados (lista definida no portal, no cartao Servicos do resumo do cliente)."""
+    nomes = [n for n in (_ler_json(SERVICOS_F) or []) if isinstance(n, str) and SERV_RE.match(n)][:60]
+    if not nomes or not shutil.which("systemctl"):
+        return []
+    out = []
+    for n in nomes:
+        unit = n if "." in n else n + ".service"
+        rc, txt, _ = _run(["systemctl", "show", unit, "--no-pager",
+                           "-p", "ActiveState,SubState,Description,LoadState,ActiveEnterTimestamp,MainPID"], timeout=10)
+        d = dict(l.split("=", 1) for l in txt.splitlines() if "=" in l)
+        out.append({"unit": n, "estado": d.get("ActiveState") or "desconhecido", "sub": d.get("SubState", ""),
+                    "descricao": d.get("Description", ""), "existe": d.get("LoadState") not in ("not-found", None, ""),
+                    "desde": d.get("ActiveEnterTimestamp", ""), "pid": d.get("MainPID", "")})
+    return out
 
 
 # ============================================================ dados extra (processos, sistema, logs, atualizacoes)
@@ -677,6 +699,10 @@ def firewall_comando(cfg: dict, cmd_id, args: dict) -> None:
                                       "sudo agente-portal configurar --gerir-firewall (ou setup.sh --gerir-firewall)")
             precisa_reload = usa_ufw = False
             for op in ops:
+                if op.get("op") == "reiniciar":                 # restart pedido no portal (sem alteracoes)
+                    b = fw_backend()
+                    fw_reiniciar(cfg, cmd_id, "ufw" if b.startswith("ufw") else "firewalld")
+                    continue
                 a = _fw_args(op)
                 rc, out, err = _run(a, timeout=120)
                 txt = (out + err).strip()
@@ -962,6 +988,12 @@ def sincronizar(cfg: dict, pedidos=()) -> dict:
             for k, v in r["intervalos"].items():
                 if k in EXTRAS_CADA and EXTRAS_CADA[k] is not None and isinstance(v, int):
                     EXTRAS_CADA[k] = max(0 if k == "processos" else 60, v)
+        if isinstance(r.get("servicos"), list) and r["servicos"] != (_ler_json(SERVICOS_F) or []):
+            try:
+                with open(SERVICOS_F, "w") as fh:                # proxima sincronizacao ja leva o estado
+                    json.dump([x for x in r["servicos"] if isinstance(x, str) and SERV_RE.match(x)][:60], fh)
+            except OSError:
+                pass
         if isinstance(r.get("ficheiros_log"), list):
             novos = r["ficheiros_log"] != _ext["ficheiros_cfg"]
             _ext["ficheiros_cfg"] = r["ficheiros_log"]

@@ -641,7 +641,21 @@ Secções recolhíveis (o estado fica guardado no browser): **Agentes nos client
 
 O `setup.sh` cria o comando `agente-portal` em `/usr/local/bin` e `/usr/bin` (o `sudo` do RHEL não procura em `/usr/local/bin`), a usar o Python do venv quando existe (serviço Oracle). Ao acrescentar a chave do portal ao `authorized_keys`, garante a quebra de linha antes e separa chaves que tenham ficado coladas na mesma linha (guarda uma cópia `authorized_keys.antes-setup`).
 
+### Cliente → Resumo (painel de cartões)
+
+O resumo do cliente funciona como o painel do Sistema: cartões **Agente**, **Sistema**, **Recursos**, **Serviços monitorizados**, **Serviço Oracle do agente**, **Regras de notificação** e **Eventos recentes**; em **Editar** arrastam-se para mudar a posição, ✕ esconde e "Adicionar" volta a mostrar (disposição guardada por utilizador, a mesma em todos os clientes). Em **Serviços monitorizados**, **✎ Serviços** (permissão `clientes.gerir`) escolhe os serviços systemd a acompanhar nesse cliente (ex. `firewalld sshd chronyd oracle-ohasd`): o agente (1.7.4+) recebe a lista na sincronização seguinte e passa a enviar o estado (em execução, parado, falhou, não existe, descrição e desde quando).
+
+![Resumo do cliente](docs/clientes-resumo-painel.png)
+
 ### Cliente → Firewall (firewalld ou ufw)
+
+A aba está dividida em sub-abas: **Geral** (estado, ⇣ Ler o estado, **↻ Reiniciar a firewall** — `systemctl restart firewalld` ou `ufw reload`, agente 1.7.4 — e resumo: zonas ativas, regras ricas, ipsets/entradas, acessos do portal), **Acessos do portal**, **Serviço Oracle**, **Zonas e regras** (serviços, portas, origens e regras ricas por zona; ✎ em cada regra rica para a **alterar** — a nova é posta antes de retirar a antiga, para não ficar sem regra se a nova falhar; ✕ remove; construtor para criar) e **ipsets** (entradas com ✕ e +, **✎ Editar** todas as entradas de uma vez numa caixa de texto — junta as novas e retira as apagadas num só pedido —, criar e apagar ipsets) ou **Regras ufw**.
+
+| | |
+|---|---|
+| ![Firewall - Geral](docs/clientes-firewall-geral.png) | ![Firewall - Zonas e regras](docs/clientes-firewall-zonas.png) |
+
+![Firewall - ipsets](docs/clientes-firewall-ipsets.png)
 
 Aba **Firewall** em cada cliente (agente **1.7.0+**): o agente deteta o serviço ativo e mostra-o de forma organizada.
 

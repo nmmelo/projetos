@@ -617,3 +617,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > temos que garantir que o cliente se tiver firewalld ou ufw, por exemplo tem que ser colocado o ip do portal <IP do portal> em dois ipset, ipset-ssh.xml,ipset-tns.xml um é do ssh e outro do tns, dai estar a dar problemas
 
 **Resposta:** Aba Firewall do cliente → **Acessos do portal**: para SSH, TNS (portas das BDs do servidor) e serviço Oracle do agente mostra por onde a firewall deixa passar (ipsets das regras ricas/zonas, endereços, aberto a todos, regras ufw) e se o IP de origem do portal lá está; um botão põe o IP nos ipsets em falta (ex. ipset-ssh, ipset-tns) com reload + restart do firewalld (no ufw cria as regras). O `setup.sh --abrir-firewall` também junta as `--origens` aos ipsets que já dão acesso a SSH/TNS (`--portas-tns`, `--ipsets-extra`).
+
+## 57. Firewall do cliente em sub-abas e resumo como painel
+
+**Pergunta:**
+> no cliente, firewall, cada uma dos cartões , deve ir para uma sub aba, o estado da firewall pode ser geral, depois a possibilidade de editar as ipset ou rich rules, para alterar ou criar novas no cliente, permitir também fazer o restart do firewall. O resumo do cliente pode ser parecido ao sistema painel, onde podemos adicionar serviços para serem monitorizados, editar os cartões e alterar a posição.
+
+**Resposta:** Firewall do cliente com sub-abas Geral (estado, ler, ↻ reiniciar a firewall, resumo), Acessos do portal, Serviço Oracle, Zonas e regras (✎ editar cada regra rica, criar, remover) e ipsets (✎ editar as entradas numa caixa de texto, criar, apagar) ou Regras ufw. Resumo do cliente como o painel do Sistema: cartões que se reordenam/escondem (por utilizador) e novo cartão Serviços monitorizados (lista por cliente, estado enviado pelo agente). Agente 1.7.4 (reiniciar a firewall a pedido e estado dos serviços).

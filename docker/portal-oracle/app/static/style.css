@@ -1053,3 +1053,14 @@ pre.cmd-log { max-height: 260px; overflow: auto; background: var(--code-bg, #0f1
 .cfw-chip.falta { border-color: var(--danger); color: var(--danger); }
 .setup-grid > .cfw-acessos { grid-column: 1 / -1; }
 .cfw-acessos .cfw-chip, .cfw-acessos .btn, .cfw-acessos .tag { white-space: nowrap; }
+.cfw-sub { margin: 0 0 14px; }
+.cfw-ed { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 4px; }
+.cfw-ed:hover { color: var(--accent); }
+form.cfw-rich-ed { width: 100%; margin: 6px 0 4px; }
+ul.cfw-rich li { flex-wrap: wrap; }
+.cfw-ipset-ed { flex-direction: column; align-items: stretch !important; margin-top: 8px; }
+.cfw-ipset-ed textarea { width: 100%; font-family: var(--mono, monospace); font-size: 12.5px; }
+td.cfw-acoes { white-space: nowrap; }
+.cfw-oracle-card { max-width: 900px; }
+form.cfw-form[hidden] { display: none !important; }
+.cserv-ed { align-self: flex-end; margin-bottom: 8px; width: auto !important; }

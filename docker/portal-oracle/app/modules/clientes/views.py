@@ -8,7 +8,7 @@ import re
 from flask import (Response, abort, flash, g, jsonify, redirect, render_template, request, send_file,
                    url_for)
 
-from ... import auth, clientes, clientes_alarmes, crypto, store
+from ... import auth, clientes, clientes_alarmes, crypto, layouts, store
 from . import bp, MODULO
 
 
@@ -99,6 +99,8 @@ def detalhe(cid):
                            comandos=clientes.comandos(cid, 15) if aba == "agente" else [], descrever=clientes.descrever,
                            intervalos=clientes.intervalos_recolha(), fw_ops=clientes.FW_OPS,
                            fw_ac=clientes.fw_acessos(c) if aba == "firewall" else None,
+                           fw_sub=request.args.get("fw") or "geral", servicos_monit=clientes.servicos_monit(c["id"]),
+                           layout=layouts.obter("cliente", str(g.user.id)),
                            fw_v=clientes._v(c.get("versao") or "0") >= (1, 7, 0),
                            livres=[d for d in todas if str(d.get("cliente_id") or "") != str(cid)],
                            modos=agente_rpc.MODOS)
@@ -195,6 +197,17 @@ def firewall(cid):
             ops = clientes.fw_preset_oracle(estado, (f.get("ipset") or "ipset-agente-portal").strip(), entradas, int(f.get("porta") or 8795))
             if not ops:
                 return jsonify(ok=False, erro="nada a fazer: o ipset, as entradas e as regras já existem"), 400
+        elif acao == "reiniciar":
+            ops = [{"op": "reiniciar"}]
+        elif acao == "rich_editar":                       # nova primeiro: se falhar, a antiga fica
+            zona, velha, nova = (f.get("zona") or "").strip(), (f.get("regra") or "").strip(), (f.get("nova") or "").strip()
+            if not nova or nova == velha:
+                return jsonify(ok=False, erro="a regra não mudou"), 400
+            ops = [{"op": "rich_add", "zona": zona, "regra": nova}, {"op": "rich_del", "zona": zona, "regra": velha}]
+        elif acao == "ipset_editar":
+            ops = clientes.fw_ops_ipset_editar(clientes.obter(cid), (f.get("nome") or "").strip(), f.get("entradas") or "")
+            if not ops:
+                return jsonify(ok=False, erro="as entradas não mudaram"), 400
         elif acao == "acessos":
             ops = clientes.fw_ops_acessos(clientes.obter(cid), f.getlist("ipsets"))
             if not ops:
@@ -209,6 +222,18 @@ def firewall(cid):
     except ValueError as exc:
         return jsonify(ok=False, erro=str(exc)), 400
     return jsonify(ok=True, id=cmd)
+
+
+@bp.route("/cliente/<int:cid>/servicos", methods=["POST"])
+@auth.requires(MODULO.acesso, "clientes.gerir")
+def servicos_monit(cid):
+    """Servicos monitorizados no cartao Servicos do resumo (o agente recebe a lista na sincronizacao seguinte)."""
+    clientes.obter(cid) or abort(404)
+    try:
+        lista = clientes.guardar_servicos(cid, re.split(r"[\s,;]+", request.form.get("servicos") or ""))
+    except ValueError as exc:
+        return jsonify(ok=False, erro=str(exc)), 400
+    return jsonify(ok=True, servicos=lista)
 
 
 @bp.route("/cliente/<int:cid>/leitura/<int:cmd_id>")
