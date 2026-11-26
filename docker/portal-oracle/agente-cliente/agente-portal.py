@@ -47,7 +47,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.8.1"
+VERSAO = "1.8.2"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -934,6 +934,7 @@ def _reportar_reinicio(cfg: dict) -> bool:
         return True
     ok = reg.get("para") == VERSAO
     linhas = [f"agente {VERSAO} a correr (PID {os.getpid()}, Python {platform.python_version()})",
+              "reinicio concluido" if reg.get("reinicio") else
               "atualizacao concluida" if ok else f"esperava a versao {reg.get('para')} e arrancou a {VERSAO}"]
     if _cmd_post(cfg, reg["cmd"], linhas, "OK" if ok else "ERRO"):
         reg["reportado"] = True
@@ -1037,7 +1038,24 @@ def upgrade_comando(cfg: dict, cmd_id, args: dict) -> None:
         pass
 
 
+def reiniciar_agente(cfg: dict, cmd_id) -> None:
+    """Reinicio pedido no portal: o mesmo processo volta a arrancar (os.execv, mantem o PID e o systemd nao ve nada);
+    o processo novo fecha o pedido. Se houver um upgrade do sistema a correr, recusa."""
+    if _upgrade["a_correr"]:
+        _cmd_post(cfg, cmd_id, [f"ha um upgrade do sistema a correr (pedido #{_upgrade['a_correr']}): tente depois"], "ERRO")
+        return
+    with open(ATUALIZACAO, "w") as f:
+        json.dump({"cmd": cmd_id, "de": VERSAO, "para": VERSAO, "reinicio": True, "quando": time.time()}, f)
+    _cmd_post(cfg, cmd_id, [f"a reiniciar o agente {VERSAO} (PID {os.getpid()})..."])
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os.execv(sys.executable, [sys.executable, os.path.abspath(__file__), "run"])
+
+
 def executar_comando(cfg: dict, c: dict) -> None:
+    if c.get("tipo") == "reiniciar":
+        reiniciar_agente(cfg, c.get("id"))
+        return
     if c.get("tipo") == "upgrade":            # pode demorar: corre a parte (os outros comandos continuam)
         if _upgrade["a_correr"]:
             _cmd_post(cfg, c.get("id"), [f"ja ha um upgrade a correr (pedido #{_upgrade['a_correr']})"], "ERRO")

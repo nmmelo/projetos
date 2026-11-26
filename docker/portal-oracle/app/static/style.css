@@ -1073,3 +1073,11 @@ form.cfw-form[hidden] { display: none !important; }
 .exec-aviso { border-left: 4px solid var(--warn); }
 tr.clicavel { cursor: pointer; }
 .status.s-PENDENTE { background: var(--warn-bg, #fef3c7); color: var(--warn, #b45309); }
+/* clientes > agentes */
+.ag-barra { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+table.ag-tab tr.sel td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+td.ag-acoes { white-space: nowrap; }
+.ag-ver { white-space: nowrap; text-decoration: none; }
+.ag-tab .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); vertical-align: middle; }
+.ag-tab .dot.d-ok { background: var(--ok); } .ag-tab .dot.d-warn { background: var(--warn); } .ag-tab .dot.d-bad { background: var(--danger); }
+.ag-barra .btn:disabled { opacity: .5; cursor: default; }

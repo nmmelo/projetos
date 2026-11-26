@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Clientes · Agentes{% endblock %}
+{% block content %}
+{% include "clientes/_tabs.html" %}
+{% set pode = user.can('clientes.gerir') %}
+<p class="muted">Todos os agentes dos clientes: versão (a do portal é a <b>{{ v_portal or '?' }}</b>), contacto, serviço Oracle e o pedido em curso.
+  Selecione os que quer <b>atualizar</b> ou <b>reiniciar</b>; o output de cada pedido aparece ao clicar no estado.</p>
+{% if pode %}
+<div class="ag-barra">
+  <button type="button" class="btn primary" data-ag="atualizar" disabled>⬆ Atualizar selecionados (<span class="ag-n">0</span>)</button>
+  <button type="button" class="btn" data-ag="reiniciar" disabled>↻ Reiniciar selecionados (<span class="ag-n">0</span>)</button>
+  <button type="button" class="btn" data-ag="atualizar_todos" {{ 'disabled' if not n_desat }}>⬆ Atualizar todos os desatualizados ({{ n_desat }})</button>
+  <span class="hint">Atualizar: o agente descarrega a versão do portal, confirma o SHA-256 e reinicia (1.4+). Reiniciar: o agente volta a arrancar (1.8.2+).</span>
+</div>
+{% endif %}
+<section class="card full">
+  <div class="table-wrap"><table class="small-tab ag-tab">
+    <thead><tr>{% if pode %}<th class="cb"><input type="checkbox" id="agTodos"></th>{% endif %}
+      <th>Cliente</th><th>Contacto</th><th>Versão</th><th>Serviço Oracle</th><th>Python</th><th>Sistema</th><th>Última atualização</th><th>Pedido</th>{% if pode %}<th></th>{% endif %}</tr></thead>
+    <tbody>{% for x in lista %}{% set c = x.c %}
+      <tr data-cid="{{ c.id }}" class="{{ 'ag-desat' if x.desatualizado }}">
+        {% if pode %}<td class="cb"><input type="checkbox" class="agcb" value="{{ c.id }}" data-desat="{{ 1 if x.desatualizado else 0 }}"></td>{% endif %}
+        <td><a href="{{ url_for('clientes.detalhe', cid=c.id, aba='agente') }}"><b>{{ c.nome }}</b></a><br><small class="muted">{{ c.endereco }}</small></td>
+        <td><span class="dot d-{{ {'verde': 'ok', 'laranja': 'warn', 'vermelho': 'bad'}.get(c.contacto.cor, 'off') }}"></span> <small>{{ c.contacto.texto }}</small></td>
+        <td>{% if not c.versao %}<span class="muted">—</span>{% elif x.desatualizado %}<span class="tag warn">{{ c.versao }} → {{ v_portal }}</span>
+            {% else %}<span class="tag ok">{{ c.versao }} ✓</span>{% endif %}</td>
+        <td>{% if x.rpc %}{% if x.rpc.ativo %}<span class="tag ok">ativo · {{ x.rpc.porta }}</span>{% else %}<span class="tag bad" title="{{ x.rpc.erro }}">parado</span>{% endif %}
+            {% else %}<small class="muted">desligado</small>{% endif %}</td>
+        <td><small>{{ x.python or '—' }}</small></td>
+        <td><small>{{ x.so or '—' }}</small></td>
+        <td>{% if x.ult %}<small>{{ x.ult.de or '?' }} → {{ x.ult.para or '?' }}{% if x.ult.erro %} <span class="c-bad">falhou</span>{% endif %}</small>{% else %}<small class="muted">—</small>{% endif %}</td>
+        <td class="ag-ped" data-ped="{{ c.id }}" {% if x.ativo %}data-cmd="{{ x.ativo.id }}"{% endif %}>
+          {% if x.ativo %}<a href="#" class="ag-ver" data-cmd="{{ x.ativo.id }}"><span class="spin"></span> {{ x.ativo.tipo }} #{{ x.ativo.id }}</a>{% endif %}</td>
+        {% if pode %}<td class="ag-acoes">
+          {% if x.desatualizado %}<button type="button" class="btn small" data-um="atualizar" title="Atualizar este agente">⬆</button>{% endif %}
+          <button type="button" class="btn small" data-um="reiniciar" title="Reiniciar este agente">↻</button></td>{% endif %}
+      </tr>
+    {% else %}<tr><td colspan="10" class="muted">Ainda não há clientes.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+<div id="cmd-out" hidden></div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='comandos.js', v=static_v) }}"></script>
+<script>
+(() => {
+  const T = window.t || String, cbs = [...document.querySelectorAll('.agcb')], out = document.getElementById('cmd-out');
+  const API = "{{ url_for('clientes.api_comando', cmd_id=0) }}", PED = "{{ url_for('clientes.pedidos') }}";
+  const conta = () => { const n = cbs.filter(c => c.checked).length;
+    document.querySelectorAll('.ag-n').forEach(s => s.textContent = n);
+    document.querySelectorAll('[data-ag=atualizar], [data-ag=reiniciar]').forEach(b => b.disabled = !n);
+    cbs.forEach(c => c.closest('tr').classList.toggle('sel', c.checked)); };
+  cbs.forEach(c => c.addEventListener('change', conta));
+  const todos = document.getElementById('agTodos'); if (todos) todos.onchange = () => { cbs.forEach(c => c.checked = todos.checked); conta(); };
+  let pendentes = 0;
+  function seguir(cid, cmd) {                 /* estado de cada pedido na linha */
+    const td = document.querySelector(`[data-ped="${cid}"]`); if (!td) return;
+    pendentes++;
+    const tick = async () => {
+      let d; try { d = await (await fetch(API.replace('/0', '/' + cmd), {cache: 'no-store'})).json(); } catch (e) { return setTimeout(tick, 3000); }
+      const fim = !['PENDENTE', 'EM CURSO'].includes(d.estado);
+      td.innerHTML = `<a href="#" class="ag-ver ${fim ? (d.estado === 'OK' ? 'c-ok' : 'c-bad') : ''}" data-cmd="${cmd}">${fim ? (d.estado === 'OK' ? '✓' : '✕') : '<span class="spin"></span>'}
+        ${d.tipo === 'reiniciar' ? T('reiniciar') : T('atualizar')} #${cmd}</a>`;
+      if (!fim) return setTimeout(tick, 2000);
+      if (--pendentes === 0) setTimeout(() => location.reload(), 4000);   /* versoes novas */
+    };
+    tick();
+  }
+  document.querySelectorAll('.ag-ped[data-cmd]').forEach(td => seguir(td.dataset.ped, td.dataset.cmd));
+  async function pedir(acao, cids) {
+    const fd = new FormData(); fd.append('csrf', '{{ csrf_token }}'); fd.append('acao', acao); cids.forEach(c => fd.append('cid', c));
+    const d = await (await fetch("{{ url_for('clientes.agentes_acao') }}", {method: 'POST', body: fd})).json().catch(() => ({ok: false}));
+    if (!d.ok) { PortalDialogo.aviso(d.erro || 'erro'); return; }
+    d.comandos.forEach(x => seguir(x.cid, x.id));
+    if (d.comandos.length === 1) { out.scrollIntoView({behavior: 'smooth', block: 'nearest'}); PortalComando.seguir(d.comandos[0].id, out, null, d.comandos[0].nome); }
+  }
+  document.addEventListener('click', async e => {
+    const v = e.target.closest('.ag-ver');
+    if (v) { e.preventDefault(); PortalComando.seguir(+v.dataset.cmd, out, null, v.closest('tr').querySelector('b').textContent); out.scrollIntoView({behavior: 'smooth', block: 'nearest'}); return; }
+    const b = e.target.closest('[data-ag], [data-um]'); if (!b) return;
+    const acao = b.dataset.ag || b.dataset.um;
+    const cids = b.dataset.um ? [b.closest('tr').dataset.cid] : acao === 'atualizar_todos' ? [] : cbs.filter(c => c.checked).map(c => c.value);
+    const nomes = b.dataset.um ? [b.closest('tr').querySelector('b').textContent] : cbs.filter(c => c.checked).map(c => c.closest('tr').querySelector('b').textContent);
+    const msg = acao === 'atualizar_todos' ? T('Atualizar todos os agentes desatualizados?') + ' ({{ n_desat }})'
+              : (acao === 'reiniciar' ? T('Reiniciar o agente de') : T('Atualizar o agente de')) + ' ' + nomes.slice(0, 6).join(', ') + (nomes.length > 6 ? '…' : '') + '?';
+    if (!await PortalDialogo.confirmar(msg + (acao === 'reiniciar' ? '\n' + T('O agente volta a arrancar; um upgrade do sistema em curso impede o reinício.') : '\n' + T('O agente descarrega a versão do portal e reinicia.')))) return;
+    pedir(acao === 'atualizar_todos' ? 'atualizar_todos' : acao, cids);
+  });
+})();
+</script>
+{% endblock %}

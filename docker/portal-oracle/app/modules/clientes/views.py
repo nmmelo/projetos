@@ -281,6 +281,40 @@ def atualizar_selecionados():
     return jsonify(ok=True, comandos=out)
 
 
+@bp.route("/agentes")
+@auth.requires(MODULO.acesso)
+def agentes():
+    """Todos os agentes: versao, contacto, servico Oracle, pedido em curso; atualizar / reiniciar os escolhidos."""
+    clientes.expirar_comandos()
+    v_portal = clientes.agente_portal()[0]
+    lista = []
+    for c in clientes.listar():
+        i = c.get("info") or {}
+        lista.append({"c": c, "desatualizado": clientes.desatualizado(c), "ativo": clientes.comando_ativo(c["id"]),
+                      "ult": i.get("atualizacao"), "rpc": i.get("rpc"), "python": (i.get("python") or (i.get("rpc") or {}).get("python") or ""),
+                      "so": i.get("so") or i.get("sistema") or ""})
+    return render_template("clientes/agentes.html", lista=lista, v_portal=v_portal,
+                           n_desat=sum(1 for x in lista if x["desatualizado"]))
+
+
+@bp.route("/agentes/acao", methods=["POST"])
+@auth.requires(MODULO.acesso, "clientes.gerir")
+def agentes_acao():
+    acao = request.form.get("acao")
+    if acao not in ("atualizar", "reiniciar", "atualizar_todos"):
+        return jsonify(ok=False, erro="ação inválida"), 400
+    alvo = ([c for c in clientes.listar() if clientes.desatualizado(c)] if acao == "atualizar_todos" else
+            [c for x in request.form.getlist("cid") if x.isdigit() for c in [clientes.obter(int(x))] if c])
+    out = []
+    for c in alvo:
+        if acao == "reiniciar":
+            cmd = clientes.pedir_reinicio(c["id"], g.user.username)
+        else:
+            cmd = clientes.pedir_atualizacao(c["id"], g.user.username)
+        out.append({"cid": c["id"], "nome": c["nome"], "id": cmd})
+    return jsonify(ok=True, comandos=out)
+
+
 @bp.route("/comando/<int:cmd_id>/cancelar", methods=["POST"])
 @auth.requires(MODULO.acesso, "clientes.gerir")
 def cancelar_comando(cmd_id):
@@ -300,7 +334,7 @@ def repetir_comando(cmd_id):
         args = json.loads(r.get("args") or "{}")
     except ValueError:
         args = {}
-    precisa = ("clientes.gerir" if r["tipo"] == "atualizar" else "clientes.atualizar" if r["tipo"] == "upgrade" else
+    precisa = ("clientes.gerir" if r["tipo"] in ("atualizar", "reiniciar") else "clientes.atualizar" if r["tipo"] == "upgrade" else
                "clientes.firewall" if r["tipo"] == "firewall" and args.get("ops") else None)
     if precisa and not g.user.can(precisa):
         return jsonify(ok=False, erro=f"sem permissão ({precisa})"), 403

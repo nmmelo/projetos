@@ -595,7 +595,24 @@ def comando_ativo(cid: int) -> dict | None:
 
 
 TIPOS_COMANDO = {"atualizar": "Atualizar o agente", "dados": "Pedir dados", "ler": "Abrir ficheiro / pasta", "firewall": "Firewall",
-                 "upgrade": "Upgrade do sistema (pacotes)"}
+                 "upgrade": "Upgrade do sistema (pacotes)", "reiniciar": "Reiniciar o agente"}
+
+
+def pedir_reinicio(cid: int, por: str = "") -> int:
+    """Reinicia o agente do cliente (1.8.2+): o processo volta a arrancar e o novo fecha o pedido."""
+    c = obter(cid) or {}
+    with store.tx() as t:
+        r = t.one("SELECT id FROM cliente_comandos WHERE cliente_id = ? AND tipo IN ('reiniciar', 'atualizar') "
+                  "AND estado IN ('PENDENTE', 'EM CURSO') ORDER BY id DESC", (cid,))
+    if r:
+        return r["id"]
+    cmd = criar_comando(cid, "reiniciar", "{}", por)
+    comando_linha(cmd, f"pedido por {por or 'portal'}: reiniciar o agente {c.get('versao') or ''}")
+    if _v(c.get("versao") or "0") < (1, 8, 2):
+        comando_linha(cmd, f"o agente {c.get('versao') or '(sem versão)'} não reinicia a pedido (a partir da 1.8.2): "
+                           "atualize-o (a atualização também o reinicia) ou, no servidor, systemctl restart agente-portal")
+        comando_estado(cmd, "ERRO")
+    return cmd
 UPGRADE_MAX_H = 6          # upgrade em curso sem terminar ha mais de 6 h passa a ERRO
 PKG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9+._:~@-]{0,200}$")
 ERRO_PKG_RE = re.compile(r"(Curl error|\bE: |\bW: |Error|ERROR|Erro|[Ff]ailed|FAILED|dpkg: error|Errors were encountered|No package|"
@@ -876,6 +893,8 @@ def descrever(r: dict) -> str:
     if r["tipo"] == "firewall":
         ops = a.get("ops") or []
         return "Firewall: " + ("; ".join(fw_descrever(o) for o in ops) if ops else "ler o estado")
+    if r["tipo"] == "reiniciar":
+        return "Reiniciar o agente"
     if r["tipo"] == "upgrade":
         n = len(a.get("pacotes") or [])
         alvo = {"todos": "todos os pacotes", "seguranca": f"só segurança ({n})" if n else "só segurança",
@@ -906,6 +925,8 @@ def repetir_comando(cmd_id: int, por: str = "") -> int:
         novo = pedir_leitura(cid, a.get("caminho") or "", a.get("linhas") or 0, bool(a.get("listar")), por)
     elif r["tipo"] == "firewall":
         novo = pedir_firewall(cid, a.get("ops") or [], por)
+    elif r["tipo"] == "reiniciar":
+        novo = pedir_reinicio(cid, por)
     elif r["tipo"] == "upgrade":
         return pedir_upgrade(cid, a.get("modo") or "todos", a.get("pacotes") or [], por, retomar_de=cmd_id)
     else:

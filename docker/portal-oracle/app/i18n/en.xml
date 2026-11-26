@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="2155">
+<lingua codigo="en" nome="English" textos="2170">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -8621,5 +8621,65 @@
   <texto>
     <origem>Upgrade do sistema de um cliente terminado</origem>
     <traducao>Client system upgrade finished</traducao>
+  </texto>
+  <texto>
+    <origem>⬆ Atualizar selecionados</origem>
+    <traducao>⬆ Update selected</traducao>
+  </texto>
+  <texto>
+    <origem>↻ Reiniciar selecionados</origem>
+    <traducao>↻ Restart selected</traducao>
+  </texto>
+  <texto>
+    <origem>⬆ Atualizar todos os desatualizados</origem>
+    <traducao>⬆ Update all outdated</traducao>
+  </texto>
+  <texto>
+    <origem>Python</origem>
+    <traducao>Python</traducao>
+  </texto>
+  <texto>
+    <origem>Última atualização</origem>
+    <traducao>Last update</traducao>
+  </texto>
+  <texto>
+    <origem>parado</origem>
+    <traducao>stopped</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar este agente</origem>
+    <traducao>Update this agent</traducao>
+  </texto>
+  <texto>
+    <origem>Reiniciar este agente</origem>
+    <traducao>Restart this agent</traducao>
+  </texto>
+  <texto>
+    <origem>reiniciar</origem>
+    <traducao>restart</traducao>
+  </texto>
+  <texto>
+    <origem>atualizar</origem>
+    <traducao>update</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar todos os agentes desatualizados?</origem>
+    <traducao>Update all outdated agents?</traducao>
+  </texto>
+  <texto>
+    <origem>Reiniciar o agente de</origem>
+    <traducao>Restart the agent of</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar o agente de</origem>
+    <traducao>Update the agent of</traducao>
+  </texto>
+  <texto>
+    <origem>O agente volta a arrancar; um upgrade do sistema em curso impede o reinício.</origem>
+    <traducao>The agent starts again; a system upgrade in progress prevents the restart.</traducao>
+  </texto>
+  <texto>
+    <origem>O agente descarrega a versão do portal e reinicia.</origem>
+    <traducao>The agent downloads the portal version and restarts.</traducao>
   </texto>
 </lingua>

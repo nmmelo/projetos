@@ -641,6 +641,12 @@ Secções recolhíveis (o estado fica guardado no browser): **Agentes nos client
 
 O `setup.sh` cria o comando `agente-portal` em `/usr/local/bin` e `/usr/bin` (o `sudo` do RHEL não procura em `/usr/local/bin`), a usar o Python do venv quando existe (serviço Oracle). Ao acrescentar a chave do portal ao `authorized_keys`, garante a quebra de linha antes e separa chaves que tenham ficado coladas na mesma linha (guarda uma cópia `authorized_keys.antes-setup`).
 
+### Clientes → Agentes
+
+Aba com **todos os agentes**: cliente, contacto, versão (✓ igual à do portal ou `x → y` desatualizado), serviço Oracle (ativo/parado/desligado), Python, sistema, última atualização e o pedido em curso. Selecionam-se os clientes e **⬆ Atualizar selecionados** ou **↻ Reiniciar selecionados**, ou **⬆ Atualizar todos os desatualizados (N)**; também por linha (⬆ ↻). O estado de cada pedido aparece na coluna Pedido (⟳ → ✓/✕) e, ao clicar, o output; no fim a página recarrega com as versões novas. Reiniciar: o agente (1.8.2+) volta a arrancar no mesmo processo e o novo fecha o pedido ("reinicio concluido"); recusa se houver um upgrade do sistema a correr. Permissão `clientes.gerir`.
+
+![Agentes](docs/clientes-agentes.png)
+
 ### Cliente → Atualizações: upgrade pelo portal e Clientes → Execuções
 
 Na aba **Atualizações** de um cliente (permissão `clientes.atualizar`, agente **1.8.0+**): **⬆ Atualizar tudo**, **🛡 Só segurança** ou selecionar pacotes na tabela e **Atualizar selecionados**. O agente corre o gestor de pacotes sem interação (`dnf/yum -y upgrade [--security] [pacotes]`; `apt-get update` + `apt-get -y upgrade` ou `install --only-upgrade` com `--force-confold` e espera pelo lock), numa tarefa à parte (os outros pedidos continuam), com o output enviado em direto. No fim indica se o servidor precisa de reinício e relê as atualizações pendentes.

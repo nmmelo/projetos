@@ -638,3 +638,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > Serviço Oracle do agente (8795/tcp)porta aberta; serviço Oracle do agente <servidor> parado: sem detalhe.
 
 **Resposta:** O `agente-portal testar` (também corrido no fim do setup.sh) é outro processo, sem o serviço Oracle, e enviava ao portal o estado "parado" sem erro, que ficava até à sincronização seguinte do serviço. Agente 1.8.1: o testar verifica se a porta local está a escutar e o portal mantém o estado enviado pelo serviço (só atualiza ativo/erro com essa verificação); se o Oracle foi ativado no .env sem reiniciar o serviço, a mensagem diz para fazer `systemctl restart agente-portal`. O teste do cliente explica o caso para agentes antigos.
+
+## 60. Clientes → Agentes (atualizar e reiniciar)
+
+**Pergunta:**
+> no cliente, uma nova aba com o nome de agente, onde mostra todos os clientes e a versão do agente, podemos selecionar o que queremos para fazer update se houver, fazer restart ou podemos fazer update de todos os agentes que precisam de update.
+
+**Resposta:** Nova aba Clientes → **Agentes**: todos os clientes com contacto, versão do agente (desatualizado ou não), serviço Oracle, Python, sistema, última atualização e pedido em curso. Ações: atualizar ou reiniciar os selecionados (ou por linha) e atualizar todos os desatualizados; estado de cada pedido na linha e output ao clicar. Agente 1.8.2 reinicia a pedido.
