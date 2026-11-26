@@ -31,7 +31,33 @@ def _no_venv() -> None:
     sys.exit("Faltam os pacotes do portal (werkzeug, flask...): corra com o Python do venv, ex. /opt/venv/bin/python manage.py ...")
 
 
+def _sem_root() -> None:
+    """Como root (ex. sudo numa sessao SSH): passa para o dono da pasta de dados (utilizador 'portal'), para nao deixar
+    ficheiros do root em data/ (a BD SQLite ficava 'readonly' para o portal e os agentes)."""
+    if os.name != "posix" or os.geteuid() != 0:
+        return
+    aqui = os.path.dirname(os.path.abspath(__file__))
+    dados = os.environ.get("PORTAL_DATA_DIR") or os.path.join(aqui, "data")
+    try:
+        st = os.stat(dados)
+    except OSError:
+        return
+    if st.st_uid == 0:
+        return
+    import pwd
+    try:
+        u = pwd.getpwuid(st.st_uid)
+    except KeyError:
+        return
+    os.initgroups(u.pw_name, u.pw_gid)
+    os.setgid(u.pw_gid)
+    os.setuid(u.pw_uid)
+    os.environ.update(HOME=u.pw_dir, USER=u.pw_name, LOGNAME=u.pw_name)
+    print(f"(a correr como {u.pw_name}, o dono de {dados})", file=sys.stderr)
+
+
 _no_venv()
+_sem_root()
 
 
 def _ask_password() -> str:

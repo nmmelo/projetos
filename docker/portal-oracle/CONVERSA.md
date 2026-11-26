@@ -666,3 +666,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > python3 manage.py set-admin-password ... ModuleNotFoundError: No module named 'werkzeug'
 
 **Resposta:** Numa sessão SSH o `python3` é o do sistema; os pacotes do portal estão no venv `/opt/venv` (o ENV da imagem não passa para o SSH). O `manage.py` passa a voltar a correr com o Python do venv (`/opt/venv` ou `.venv`) e a imagem põe o venv no PATH das sessões SSH (`/etc/profile.d/portal-venv.sh`). Entretanto: `/opt/venv/bin/python manage.py set-admin-password` ou, no anfitrião, `docker compose exec -u portal portal python manage.py set-admin-password`.
+
+## 64. Contentor: "attempt to write a readonly database" e portal sempre a reiniciar
+
+**Pergunta:**
+> coloquei a password de admin no login e depois está sempre a dizer que está a fazer restart ao portal, no log do container, ... sqlite3.OperationalError: attempt to write a readonly database ... agente-oracle entered FATAL state
+
+**Resposta:** O `manage.py` foi corrido como root e deixou ficheiros da BD SQLite (`-wal`/`-shm`) do root em `data/`; o portal e os agentes (utilizador `portal`) deixaram de conseguir escrever. Correção imediata: chown dos ficheiros de `data/` para `portal` e `docker compose restart`. Prevenção: o entrypoint acerta os donos de tudo em `data/` (exceto `ssh/` e `home/`) em cada arranque, e o `manage.py` corrido como root passa para o dono da pasta de dados.

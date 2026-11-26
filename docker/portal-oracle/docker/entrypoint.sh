@@ -139,10 +139,11 @@ echo 'export VIRTUAL_ENV=/opt/venv PATH="/opt/venv/bin:$PATH"   # python/pip do 
 ln -sf "/usr/share/zoneinfo/${TZ:-Europe/Lisbon}" /etc/localtime
 
 # --- diretorio de dados do portal
-chown portal:portal "$DATA" "$DATA/backups"
-for f in portal.json admin.json fernet.key flask_secret.key portal.sqlite3; do
-    [ -e "$DATA/$f" ] && chown portal:portal "$DATA/$f"
-done
+# tudo o que o portal escreve tem de ser do utilizador portal: um "manage.py" corrido como root deixava, por exemplo,
+# portal.sqlite3-wal/-shm do root e a BD passava a "readonly database" (agentes em ciclo de reinicio).
+# ssh/ (chaves do servidor, root) e home/ (homes dos utilizadores) tem donos proprios.
+chown portal:portal "$DATA"
+find "$DATA" -mindepth 1 -maxdepth 1 ! -name ssh ! -name home -exec chown -R portal:portal {} +
 
 if [ ! -s "$AK/portal" ] && [ -z "$SSH_PASSWORD" ]; then
     echo "AVISO: SSH sem chaves autorizadas nem password: coloque a chave publica em data/ssh/authorized_keys"
