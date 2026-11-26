@@ -645,3 +645,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > no cliente, uma nova aba com o nome de agente, onde mostra todos os clientes e a versão do agente, podemos selecionar o que queremos para fazer update se houver, fazer restart ou podemos fazer update de todos os agentes que precisam de update.
 
 **Resposta:** Nova aba Clientes → **Agentes**: todos os clientes com contacto, versão do agente (desatualizado ou não), serviço Oracle, Python, sistema, última atualização e pedido em curso. Ações: atualizar ou reiniciar os selecionados (ou por linha) e atualizar todos os desatualizados; estado de cada pedido na linha e output ao clicar. Agente 1.8.2 reinicia a pedido.
+
+## 61. Docker: porta 2222 já ocupada
+
+**Pergunta:**
+> estou a fazer a preparar o docker, contudo já tinha a porta 2222, ERROR: for oracle-portal  Cannot start service portal: driver failed programming external connectivity on endpoint oracle-portal (...): Bind for 0.0.0.0:2222 failed: port is already allocated
+
+**Resposta:** A porta SSH do contentor (2222 no anfitrião) já estava em uso. Já se podia mudar com `-S <porta>` (fica no `.env`, `PORTAL_SSH_PORT`); agora o `portal-docker.sh` verifica as portas HTTP e SSH antes de arrancar, diz quem as usa, propõe a próxima livre e grava-a no `.env`.

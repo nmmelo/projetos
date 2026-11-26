@@ -188,6 +188,39 @@ if [ -n "$OUTRO" ] && [ "$(realpath -m "$OUTRO")" != "$PASTA" ]; then
     erro "já existe um contentor '$CONT' de outra pasta ($OUTRO). Pare-o (cd $OUTRO && ${DC[*]} down) ou dê outro nome a este: PORTAL_CONTAINER=<nome> no $PASTA/.env"
 fi
 
+# portas do anfitriao ja ocupadas por outro programa/contentor (ex. outro servico SSH na 2222): sem isto o
+# Docker falha com "Bind for 0.0.0.0:2222 failed: port is already allocated". Propoe a proxima livre e grava-a no .env.
+porta_ocupada() {   # 0 se a porta estiver a ser usada por algo que nao e este contentor
+    local p=$1
+    docker port "$CONT" 2>/dev/null | grep -qE ":$p\$" && return 1          # e deste contentor (atualizacao)
+    if command -v ss >/dev/null 2>&1; then ss -Hltn "sport = :$p" 2>/dev/null | grep -q . && return 0
+    else timeout 2 bash -c ">/dev/tcp/127.0.0.1/$p" 2>/dev/null && return 0; fi
+    docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null | grep -v "^$CONT " | grep -qE "(0\.0\.0\.0|\[::\]|:::?):$p->" && return 0
+    return 1
+}
+quem_usa() {
+    local p=$1 c
+    c="$(docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null | grep -v "^$CONT " | grep -E ":$p->" | cut -d' ' -f1 | head -1)"
+    [ -n "$c" ] && { echo "contentor $c"; return; }
+    command -v ss >/dev/null 2>&1 && ss -Hltnp "sport = :$p" 2>/dev/null | grep -o 'users:(("[^"]*"' | head -1 | sed 's/users:(("/processo /'
+}
+for k in PORTAL_HTTP_PORT PORTAL_SSH_PORT; do
+    v="$(env_get "$k")"
+    porta_ocupada "$v" || continue
+    n=$((v + 1)); while porta_ocupada "$n" || [ "$n" = "$HTTP" ] || [ "$n" = "$SSHP" ]; do n=$((n + 1)); done
+    u="$(quem_usa "$v")"
+    echo "AVISO: a porta $v ($k) já está ocupada${u:+ por $u}; a próxima livre é a $n."
+    if [ "$SIM" = 1 ] || [ ! -t 0 ]; then r=s; else read -r -p "   Usar a $n (fica no .env)? [S/n/outra porta] " r; r="${r:-s}"; fi
+    case "$r" in
+        [sS]*) n=$n ;;
+        [0-9]*) n=$r; [[ "$n" =~ ^[0-9]+$ ]] && ! porta_ocupada "$n" || erro "a porta $n também não serve" ;;
+        *) erro "escolha outra porta: $(basename "$0") -d $PASTA $([ "$k" = PORTAL_SSH_PORT ] && echo -S || echo -H) <porta>" ;;
+    esac
+    env_set "$k" "$n"
+    info "$k=$n gravado no $PASTA/.env"
+    [ "$k" = PORTAL_HTTP_PORT ] && HTTP=$n || SSHP=$n
+done
+
 # espera que o contentor fique a correr; senao mostra o log
 a_correr() {
     local i st
