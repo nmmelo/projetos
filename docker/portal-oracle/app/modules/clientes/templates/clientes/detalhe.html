@@ -407,6 +407,27 @@
     {% if not fw.gerir %}<p class="hint">Para permitir alterações pelo portal, no servidor:<br><code>sudo agente-portal configurar --gerir-firewall</code> (ou <code>setup.sh --gerir-firewall</code>).</p>{% endif %}
   {% endif %}
 </section>
+{% if fw and fw.backend in ('firewalld', 'ufw') and fw_ac %}
+<section class="card full cfw-acessos">
+  <div class="modulo-head"><h2>Acessos do portal <small class="muted">IP de origem <b translate="no">{{ fw_ac.ip or '?' }}</b></small></h2>
+    {% if pode and fw_ac.linhas|rejectattr('ok')|list %}<form class="cfw-form" data-acao="acessos">
+      <button class="btn small primary">{{ 'Pôr o IP do portal nos ipsets em falta' if fw.backend == 'firewalld' else 'Criar as regras ufw em falta' }}</button></form>{% endif %}</div>
+  <p class="hint">O que a firewall deste cliente tem de deixar passar vindo do portal ({{ fw_ac.ip }}): SSH, TNS das bases de dados deste servidor e o serviço Oracle do agente.
+    Vê as regras ricas e as origens das zonas{% if fw.backend == 'ufw' %} (regras ufw){% endif %} e se o IP do portal está nos ipsets usados.</p>
+  <div class="table-wrap"><table class="small-tab"><thead><tr><th>Acesso</th><th class="num">Porta</th><th>Por onde passa</th><th>IP do portal</th><th></th></tr></thead><tbody>
+  {% for l in fw_ac.linhas %}<tr>
+    <td><b>{{ l.acesso }}</b></td><td class="num">{{ l.porta }}/tcp</td>
+    <td>{% for v in l.via %}<span class="cfw-chip {{ 'ok' if v.tem else 'falta' }}" translate="no" title="{{ v.zona }}">{{ 'ipset ' if v.tipo == 'ipset' }}{{ v.nome }} <small class="muted">· {{ v.zona }}</small></span> {% endfor %}
+      {% if l.aberto %}<span class="cfw-chip ok">aberto a todos</span>{% endif %}
+      {% if not l.via and not l.aberto %}<span class="muted">nenhuma regra deixa passar</span>{% endif %}</td>
+    <td>{% if l.ok %}<span class="tag ok">✓ tem acesso</span>{% elif l.falta %}<span class="tag bad">falta em {{ l.falta|join(', ') }}</span>{% else %}<span class="tag bad">sem acesso</span>{% endif %}</td>
+    <td>{% if pode and not l.ok and l.falta %}<form class="cfw-form" data-acao="acessos">{% for n in l.falta %}<input type="hidden" name="ipsets" value="{{ n }}">{% endfor %}
+        <button class="btn small">+ IP nos ipsets</button></form>
+      {% elif pode and not l.ok and fw.backend == 'ufw' %}<form class="cfw-form" data-acao="acessos"><button class="btn small">+ regra ufw</button></form>
+      {% elif not l.ok and not l.via %}<small class="muted">crie uma regra (ex. ipset + regra rica nesta porta)</small>{% endif %}</td>
+  </tr>{% endfor %}</tbody></table></div>
+</section>
+{% endif %}
 {% if fw and fw.backend in ('firewalld', 'ufw') %}
 <section class="card">
   <h2>Serviço Oracle do agente</h2>
@@ -622,7 +643,7 @@
     const f = ev.target.closest('form.cfw-form'); if (!f) return;
     ev.preventDefault();
     const dados = {acao: f.dataset.acao}; new FormData(f).forEach((v, k) => { dados[k] = v; });
-    fwPedir(dados, f.dataset.acao === 'oracle' ? (window.t || String)('Aplicar as regras na firewall do cliente?') : null);
+    fwPedir(dados, ['oracle', 'acessos'].includes(f.dataset.acao) ? (window.t || String)('Aplicar as regras na firewall do cliente?') : null);
   });
   document.addEventListener('click', ev => {
     const b = ev.target.closest('.cfw-x, [data-fw-ler], [data-b-gerar]'); if (!b) return;

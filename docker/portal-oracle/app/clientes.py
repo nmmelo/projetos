@@ -614,6 +614,126 @@ def pedir_firewall(cid: int, ops: list | None = None, por: str = "") -> int:
     return cmd
 
 
+def _portas_acesso(c: dict) -> list[dict]:
+    """Acessos de que o portal precisa neste cliente: SSH, TNS (porta de cada BD deste servidor) e servico Oracle do agente."""
+    from . import store
+    out = [{"acesso": "SSH", "porta": int(c.get("ssh_porta") or 22), "servico": "ssh"}]
+    tns = set()
+    for d in store.list_dbs():
+        if d.get("cliente_id") == c["id"] or (d.get("host") or "").lower() == (c.get("endereco") or "").lower():
+            tns.add(int(d.get("port") or 1521))
+    for p in sorted(tns or {1521}):
+        out.append({"acesso": "TNS (listener Oracle)", "porta": p, "servico": "oracledb" if p == 1521 else ""})
+    rpc = (c.get("info") or {}).get("rpc")
+    if rpc:
+        out.append({"acesso": "Serviço Oracle do agente", "porta": int(rpc.get("porta") or 8795), "servico": ""})
+    return out
+
+
+def _cobre(ip: str, redes) -> bool:
+    import ipaddress
+    try:
+        a = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    for r in redes:
+        try:
+            if a in ipaddress.ip_network(str(r).strip(), strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _regra_porta(regra: str, porta: int, servico: str) -> bool:
+    m = re.search(r'port port="?(\d+)(?:-(\d+))?"?', regra)
+    if m:
+        a, b = int(m.group(1)), int(m.group(2) or m.group(1))
+        if a <= porta <= b:
+            return True
+    return bool(servico) and f'service name="{servico}"' in regra.replace("'", '"')
+
+
+def fw_acessos(c: dict) -> dict:
+    """Para cada acesso do portal (SSH, TNS, servico Oracle do agente): por onde a firewall do cliente o deixa
+    passar (ipsets em regras ricas ou origens de zona, porta/servico aberto a todos, regras ufw) e se o IP do portal
+    (o de origem para este cliente) la esta. Usa o ultimo estado lido na aba Firewall."""
+    fw = ((dados(c["id"]).get("firewall") or {}).get("dados")) or {}
+    ip = ip_origem(c["endereco"], int(c.get("ssh_porta") or 22))
+    linhas = []
+    ipsets = {s["nome"]: s for s in fw.get("ipsets") or []}
+    for a in _portas_acesso(c):
+        porta, svc = a["porta"], a["servico"]
+        via, falta, aberto = [], [], False
+        if fw.get("backend") == "firewalld":
+            for z in fw.get("zonas") or []:
+                for r in z.get("rich") or []:
+                    if "accept" not in r or not _regra_porta(r, porta, svc):
+                        continue
+                    m = re.search(r'source (?:NOT )?ipset="?([^"\s]+)"?', r)
+                    if m:
+                        n = m.group(1)
+                        tem = _cobre(ip, (ipsets.get(n) or {}).get("entradas") or [])
+                        via.append({"tipo": "ipset", "nome": n, "zona": z["nome"], "tem": tem})
+                        continue
+                    m = re.search(r'source address="?([^"\s]+)"?', r)
+                    if m:
+                        via.append({"tipo": "endereco", "nome": m.group(1), "zona": z["nome"], "tem": _cobre(ip, [m.group(1)])})
+                    else:
+                        aberto = True
+                portas_z = z.get("ports") or []
+                abre = f"{porta}/tcp" in portas_z or (svc and svc in (z.get("services") or [])) or any(
+                    "-" in x and x.endswith("/tcp") and int(x.split("-")[0]) <= porta <= int(x.split("-")[1].split("/")[0]) for x in portas_z)
+                if abre:
+                    fontes = z.get("sources") or []
+                    if fontes:                                   # zona so para estas origens
+                        for f in fontes:
+                            if f.startswith("ipset:"):
+                                n = f[6:]
+                                via.append({"tipo": "ipset", "nome": n, "zona": z["nome"],
+                                            "tem": _cobre(ip, (ipsets.get(n) or {}).get("entradas") or [])})
+                            else:
+                                via.append({"tipo": "endereco", "nome": f, "zona": z["nome"], "tem": _cobre(ip, [f])})
+                    else:
+                        aberto = True
+        elif fw.get("backend") == "ufw":
+            for r in fw.get("regras") or []:
+                if r.get("acao") != "ALLOW" or r.get("dir", "IN") != "IN":
+                    continue
+                para = r.get("para", "")
+                m = re.match(r"^(\d+)(?::(\d+))?", para)
+                if not ((m and int(m.group(1)) <= porta <= int(m.group(2) or m.group(1)))
+                        or (svc == "ssh" and para.startswith("OpenSSH"))):
+                    continue
+                de = r.get("de", "")
+                if de.startswith("Anywhere"):
+                    aberto = True
+                else:
+                    via.append({"tipo": "ufw", "nome": de, "zona": f"regra {r.get('n')}", "tem": _cobre(ip, [de])})
+        ok = aberto or any(v["tem"] for v in via)
+        falta = sorted({v["nome"] for v in via if v["tipo"] == "ipset" and not v["tem"]})
+        linhas.append({**a, "via": via, "aberto": aberto, "ok": ok, "falta": falta})
+    return {"ip": ip, "backend": fw.get("backend") or "", "lido": fw.get("lido"), "linhas": linhas}
+
+
+def fw_ops_acessos(c: dict, ipsets: list | None = None) -> list:
+    """Operacoes para pôr o IP do portal nos ipsets que dao acesso (firewalld) ou regras ufw para as portas em falta."""
+    r = fw_acessos(c)
+    ip, ops = r["ip"], []
+    if not ip:
+        return []
+    if r["backend"] == "firewalld":
+        nomes = set(ipsets) if ipsets else {n for l in r["linhas"] for n in l["falta"]}
+        for n in sorted(nomes):
+            ops.append({"op": "entrada_add", "nome": n, "entrada": ip})
+    elif r["backend"] == "ufw":
+        for l in r["linhas"]:
+            if not l["ok"]:
+                ops.append({"op": "ufw_regra", "acao": "allow", "porta": str(l["porta"]), "proto": "tcp", "de": ip,
+                            "comentario": "portal " + l["acesso"].split()[0].lower()})
+    return ops
+
+
 def fw_preset_oracle(estado: dict, ipset: str, entradas: list, porta: int) -> list:
     """Operacoes para abrir a porta RPC do agente (Oracle) a um ipset em todas as zonas ativas (firewalld) ou por IP (ufw)."""
     ops = []

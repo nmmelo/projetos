@@ -6,6 +6,9 @@
 #        [--oracle [--porta-rpc 8795] [--origens "IP1 IP2 REDE/24"] [--ipset NOME] [--oracle-lib DIR] [--abrir-firewall]]
 #   --abrir-firewall (firewalld): cria/usa o ipset (--ipset, por omissao "ipset-agente-portal", ficheiro /etc/firewalld/ipsets/ipset-agente-portal.xml) com as --origens e abre a
 #   porta so para ele em todas as zonas ativas. Mais IPs depois: firewall-cmd --permanent --ipset=NOME --add-entry=IP
+#   Com --abrir-firewall as --origens (IP do portal) sao tambem postas nos ipsets que ja dao acesso a este servidor
+#   para SSH (servico ssh / porta 22) e TNS (--portas-tns, por omissao 1521), ex. ipset-ssh e ipset-tns;
+#   --ipsets-extra "a b" junta outros ipsets.
 #   --gerir-firewall: o portal pode alterar a firewall (firewalld/ufw) deste servidor na aba Firewall do cliente
 #   (--sem-gerir-firewall desliga). Sem isto o portal so le o estado.
 #   Sem internet no cliente: o python-oracledb e instalado com os wheels guardados no portal
@@ -22,7 +25,7 @@
 set -euo pipefail
 DIR=/opt/agente-portal; SVC=agente-portal; GRUPO=agente-portal
 PORTAL=""; ID=""; TOKEN=""; UTIL=""; INTERVALO=""; GRUPO_UTIL=""; INSEGURO=0; CA=""; SEM_SSH=0; MODO=instalar
-ORACLE=0; PORTA_RPC=8795; ORIGENS=""; ORACLE_LIB=""; ABRIR_FW=0; WHEEL=""; IPSET=""; GERIR_FW=""
+ORACLE=0; PORTA_RPC=8795; ORIGENS=""; ORACLE_LIB=""; ABRIR_FW=0; WHEEL=""; IPSET=""; GERIR_FW=""; PORTAS_TNS=""; IPSETS_EXTRA=""
 V=$'\e[32m'; A=$'\e[33m'; E=$'\e[31m'; N=$'\e[0m'
 ok()   { echo "  ${V}OK${N}       $*"; }
 corr() { echo "  ${A}CORRIGIDO${N} $*"; }
@@ -45,6 +48,8 @@ while [[ $# -gt 0 ]]; do
         --porta-rpc) PORTA_RPC=$2; shift ;;
         --origens) ORIGENS=${2//,/ }; shift ;;
         --ipset) IPSET=$2; shift ;;
+        --ipsets-extra) IPSETS_EXTRA=${2//,/ }; shift ;;
+        --portas-tns) PORTAS_TNS=${2//,/ }; shift ;;
         --oracle-lib) ORACLE_LIB=$2; shift ;;
         --oracledb-wheel) WHEEL=$2; shift ;;
         --abrir-firewall) ABRIR_FW=1 ;;
@@ -52,7 +57,7 @@ while [[ $# -gt 0 ]]; do
         --sem-gerir-firewall) GERIR_FW=0 ;;
         --verificar) MODO=verificar ;;
         --desinstalar) MODO=desinstalar ;;
-        -h|--help) sed -n 2,22p "$0"; exit 0 ;;
+        -h|--help) sed -n 2,25p "$0"; exit 0 ;;
         *) erro "opcao desconhecida: $1" ;;
     esac
     shift
@@ -220,6 +225,28 @@ reiniciar_firewalld() {
     erro "o firewalld nao voltou a ficar ativo depois do restart (systemctl status firewalld)"
 }
 
+# ipsets que dao acesso a este servidor em SSH e TNS (regras ricas "source ipset=X" com service ssh / porta 22 / portas TNS,
+# ou zonas com origem ipset:X e esse servico/porta), mais os de --ipsets-extra: as --origens vao tambem para eles
+ipsets_de_acesso() {
+    local z r n p portas="22 ${PORTAS_TNS:-1521}" zs
+    for z in $(firewall-cmd --get-zones); do
+        while read -r r; do
+            [[ $r == *accept* ]] || continue
+            n=$(grep -oP 'source (NOT )?ipset="?\K[^" ]+' <<< "$r") || continue
+            if [[ $r == *'service name="ssh"'* || $r == *"service name=ssh "* ]]; then echo "$n SSH"; continue; fi
+            for p in $portas; do
+                grep -qE "port port=\"?$p\"?[ ]" <<< "$r" && { echo "$n $([[ $p == 22 ]] && echo SSH || echo "TNS $p")"; break; }
+            done
+        done < <(firewall-cmd --permanent --zone="$z" --list-rich-rules 2>/dev/null)
+        zs=$(firewall-cmd --permanent --zone="$z" --list-sources 2>/dev/null)
+        for n in $zs; do
+            [[ $n == ipset:* ]] || continue
+            firewall-cmd --permanent --zone="$z" --list-services | grep -qw ssh && echo "${n#ipset:} SSH"
+            for p in ${PORTAS_TNS:-1521}; do firewall-cmd --permanent --zone="$z" --list-ports | grep -qw "$p/tcp" && echo "${n#ipset:} TNS $p"; done
+        done
+    done | sort -u
+}
+
 abrir_firewall() {        # firewalld: ipset com as origens + regra para o ipset nas zonas ativas; ufw: por IP
     if command -v firewall-cmd >/dev/null && firewall-cmd --state >/dev/null 2>&1; then
         local zonas z ip ok=0 nome regra
@@ -246,6 +273,20 @@ abrir_firewall() {        # firewalld: ipset com as origens + regra para o ipset
                 fi
             done
             [[ -f /etc/firewalld/ipsets/$nome.xml ]] && ok "ficheiro do ipset: /etc/firewalld/ipsets/$nome.xml"
+            if [[ -n $ORIGENS ]]; then                   # SSH e TNS: ipsets que ja existem para isso (ex. ipset-ssh, ipset-tns)
+                local outros mudou=0 x
+                outros=$(ipsets_de_acesso; for x in $IPSETS_EXTRA; do echo "$x extra"; done)
+                while read -r x r; do
+                    [[ -n $x && $x != "$nome" ]] || continue
+                    if ! firewall-cmd --permanent --get-ipsets | tr ' ' '\n' | grep -qx "$x"; then avs "ipset $x nao existe"; continue; fi
+                    for ip in $ORIGENS; do
+                        [[ $ip == *:* ]] && continue
+                        if firewall-cmd --permanent --ipset="$x" --query-entry="$ip" >/dev/null 2>&1; then ok "$ip ja esta no ipset $x ($r)"
+                        else firewall-cmd -q --permanent --ipset="$x" --add-entry="$ip" && { corr "$ip acrescentado ao ipset $x ($r)"; mudou=1; }; fi
+                    done
+                done <<< "$outros"
+                if (( mudou )); then firewall-cmd -q --reload; reiniciar_firewalld; fi
+            fi
             avs "mais IPs: sudo firewall-cmd --permanent --ipset=$nome --add-entry=IP && sudo firewall-cmd --reload && sudo systemctl restart firewalld"
         else
             for z in $zonas; do firewall-cmd -q --permanent --zone="$z" --add-port="$PORTA_RPC/tcp" 2>/dev/null || true; done

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="2095">
+<lingua codigo="en" nome="English" textos="2111">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -8381,5 +8381,69 @@
   <texto>
     <origem>Nenhum wheel no portal: o setup.sh --oracle vai precisar de internet no cliente.</origem>
     <traducao>No wheels on the portal: setup.sh --oracle will need internet on the client.</traducao>
+  </texto>
+  <texto>
+    <origem>Acessos do portal</origem>
+    <traducao>Portal access</traducao>
+  </texto>
+  <texto>
+    <origem>IP de origem</origem>
+    <traducao>Source IP</traducao>
+  </texto>
+  <texto>
+    <origem>Pôr o IP do portal nos ipsets em falta</origem>
+    <traducao>Add the portal IP to the missing ipsets</traducao>
+  </texto>
+  <texto>
+    <origem>Criar as regras ufw em falta</origem>
+    <traducao>Create the missing ufw rules</traducao>
+  </texto>
+  <texto>
+    <origem>Por onde passa</origem>
+    <traducao>Allowed through</traducao>
+  </texto>
+  <texto>
+    <origem>IP do portal</origem>
+    <traducao>Portal IP</traducao>
+  </texto>
+  <texto>
+    <origem>aberto a todos</origem>
+    <traducao>open to all</traducao>
+  </texto>
+  <texto>
+    <origem>nenhuma regra deixa passar</origem>
+    <traducao>no rule allows it</traducao>
+  </texto>
+  <texto>
+    <origem>✓ tem acesso</origem>
+    <traducao>✓ has access</traducao>
+  </texto>
+  <texto>
+    <origem>falta em</origem>
+    <traducao>missing in</traducao>
+  </texto>
+  <texto>
+    <origem>sem acesso</origem>
+    <traducao>no access</traducao>
+  </texto>
+  <texto>
+    <origem>+ IP nos ipsets</origem>
+    <traducao>+ IP in ipsets</traducao>
+  </texto>
+  <texto>
+    <origem>+ regra ufw</origem>
+    <traducao>+ ufw rule</traducao>
+  </texto>
+  <texto>
+    <origem>crie uma regra (ex. ipset + regra rica nesta porta)</origem>
+    <traducao>create a rule (e.g. ipset + rich rule on this port)</traducao>
+  </texto>
+  <texto>
+    <origem>TNS (listener Oracle)</origem>
+    <traducao>TNS (Oracle listener)</traducao>
+  </texto>
+  <texto>
+    <origem>nada a fazer: o IP do portal já tem todos os acessos</origem>
+    <traducao>nothing to do: the portal IP already has all access</traducao>
   </texto>
 </lingua>

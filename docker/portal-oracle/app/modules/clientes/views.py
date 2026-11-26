@@ -98,6 +98,7 @@ def detalhe(cid):
                            atualizar_pedido=store.get_setting(f"cliente_atualizar:{cid}") or "",
                            comandos=clientes.comandos(cid, 15) if aba == "agente" else [], descrever=clientes.descrever,
                            intervalos=clientes.intervalos_recolha(), fw_ops=clientes.FW_OPS,
+                           fw_ac=clientes.fw_acessos(c) if aba == "firewall" else None,
                            fw_v=clientes._v(c.get("versao") or "0") >= (1, 7, 0),
                            livres=[d for d in todas if str(d.get("cliente_id") or "") != str(cid)],
                            modos=agente_rpc.MODOS)
@@ -194,6 +195,10 @@ def firewall(cid):
             ops = clientes.fw_preset_oracle(estado, (f.get("ipset") or "ipset-agente-portal").strip(), entradas, int(f.get("porta") or 8795))
             if not ops:
                 return jsonify(ok=False, erro="nada a fazer: o ipset, as entradas e as regras já existem"), 400
+        elif acao == "acessos":
+            ops = clientes.fw_ops_acessos(clientes.obter(cid), f.getlist("ipsets"))
+            if not ops:
+                return jsonify(ok=False, erro="nada a fazer: o IP do portal já tem todos os acessos"), 400
         else:
             ops = [{k: (f.get(k) or "").strip() for k in clientes.FW_CAMPOS if (f.get(k) or "").strip()}]
             ops[0]["op"] = acao

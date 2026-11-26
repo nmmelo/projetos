@@ -610,3 +610,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > a regra está bem no firewalld, [Errno 113] No route to host (firewall do cliente ou do caminho?) no teste
 
 **Resposta:** O teste do cliente testava só a porta SSH (22), não a do serviço Oracle (8795): o 113 era o SSH bloqueado, que não é preciso para o agente. O teste passa a ter: **IP do portal** (o IP de origem que o portal usa para esse cliente — é esse que tem de estar no ipset), **Serviço Oracle do agente (8795/tcp)** com ligação TLS e pedido assinado, verificação de que esse IP está no ipset (com o estado da aba Firewall) e nas `--origens` do agente, causa provável por erro (113 firewall do cliente, 111 serviço parado, timeout caminho) e o `tcpdump` para saber se os pacotes chegam ao cliente. A porta SSH passa a aviso quando o agente está online. O erro 113 nas bases de dados também indica o IP de origem do portal. Agente 1.7.3 envia as origens configuradas.
+
+## 56. IP do portal nos ipsets de SSH e TNS do cliente
+
+**Pergunta:**
+> temos que garantir que o cliente se tiver firewalld ou ufw, por exemplo tem que ser colocado o ip do portal <IP do portal> em dois ipset, ipset-ssh.xml,ipset-tns.xml um é do ssh e outro do tns, dai estar a dar problemas
+
+**Resposta:** Aba Firewall do cliente → **Acessos do portal**: para SSH, TNS (portas das BDs do servidor) e serviço Oracle do agente mostra por onde a firewall deixa passar (ipsets das regras ricas/zonas, endereços, aberto a todos, regras ufw) e se o IP de origem do portal lá está; um botão põe o IP nos ipsets em falta (ex. ipset-ssh, ipset-tns) com reload + restart do firewalld (no ufw cria as regras). O `setup.sh --abrir-firewall` também junta as `--origens` aos ipsets que já dão acesso a SSH/TNS (`--portas-tns`, `--ipsets-extra`).

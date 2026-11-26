@@ -114,9 +114,9 @@
 <details class="card full fw-sec" id="sec-firewall">
   <summary><h2>Firewall (serviço Oracle do agente)</h2><small class="muted">firewalld com ipset, ufw, gestão pelo portal</small></summary>
   <p class="hint">O portal liga-se a cada cliente na porta do serviço Oracle do agente (8795/tcp). Abra-a só às origens do portal com um ipset.
-    Também pode fazê-lo — e gerir zonas, portas, serviços, regras ricas, ipsets ou regras ufw — na aba <b>Firewall</b> de cada cliente.</p>
+    Na aba <b>Firewall</b> do cliente, <b>Acessos do portal</b> mostra se o IP do portal está nos ipsets usados para SSH, TNS e serviço Oracle e põe-no onde faltar. Também pode fazê-lo — e gerir zonas, portas, serviços, regras ricas, ipsets ou regras ufw — na aba <b>Firewall</b> de cada cliente.</p>
   <div class="lista">
-    {{ cmd('Tudo de uma vez pelo setup.sh (ipset em todas as zonas ativas)', 'sudo bash /tmp/setup-agente.sh --oracle --origens "<IP do portal> <IP2> <REDE>/24" --abrir-firewall --ipset ipset-agente-portal') }}
+    {{ cmd('Tudo de uma vez pelo setup.sh (ipset em todas as zonas ativas; o IP do portal vai também para os ipsets de SSH e TNS, ex. ipset-ssh e ipset-tns)', 'sudo bash /tmp/setup-agente.sh --oracle --origens "<IP do portal>" --abrir-firewall --portas-tns 1521 [--ipsets-extra "outro-ipset"]') }}
     {{ cmd('Permitir que o portal altere a firewall (aba Firewall)', 'sudo agente-portal configurar --gerir-firewall',
            'Sem isto o portal só lê o estado. Desligar: sudo agente-portal configurar --sem-gerir-firewall. Os utilizadores precisam da permissão clientes.firewall.') }}
     {{ cmd('firewalld: zonas ativas', 'sudo firewall-cmd --get-active-zones') }}
