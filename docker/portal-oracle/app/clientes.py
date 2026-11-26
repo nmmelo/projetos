@@ -535,6 +535,19 @@ def comando_estado(cmd_id: int, estado: str) -> None:
             r = t.one("SELECT cliente_id, tipo FROM cliente_comandos WHERE id = ?", (cmd_id,))
         if r and r["tipo"] == "atualizar":
             store.save_settings({f"cliente_atualizar:{r['cliente_id']}": ""})
+        if r and r["tipo"] == "upgrade":
+            try:
+                from flask import url_for
+                link = url_for("clientes.execucao", cmd_id=cmd_id)
+            except Exception:  # noqa: BLE001 - fora de um pedido
+                link = ""
+            c = obter(r["cliente_id"]) or {}
+            rr = comando(cmd_id) or {}
+            er = erros_upgrade(rr.get("output") or "")
+            eventos.emitir("clientes.upgrade", "sucesso" if estado == "OK" else "erro",
+                           f"{c.get('nome', '?')}: upgrade do sistema {'concluído' if estado == 'OK' else 'falhou'} (#{cmd_id})",
+                           descrever(rr) + ("\n" + "\n".join(er[-10:]) if estado != "OK" and er else ""), link,
+                           dados={"cliente": c.get("nome", "")})
 
 
 EXPIRA_MIN = 15
@@ -545,8 +558,14 @@ def expirar_comandos(cid: int | None = None) -> None:
     limite = (datetime.datetime.now() - datetime.timedelta(minutes=EXPIRA_MIN)).strftime("%Y-%m-%d %H:%M:%S")
     with store.tx() as t:
         velhos = t.all("SELECT c.id, c.cliente_id, c.estado, k.versao FROM cliente_comandos c LEFT JOIN clientes k ON k.id = c.cliente_id "
-                       "WHERE c.estado IN ('PENDENTE', 'EM CURSO') AND c.criado < ?" + (" AND c.cliente_id = ?" if cid else ""),
-                       (limite, cid) if cid else (limite,))
+                       "WHERE c.estado IN ('PENDENTE', 'EM CURSO') AND c.criado < ? AND NOT (c.tipo = 'upgrade' AND c.estado = 'EM CURSO')"
+                       + (" AND c.cliente_id = ?" if cid else ""), (limite, cid) if cid else (limite,))
+        lim_up = (datetime.datetime.now() - datetime.timedelta(hours=UPGRADE_MAX_H)).strftime("%Y-%m-%d %H:%M:%S")
+        longos = t.all("SELECT id FROM cliente_comandos WHERE tipo = 'upgrade' AND estado = 'EM CURSO' AND iniciado < ?"
+                       + (" AND cliente_id = ?" if cid else ""), (lim_up, cid) if cid else (lim_up,))
+    for r in longos:
+        comando_linha(r["id"], f"sem fim ao fim de {UPGRADE_MAX_H} h: dado como falhado (veja no servidor se o dnf/apt ainda corre)")
+        comando_estado(r["id"], "ERRO")
     for r in velhos:
         comando_linha(r["id"], f"sem resposta do agente ({r['versao'] or 'sem versão'}) em {EXPIRA_MIN} min: "
                                "agente parado, sem contacto com o portal ou versão que não conhece este comando")
@@ -575,7 +594,53 @@ def comando_ativo(cid: int) -> dict | None:
         return t.one("SELECT * FROM cliente_comandos WHERE cliente_id = ? AND estado IN ('PENDENTE', 'EM CURSO') ORDER BY id DESC", (cid,))
 
 
-TIPOS_COMANDO = {"atualizar": "Atualizar o agente", "dados": "Pedir dados", "ler": "Abrir ficheiro / pasta", "firewall": "Firewall"}
+TIPOS_COMANDO = {"atualizar": "Atualizar o agente", "dados": "Pedir dados", "ler": "Abrir ficheiro / pasta", "firewall": "Firewall",
+                 "upgrade": "Upgrade do sistema (pacotes)"}
+UPGRADE_MAX_H = 6          # upgrade em curso sem terminar ha mais de 6 h passa a ERRO
+PKG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9+._:~@-]{0,200}$")
+ERRO_PKG_RE = re.compile(r"(Curl error|\bE: |\bW: |Error|ERROR|Erro|[Ff]ailed|FAILED|dpkg: error|Errors were encountered|No package|"
+                         r"Problem: |conflicts with|nothing provides|Could not get lock|Unable to|codigo de saida [1-9])")
+
+
+def pedir_upgrade(cid: int, modo: str, pacotes: list | None = None, por: str = "", retomar_de: int | None = None) -> int:
+    """Upgrade de pacotes no cliente pelo agente (1.8+): todos, so seguranca ou os pacotes escolhidos."""
+    if modo not in ("todos", "seguranca", "pacotes"):
+        raise ValueError("modo de upgrade inválido")
+    pac = sorted({p for p in (pacotes or []) if PKG_RE.match(p or "")})
+    c = obter(cid) or {}
+    if modo == "seguranca" and not pac:                 # apt nao tem --security: manda a lista de seguranca conhecida
+        d = (dados(cid).get("atualizacoes") or {}).get("dados") or {}
+        pac = sorted({p["nome"] for p in d.get("pacotes") or [] if p.get("seguranca")})
+    if modo == "pacotes" and not pac:
+        raise ValueError("escolha pelo menos um pacote")
+    with store.tx() as t:
+        ativo = t.val("SELECT id FROM cliente_comandos WHERE cliente_id = ? AND tipo = 'upgrade' AND estado IN ('PENDENTE', 'EM CURSO')", (cid,))
+    if ativo:
+        raise ValueError(f"já há um upgrade a decorrer neste cliente (#{ativo})")
+    args = {"modo": modo, "pacotes": pac}
+    if retomar_de:
+        args.update(retomar=True, retoma=retomar_de)
+    txt = json.dumps(args)
+    if len(txt) > 4000:                                   # muitos pacotes: atualiza tudo o que esta pendente
+        args = {"modo": "todos", "pacotes": [], **({"retomar": True, "retoma": retomar_de} if retomar_de else {})}
+        txt = json.dumps(args)
+    cmd = criar_comando(cid, "upgrade", txt, por)
+    comando_linha(cmd, f"pedido por {por or 'portal'}: " + descrever({"tipo": "upgrade", "args": txt})
+                  + (f" (retoma a execução #{retomar_de})" if retomar_de else ""))
+    if _v(c.get("versao") or "0") < (1, 8, 0):
+        comando_linha(cmd, f"o agente {c.get('versao') or '(sem versão)'} não faz upgrades do sistema (a partir da 1.8.0): atualize-o na aba Agente")
+        comando_estado(cmd, "ERRO")
+    return cmd
+
+
+def erros_upgrade(output: str) -> list[str]:
+    """Linhas de erro do output de um upgrade (para o resumo da execucao)."""
+    out = []
+    for l in (output or "").splitlines():
+        t = re.sub(r"^\[\d\d:\d\d:\d\d\] ", "", l)
+        if ERRO_PKG_RE.search(t) and not t.startswith("$ ") and "Errors:" not in t[:3]:
+            out.append(t.strip())
+    return out[-60:]
 
 # ============================================================ firewall do cliente (firewalld ou ufw) pelo agente 1.7+
 FW_OPS = {"porta_add": "abrir a porta {porta} na zona {zona}", "porta_del": "fechar a porta {porta} na zona {zona}",
@@ -811,6 +876,11 @@ def descrever(r: dict) -> str:
     if r["tipo"] == "firewall":
         ops = a.get("ops") or []
         return "Firewall: " + ("; ".join(fw_descrever(o) for o in ops) if ops else "ler o estado")
+    if r["tipo"] == "upgrade":
+        n = len(a.get("pacotes") or [])
+        alvo = {"todos": "todos os pacotes", "seguranca": f"só segurança ({n})" if n else "só segurança",
+                "pacotes": f"{n} pacote(s)" + (": " + ", ".join((a.get("pacotes") or [])[:4]) + ("…" if n > 4 else "") if n else "")}.get(a.get("modo"), "?")
+        return ("Retomar upgrade: " if a.get("retomar") else "Upgrade: ") + alvo
     if r["tipo"] == "ler":
         return ("Listar a pasta " if a.get("listar") else "Abrir ") + str(a.get("caminho") or "")
     return r["tipo"]
@@ -836,6 +906,8 @@ def repetir_comando(cmd_id: int, por: str = "") -> int:
         novo = pedir_leitura(cid, a.get("caminho") or "", a.get("linhas") or 0, bool(a.get("listar")), por)
     elif r["tipo"] == "firewall":
         novo = pedir_firewall(cid, a.get("ops") or [], por)
+    elif r["tipo"] == "upgrade":
+        return pedir_upgrade(cid, a.get("modo") or "todos", a.get("pacotes") or [], por, retomar_de=cmd_id)
     else:
         raise ValueError(f"não é possível repetir pedidos do tipo {r['tipo']}")
     if r["tipo"] != "dados":

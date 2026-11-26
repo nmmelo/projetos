@@ -293,6 +293,19 @@
     <div class="an-tile"><span>Reinício necessário</span><b class="{{ 'c-bad' if u.reinicio }}">{{ 'sim' if u.reinicio else ('não' if u.reinicio is sameas false else '—') }}</b></div>
     <div class="an-tile"><span>Verificado</span><b style="font-size:14px">{{ (u.verificado or '')|replace('T', ' ') }}</b><small>{{ u.ferramenta }}</small></div>
   </div>
+  {% if u.pacotes and user.can('clientes.atualizar') %}
+  <div class="upg-barra" data-upg-url="{{ url_for('clientes.upgrade', cid=c.id) }}">
+    {% if upg_ativo %}<span class="tag warn"><span class="spin"></span> upgrade a decorrer</span>
+      <a class="btn small primary" href="{{ url_for('clientes.execucao', cmd_id=upg_ativo.id) }}">Ver a execução #{{ upg_ativo.id }}</a>
+    {% else %}
+    <b>Upgrade pelo portal</b>
+    <button type="button" class="btn small primary" data-upg="todos">⬆ Atualizar tudo ({{ u.total }})</button>
+    {% if u.seguranca %}<button type="button" class="btn small" data-upg="seguranca">🛡 Só segurança ({{ u.seguranca }})</button>{% endif %}
+    <button type="button" class="btn small" data-upg="pacotes" disabled>Atualizar selecionados (<span id="upg-n">0</span>)</button>
+    <span class="hint">Corre {{ 'apt-get upgrade' if u.ferramenta == 'apt' else (u.ferramenta or 'dnf') ~ ' -y upgrade' }} no servidor pelo agente (1.8+); acompanhe em Clientes → Execuções.</span>
+    {% endif %}
+  </div>
+  {% endif %}
   {% if u.pacotes %}
   {% set TIPOS_UPD = {'seguranca': 'Segurança', 'correcao': 'Correção', 'melhoria': 'Melhoria', 'novo': 'Pacote novo', '': 'Sem classificação'} %}
   <div class="inline-form upd-filtros" id="upd-filtros">
@@ -304,13 +317,13 @@
     <span class="muted small" id="upd-n"></span>
   </div>
   <div class="table-wrap"><table class="small-tab" id="tupd">
-    <thead><tr><th>Pacote</th><th>Nova versão</th>{% if u.ferramenta == 'apt' %}<th>Instalada</th>{% endif %}<th>Repositório</th><th>Arq.</th><th>Tipo</th></tr></thead>
+    <thead><tr>{% if user.can('clientes.atualizar') %}<th class="cb"><input type="checkbox" id="upg-todos" title="Selecionar os visíveis"></th>{% endif %}<th>Pacote</th><th>Nova versão</th>{% if u.ferramenta == 'apt' %}<th>Instalada</th>{% endif %}<th>Repositório</th><th>Arq.</th><th>Tipo</th></tr></thead>
     <tbody>{% for p in u.pacotes|sort(attribute='seguranca', reverse=True) %}{% set tp = p.tipo if p.tipo is defined else ('seguranca' if p.seguranca else '') %}
-      <tr data-tipo="{{ tp }}" data-repo="{{ p.repo }}"><td translate="no"><b>{{ p.nome }}</b></td><td translate="no">{{ p.versao }}</td>
+      <tr data-tipo="{{ tp }}" data-repo="{{ p.repo }}">{% if user.can('clientes.atualizar') %}<td class="cb"><input type="checkbox" class="upg-cb" value="{{ p.nome }}"></td>{% endif %}<td translate="no"><b>{{ p.nome }}</b></td><td translate="no">{{ p.versao }}</td>
       {% if u.ferramenta == 'apt' %}<td translate="no"><small>{{ p.atual }}</small></td>{% endif %}<td translate="no"><small>{{ p.repo }}</small></td><td><small>{{ p.arq }}</small></td>
       <td>{% if tp == 'seguranca' %}<span class="tag bad">segurança{{ ' · ' ~ p.gravidade if p.gravidade }}</span>{% elif tp %}<span class="tag {{ 'warn' if tp == 'correcao' else 'info' }}">{{ TIPOS_UPD[tp]|lower }}</span>{% else %}<small class="muted">—</small>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
   <div class="paginas" id="upd-pag"></div>
-  <p class="hint">Para instalar, no servidor: <code>{{ 'sudo apt-get update && sudo apt-get upgrade' if u.ferramenta == 'apt' else 'sudo ' ~ (u.ferramenta or 'dnf') ~ ' update' ~ (' --security' if u.seguranca else '') }}</code>.
+  <p class="hint">{% if user.can('clientes.atualizar') %}Ou, no servidor{% else %}Para instalar, no servidor{% endif %}: <code>{{ 'sudo apt-get update && sudo apt-get upgrade' if u.ferramenta == 'apt' else 'sudo ' ~ (u.ferramenta or 'dnf') ~ ' update' ~ (' --security' if u.seguranca else '') }}</code>.
     O agente verifica a cada {{ (intervalos.atualizacoes // 3600) ~ ' h' if intervalos.atualizacoes % 3600 == 0 else (intervalos.atualizacoes // 60) ~ ' min' }}
     {%- if user.can('clientes.gerir') %} (muda-se em <a href="{{ url_for('clientes.gerir') }}#recolha">Gerir clientes → Recolha de dados</a>){% endif %}
     {{- ' — com o apt, a partir da última lista descarregada (apt-get update)' if u.ferramenta == 'apt' }}. O tipo vem do <code>{{ u.ferramenta or 'dnf' }} updateinfo</code> (agente 1.6.0+).</p>
@@ -731,6 +744,28 @@
   });
   const fa = document.querySelector('[data-fw-auto="1"]');
   if (fa) fwPedir({acao: 'ler'});
+  /* aba Atualizacoes: upgrade pelo portal (todos, so seguranca ou os selecionados) -> pagina da execucao */
+  document.addEventListener('change', e => {
+    if (e.target.id === 'upg-todos') document.querySelectorAll('#tupd tbody tr').forEach(tr => {
+      if (tr.style.display !== 'none' && !tr.hidden) { const c = tr.querySelector('.upg-cb'); if (c) c.checked = e.target.checked; } });
+    if (e.target.id === 'upg-todos' || e.target.classList.contains('upg-cb')) {
+      const n = document.querySelectorAll('.upg-cb:checked').length, b = document.querySelector('[data-upg=pacotes]');
+      const s = document.getElementById('upg-n'); if (s) s.textContent = n; if (b) b.disabled = !n;
+    }
+  });
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-upg]'); if (!b) return;
+    const barra = b.closest('.upg-barra'), modo = b.dataset.upg, T = window.t || String;
+    const sel = [...document.querySelectorAll('.upg-cb:checked')].map(c => c.value);
+    const msg = modo === 'todos' ? T('Atualizar todos os pacotes deste servidor?') : modo === 'seguranca' ? T('Instalar só as atualizações de segurança?')
+              : T('Atualizar os pacotes selecionados?') + ' ' + sel.slice(0, 6).join(', ') + (sel.length > 6 ? '…' : '');
+    if (!await PortalDialogo.confirmar(msg + '\n' + T('Corre no servidor sem pedir confirmação; alguns serviços podem ser reiniciados pelo gestor de pacotes.'))) return;
+    const fd = new FormData(); fd.append('csrf', '{{ csrf_token }}'); fd.append('modo', modo);
+    if (modo === 'pacotes') sel.forEach(n => fd.append('pacotes', n));
+    const d = await (await fetch(barra.dataset.upgUrl, {method: 'POST', body: fd})).json().catch(() => ({ok: false}));
+    if (!d.ok) { PortalDialogo.aviso(d.erro || 'erro'); return; }
+    location.href = d.url;
+  });
   const pc = new URLSearchParams(location.search).get('cmd');      /* vindo de um formulario (scan, ficheiro novo) */
   if (pc && out) PortalComando.seguir(pc, out, () => blocos(), (window.t || String)('Pedido'));
 })();

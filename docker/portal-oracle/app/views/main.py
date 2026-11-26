@@ -262,7 +262,7 @@ def _processos(recentes: int = 20) -> list[dict]:
                             "detalhe": ("à espera do agente" if r["estado"] == "PENDENTE" else "em curso") if a else "",
                             "por": r["pedido_por"], "segundos": seg(r["criado"]) if a else None,
                             "duracao": None if a else dur(r["criado"], r["terminado"]),
-                            "link": url_for("clientes.pedidos") + f"?cmd={r['id']}", "erro": None if a or r["estado"] == "OK" else "falhou"})
+                            "link": url_for("clientes.execucao", cmd_id=r["id"]) if r["tipo"] == "upgrade" else url_for("clientes.pedidos") + f"?cmd={r['id']}", "erro": None if a or r["estado"] == "OK" else "falhou"})
     except Exception:  # noqa: BLE001 - a caixa de processos nunca pode partir a pagina
         current_app.logger.exception("caixa de processos (clientes)")
     return out

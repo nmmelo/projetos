@@ -1064,3 +1064,12 @@ td.cfw-acoes { white-space: nowrap; }
 .cfw-oracle-card { max-width: 900px; }
 form.cfw-form[hidden] { display: none !important; }
 .cserv-ed { align-self: flex-end; margin-bottom: 8px; width: auto !important; }
+/* clientes: upgrade do sistema */
+.upg-barra { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.exec-info { align-items: start; margin: 14px 0; }
+.exec-erros { border-left: 4px solid var(--danger); }
+.exec-erros ul { margin: 6px 0 10px; padding-left: 18px; max-height: 260px; overflow: auto; }
+.exec-erros code { white-space: pre-wrap; word-break: break-word; color: var(--danger); }
+.exec-aviso { border-left: 4px solid var(--warn); }
+tr.clicavel { cursor: pointer; }
+.status.s-PENDENTE { background: var(--warn-bg, #fef3c7); color: var(--warn, #b45309); }

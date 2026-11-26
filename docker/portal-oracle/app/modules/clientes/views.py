@@ -100,6 +100,8 @@ def detalhe(cid):
                            intervalos=clientes.intervalos_recolha(), fw_ops=clientes.FW_OPS,
                            fw_ac=clientes.fw_acessos(c) if aba == "firewall" else None,
                            fw_sub=request.args.get("fw") or "geral", servicos_monit=clientes.servicos_monit(c["id"]),
+                           upg_ativo=next((x for x in clientes.todos_comandos(c["id"], "", "upgrade", limite=5)
+                                           if x["estado"] in ("PENDENTE", "EM CURSO")), None),
                            layout=layouts.obter("cliente", str(g.user.id)),
                            fw_v=clientes._v(c.get("versao") or "0") >= (1, 7, 0),
                            livres=[d for d in todas if str(d.get("cliente_id") or "") != str(cid)],
@@ -298,7 +300,7 @@ def repetir_comando(cmd_id):
         args = json.loads(r.get("args") or "{}")
     except ValueError:
         args = {}
-    precisa = ("clientes.gerir" if r["tipo"] == "atualizar" else
+    precisa = ("clientes.gerir" if r["tipo"] == "atualizar" else "clientes.atualizar" if r["tipo"] == "upgrade" else
                "clientes.firewall" if r["tipo"] == "firewall" and args.get("ops") else None)
     if precisa and not g.user.can(precisa):
         return jsonify(ok=False, erro=f"sem permissão ({precisa})"), 403
@@ -314,8 +316,61 @@ def repetir_comando(cmd_id):
 def api_comando(cmd_id):
     r = clientes.comando(cmd_id) or abort(404)
     c = clientes.obter(r["cliente_id"]) or {}
+    extra = {}
+    if r["tipo"] == "upgrade":
+        extra = {"erros": clientes.erros_upgrade(r.get("output") or ""),
+                 "reinicio": "precisa de ser reiniciado" in (r.get("output") or "")}
     return jsonify({**{k: r[k] for k in ("id", "cliente_id", "tipo", "estado", "pedido_por", "criado", "iniciado", "terminado", "output")},
-                    "descricao": clientes.descrever(r), "cliente": c.get("nome", "")})
+                    "descricao": clientes.descrever(r), "cliente": c.get("nome", ""), **extra})
+
+
+# ====================================================================== upgrade do sistema (execucoes)
+@bp.route("/cliente/<int:cid>/upgrade", methods=["POST"])
+@auth.requires(MODULO.acesso, "clientes.atualizar")
+def upgrade(cid):
+    clientes.obter(cid) or abort(404)
+    try:
+        cmd = clientes.pedir_upgrade(cid, request.form.get("modo") or "todos", request.form.getlist("pacotes"), g.user.username)
+    except ValueError as exc:
+        return jsonify(ok=False, erro=str(exc)), 400
+    return jsonify(ok=True, id=cmd, url=url_for("clientes.execucao", cmd_id=cmd))
+
+
+@bp.route("/execucoes")
+@auth.requires(MODULO.acesso)
+def execucoes():
+    """Upgrades do sistema pedidos aos clientes (como as execucoes do Oracle)."""
+    clientes.expirar_comandos()
+    f = {"cliente": request.args.get("cliente", type=int), "estado": request.args.get("estado") or ""}
+    lista = clientes.todos_comandos(f["cliente"], f["estado"], "upgrade", limite=500)
+    for x in lista:
+        try:
+            a = json.loads(x.get("args") or "{}")
+        except ValueError:
+            a = {}
+        x["modo"], x["n"], x["retoma"] = a.get("modo"), len(a.get("pacotes") or []), a.get("retoma")
+    return render_template("clientes/execucoes.html", lista=lista, f=f, todos=clientes.listar(),
+                           ativos=sum(1 for x in lista if x["estado"] in ("PENDENTE", "EM CURSO")))
+
+
+@bp.route("/execucao/<int:cmd_id>")
+@auth.requires(MODULO.acesso)
+def execucao(cmd_id):
+    r = clientes.comando(cmd_id) or abort(404)
+    if r["tipo"] != "upgrade":
+        return redirect(url_for("clientes.pedidos", cmd=cmd_id))
+    clientes.expirar_comandos(r["cliente_id"])
+    r = clientes.comando(cmd_id)
+    try:
+        a = json.loads(r.get("args") or "{}")
+    except ValueError:
+        a = {}
+    with store.tx() as t:
+        retomas = t.all("SELECT id, estado FROM cliente_comandos WHERE tipo = 'upgrade' AND args LIKE ? ORDER BY id",
+                        (f'%"retoma": {cmd_id}}}%',))
+    return render_template("clientes/execucao.html", r=r, a=a, c=clientes.obter(r["cliente_id"]) or {},
+                           descricao=clientes.descrever(r), erros=clientes.erros_upgrade(r.get("output") or ""),
+                           retomas=retomas)
 
 
 @bp.route("/pedidos")

@@ -641,6 +641,16 @@ Secções recolhíveis (o estado fica guardado no browser): **Agentes nos client
 
 O `setup.sh` cria o comando `agente-portal` em `/usr/local/bin` e `/usr/bin` (o `sudo` do RHEL não procura em `/usr/local/bin`), a usar o Python do venv quando existe (serviço Oracle). Ao acrescentar a chave do portal ao `authorized_keys`, garante a quebra de linha antes e separa chaves que tenham ficado coladas na mesma linha (guarda uma cópia `authorized_keys.antes-setup`).
 
+### Cliente → Atualizações: upgrade pelo portal e Clientes → Execuções
+
+Na aba **Atualizações** de um cliente (permissão `clientes.atualizar`, agente **1.8.0+**): **⬆ Atualizar tudo**, **🛡 Só segurança** ou selecionar pacotes na tabela e **Atualizar selecionados**. O agente corre o gestor de pacotes sem interação (`dnf/yum -y upgrade [--security] [pacotes]`; `apt-get update` + `apt-get -y upgrade` ou `install --only-upgrade` com `--force-confold` e espera pelo lock), numa tarefa à parte (os outros pedidos continuam), com o output enviado em direto. No fim indica se o servidor precisa de reinício e relê as atualizações pendentes.
+
+Cada upgrade aparece na nova aba **Clientes → Execuções** (como as execuções do Oracle): estado, cliente, o quê, duração e quem pediu; ao clicar abre a página da execução com o painel de andamento, tempo, output em direto com cores, a caixa **Erros** (linhas de erro extraídas do output) e o aviso de **reinício necessário**. Se falhar, resolva no servidor e use **↻ Retomar**: corre o mesmo upgrade, acabando antes o que ficou a meio (`dpkg --configure -a` + `apt-get -f install`, ou `yum-complete-transaction`); as execuções ficam ligadas ("Retoma da execução #N" / "Retomada em"). Pendente pode ser cancelado; em curso não tem limite de 15 min (passa a falhado ao fim de 6 h sem terminar). Evento **Upgrade do sistema de um cliente terminado** (OK/erro) para as notificações.
+
+| | |
+|---|---|
+| ![Execuções](docs/clientes-execucoes.png) | ![Execução com erro](docs/clientes-execucao-erro.png) |
+
 ### Cliente → Resumo (painel de cartões)
 
 O resumo do cliente funciona como o painel do Sistema: cartões **Agente**, **Sistema**, **Recursos**, **Serviços monitorizados**, **Serviço Oracle do agente**, **Regras de notificação** e **Eventos recentes**; em **Editar** arrastam-se para mudar a posição, ✕ esconde e "Adicionar" volta a mostrar (disposição guardada por utilizador, a mesma em todos os clientes). Em **Serviços monitorizados**, **✎ Serviços** (permissão `clientes.gerir`) escolhe os serviços systemd a acompanhar nesse cliente (ex. `firewalld sshd chronyd oracle-ohasd`): o agente (1.7.4+) recebe a lista na sincronização seguinte e passa a enviar o estado (em execução, parado, falhou, não existe, descrição e desde quando).

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Clientes · Execuções{% endblock %}
+{% block content %}
+{% include "clientes/_tabs.html" %}
+{% set cores = {'OK': 'OK', 'ERRO': 'ERRO', 'EM CURSO': 'EM-CURSO', 'PENDENTE': 'PENDENTE'} %}
+{% set txt = {'OK': 'concluído', 'ERRO': 'falhou', 'EM CURSO': 'em curso', 'PENDENTE': 'à espera do agente'} %}
+<p class="muted">Upgrades do sistema (pacotes dnf/yum/apt) pedidos aos clientes — na aba <b>Atualizações</b> de cada cliente. Clique numa execução para ver o
+  estado e o output em direto; se falhar, resolva o problema e use <b>↻ Retomar</b>.</p>
+<form method="get" class="toolbar">
+  <select name="cliente" onchange="this.form.submit()"><option value="">Todos os clientes</option>
+    {% for c in todos %}<option value="{{ c.id }}" {{ 'selected' if f.cliente == c.id }}>{{ c.nome }}</option>{% endfor %}</select>
+  <select name="estado" onchange="this.form.submit()"><option value="">Todos os estados</option>
+    {% for k, t in txt.items() %}<option value="{{ k }}" {{ 'selected' if f.estado == k }}>{{ t }}</option>{% endfor %}</select>
+  {% if ativos %}<span class="tag warn"><span class="spin"></span> {{ ativos }} a decorrer</span>{% endif %}
+</form>
+<section class="card full" data-ref="execucoes">
+  <div class="table-wrap"><table class="small-tab exec-tab">
+    <thead><tr><th>#</th><th>Cliente</th><th>O quê</th><th>Estado</th><th>Pedido</th><th class="num">Duração</th><th>Por</th></tr></thead>
+    <tbody>{% for x in lista %}
+      <tr class="clicavel" data-href="{{ url_for('clientes.execucao', cmd_id=x.id) }}">
+        <td><a href="{{ url_for('clientes.execucao', cmd_id=x.id) }}">#{{ x.id }}</a></td>
+        <td><b>{{ x.cliente or '#' ~ x.cliente_id }}</b></td>
+        <td>{{ x.descricao }}{% if x.retoma %} <small class="muted">· retoma #{{ x.retoma }}</small>{% endif %}</td>
+        <td><span class="status s-{{ cores.get(x.estado, x.estado) }}">{% if x.estado in ('EM CURSO', 'PENDENTE') %}<span class="spin"></span> {% endif %}{{ txt.get(x.estado, x.estado) }}</span></td>
+        <td class="small">{{ x.criado }}</td>
+        <td class="num">{% if x.duracao is not none %}{{ (x.duracao // 60) ~ ' min ' if x.duracao >= 60 }}{{ x.duracao % 60 }} s{% else %}—{% endif %}</td>
+        <td><small>{{ x.pedido_por }}</small></td></tr>
+    {% else %}<tr><td colspan="7" class="muted">Ainda não há upgrades. Peça um na aba Atualizações de um cliente.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('click', e => { const tr = e.target.closest('tr.clicavel'); if (tr && !e.target.closest('a')) location.href = tr.dataset.href; });
+{% if ativos %}setTimeout(() => location.reload(), 5000);{% endif %}
+</script>
+{% endblock %}

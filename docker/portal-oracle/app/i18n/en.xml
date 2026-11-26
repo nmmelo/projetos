@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="2128">
+<lingua codigo="en" nome="English" textos="2155">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -8513,5 +8513,113 @@
   <texto>
     <origem>as entradas não mudaram</origem>
     <traducao>the entries did not change</traducao>
+  </texto>
+  <texto>
+    <origem>Upgrade pelo portal</origem>
+    <traducao>Upgrade from the portal</traducao>
+  </texto>
+  <texto>
+    <origem>⬆ Atualizar tudo</origem>
+    <traducao>⬆ Update all</traducao>
+  </texto>
+  <texto>
+    <origem>🛡 Só segurança</origem>
+    <traducao>🛡 Security only</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar selecionados</origem>
+    <traducao>Update selected</traducao>
+  </texto>
+  <texto>
+    <origem>Selecionar os visíveis</origem>
+    <traducao>Select the visible ones</traducao>
+  </texto>
+  <texto>
+    <origem>upgrade a decorrer</origem>
+    <traducao>upgrade running</traducao>
+  </texto>
+  <texto>
+    <origem>Ver a execução</origem>
+    <traducao>See the run</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizações do cliente</origem>
+    <traducao>Client updates</traducao>
+  </texto>
+  <texto>
+    <origem>Pacotes</origem>
+    <traducao>Packages</traducao>
+  </texto>
+  <texto>
+    <origem>Pedido / início / fim</origem>
+    <traducao>Requested / start / end</traducao>
+  </texto>
+  <texto>
+    <origem>Pedido por</origem>
+    <traducao>Requested by</traducao>
+  </texto>
+  <texto>
+    <origem>⚠ Reinício necessário</origem>
+    <traducao>⚠ Restart required</traducao>
+  </texto>
+  <texto>
+    <origem>Última linha:</origem>
+    <traducao>Last line:</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar todos os pacotes deste servidor?</origem>
+    <traducao>Update all packages on this server?</traducao>
+  </texto>
+  <texto>
+    <origem>Instalar só as atualizações de segurança?</origem>
+    <traducao>Install security updates only?</traducao>
+  </texto>
+  <texto>
+    <origem>Atualizar os pacotes selecionados?</origem>
+    <traducao>Update the selected packages?</traducao>
+  </texto>
+  <texto>
+    <origem>Corre no servidor sem pedir confirmação; alguns serviços podem ser reiniciados pelo gestor de pacotes.</origem>
+    <traducao>Runs on the server without asking; some services may be restarted by the package manager.</traducao>
+  </texto>
+  <texto>
+    <origem>Retomar o upgrade?</origem>
+    <traducao>Resume the upgrade?</traducao>
+  </texto>
+  <texto>
+    <origem>Corre de novo o mesmo upgrade no servidor (acaba primeiro o que ficou a meio).</origem>
+    <traducao>Runs the same upgrade again on the server (finishing what was left half-done first).</traducao>
+  </texto>
+  <texto>
+    <origem>Cancelar o pedido?</origem>
+    <traducao>Cancel the request?</traducao>
+  </texto>
+  <texto>
+    <origem>Ainda não foi entregue ao agente.</origem>
+    <traducao>It has not been delivered to the agent yet.</traducao>
+  </texto>
+  <texto>
+    <origem>O quê</origem>
+    <traducao>What</traducao>
+  </texto>
+  <texto>
+    <origem>Todos os estados</origem>
+    <traducao>All states</traducao>
+  </texto>
+  <texto>
+    <origem>a decorrer</origem>
+    <traducao>running</traducao>
+  </texto>
+  <texto>
+    <origem>Ainda não há upgrades. Peça um na aba Atualizações de um cliente.</origem>
+    <traducao>No upgrades yet. Request one in a client Updates tab.</traducao>
+  </texto>
+  <texto>
+    <origem>Fazer o upgrade do sistema (pacotes dnf/yum/apt) dos clientes pelo agente</origem>
+    <traducao>Upgrade the clients system (dnf/yum/apt packages) through the agent</traducao>
+  </texto>
+  <texto>
+    <origem>Upgrade do sistema de um cliente terminado</origem>
+    <traducao>Client system upgrade finished</traducao>
   </texto>
 </lingua>

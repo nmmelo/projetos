@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Clientes · Execução #{{ r.id }}{% endblock %}
+{% block content %}
+{% include "clientes/_tabs.html" %}
+{% set running = r.estado in ('EM CURSO', 'PENDENTE') %}
+{% set ST = {'OK': 'OK', 'ERRO': 'ERRO', 'EM CURSO': 'EM-CURSO', 'PENDENTE': 'PENDENTE'} %}
+<div class="head">
+  <div class="job-titulo">
+    <a class="btn voltar" href="{{ url_for('clientes.execucoes') }}">← Execuções</a>
+    <h2>Execução #{{ r.id }} — {{ c.nome or '#' ~ r.cliente_id }}</h2>
+  </div>
+  <div class="buttons">
+    <a class="btn" href="{{ url_for('clientes.detalhe', cid=r.cliente_id, aba='atualizacoes') }}">Atualizações do cliente</a>
+    <button type="button" class="primary" id="bRetomar" {{ 'hidden' if r.estado != 'ERRO' or not user.can('clientes.atualizar') }}>↻ Retomar</button>
+    {% if user.can('clientes.gerir') %}<button type="button" class="danger" id="bCancelar" {{ 'hidden' if r.estado != 'PENDENTE' }}>Cancelar</button>{% endif %}
+  </div>
+</div>
+{% if a.retoma or retomas %}<p class="retoma-info">
+  {% if a.retoma %}↻ Retoma da execução <a href="{{ url_for('clientes.execucao', cmd_id=a.retoma) }}">#{{ a.retoma }}</a>.{% endif %}
+  {% if retomas %}Retomada em: {% for x in retomas %}<a href="{{ url_for('clientes.execucao', cmd_id=x.id) }}">#{{ x.id }}</a>
+    <span class="status s-{{ ST.get(x.estado, x.estado) }}">{{ x.estado }}</span>{{ ',' if not loop.last }} {% endfor %}{% endif %}</p>{% endif %}
+
+<section class="run-panel {{ 'is-running' if running else 'is-done s-' ~ ST.get(r.estado, r.estado) }}" id="panel">
+  <div class="run-top">
+    <span class="run-word" aria-hidden="true">{% for ch in 'UPGRADE' %}<span style="--i:{{ loop.index0 }}">{{ ch }}</span>{% endfor %}</span>
+    <span class="run-text" id="runtext">{{ descricao }}</span>
+    <span class="run-right">
+      <span class="status s-{{ ST.get(r.estado, r.estado) }}" id="status">{{ r.estado }}</span>
+      <span class="run-time" id="elapsed" title="Tempo decorrido"></span>
+    </span>
+  </div>
+  <div class="run-bar {{ 'indet' if running }}" id="bar"><span id="barfill" style="width: {{ '0' if running else '100' }}%"></span></div>
+  <div class="run-action"><span class="muted">Última linha:</span> <span id="action">—</span></div>
+</section>
+
+<div class="smtp-grid setup-grid exec-info">
+<table class="kv">
+  <tr><th>Cliente</th><td><a href="{{ url_for('clientes.detalhe', cid=r.cliente_id) }}">{{ c.nome }}</a> <small class="muted">{{ c.endereco }}</small></td></tr>
+  <tr><th>Operação</th><td>{{ descricao }}</td></tr>
+  {% if a.pacotes %}<tr><th>Pacotes ({{ a.pacotes|length }})</th><td><small translate="no">{{ a.pacotes[:40]|join(', ') }}{{ '…' if a.pacotes|length > 40 }}</small></td></tr>{% endif %}
+  <tr><th>Pedido / início / fim</th><td id="tempos">{{ r.criado }} · {{ r.iniciado or '—' }} · {{ r.terminado or '…' }}</td></tr>
+  <tr><th>Pedido por</th><td>{{ r.pedido_por }}</td></tr>
+  <tr><th>Agente</th><td>{{ c.versao or '—' }}{% if c.versao and c.versao < '1.8.0' %} <span class="tag bad">precisa da 1.8.0</span>{% endif %}</td></tr>
+</table>
+<section class="card exec-erros" id="errosBox" {{ 'hidden' if not erros }}>
+  <h2>Erros <small class="muted" id="errosN">{{ erros|length }}</small></h2>
+  <ul id="erros">{% for e in erros %}<li><code>{{ e }}</code></li>{% endfor %}</ul>
+  <p class="hint">Resolva no servidor (ex. repositório inacessível, conflito de pacotes, disco cheio, outro dnf/apt a correr) e use <b>↻ Retomar</b>:
+    corre o mesmo upgrade{{ ' depois de dpkg --configure -a e apt-get -f install' if 'apt' in (r.output or '') else ' (no yum, depois de yum-complete-transaction)' }}.</p>
+</section>
+<section class="card exec-aviso" id="reinicioBox" hidden><h2>⚠ Reinício necessário</h2>
+  <p>O servidor precisa de ser reiniciado para aplicar todas as atualizações (kernel, glibc, systemd…).</p></section>
+</div>
+
+<div class="out-head">
+  <h2>Output</h2>
+  <span class="tag live" id="live" {{ '' if running else 'hidden' }}>● em direto</span>
+  <label class="inline small" {{ '' if running else 'hidden' }} id="followwrap"><input type="checkbox" id="follow" checked> Acompanhar o fim</label>
+</div>
+<pre id="out" class="out-live">{{ r.output or '' }}</pre>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const ID = {{ r.id }}, API = "{{ url_for('clientes.api_comando', cmd_id=r.id) }}", T = window.t || String;
+  const ST = {'OK': 'OK', 'ERRO': 'ERRO', 'EM CURSO': 'EM-CURSO', 'PENDENTE': 'PENDENTE'};
+  const out = document.getElementById('out');
+  let running = {{ 'true' if running else 'false' }}, last = null;
+  const ini = new Date(({{ (r.iniciado or r.criado)|tojson }} || '').replace(' ', 'T'));
+  function kind(l) {
+    if (/(\bE: |Error|ERROR|Erro|[Ff]ailed|FAILED|dpkg: error|Problem: |conflicts with|codigo de saida [1-9])/.test(l)) return 'l-err';
+    if (/(\bW: |AVISO|Warning|warning)/.test(l)) return 'l-warn';
+    if (/\] \$ /.test(l)) return 'l-cmd';
+    if (/(Complete!|Concluído|codigo de saida 0|Setting up|Upgraded:|Installed:|Updated:|^\[[\d:]+\]\s+Upgrading|^\[[\d:]+\]\s+Verifying)/.test(l)) return 'l-ok';
+    return '';
+  }
+  function render(txt) {
+    if (txt === last) return; last = txt;
+    const f = document.createDocumentFragment();
+    (txt || '').split('\n').forEach((l, i, a) => { const s = document.createElement('span'); s.textContent = l + (i < a.length - 1 ? '\n' : '');
+      const k = kind(l); if (k) s.className = k; f.appendChild(s); });
+    out.replaceChildren(f);
+    if (running && document.getElementById('follow').checked) out.scrollTop = out.scrollHeight;
+    const ls = (txt || '').trim().split('\n'); document.getElementById('action').textContent = (ls[ls.length - 1] || '—').replace(/^\[[\d:]+\]\s*/, '');
+  }
+  const fmt = t => { t = Math.max(0, Math.floor(t)); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = String(t % 60).padStart(2, '0');
+    return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`; };
+  function tempo(fim) { if (!isNaN(ini)) document.getElementById('elapsed').textContent = fmt(((fim ? new Date(fim.replace(' ', 'T')) : new Date()) - ini) / 1000); }
+  async function ver() {
+    let d; try { d = await (await fetch(API, {cache: 'no-store'})).json(); } catch (e) { return setTimeout(ver, 4000); }
+    render(d.output);
+    const st = document.getElementById('status'); st.textContent = d.estado; st.className = 'status s-' + (ST[d.estado] || d.estado);
+    document.getElementById('tempos').textContent = `${d.criado} · ${d.iniciado || '—'} · ${d.terminado || '…'}`;
+    const er = d.erros || [];
+    document.getElementById('errosBox').hidden = !er.length;
+    document.getElementById('errosN').textContent = er.length;
+    document.getElementById('erros').replaceChildren(...er.map(x => { const li = document.createElement('li'); const c = document.createElement('code'); c.textContent = x; li.appendChild(c); return li; }));
+    document.getElementById('reinicioBox').hidden = !d.reinicio;
+    const fim = !['EM CURSO', 'PENDENTE'].includes(d.estado);
+    const bc = document.getElementById('bCancelar'); if (bc) bc.hidden = d.estado !== 'PENDENTE';
+    if (fim) {
+      running = false;
+      document.getElementById('panel').className = 'run-panel is-done s-' + (ST[d.estado] || d.estado);
+      document.getElementById('bar').classList.remove('indet'); document.getElementById('barfill').style.width = '100%';
+      document.getElementById('live').hidden = true; document.getElementById('followwrap').hidden = true;
+      document.getElementById('runtext').textContent = d.descricao + ' — ' + (d.estado === 'OK' ? T('concluído') : T('falhou'));
+      const br = document.getElementById('bRetomar'); if (br && {{ 'true' if user.can('clientes.atualizar') else 'false' }}) br.hidden = d.estado !== 'ERRO';
+      tempo(d.terminado);
+      return;
+    }
+    tempo(null); setTimeout(ver, 2000);
+  }
+  render(out.textContent); ver();
+  setInterval(() => { if (running) tempo(null); }, 1000);
+  document.getElementById('bRetomar').onclick = async () => {
+    if (!await PortalDialogo.confirmar(T('Retomar o upgrade?') + ' ' + T('Corre de novo o mesmo upgrade no servidor (acaba primeiro o que ficou a meio).'))) return;
+    const novo = await PortalComando.repetir(ID); if (novo) location.href = "{{ url_for('clientes.execucao', cmd_id=0) }}".replace('/0', '/' + novo);
+  };
+  const bc = document.getElementById('bCancelar');
+  if (bc) bc.onclick = async () => {
+    if (!await PortalDialogo.confirmar(T('Cancelar o pedido?') + ' ' + T('Ainda não foi entregue ao agente.'), {perigo: true})) return;
+    const fd = new FormData(); fd.append('csrf', '{{ csrf_token }}');
+    await fetch("{{ url_for('clientes.cancelar_comando', cmd_id=r.id) }}", {method: 'POST', body: fd, headers: {'X-Requested-With': 'fetch'}}); ver();
+  };
+})();
+</script>
+<script src="{{ url_for('static', filename='comandos.js', v=static_v) }}"></script>
+{% endblock %}

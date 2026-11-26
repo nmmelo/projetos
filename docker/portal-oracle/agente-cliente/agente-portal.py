@@ -47,7 +47,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.7.4"
+VERSAO = "1.8.0"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -943,7 +943,108 @@ def _reportar_reinicio(cfg: dict) -> bool:
     return False
 
 
+# ============================================================ upgrade do sistema (pacotes) pedido no portal
+PKG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9+._:~@-]{0,200}$")
+ERRO_PKG_RE = re.compile(r"(^E: |^W: |^Error|^ERROR|Error:|^Erro|[Ff]ailed|FAILED|^dpkg: error|Errors were encountered|"
+                         r"No package|Problem: |conflicts with|^\s*- nothing provides|Could not get lock|Unable to)")
+_upgrade = {"a_correr": None}
+
+
+def _corre_stream(cfg: dict, cmd_id, cmd: list, env: dict, timeout: int = 4 * 3600) -> int:
+    """Corre um comando e envia o output ao portal em direto (lotes a cada ~2 s). Devolve o codigo de saida."""
+    _cmd_post(cfg, cmd_id, ["$ " + " ".join(cmd)])
+    try:
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                             env=env, text=True, errors="replace", bufsize=1)
+    except OSError as e:
+        _cmd_post(cfg, cmd_id, [f"  nao foi possivel correr: {e}"])
+        return 127
+    lote, t0, ultimo = [], time.time(), time.time()
+    for linha in p.stdout:
+        lote.append(linha.rstrip("\n")[:2000])
+        if len(lote) >= 80 or time.time() - ultimo > 2:
+            _cmd_post(cfg, cmd_id, lote)
+            lote, ultimo = [], time.time()
+        if time.time() - t0 > timeout:
+            p.kill()
+            lote.append(f"tempo maximo ({timeout // 60} min) esgotado: processo terminado")
+            break
+    rc = p.wait()
+    if lote:
+        _cmd_post(cfg, cmd_id, lote)
+    return rc
+
+
+def upgrade_comando(cfg: dict, cmd_id, args: dict) -> None:
+    """Upgrade de pacotes (dnf/yum ou apt), sem interacao. modo: todos | seguranca | pacotes. retomar: antes, acaba o
+    que ficou a meio (apt: dpkg --configure -a e apt-get -f install; yum: yum-complete-transaction)."""
+    modo = args.get("modo") or "todos"
+    pacotes = [x for x in (args.get("pacotes") or []) if isinstance(x, str) and PKG_RE.match(x)][:2000]
+    env = dict(os.environ, LANG="C", LC_ALL="C", DEBIAN_FRONTEND="noninteractive", NEEDRESTART_MODE="a",
+               APT_LISTCHANGES_FRONTEND="none")
+    passos = []
+    if shutil.which("dnf") or shutil.which("yum"):
+        f = "dnf" if shutil.which("dnf") else "yum"
+        if args.get("retomar") and f == "yum" and shutil.which("yum-complete-transaction"):
+            passos.append(["yum-complete-transaction", "-y", "--cleanup-only"])
+        base = [f, "-y", "upgrade"]
+        if modo == "seguranca":
+            base.append("--security")
+        passos.append(base + (pacotes if modo == "pacotes" else []))
+        ferramenta = f
+    elif shutil.which("apt-get"):
+        ferramenta = "apt"
+        o = ["-o", "Dpkg::Options::=--force-confdef", "-o", "Dpkg::Options::=--force-confold", "-o", "DPkg::Lock::Timeout=600"]
+        if args.get("retomar"):
+            passos += [["dpkg", "--configure", "-a"], ["apt-get", "-y", *o, "-f", "install"]]
+        passos.append(["apt-get", "-o", "DPkg::Lock::Timeout=600", "update"])
+        if modo == "todos":
+            passos.append(["apt-get", "-y", *o, "upgrade"])
+        else:                                   # seguranca: o portal envia a lista dos pacotes de seguranca
+            passos.append(["apt-get", "-y", *o, "install", "--only-upgrade", *pacotes])
+    else:
+        _cmd_post(cfg, cmd_id, ["sem dnf, yum nem apt-get neste servidor"], "ERRO")
+        return
+    if modo in ("pacotes",) and not pacotes or (modo == "seguranca" and ferramenta == "apt" and not pacotes):
+        _cmd_post(cfg, cmd_id, ["nenhum pacote valido para atualizar"], "ERRO")
+        return
+    _upgrade["a_correr"] = cmd_id
+    try:
+        _cmd_post(cfg, cmd_id, [f"upgrade ({ferramenta}, {modo}{', ' + str(len(pacotes)) + ' pacote(s)' if pacotes else ''})"
+                                + (" - retoma" if args.get("retomar") else "")])
+        rc = 0
+        for cmd in passos:
+            rc = _corre_stream(cfg, cmd_id, cmd, env)
+            if rc != 0 and cmd[0] not in ("yum-complete-transaction",):
+                break
+        reinicio = None
+        if ferramenta != "apt" and shutil.which("needs-restarting"):
+            reinicio = _run(["needs-restarting", "-r"], timeout=120, env=env)[0] == 1
+        elif ferramenta == "apt":
+            reinicio = os.path.exists("/var/run/reboot-required")
+        fim = [f"codigo de saida {rc}"]
+        if reinicio:
+            fim.append("AVISO: o servidor precisa de ser reiniciado para aplicar todas as atualizacoes")
+        pedido(cfg, f"comando/{cmd_id}", {"linhas": fim, "estado": "OK" if rc == 0 else "ERRO",
+                                          "dados": {"rc": rc, "reinicio": reinicio, "ferramenta": ferramenta}}, timeout=30)
+    except Exception as e:  # noqa: BLE001
+        _cmd_post(cfg, cmd_id, [f"erro: {e}"], "ERRO")
+    finally:
+        _upgrade["a_correr"] = None
+    try:                                         # lista de atualizacoes pendentes nova
+        sincronizar(cfg, ["atualizacoes"])
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def executar_comando(cfg: dict, c: dict) -> None:
+    if c.get("tipo") == "upgrade":            # pode demorar: corre a parte (os outros comandos continuam)
+        if _upgrade["a_correr"]:
+            _cmd_post(cfg, c.get("id"), [f"ja ha um upgrade a correr (pedido #{_upgrade['a_correr']})"], "ERRO")
+            return
+        threading.Thread(target=upgrade_comando, args=(cfg, c.get("id"), c.get("args") or {}), daemon=True,
+                         name=f"upgrade-{c.get('id')}").start()
+        return
     if c.get("tipo") == "atualizar":
         atualizar_agente(cfg, c.get("args") or {}, c.get("id"))
     elif c.get("tipo") == "firewall":

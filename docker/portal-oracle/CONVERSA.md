@@ -624,3 +624,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > no cliente, firewall, cada uma dos cartões , deve ir para uma sub aba, o estado da firewall pode ser geral, depois a possibilidade de editar as ipset ou rich rules, para alterar ou criar novas no cliente, permitir também fazer o restart do firewall. O resumo do cliente pode ser parecido ao sistema painel, onde podemos adicionar serviços para serem monitorizados, editar os cartões e alterar a posição.
 
 **Resposta:** Firewall do cliente com sub-abas Geral (estado, ler, ↻ reiniciar a firewall, resumo), Acessos do portal, Serviço Oracle, Zonas e regras (✎ editar cada regra rica, criar, remover) e ipsets (✎ editar as entradas numa caixa de texto, criar, apagar) ou Regras ufw. Resumo do cliente como o painel do Sistema: cartões que se reordenam/escondem (por utilizador) e novo cartão Serviços monitorizados (lista por cliente, estado enviado pelo agente). Agente 1.7.4 (reiniciar a firewall a pedido e estado dos serviços).
+
+## 58. Upgrade do sistema dos clientes pelo portal e aba Execuções
+
+**Pergunta:**
+> quero que nos clientes, na parte de updates, permita atraves do portal fazer o upgrade, pode ir para a a nova aba nos clientes de execução, onde podemos ver o estado , ao clicar abrir e ver o estado , om output, basicamente deve ser igual ao execução do oracle, caso falhe, que mostre o erro ou erros e posso afzer retomar o processo depois de resolver.
+
+**Resposta:** Aba Atualizações do cliente: Atualizar tudo, Só segurança ou os pacotes selecionados (permissão `clientes.atualizar`, agente 1.8.0). Nova aba Clientes → **Execuções** com os upgrades; cada um abre uma página como a execução do Oracle (painel, tempo, output em direto, caixa de erros, aviso de reinício) e, se falhar, **↻ Retomar** (acaba o que ficou a meio e repete). Evento de fim para notificações.
