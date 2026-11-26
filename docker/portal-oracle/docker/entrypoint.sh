@@ -15,6 +15,25 @@ mkdir -p "$DATA/ssh" "$DATA/backups" /run/sshd
 # o sshd le-as com a identidade do utilizador, e em mounts de NAS (Synology, NFS, CIFS) as
 # permissoes/ACL da partilha podem impedir essa leitura nas homes. Sao recriadas a cada arranque.
 AK=/etc/ssh/authorized_keys
+# chaves em formato OpenSSH ("ssh-ed25519 AAAA..."): aceita tambem o formato do PuTTYgen ("---- BEGIN SSH2 PUBLIC KEY ----",
+# o "Save public key"), que e convertido; tira os CR do Windows e as linhas que nao sao chaves
+chaves_openssh() {
+    local f=$1 bloco="" l
+    while IFS= read -r l || [ -n "$l" ]; do
+        l=${l%$'\r'}
+        if [[ $l == "---- BEGIN SSH2 PUBLIC KEY ----" ]]; then bloco="$l"$'\n'; continue; fi
+        if [ -n "$bloco" ]; then
+            bloco+="$l"$'\n'
+            if [[ $l == "---- END SSH2 PUBLIC KEY ----" ]]; then
+                printf '%s' "$bloco" > /tmp/chave.rfc
+                ssh-keygen -i -m RFC4716 -f /tmp/chave.rfc 2>/dev/null || echo "AVISO: chave SSH2 invalida em $f" >&2
+                rm -f /tmp/chave.rfc; bloco=""
+            fi
+            continue
+        fi
+        [[ $l =~ ^(ssh-|ecdsa-|sk-) ]] && printf '%s\n' "$l"
+    done < "$f"
+}
 rm -rf "$AK"; install -d -m 755 -o root -g root "$AK"
 chmod 755 /home 2>/dev/null || true
 
@@ -50,7 +69,7 @@ fi
 if [ -n "$SSH_AUTHORIZED_KEYS" ]; then
     printf '%s\n' "$SSH_AUTHORIZED_KEYS" >> "$HOME_P/.ssh/authorized_keys"
 fi
-tr -d '\r' < "$HOME_P/.ssh/authorized_keys" | grep -E '^(ssh-|ecdsa-|sk-)' | sort -u > /tmp/ak || true
+chaves_openssh "$HOME_P/.ssh/authorized_keys" | sort -u > /tmp/ak || true
 mv /tmp/ak "$HOME_P/.ssh/authorized_keys"
 install -m 644 -o root -g root "$HOME_P/.ssh/authorized_keys" "$AK/portal"
 chown portal:portal "$HOME_P/.ssh/authorized_keys" 2>/dev/null; chmod 600 "$HOME_P/.ssh/authorized_keys" 2>/dev/null || true
@@ -88,10 +107,10 @@ for pub in "$USERS_DIR"/*.pub; do
     chown "$u:$u" "/home/$u"; chmod 755 "/home/$u"
     install -d -m 700 -o "$u" -g "$u" "/home/$u/.ssh"; chmod 700 "/home/$u/.ssh"
     # chaves criadas no Windows: remover CR (\r) e linhas vazias
-    tr -d '\r' < "$pub" | grep -E '^(ssh-|ecdsa-|sk-)' > "$AK/$u" || true
+    chaves_openssh "$pub" > "$AK/$u" || true
     chown root:root "$AK/$u"; chmod 644 "$AK/$u"
     n=$(wc -l < "$AK/$u")
-    [ "$n" -gt 0 ] || echo "AVISO: $pub nao tem nenhuma chave no formato OpenSSH ('ssh-ed25519 AAAA...')"
+    [ "$n" -gt 0 ] || echo "AVISO: $pub nao tem nenhuma chave publica valida ('ssh-ed25519 AAAA...' ou formato do PuTTYgen)"
     echo "$u ALL=(ALL) NOPASSWD:ALL" >> "$SUDOERS"
     echo "Utilizador SSH: $u (uid $(id -u "$u"), $n chave(s), sudo)"
 done

@@ -652,3 +652,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > estou a fazer a preparar o docker, contudo já tinha a porta 2222, ERROR: for oracle-portal  Cannot start service portal: driver failed programming external connectivity on endpoint oracle-portal (...): Bind for 0.0.0.0:2222 failed: port is already allocated
 
 **Resposta:** A porta SSH do contentor (2222 no anfitrião) já estava em uso. Já se podia mudar com `-S <porta>` (fica no `.env`, `PORTAL_SSH_PORT`); agora o `portal-docker.sh` verifica as portas HTTP e SSH antes de arrancar, diz quem as usa, propõe a próxima livre e grava-a no `.env`.
+
+## 62. SSH ao contentor: "No supported authentication methods available (server sent: publickey)"
+
+**Pergunta:**
+> No supported authentication methods available (server sent: publickey)
+
+**Resposta:** O SSH do contentor só aceita chave pública e o PuTTY não tinha nenhuma chave configurada. Passos: chave no PC (ssh-keygen ou PuTTYgen), pública em `data/ssh/users/<utilizador>.pub`, `docker compose restart`, e no PuTTY a chave `.ppk` em Connection → SSH → Auth → Credentials. O arranque do contentor passa a aceitar também o formato do PuTTYgen ("---- BEGIN SSH2 PUBLIC KEY ----"), convertendo-o para OpenSSH.
