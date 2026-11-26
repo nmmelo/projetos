@@ -1246,7 +1246,12 @@ def testar(c: dict) -> list[dict]:
                 except Exception as exc:  # noqa: BLE001
                     passos.append({"passo": nome, "ok": False, "detalhe": f"a porta abre mas o pedido falhou: {exc}. {extra}"})
             else:
-                passos.append({"passo": nome, "ok": None, "detalhe": f"porta aberta; {motivo}. {extra}"})
+                dica = ""
+                if "parado" in motivo and "sem detalhe" in motivo:
+                    dica = (" A porta responde, por isso o serviço está provavelmente a correr: este estado veio de um "
+                            "'agente-portal testar' (ou do fim do setup.sh), que corre noutro processo — agentes anteriores à 1.8.1 "
+                            "enviavam-no como parado. Aguarde a sincronização seguinte do serviço ou atualize o agente.")
+                passos.append({"passo": nome, "ok": None, "detalhe": f"porta aberta; {motivo}.{dica} {extra}"})
         except OSError as exc:
             n = getattr(exc, "errno", None)
             causa = {113: (f"recusado com 'host prohibited/no route': quase sempre a firewall do cliente (firewalld) — a regra não "

@@ -631,3 +631,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > quero que nos clientes, na parte de updates, permita atraves do portal fazer o upgrade, pode ir para a a nova aba nos clientes de execução, onde podemos ver o estado , ao clicar abrir e ver o estado , om output, basicamente deve ser igual ao execução do oracle, caso falhe, que mostre o erro ou erros e posso afzer retomar o processo depois de resolver.
 
 **Resposta:** Aba Atualizações do cliente: Atualizar tudo, Só segurança ou os pacotes selecionados (permissão `clientes.atualizar`, agente 1.8.0). Nova aba Clientes → **Execuções** com os upgrades; cada um abre uma página como a execução do Oracle (painel, tempo, output em direto, caixa de erros, aviso de reinício) e, se falhar, **↻ Retomar** (acaba o que ficou a meio e repete). Evento de fim para notificações.
+
+## 59. "Serviço Oracle do agente parado: sem detalhe" com a porta aberta
+
+**Pergunta:**
+> Serviço Oracle do agente (8795/tcp)porta aberta; serviço Oracle do agente <servidor> parado: sem detalhe.
+
+**Resposta:** O `agente-portal testar` (também corrido no fim do setup.sh) é outro processo, sem o serviço Oracle, e enviava ao portal o estado "parado" sem erro, que ficava até à sincronização seguinte do serviço. Agente 1.8.1: o testar verifica se a porta local está a escutar e o portal mantém o estado enviado pelo serviço (só atualiza ativo/erro com essa verificação); se o Oracle foi ativado no .env sem reiniciar o serviço, a mensagem diz para fazer `systemctl restart agente-portal`. O teste do cliente explica o caso para agentes antigos.

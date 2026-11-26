@@ -725,7 +725,11 @@ def agente_sync():
         return _negado()
     d = request.get_json(silent=True) or {}
     link = url_for("clientes.detalhe", cid=c["id"])
-    return jsonify(clientes.sync(c, d.get("info") if isinstance(d.get("info"), dict) else {}, _ip(), link,
+    info = d.get("info") if isinstance(d.get("info"), dict) else {}
+    if d.get("teste") and (c.get("info") or {}).get("rpc") and isinstance(info.get("rpc"), dict) and not info["rpc"].get("servico"):
+        # 'agente-portal testar' corre noutro processo (sem o servico Oracle): nao apaga o estado enviado pelo servico
+        info["rpc"] = {**c["info"]["rpc"], **{k: v for k, v in info["rpc"].items() if k in ("ativo", "erro") and info["rpc"].get("sonda")}}
+    return jsonify(clientes.sync(c, info, _ip(), link,
                                  d.get("extras") if isinstance(d.get("extras"), dict) else None))
 
 

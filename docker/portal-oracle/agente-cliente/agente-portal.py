@@ -47,7 +47,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.8.0"
+VERSAO = "1.8.1"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -1241,7 +1241,7 @@ def servidor_socket(cfg: dict) -> None:
 
 
 # ============================================================ servico Oracle (pedidos do portal)
-RPC = {"ativo": False, "erro": "", "pedidos": 0, "inicio": None}
+RPC = {"ativo": False, "erro": "", "pedidos": 0, "inicio": None, "servico": False}
 SESSOES = {}           # id -> {"conn", "ultimo", "trava"}
 JOBS = {}              # id -> {"estado", "erro", "saida", "inicio", "fim", "sid", "serial"}
 _rpc_trava = threading.Lock()
@@ -1298,11 +1298,28 @@ def tls_garantir() -> str:
     return tls_fp()
 
 
+def _sonda_rpc(porta: int) -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", porta), timeout=3):
+            return True
+    except OSError:
+        return False
+
+
 def rpc_info(cfg: dict):
     if cfg.get("ORACLE_RPC") != "1":
         return None
     m = oracledb_mod()
-    return {"ativo": RPC["ativo"], "erro": RPC["erro"] or _ora["erro"], "porta": int(cfg.get("RPC_PORTA") or RPC_PORTA),
+    porta = int(cfg.get("RPC_PORTA") or RPC_PORTA)
+    ativo, erro, sonda = RPC["ativo"], RPC["erro"] or _ora["erro"], False
+    if not RPC["servico"]:              # outro processo (agente-portal testar): ve se o servico do agente esta a escutar
+        sonda, ativo = True, _sonda_rpc(porta)
+        erro = "" if ativo else (f"nada a escutar na porta {porta}: o servico do agente nao tem o servico Oracle a correr "
+                                 "(systemctl restart agente-portal)")
+    elif not ativo and not erro and RPC["inicio"] is None:
+        erro = ("ativado depois de o agente arrancar (ou ainda a iniciar): reinicie o servico (systemctl restart agente-portal)"
+                if not RPC.get("thread") else "a iniciar")
+    return {"ativo": ativo, "erro": erro, "porta": porta, "servico": RPC["servico"], "sonda": sonda,
             "fp": tls_fp(), "oracledb": getattr(m, "__version__", "?") if m else None,
             "modo": ("thick" if cfg.get("ORACLE_LIB") else "thin") if m else None,
             "sessoes": len(SESSOES), "jobs": sum(1 for j in JOBS.values() if j["estado"] == "a correr"),
@@ -1636,8 +1653,10 @@ def log(msg):
 
 def cmd_run(_a):
     cfg = ler_env()
+    RPC["servico"] = True
     threading.Thread(target=servidor_socket, args=(cfg,), daemon=True).start()
     if cfg.get("ORACLE_RPC") == "1":
+        RPC["thread"] = True
         threading.Thread(target=servidor_rpc, args=(cfg,), daemon=True).start()
     threading.Thread(target=ciclo_comandos, daemon=True).start()
     mem = {}
