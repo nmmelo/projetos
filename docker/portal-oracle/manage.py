@@ -15,6 +15,25 @@ import os
 import sys
 
 
+def _no_venv() -> None:
+    """Corrido com o python3 do sistema (ex. numa sessao SSH no contentor): volta a correr com o do venv do portal
+    (/opt/venv no Docker, .venv do instalar.sh), onde estao o Flask/Werkzeug e os outros pacotes."""
+    try:
+        import werkzeug  # noqa: F401
+        return
+    except ImportError:
+        pass
+    aqui = os.path.dirname(os.path.abspath(__file__))
+    for py in ("/opt/venv/bin/python", os.path.join(aqui, ".venv", "bin", "python")):
+        if os.path.exists(py) and os.path.realpath(py) != os.path.realpath(sys.executable) and not os.environ.get("PORTAL_MANAGE_REEXEC"):
+            os.environ["PORTAL_MANAGE_REEXEC"] = "1"
+            os.execv(py, [py, os.path.abspath(__file__), *sys.argv[1:]])
+    sys.exit("Faltam os pacotes do portal (werkzeug, flask...): corra com o Python do venv, ex. /opt/venv/bin/python manage.py ...")
+
+
+_no_venv()
+
+
 def _ask_password() -> str:
     from app.auth import MIN_PASSWORD
     p1 = getpass.getpass("Nova password: ")

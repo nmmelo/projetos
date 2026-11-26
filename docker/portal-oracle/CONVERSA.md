@@ -659,3 +659,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > No supported authentication methods available (server sent: publickey)
 
 **Resposta:** O SSH do contentor só aceita chave pública e o PuTTY não tinha nenhuma chave configurada. Passos: chave no PC (ssh-keygen ou PuTTYgen), pública em `data/ssh/users/<utilizador>.pub`, `docker compose restart`, e no PuTTY a chave `.ppk` em Connection → SSH → Auth → Credentials. O arranque do contentor passa a aceitar também o formato do PuTTYgen ("---- BEGIN SSH2 PUBLIC KEY ----"), convertendo-o para OpenSSH.
+
+## 63. manage.py no contentor: No module named 'werkzeug'
+
+**Pergunta:**
+> python3 manage.py set-admin-password ... ModuleNotFoundError: No module named 'werkzeug'
+
+**Resposta:** Numa sessão SSH o `python3` é o do sistema; os pacotes do portal estão no venv `/opt/venv` (o ENV da imagem não passa para o SSH). O `manage.py` passa a voltar a correr com o Python do venv (`/opt/venv` ou `.venv`) e a imagem põe o venv no PATH das sessões SSH (`/etc/profile.d/portal-venv.sh`). Entretanto: `/opt/venv/bin/python manage.py set-admin-password` ou, no anfitrião, `docker compose exec -u portal portal python manage.py set-admin-password`.

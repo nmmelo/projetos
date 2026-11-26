@@ -31,6 +31,8 @@ RUN apt-get update \
 # Python 3.14 do sistema e protegido (PEP 668): os pacotes vao para um venv em /opt/venv.
 # Se o requirements.txt (no mount) mudar, o entrypoint instala as diferencas no arranque.
 COPY requirements.txt /tmp/requirements.txt
+# sessoes SSH nao herdam o ENV da imagem: o venv tambem no PATH dos logins (python3/pip = os do portal)
+RUN printf 'export VIRTUAL_ENV=/opt/venv\nexport PATH=/opt/venv/bin:$PATH\n' > /etc/profile.d/portal-venv.sh
 RUN python3 -m venv /opt/venv \
  && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
  && /opt/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt \
