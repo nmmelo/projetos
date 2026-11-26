@@ -47,7 +47,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.7.2"
+VERSAO = "1.7.3"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -1173,7 +1173,8 @@ def rpc_info(cfg: dict):
             "fp": tls_fp(), "oracledb": getattr(m, "__version__", "?") if m else None,
             "modo": ("thick" if cfg.get("ORACLE_LIB") else "thin") if m else None,
             "sessoes": len(SESSOES), "jobs": sum(1 for j in JOBS.values() if j["estado"] == "a correr"),
-            "pedidos": RPC["pedidos"], "python": platform.python_version()}
+            "pedidos": RPC["pedidos"], "python": platform.python_version(),
+            "origens": [x for x in re.split(r"[,\s]+", cfg.get("RPC_ORIGENS", "")) if x]}
 
 
 def _enc(v):

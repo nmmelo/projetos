@@ -603,3 +603,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 > as duas barras de progressão não estão iguais a de cima vai em 5% e a outra das notificações vai em 50%, alguma coisa não está correto
 
 **Resposta:** A caixa de processos mostrava o progresso guardado em permilagem (0–1000) como se fosse percentagem: 50 ‰ aparecia como 50 %. Agora converte (5 %), igual à página da execução. Na mesma imagem, "HTTP 401 hora do pedido invalida" vem dos relógios do portal e do cliente diferirem mais de 5 min: o agente 1.7.2 indica a diferença em segundos e como ativar o NTP.
+
+## 55. Errno 113 no teste do cliente com a regra certa
+
+**Pergunta:**
+> a regra está bem no firewalld, [Errno 113] No route to host (firewall do cliente ou do caminho?) no teste
+
+**Resposta:** O teste do cliente testava só a porta SSH (22), não a do serviço Oracle (8795): o 113 era o SSH bloqueado, que não é preciso para o agente. O teste passa a ter: **IP do portal** (o IP de origem que o portal usa para esse cliente — é esse que tem de estar no ipset), **Serviço Oracle do agente (8795/tcp)** com ligação TLS e pedido assinado, verificação de que esse IP está no ipset (com o estado da aba Firewall) e nas `--origens` do agente, causa provável por erro (113 firewall do cliente, 111 serviço parado, timeout caminho) e o `tcpdump` para saber se os pacotes chegam ao cliente. A porta SSH passa a aviso quando o agente está online. O erro 113 nas bases de dados também indica o IP de origem do portal. Agente 1.7.3 envia as origens configuradas.

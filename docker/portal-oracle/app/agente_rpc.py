@@ -97,6 +97,12 @@ def alvo(db: dict) -> tuple[dict | None, str]:
     c = clientes.obter(db["cliente_id"])
     if not c:
         return None, "o cliente associado já não existe"
+    return alvo_cliente(c)
+
+
+def alvo_cliente(c: dict, testar: bool = False) -> tuple[dict | None, str]:
+    """Destino do servico Oracle do agente de um cliente. testar=True ignora a pausa depois de uma falha."""
+    from . import clientes
     nome = c["nome"]
     if c["contacto"]["cor"] not in ("verde", "laranja"):
         return None, f"agente {nome} sem contacto ({c['contacto']['texto'].lower()})"
@@ -111,7 +117,7 @@ def alvo(db: dict) -> tuple[dict | None, str]:
     if not rpc.get("fp"):
         return None, f"agente {nome} sem certificado"
     f = _falhas.get(c["id"])
-    if f and time.time() - f[0] < PAUSA_FALHA:
+    if f and not testar and time.time() - f[0] < PAUSA_FALHA:
         return None, f"agente {nome} indisponível há pouco: {f[1]}"
     tk = clientes.token(c)
     if not tk:
@@ -148,8 +154,11 @@ def _dica(e: Exception, a: dict) -> str:
     """Causa provavel de uma falha de ligacao ao servico Oracle do agente."""
     n = getattr(e, "errno", None)
     if n == 113:          # EHOSTUNREACH: firewalld/iptables a rejeitar (icmp-host-prohibited) ou sem rota
-        return (f" — a firewall do servidor está a bloquear a porta {a['porta']}/tcp: abra-a para o IP do portal "
-                f"(setup.sh --oracle --abrir-firewall --origens \"<IP do portal>\") ou desligue o agente nesta base de dados")
+        from .clientes import ip_origem
+        ip = ip_origem(a["host"], a["porta"]) or "<IP do portal>"
+        return (f" — a firewall do servidor está a bloquear a porta {a['porta']}/tcp para o portal, que se liga a partir de {ip}: "
+                f"confirme que {ip} está no ipset (firewall-cmd --ipset=ipset-agente-portal --query-entry={ip}) e use "
+                "Clientes > Gerir > Testar para o diagnóstico completo")
     if n == 111:          # ECONNREFUSED
         return f" — nada a escutar na porta {a['porta']}: o serviço Oracle do agente está parado (agente-portal estado)"
     if n in (110, None) and "timed out" in str(e).lower():

@@ -930,8 +930,44 @@ def esquecer_host(host: str, porta: int) -> str:
     return (r.stdout + r.stderr).strip()
 
 
+def ip_origem(host: str, porta: int = 22) -> str:
+    """IP deste servidor (portal) usado para chegar ao host: e este que tem de estar no ipset/regras do cliente."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect((host, porta))           # UDP: nao envia nada, so escolhe a rota/interface
+            return s.getsockname()[0]
+    except OSError:
+        return ""
+
+
+def _no_ipset(ip: str, c: dict) -> str:
+    """Com o estado da firewall do cliente (aba Firewall): em que ipsets/origens esta o IP do portal."""
+    import ipaddress
+    fw = ((dados(c["id"]).get("firewall") or {}).get("dados")) or {}
+    if not ip or fw.get("backend") != "firewalld":
+        return ""
+    try:
+        a = ipaddress.ip_address(ip)
+    except ValueError:
+        return ""
+    dentro = []
+    for s in fw.get("ipsets") or []:
+        for e in s.get("entradas") or []:
+            try:
+                if a in ipaddress.ip_network(e, strict=False):
+                    dentro.append(f"{s['nome']} ({e})")
+                    break
+            except ValueError:
+                continue
+    nomes = [s["nome"] for s in fw.get("ipsets") or []]
+    if dentro:
+        return f"O IP do portal {ip} está no ipset {', '.join(dentro)} (estado da firewall lido {str(fw.get('lido', ''))[:16].replace('T', ' ')})."
+    return (f"O IP do portal {ip} NÃO está em nenhum ipset do cliente ({', '.join(nomes) or 'nenhum ipset'}): junte-o "
+            "na aba Firewall (Serviço Oracle do agente) ou com firewall-cmd --permanent --ipset=ipset-agente-portal --add-entry=" + ip + ".")
+
+
 def testar(c: dict) -> list[dict]:
-    """Passos: DNS, porta SSH, SSH com a chave do portal, agente."""
+    """Passos: DNS, IP de origem do portal, servico Oracle do agente (porta RPC), porta SSH, SSH com a chave, agente."""
     passos = []
     host, porta, util = c["endereco"], int(c.get("ssh_porta") or 22), c.get("ssh_utilizador") or ""
     try:
@@ -940,13 +976,64 @@ def testar(c: dict) -> list[dict]:
     except OSError as exc:
         passos.append({"passo": "DNS", "ok": False, "detalhe": str(exc)})
         return passos
+    origem = ip_origem(host, porta)
+    if origem:
+        passos.append({"passo": "IP do portal", "ok": True,
+                       "detalhe": f"O portal liga-se a {host} a partir de {origem}: é este IP que tem de estar no ipset / regras do cliente."})
+    agente_ok = c["contacto"]["cor"] in ("verde", "laranja")
+    rpc = (c.get("info") or {}).get("rpc")
+    if rpc:
+        prpc = int(rpc.get("porta") or 8795)
+        nome = f"Serviço Oracle do agente ({prpc}/tcp)"
+        extra = _no_ipset(origem, c)
+        orig = rpc.get("origens") or []
+        if orig and origem:
+            import ipaddress
+            try:
+                dentro = any(ipaddress.ip_address(origem) in ipaddress.ip_network(o, strict=False) for o in orig)
+            except ValueError:
+                dentro = True
+            if not dentro:
+                extra += (f" Atenção: o agente só aceita pedidos de {', '.join(orig)} (RPC_ORIGENS) e o portal vem de {origem}: "
+                          f"sudo agente-portal configurar --origens \"{' '.join(orig + [origem])}\".")
+        try:
+            with socket.create_connection((host, prpc), timeout=6):
+                pass
+            from . import agente_rpc
+            a, motivo = agente_rpc.alvo_cliente(c, testar=True)
+            if a:
+                try:
+                    agente_rpc.chamar(a, "/rpc/ping", {}, timeout=10)
+                    passos.append({"passo": nome, "ok": True, "detalhe": "ligação TLS e pedido assinado OK."
+                                   + (" " + extra if " está no ipset" in extra else "")})
+                except Exception as exc:  # noqa: BLE001
+                    passos.append({"passo": nome, "ok": False, "detalhe": f"a porta abre mas o pedido falhou: {exc}. {extra}"})
+            else:
+                passos.append({"passo": nome, "ok": None, "detalhe": f"porta aberta; {motivo}. {extra}"})
+        except OSError as exc:
+            n = getattr(exc, "errno", None)
+            causa = {113: (f"recusado com 'host prohibited/no route': quase sempre a firewall do cliente (firewalld) — a regra não "
+                           f"apanha o IP {origem or 'do portal'} (ipset sem esse IP, regra noutra zona, ou zona ligada a uma origem "
+                           "que tem prioridade). Se a regra e o ipset estiverem certos, é uma firewall no caminho."),
+                     111: "ligação recusada: o serviço Oracle do agente não está a escutar (agente-portal estado).",
+                     }.get(n, "sem resposta: uma firewall pelo caminho (ou do cliente) está a descartar os pacotes.")
+            passos.append({"passo": nome, "ok": False,
+                           "detalhe": f"{exc} — {causa} {extra} Para saber se os pacotes chegam ao cliente, no cliente: "
+                                      f"sudo tcpdump -ni any tcp port {prpc} and host {origem or '<IP do portal>'} "
+                                      "(e carregue em Testar outra vez): se aparecem, é a firewall do cliente; se não aparece nada, "
+                                      "é a rede pelo caminho."})
     try:
         with socket.create_connection((host, porta), timeout=5) as s:
             s.settimeout(5)
             banner = s.recv(200).decode(errors="replace").strip()
         passos.append({"passo": f"Porta SSH {porta}", "ok": True, "detalhe": banner or "aberta"})
     except OSError as exc:
-        passos.append({"passo": f"Porta SSH {porta}", "ok": False, "detalhe": f"{exc} (firewall do cliente ou do caminho?)"})
+        passos.append({"passo": f"Porta SSH {porta}", "ok": None if agente_ok else False,
+                       "detalhe": f"{exc} — " + ("nada a escutar na porta (sshd parado ou noutra porta). "
+                                                 if getattr(exc, "errno", None) == 111 else
+                                                 f"a porta SSH {porta}/tcp está fechada para o portal ({origem or '?'}). ") +
+                                  "O SSH só é usado para instalar/testar o agente por SSH; o agente e o serviço Oracle não precisam dele. "
+                                  "Para abrir: aba Firewall do cliente (serviço ssh ou regra rica para o ipset)."})
     if not util:
         passos.append({"passo": "SSH", "ok": None, "detalhe": "Sem utilizador SSH definido no cliente."})
     else:
