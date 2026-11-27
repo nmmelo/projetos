@@ -47,7 +47,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.8.3"
+VERSAO = "1.8.4"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -896,6 +896,16 @@ def atualizar_agente(cfg: dict, alvo: dict, cmd_id=None) -> None:
         with open(novo, "wb") as f:
             f.write(dados)
         os.chmod(novo, 0o755)
+        # carrega a versao nova num processo a parte (definicoes e anotacoes avaliadas, sem correr o main):
+        # um erro so visivel ao arrancar (ex. sintaxe de um Python mais recente) nao chega a parar o agente
+        r = subprocess.run([sys.executable, "-c", "import runpy, sys; g = runpy.run_path(sys.argv[1], run_name='teste_atualizacao'); "
+                            "print(g.get('VERSAO'))", novo], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           universal_newlines=True, timeout=120)
+        if r.returncode != 0 or (r.stdout or "").strip().splitlines()[-1:] != [str(alvo.get("versao"))]:
+            os.unlink(novo)
+            raise RuntimeError("a versao nova nao arranca com este Python " + platform.python_version() + ": "
+                               + " | ".join((r.stdout or "").strip().splitlines()[-3:]))
+        passo(f"versao nova carregada com sucesso num processo de teste ({(r.stdout or '').strip().splitlines()[-1]})")
         if os.path.exists(eu):
             try:
                 shutil.copy2(eu, eu + ".anterior")
@@ -951,7 +961,7 @@ ERRO_PKG_RE = re.compile(r"(^E: |^W: |^Error|^ERROR|Error:|^Erro|[Ff]ailed|FAILE
 _upgrade = {"a_correr": None}
 
 
-def _corre_stream(cfg: dict, cmd_id, cmd: list, env: dict, timeout: int = 4 * 3600, guardar: list | None = None) -> int:
+def _corre_stream(cfg: dict, cmd_id, cmd: list, env: dict, timeout: int = 4 * 3600, guardar=None) -> int:
     """Corre um comando e envia o output ao portal em direto (lotes a cada ~2 s). Devolve o codigo de saida.
     guardar: lista onde ficam as linhas (para analisar o resultado)."""
     _cmd_post(cfg, cmd_id, ["$ " + " ".join(cmd)])
@@ -979,7 +989,7 @@ def _corre_stream(cfg: dict, cmd_id, cmd: list, env: dict, timeout: int = 4 * 36
     return rc
 
 
-def _espaco(caminhos: list) -> list[str]:
+def _espaco(caminhos: list) -> list:
     """Espaco livre (MB) dos sistemas de ficheiros dos caminhos (um por dispositivo)."""
     out, vistos = [], set()
     for c in caminhos:

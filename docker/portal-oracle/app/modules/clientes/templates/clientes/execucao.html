@@ -64,7 +64,7 @@
       <span class="hint">{% if sugestoes %}Discos do cliente com espaço: {% for x in sugestoes %}<b translate="no">{{ x.ponto }}</b> ({{ (x.livre_mb / 1024)|round(1) }} GB){{ ', ' if not loop.last }}{% endfor %}.{% endif %}
         Vazio = a cache normal. O agente cria a pasta (só o root lê) e o dnf apaga os pacotes no fim (<code>keepcache=0</code>).</span></label>
     <div class="buttons"><button type="submit" class="primary">↻ Retomar com estas opções</button></div>
-    <p class="hint">Precisa do agente 1.8.3 no cliente{% if c.versao and c.versao < '1.8.3' %} — <b>este tem a {{ c.versao }}</b>: atualize-o primeiro (Clientes → Agentes){% endif %}.
+    <p class="hint">Precisa do agente 1.8.4 no cliente{% if c.versao and c.versao < '1.8.4' %} — <b>este tem a {{ c.versao }}</b>: atualize-o primeiro (Clientes → Agentes){% endif %}.
       Se mesmo assim faltar, liberte espaço no {{ espaco|list|join(', ') }} (ex. <code>journalctl --vacuum-size=200M</code>, logs antigos em /var/log) ou aumente o disco.</p>
   </form>
   {% endif %}

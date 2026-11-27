@@ -704,3 +704,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 
 **Resposta:** O dnf/rpm verifica o espaço da transação inteira: instala os pacotes novos antes de remover os antigos e os pacotes descarregados ficam em `/var/cache/dnf` (no `/`). Por isso o `df` mostra espaço livre e mesmo assim faltam 23 MB. Agente 1.8.3: mostra o espaço em disco antes e depois do upgrade e, se faltar, indica quanto falta por sistema de ficheiros. A execução tem a caixa "Falta de espaço" com **↻ Retomar com opções**: limpar a cache, remover kernels antigos e descarregar os pacotes noutra pasta (`--setopt=cachedir=/u01/cache-pacotes`, sugerida pelos discos do cliente com espaço). As mesmas opções estão nas Atualizações do cliente.
 
+## 69. Atualização do agente para 1.8.3 parada em "a reiniciar o agente"
+
+**Pergunta:**
+> [13:49:43] a descarregar https://<portal>/clientes/agente/agente-portal.py (...) /opt/agente-portal/agente-portal.py substituido pela versao 1.8.3 / a reiniciar o agente (PID ...)...
+
+**Resposta:** Erro da 1.8.3: duas anotações de tipo (`list | None`, `list[str]`) só funcionam a partir do Python 3.10/3.9 e o cliente tem 3.9. O `compile()` não as apanha (só falham ao carregar o módulo), por isso o agente novo não arrancou. Corrigido na 1.8.4. A atualização passa também a carregar a versão nova num processo de teste com o mesmo Python antes de substituir o ficheiro; se falhar, mantém a versão atual. No cliente afetado: repor o `.anterior` e reiniciar o serviço, depois atualizar pelo portal.
+

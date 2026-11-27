@@ -623,7 +623,7 @@ CACHE_DIR_RE = re.compile(r"^/[A-Za-z0-9._/-]{1,200}$")
 
 
 def opcoes_upgrade(f) -> dict:
-    """Opcoes para falta de espaco (agente 1.8.3+): limpar a cache, remover kernels antigos, cache noutra pasta."""
+    """Opcoes para falta de espaco (agente 1.8.4+): limpar a cache, remover kernels antigos, cache noutra pasta."""
     o = {}
     if f.get("limpar_cache") in ("1", "on", True):
         o["limpar_cache"] = True
@@ -697,9 +697,9 @@ def pedir_upgrade(cid: int, modo: str, pacotes: list | None = None, por: str = "
     if _v(c.get("versao") or "0") < (1, 8, 0):
         comando_linha(cmd, f"o agente {c.get('versao') or '(sem versão)'} não faz upgrades do sistema (a partir da 1.8.0): atualize-o na aba Agente")
         comando_estado(cmd, "ERRO")
-    elif opcoes and _v(c.get("versao") or "0") < (1, 8, 3):
+    elif opcoes and _v(c.get("versao") or "0") < (1, 8, 4):
         comando_linha(cmd, f"AVISO: o agente {c.get('versao')} ignora as opções de espaço (limpar a cache, kernels antigos, "
-                           "cache noutra pasta): atualize-o para a 1.8.3 na aba Agente")
+                           "cache noutra pasta): atualize-o para a 1.8.4 na aba Agente")
     return cmd
 
 

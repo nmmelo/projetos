@@ -684,6 +684,14 @@ Aba com **todos os agentes**: cliente, contacto, versão (✓ igual à do portal
 
 ![Agentes](docs/clientes-agentes.png)
 
+
+**Atualizações seguras (1.8.4+)**: antes de se substituir, o agente carrega a versão nova num processo à parte com o mesmo Python. Se não arrancar (ex. sintaxe de um Python mais recente do que o do servidor), a atualização falha e o agente atual continua a correr. Se um agente ficar parado depois de uma atualização, volte à versão anterior no cliente:
+
+```bash
+sudo cp /opt/agente-portal/agente-portal.py.anterior /opt/agente-portal/agente-portal.py
+sudo systemctl restart agente-portal
+```
+
 ### Cliente → Atualizações: upgrade pelo portal e Clientes → Execuções
 
 Na aba **Atualizações** de um cliente (permissão `clientes.atualizar`, agente **1.8.0+**): **⬆ Atualizar tudo**, **🛡 Só segurança** ou selecionar pacotes na tabela e **Atualizar selecionados**. O agente corre o gestor de pacotes sem interação (`dnf/yum -y upgrade [--security] [pacotes]`; `apt-get update` + `apt-get -y upgrade` ou `install --only-upgrade` com `--force-confold` e espera pelo lock), numa tarefa à parte (os outros pedidos continuam), com o output enviado em direto. No fim indica se o servidor precisa de reinício e relê as atualizações pendentes.
@@ -694,7 +702,7 @@ Cada upgrade aparece na nova aba **Clientes → Execuções** (como as execuçõ
 |---|---|
 | ![Execuções](docs/clientes-execucoes.png) | ![Execução com erro](docs/clientes-execucao-erro.png) |
 
-**Falta de espaço** (agente **1.8.3+**). O agente mostra no output o espaço livre de `/`, `/usr`, `/var`, `/boot`, `/tmp` e o tamanho da cache dos pacotes no início e no fim. Se o dnf/yum/rpm/apt falhar por espaço ("needs 23MB more space on the / filesystem", "Disk Requirements"), a execução mostra a caixa **💾 Falta de espaço**. Esta caixa explica porque é que o `df` pode mostrar espaço livre e mesmo assim faltar: os pacotes novos são instalados antes de os antigos serem removidos, e os descarregados ficam em `/var/cache/dnf`. Também permite **↻ Retomar com opções**:
+**Falta de espaço** (agente **1.8.4+**). O agente mostra no output o espaço livre de `/`, `/usr`, `/var`, `/boot`, `/tmp` e o tamanho da cache dos pacotes no início e no fim. Se o dnf/yum/rpm/apt falhar por espaço ("needs 23MB more space on the / filesystem", "Disk Requirements"), a execução mostra a caixa **💾 Falta de espaço**. Esta caixa explica porque é que o `df` pode mostrar espaço livre e mesmo assim faltar: os pacotes novos são instalados antes de os antigos serem removidos, e os descarregados ficam em `/var/cache/dnf`. Também permite **↻ Retomar com opções**:
 
 | Opção | O que corre |
 |---|---|
