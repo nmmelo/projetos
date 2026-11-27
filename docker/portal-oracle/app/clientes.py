@@ -615,11 +615,61 @@ def pedir_reinicio(cid: int, por: str = "") -> int:
     return cmd
 UPGRADE_MAX_H = 6          # upgrade em curso sem terminar ha mais de 6 h passa a ERRO
 PKG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9+._:~@-]{0,200}$")
-ERRO_PKG_RE = re.compile(r"(Curl error|\bE: |\bW: |Error|ERROR|Erro|[Ff]ailed|FAILED|dpkg: error|Errors were encountered|No package|"
+ERRO_PKG_RE = re.compile(r"(Curl error|more space (?:on|needed)|Transaction test error|No space left|\bE: |\bW: |Error|ERROR|Erro|[Ff]ailed|FAILED|dpkg: error|Errors were encountered|No package|"
                          r"Problem: |conflicts with|nothing provides|Could not get lock|Unable to|codigo de saida [1-9])")
 
 
-def pedir_upgrade(cid: int, modo: str, pacotes: list | None = None, por: str = "", retomar_de: int | None = None) -> int:
+CACHE_DIR_RE = re.compile(r"^/[A-Za-z0-9._/-]{1,200}$")
+
+
+def opcoes_upgrade(f) -> dict:
+    """Opcoes para falta de espaco (agente 1.8.3+): limpar a cache, remover kernels antigos, cache noutra pasta."""
+    o = {}
+    if f.get("limpar_cache") in ("1", "on", True):
+        o["limpar_cache"] = True
+    if f.get("kernels") in ("1", "on", True):
+        o["kernels"] = True
+    cd = str(f.get("cache_dir") or "").strip().rstrip("/")
+    if cd:
+        if not CACHE_DIR_RE.match(cd) or ".." in cd or cd in ("/", "/usr", "/etc", "/boot", "/var", "/bin", "/sbin", "/lib", "/lib64", "/proc", "/sys", "/dev", "/root"):
+            raise ValueError("pasta da cache inválida: indique uma subpasta num disco com espaço, ex. /u01/cache-dnf")
+        o["cache_dir"] = cd
+    return o
+
+
+def espaco_upgrade(output: str) -> dict:
+    """Falta de espaco no output de um upgrade: {sistema de ficheiros: MB em falta} (vazio = nao e falta de espaco)."""
+    out: dict = {}
+    for l in (output or "").splitlines():
+        m = re.search(r"needs ([\d.]+)\s*([KMG]i?B) more space on the (\S+) filesystem", l) or \
+            re.search(r"At least ([\d.]+)\s*([KMG]i?B) more space needed on the (\S+) filesystem", l)
+        if m:
+            mb = float(m.group(1)) * {"K": 1 / 1024, "M": 1, "G": 1024}[m.group(2)[0]]
+            out[m.group(3)] = max(out.get(m.group(3), 0), int(mb + 0.999))
+        elif "You don't have enough free space in" in l or "No space left on device" in l:
+            out.setdefault("(disco)", 0)
+    return out
+
+
+def sugerir_cache(cid: int, falta: dict) -> list[dict]:
+    """Discos do cliente com mais espaco livre (fora do sistema de ficheiros em falta) para a cache dos pacotes."""
+    c = obter(cid) or {}
+    try:
+        info = json.loads(c.get("info") or "{}") if isinstance(c.get("info"), str) else (c.get("info") or {})
+    except ValueError:
+        info = {}
+    out = []
+    for d in info.get("discos") or []:
+        if d.get("ponto") in falta or d.get("ponto") in ("/", "/boot", "/boot/efi") or d.get("fs") in ("nfs", "nfs4", "cifs", "vfat"):
+            continue
+        livre = int((d.get("livre") or 0) // 1048576)
+        if livre >= 1024:
+            out.append({"ponto": d["ponto"], "livre_mb": livre, "pasta": d["ponto"].rstrip("/") + "/cache-pacotes"})
+    return sorted(out, key=lambda x: -x["livre_mb"])[:5]
+
+
+def pedir_upgrade(cid: int, modo: str, pacotes: list | None = None, por: str = "", retomar_de: int | None = None,
+                  opcoes: dict | None = None) -> int:
     """Upgrade de pacotes no cliente pelo agente (1.8+): todos, so seguranca ou os pacotes escolhidos."""
     if modo not in ("todos", "seguranca", "pacotes"):
         raise ValueError("modo de upgrade inválido")
@@ -634,12 +684,12 @@ def pedir_upgrade(cid: int, modo: str, pacotes: list | None = None, por: str = "
         ativo = t.val("SELECT id FROM cliente_comandos WHERE cliente_id = ? AND tipo = 'upgrade' AND estado IN ('PENDENTE', 'EM CURSO')", (cid,))
     if ativo:
         raise ValueError(f"já há um upgrade a decorrer neste cliente (#{ativo})")
-    args = {"modo": modo, "pacotes": pac}
+    args = {"modo": modo, "pacotes": pac, **(opcoes or {})}
     if retomar_de:
         args.update(retomar=True, retoma=retomar_de)
     txt = json.dumps(args)
     if len(txt) > 4000:                                   # muitos pacotes: atualiza tudo o que esta pendente
-        args = {"modo": "todos", "pacotes": [], **({"retomar": True, "retoma": retomar_de} if retomar_de else {})}
+        args = {"modo": "todos", "pacotes": [], **(opcoes or {}), **({"retomar": True, "retoma": retomar_de} if retomar_de else {})}
         txt = json.dumps(args)
     cmd = criar_comando(cid, "upgrade", txt, por)
     comando_linha(cmd, f"pedido por {por or 'portal'}: " + descrever({"tipo": "upgrade", "args": txt})
@@ -647,6 +697,9 @@ def pedir_upgrade(cid: int, modo: str, pacotes: list | None = None, por: str = "
     if _v(c.get("versao") or "0") < (1, 8, 0):
         comando_linha(cmd, f"o agente {c.get('versao') or '(sem versão)'} não faz upgrades do sistema (a partir da 1.8.0): atualize-o na aba Agente")
         comando_estado(cmd, "ERRO")
+    elif opcoes and _v(c.get("versao") or "0") < (1, 8, 3):
+        comando_linha(cmd, f"AVISO: o agente {c.get('versao')} ignora as opções de espaço (limpar a cache, kernels antigos, "
+                           "cache noutra pasta): atualize-o para a 1.8.3 na aba Agente")
     return cmd
 
 
@@ -899,13 +952,16 @@ def descrever(r: dict) -> str:
         n = len(a.get("pacotes") or [])
         alvo = {"todos": "todos os pacotes", "seguranca": f"só segurança ({n})" if n else "só segurança",
                 "pacotes": f"{n} pacote(s)" + (": " + ", ".join((a.get("pacotes") or [])[:4]) + ("…" if n > 4 else "") if n else "")}.get(a.get("modo"), "?")
-        return ("Retomar upgrade: " if a.get("retomar") else "Upgrade: ") + alvo
+        ops = [x for x, k in (("limpar a cache", "limpar_cache"), ("remover kernels antigos", "kernels")) if a.get(k)]
+        if a.get("cache_dir"):
+            ops.append(f"cache em {a['cache_dir']}")
+        return ("Retomar upgrade: " if a.get("retomar") else "Upgrade: ") + alvo + (f" ({', '.join(ops)})" if ops else "")
     if r["tipo"] == "ler":
         return ("Listar a pasta " if a.get("listar") else "Abrir ") + str(a.get("caminho") or "")
     return r["tipo"]
 
 
-def repetir_comando(cmd_id: int, por: str = "") -> int:
+def repetir_comando(cmd_id: int, por: str = "", opcoes: dict | None = None) -> int:
     """Volta a fazer um pedido que falhou (ou foi interrompido/cancelado) com os mesmos argumentos. Devolve o novo id."""
     r = comando(cmd_id)
     if not r:
@@ -928,7 +984,9 @@ def repetir_comando(cmd_id: int, por: str = "") -> int:
     elif r["tipo"] == "reiniciar":
         novo = pedir_reinicio(cid, por)
     elif r["tipo"] == "upgrade":
-        return pedir_upgrade(cid, a.get("modo") or "todos", a.get("pacotes") or [], por, retomar_de=cmd_id)
+        if opcoes is None:
+            opcoes = {k: a[k] for k in ("limpar_cache", "kernels", "cache_dir") if a.get(k)}
+        return pedir_upgrade(cid, a.get("modo") or "todos", a.get("pacotes") or [], por, retomar_de=cmd_id, opcoes=opcoes)
     else:
         raise ValueError(f"não é possível repetir pedidos do tipo {r['tipo']}")
     if r["tipo"] != "dados":

@@ -695,3 +695,12 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 
 **Resposta:** A ligação portal → Zabbix estava a funcionar (o portal encontrou o anfitrião e leu os itens); o "indisponível" é o estado da interface **passiva** do agente que a API do Zabbix devolve. Isso acontece quando o agente só envia dados (ServerActive) e o servidor não consegue ligar-se à porta 10050 (Server= no agente ou firewall), mesmo com os dados a chegar. O portal passa a ler a versão do Zabbix, pede a disponibilidade do agente em modo ativo (Zabbix 7) e só mostra "indisponível" se não houver dados nos últimos 15 min; com dados recentes mostra "a receber dados" e explica a interface passiva. Novo bloco **Diagnóstico** (portal → Zabbix e Zabbix → anfitrião: interfaces e erros, itens passivos/ativos, itens não suportados, templates).
 
+
+
+## 68. Upgrade do cliente: "needs 23MB more space on the / filesystem", mas o disco tem espaço
+
+**Pergunta:**
+> sempre que eu faço atualizar no cliente de SO dá-me Error: Transaction test error: installing package (...) needs 2MB more space on the / filesystem (...) Disk Requirements: At least 23MB more space needed on the / filesystem., mas tem espaço
+
+**Resposta:** O dnf/rpm verifica o espaço da transação inteira: instala os pacotes novos antes de remover os antigos e os pacotes descarregados ficam em `/var/cache/dnf` (no `/`). Por isso o `df` mostra espaço livre e mesmo assim faltam 23 MB. Agente 1.8.3: mostra o espaço em disco antes e depois do upgrade e, se faltar, indica quanto falta por sistema de ficheiros. A execução tem a caixa "Falta de espaço" com **↻ Retomar com opções**: limpar a cache, remover kernels antigos e descarregar os pacotes noutra pasta (`--setopt=cachedir=/u01/cache-pacotes`, sugerida pelos discos do cliente com espaço). As mesmas opções estão nas Atualizações do cliente.
+

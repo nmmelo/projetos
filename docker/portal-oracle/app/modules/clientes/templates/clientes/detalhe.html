@@ -303,6 +303,11 @@
     {% if u.seguranca %}<button type="button" class="btn small" data-upg="seguranca">🛡 Só segurança ({{ u.seguranca }})</button>{% endif %}
     <button type="button" class="btn small" data-upg="pacotes" disabled>Atualizar selecionados (<span id="upg-n">0</span>)</button>
     <span class="hint">Corre {{ 'apt-get upgrade' if u.ferramenta == 'apt' else (u.ferramenta or 'dnf') ~ ' -y upgrade' }} no servidor pelo agente (1.8+); acompanhe em Clientes → Execuções.</span>
+    <details class="upg-opcoes"><summary>Opções de espaço</summary>
+      <label class="inline"><input type="checkbox" name="limpar_cache" value="1"> Limpar a cache dos pacotes antes</label>
+      <label class="inline"><input type="checkbox" name="kernels" value="1"> Remover kernels antigos</label>
+      <label>Descarregar os pacotes em <input name="cache_dir" placeholder="ex. /u01/cache-pacotes" translate="no"></label>
+      <span class="hint">Úteis quando o / tem pouco espaço (agente 1.8.3+).</span></details>
     {% endif %}
   </div>
   {% endif %}
@@ -873,6 +878,7 @@
               : T('Atualizar os pacotes selecionados?') + ' ' + sel.slice(0, 6).join(', ') + (sel.length > 6 ? '…' : '');
     if (!await PortalDialogo.confirmar(msg + '\n' + T('Corre no servidor sem pedir confirmação; alguns serviços podem ser reiniciados pelo gestor de pacotes.'))) return;
     const fd = new FormData(); fd.append('csrf', '{{ csrf_token }}'); fd.append('modo', modo);
+    barra.querySelectorAll('.upg-opcoes input').forEach(i => { if (i.type === 'checkbox' ? i.checked : i.value.trim()) fd.append(i.name, i.type === 'checkbox' ? '1' : i.value.trim()); });
     if (modo === 'pacotes') sel.forEach(n => fd.append('pacotes', n));
     const d = await (await fetch(barra.dataset.upgUrl, {method: 'POST', body: fd})).json().catch(() => ({ok: false}));
     if (!d.ok) { PortalDialogo.aviso(d.erro || 'erro'); return; }

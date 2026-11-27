@@ -47,7 +47,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSAO = "1.8.2"
+VERSAO = "1.8.3"
 BASE = os.environ.get("AGENTE_DIR", "/opt/agente-portal")
 ENV = os.path.join(BASE, ".env")
 CHAVE = os.path.join(BASE, ".chave")
@@ -951,8 +951,9 @@ ERRO_PKG_RE = re.compile(r"(^E: |^W: |^Error|^ERROR|Error:|^Erro|[Ff]ailed|FAILE
 _upgrade = {"a_correr": None}
 
 
-def _corre_stream(cfg: dict, cmd_id, cmd: list, env: dict, timeout: int = 4 * 3600) -> int:
-    """Corre um comando e envia o output ao portal em direto (lotes a cada ~2 s). Devolve o codigo de saida."""
+def _corre_stream(cfg: dict, cmd_id, cmd: list, env: dict, timeout: int = 4 * 3600, guardar: list | None = None) -> int:
+    """Corre um comando e envia o output ao portal em direto (lotes a cada ~2 s). Devolve o codigo de saida.
+    guardar: lista onde ficam as linhas (para analisar o resultado)."""
     _cmd_post(cfg, cmd_id, ["$ " + " ".join(cmd)])
     try:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
@@ -963,6 +964,8 @@ def _corre_stream(cfg: dict, cmd_id, cmd: list, env: dict, timeout: int = 4 * 36
     lote, t0, ultimo = [], time.time(), time.time()
     for linha in p.stdout:
         lote.append(linha.rstrip("\n")[:2000])
+        if guardar is not None and len(guardar) < 20000:
+            guardar.append(lote[-1])
         if len(lote) >= 80 or time.time() - ultimo > 2:
             _cmd_post(cfg, cmd_id, lote)
             lote, ultimo = [], time.time()
@@ -974,6 +977,52 @@ def _corre_stream(cfg: dict, cmd_id, cmd: list, env: dict, timeout: int = 4 * 36
     if lote:
         _cmd_post(cfg, cmd_id, lote)
     return rc
+
+
+def _espaco(caminhos: list) -> list[str]:
+    """Espaco livre (MB) dos sistemas de ficheiros dos caminhos (um por dispositivo)."""
+    out, vistos = [], set()
+    for c in caminhos:
+        while c and not os.path.exists(c):
+            c = os.path.dirname(c)
+        if not c:
+            continue
+        try:
+            st, v = os.stat(c), os.statvfs(c)
+        except OSError:
+            continue
+        if st.st_dev in vistos:
+            continue
+        vistos.add(st.st_dev)
+        livre, total = v.f_bavail * v.f_frsize // 1048576, v.f_blocks * v.f_frsize // 1048576
+        ino = f", inodes livres {v.f_favail}" if v.f_files and v.f_favail < 10000 else ""
+        out.append(f"  {c}: {livre} MB livres de {total} MB{ino}")
+    return out
+
+
+def _espaco_post(cfg: dict, cmd_id, cache_dir: str = "") -> None:
+    cache = cache_dir or ("/var/cache/apt/archives" if shutil.which("apt-get") and not shutil.which("dnf") else "/var/cache/dnf")
+    linhas = _espaco(["/", "/usr", "/var", cache, "/boot", "/tmp"])
+    try:
+        usado = _run(["du", "-sm", cache], timeout=60)[1].split()[0]
+        linhas.append(f"  cache dos pacotes ({cache}): {usado} MB")
+    except (IndexError, ValueError):
+        pass
+    _cmd_post(cfg, cmd_id, ["espaco em disco:"] + linhas)
+
+
+def _falta_espaco(linhas: list) -> dict:
+    """{sistema de ficheiros: MB em falta} a partir do output do dnf/yum/rpm/apt."""
+    out: dict = {}
+    for l in linhas:
+        m = re.search(r"needs ([\d.]+)\s*([KMG]i?B) more space on the (\S+) filesystem", l) or \
+            re.search(r"At least ([\d.]+)\s*([KMG]i?B) more space needed on the (\S+) filesystem", l)
+        if m:
+            mb = float(m.group(1)) * {"K": 1 / 1024, "M": 1, "G": 1024}[m.group(2)[0]]
+            out[m.group(3)] = max(out.get(m.group(3), 0), int(mb + 0.999))
+        elif re.search(r"You don't have enough free space in (\S+)", l):
+            out[re.search(r"in (\S+?)\.?$", l).group(1)] = out.get("apt", 0) or 1
+    return out
 
 
 def upgrade_comando(cfg: dict, cmd_id, args: dict) -> None:
@@ -1009,15 +1058,60 @@ def upgrade_comando(cfg: dict, cmd_id, args: dict) -> None:
     if modo in ("pacotes",) and not pacotes or (modo == "seguranca" and ferramenta == "apt" and not pacotes):
         _cmd_post(cfg, cmd_id, ["nenhum pacote valido para atualizar"], "ERRO")
         return
+    # opcoes para falta de espaco (1.8.3): limpar a cache, remover kernels antigos, cache noutra pasta
+    cache_dir = str(args.get("cache_dir") or "").rstrip("/")
+    if cache_dir and not re.match(r"^/[A-Za-z0-9._/-]{1,200}$", cache_dir) or ".." in cache_dir:
+        _cmd_post(cfg, cmd_id, [f"pasta da cache invalida: {cache_dir}"], "ERRO")
+        return
+    pre = []
+    if args.get("limpar_cache"):
+        pre.append(["apt-get", "clean"] if ferramenta == "apt" else [ferramenta, "clean", "packages"])
+    if args.get("kernels") and ferramenta != "apt":
+        pre.append([ferramenta, "-y", "remove", "--oldinstallonly", "--setopt", "installonly_limit=2"])
+    if args.get("kernels") and ferramenta == "apt":
+        pre.append(["apt-get", "-y", "autoremove", "--purge"])
+    if cache_dir:
+        if ferramenta == "apt":
+            passos = [x[:1] + ["-o", f"Dir::Cache::Archives={cache_dir}/"] + x[1:] if x[0] == "apt-get" else x for x in passos]
+        else:
+            passos = [x[:1] + [f"--setopt=cachedir={cache_dir}", "--setopt=keepcache=0"] + x[1:] if x[0] in ("dnf", "yum") else x
+                      for x in passos]
     _upgrade["a_correr"] = cmd_id
     try:
         _cmd_post(cfg, cmd_id, [f"upgrade ({ferramenta}, {modo}{', ' + str(len(pacotes)) + ' pacote(s)' if pacotes else ''})"
                                 + (" - retoma" if args.get("retomar") else "")])
+        if cache_dir:
+            os.makedirs(os.path.join(cache_dir, "partial") if ferramenta == "apt" else cache_dir, mode=0o700, exist_ok=True)
+        _espaco_post(cfg, cmd_id, cache_dir)
+        for cmd in pre:
+            if "--oldinstallonly" in cmd:      # sem kernels antigos o dnf termina com "Error:" (nao e erro)
+                _cmd_post(cfg, cmd_id, ["$ " + " ".join(cmd)])
+                r_, o_, e_ = _run(cmd, timeout=1800, env=env)
+                o_ = (o_ or "") + (e_ or "")
+                if r_ != 0 and "No old installonly" in o_:
+                    _cmd_post(cfg, cmd_id, ["  sem kernels antigos para remover"])
+                    continue
+                _cmd_post(cfg, cmd_id, [x[:2000] for x in o_.splitlines()[-200:]])
+            else:
+                r_ = _corre_stream(cfg, cmd_id, cmd, env, timeout=1800)
+            if r_ != 0:
+                _cmd_post(cfg, cmd_id, [f"  (codigo {r_}: continua com o upgrade)"])
+        if pre:
+            _espaco_post(cfg, cmd_id, cache_dir)
         rc = 0
+        saida: list = []
         for cmd in passos:
-            rc = _corre_stream(cfg, cmd_id, cmd, env)
+            rc = _corre_stream(cfg, cmd_id, cmd, env, guardar=saida)
             if rc != 0 and cmd[0] not in ("yum-complete-transaction",):
                 break
+        if rc != 0:
+            falta = _falta_espaco(saida)
+            if falta:
+                _cmd_post(cfg, cmd_id, ["", "FALTA DE ESPACO: o rpm/dpkg precisa de mais espaco do que o livre durante a transacao"
+                                        " (os pacotes novos sao instalados antes de os antigos serem removidos, e os"
+                                        " descarregados ficam na cache)."] +
+                          [f"  {fs}: faltam pelo menos {mb} MB" for fs, mb in falta.items()])
+                _espaco_post(cfg, cmd_id, cache_dir)
         reinicio = None
         if ferramenta != "apt" and shutil.which("needs-restarting"):
             reinicio = _run(["needs-restarting", "-r"], timeout=120, env=env)[0] == 1

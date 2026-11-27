@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="2320">
+<lingua codigo="en" nome="English" textos="2328">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -9281,5 +9281,37 @@
   <texto>
     <origem>O Zabbix não recebe dados deste anfitrião há mais de 15 min.</origem>
     <traducao>Zabbix has not received data from this host for more than 15 min.</traducao>
+  </texto>
+  <texto>
+    <origem>Falta de espaço</origem>
+    <traducao>Out of space</traducao>
+  </texto>
+  <texto>
+    <origem>Remover kernels antigos</origem>
+    <traducao>Remove old kernels</traducao>
+  </texto>
+  <texto>
+    <origem>Limpar a cache dos pacotes antes</origem>
+    <traducao>Clean the package cache first</traducao>
+  </texto>
+  <texto>
+    <origem>Descarregar os pacotes noutra pasta (num disco com espaço)</origem>
+    <traducao>Download the packages to another folder (on a disk with space)</traducao>
+  </texto>
+  <texto>
+    <origem>↻ Retomar com estas opções</origem>
+    <traducao>↻ Resume with these options</traducao>
+  </texto>
+  <texto>
+    <origem>Opções de espaço</origem>
+    <traducao>Space options</traducao>
+  </texto>
+  <texto>
+    <origem>Descarregar os pacotes em</origem>
+    <traducao>Download the packages to</traducao>
+  </texto>
+  <texto>
+    <origem>Úteis quando o / tem pouco espaço (agente 1.8.3+).</origem>
+    <traducao>Useful when / is low on space (agent 1.8.3+).</traducao>
   </texto>
 </lingua>

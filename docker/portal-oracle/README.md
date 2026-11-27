@@ -694,6 +694,18 @@ Cada upgrade aparece na nova aba **Clientes → Execuções** (como as execuçõ
 |---|---|
 | ![Execuções](docs/clientes-execucoes.png) | ![Execução com erro](docs/clientes-execucao-erro.png) |
 
+**Falta de espaço** (agente **1.8.3+**). O agente mostra no output o espaço livre de `/`, `/usr`, `/var`, `/boot`, `/tmp` e o tamanho da cache dos pacotes no início e no fim. Se o dnf/yum/rpm/apt falhar por espaço ("needs 23MB more space on the / filesystem", "Disk Requirements"), a execução mostra a caixa **💾 Falta de espaço**. Esta caixa explica porque é que o `df` pode mostrar espaço livre e mesmo assim faltar: os pacotes novos são instalados antes de os antigos serem removidos, e os descarregados ficam em `/var/cache/dnf`. Também permite **↻ Retomar com opções**:
+
+| Opção | O que corre |
+|---|---|
+| Limpar a cache dos pacotes antes | `dnf clean packages` / `apt-get clean` |
+| Remover kernels antigos | `dnf -y remove --oldinstallonly --setopt installonly_limit=2` (fica o atual e o anterior) / `apt-get -y autoremove --purge` |
+| Descarregar os pacotes noutra pasta | `dnf --setopt=cachedir=<pasta> --setopt=keepcache=0 upgrade` / `apt-get -o Dir::Cache::Archives=<pasta>/`; o portal sugere os discos do cliente com mais espaço (ex. `/u01/cache-pacotes`) |
+
+As mesmas opções estão em Atualizações → **Opções de espaço**, antes de pedir o upgrade.
+
+![Execução com falta de espaço](docs/clientes-execucao-espaco.png)
+
 ### Cliente → Resumo (painel de cartões)
 
 O resumo do cliente funciona como o painel do Sistema: cartões **Agente**, **Sistema**, **Recursos**, **Serviços monitorizados**, **Serviço Oracle do agente**, **Regras de notificação** e **Eventos recentes**; em **Editar** arrastam-se para mudar a posição, ✕ esconde e "Adicionar" volta a mostrar (disposição guardada por utilizador, a mesma em todos os clientes). Em **Serviços monitorizados**, **✎ Serviços** (permissão `clientes.gerir`) escolhe os serviços systemd a acompanhar nesse cliente (ex. `firewalld sshd chronyd oracle-ohasd`): o agente (1.7.4+) recebe a lista na sincronização seguinte e passa a enviar o estado (em execução, parado, falhou, não existe, descrição e desde quando).

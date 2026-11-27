@@ -48,6 +48,28 @@
   <p class="hint">Resolva no servidor (ex. repositório inacessível, conflito de pacotes, disco cheio, outro dnf/apt a correr) e use <b>↻ Retomar</b>:
     corre o mesmo upgrade{{ ' depois de dpkg --configure -a e apt-get -f install' if 'apt' in (r.output or '') else ' (no yum, depois de yum-complete-transaction)' }}.</p>
 </section>
+{% if espaco and r.estado == 'ERRO' %}
+<section class="card exec-espaco" id="espacoBox">
+  <h2>💾 Falta de espaço {% for fs, mb in espaco.items() %}<span class="tag bad" translate="no">{{ fs }}{% if mb %}: faltam {{ mb }} MB{% endif %}</span> {% endfor %}</h2>
+  <p>O <code>df</code> pode mostrar espaço livre e mesmo assim faltar: durante a transação o rpm/dpkg instala os pacotes novos <b>antes</b> de remover os antigos
+    (precisa do tamanho de todos ao mesmo tempo) e os pacotes descarregados ficam na cache (<code>/var/cache/dnf</code>), normalmente no mesmo disco.
+    O número indicado é o que falta <b>depois</b> de contar com isso. O espaço no início e no fim está no output (linhas "espaco em disco").</p>
+  {% if user.can('clientes.atualizar') %}
+  <form id="espacoForm" class="stack">
+    <label class="inline"><input type="checkbox" name="limpar_cache" value="1" checked> Limpar a cache dos pacotes antes (<code>{{ 'apt-get clean' if 'apt' in (r.output or '') else 'dnf clean packages' }}</code>)</label>
+    <label class="inline"><input type="checkbox" name="kernels" value="1"> Remover kernels antigos (fica o atual e o anterior: <code>dnf remove --oldinstallonly</code>)</label>
+    <label>Descarregar os pacotes noutra pasta (num disco com espaço)
+      <input name="cache_dir" list="cacheSug" placeholder="ex. /u01/cache-pacotes" value="{{ sugestoes[0].pasta if sugestoes else '' }}" translate="no">
+      <datalist id="cacheSug">{% for x in sugestoes %}<option value="{{ x.pasta }}">{{ x.ponto }}: {{ (x.livre_mb / 1024)|round(1) }} GB livres</option>{% endfor %}</datalist>
+      <span class="hint">{% if sugestoes %}Discos do cliente com espaço: {% for x in sugestoes %}<b translate="no">{{ x.ponto }}</b> ({{ (x.livre_mb / 1024)|round(1) }} GB){{ ', ' if not loop.last }}{% endfor %}.{% endif %}
+        Vazio = a cache normal. O agente cria a pasta (só o root lê) e o dnf apaga os pacotes no fim (<code>keepcache=0</code>).</span></label>
+    <div class="buttons"><button type="submit" class="primary">↻ Retomar com estas opções</button></div>
+    <p class="hint">Precisa do agente 1.8.3 no cliente{% if c.versao and c.versao < '1.8.3' %} — <b>este tem a {{ c.versao }}</b>: atualize-o primeiro (Clientes → Agentes){% endif %}.
+      Se mesmo assim faltar, liberte espaço no {{ espaco|list|join(', ') }} (ex. <code>journalctl --vacuum-size=200M</code>, logs antigos em /var/log) ou aumente o disco.</p>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
 <section class="card exec-aviso" id="reinicioBox" hidden><h2>⚠ Reinício necessário</h2>
   <p>O servidor precisa de ser reiniciado para aplicar todas as atualizações (kernel, glibc, systemd…).</p></section>
 </div>
@@ -116,6 +138,14 @@
     if (!await PortalDialogo.confirmar(T('Retomar o upgrade?') + ' ' + T('Corre de novo o mesmo upgrade no servidor (acaba primeiro o que ficou a meio).'))) return;
     const novo = await PortalComando.repetir(ID); if (novo) location.href = "{{ url_for('clientes.execucao', cmd_id=0) }}".replace('/0', '/' + novo);
   };
+  const ef = document.getElementById('espacoForm');
+  if (ef) ef.addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(ef); fd.append('csrf', '{{ csrf_token }}'); fd.append('com_opcoes', '1');
+    const d = await (await fetch("{{ url_for('clientes.repetir_comando', cmd_id=r.id) }}", {method: 'POST', body: fd})).json().catch(() => ({ok: false}));
+    if (!d.ok) { PortalDialogo.aviso(d.erro || 'erro'); return; }
+    location.href = "{{ url_for('clientes.execucao', cmd_id=0) }}".replace('/0', '/' + d.id);
+  });
   const bc = document.getElementById('bCancelar');
   if (bc) bc.onclick = async () => {
     if (!await PortalDialogo.confirmar(T('Cancelar o pedido?') + ' ' + T('Ainda não foi entregue ao agente.'), {perigo: true})) return;

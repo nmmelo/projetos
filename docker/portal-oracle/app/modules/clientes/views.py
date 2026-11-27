@@ -366,7 +366,8 @@ def repetir_comando(cmd_id):
     if precisa and not g.user.can(precisa):
         return jsonify(ok=False, erro=f"sem permissão ({precisa})"), 403
     try:
-        novo = clientes.repetir_comando(cmd_id, g.user.username)
+        op = clientes.opcoes_upgrade(request.form) if r["tipo"] == "upgrade" and request.form.get("com_opcoes") else None
+        novo = clientes.repetir_comando(cmd_id, g.user.username, op)
     except ValueError as exc:
         return jsonify(ok=False, erro=str(exc)), 400
     return jsonify(ok=True, id=novo)
@@ -379,7 +380,7 @@ def api_comando(cmd_id):
     c = clientes.obter(r["cliente_id"]) or {}
     extra = {}
     if r["tipo"] == "upgrade":
-        extra = {"erros": clientes.erros_upgrade(r.get("output") or ""),
+        extra = {"erros": clientes.erros_upgrade(r.get("output") or ""), "espaco": clientes.espaco_upgrade(r.get("output") or ""),
                  "reinicio": "precisa de ser reiniciado" in (r.get("output") or "")}
     return jsonify({**{k: r[k] for k in ("id", "cliente_id", "tipo", "estado", "pedido_por", "criado", "iniciado", "terminado", "output")},
                     "descricao": clientes.descrever(r), "cliente": c.get("nome", ""), **extra})
@@ -391,7 +392,8 @@ def api_comando(cmd_id):
 def upgrade(cid):
     clientes.obter(cid) or abort(404)
     try:
-        cmd = clientes.pedir_upgrade(cid, request.form.get("modo") or "todos", request.form.getlist("pacotes"), g.user.username)
+        cmd = clientes.pedir_upgrade(cid, request.form.get("modo") or "todos", request.form.getlist("pacotes"), g.user.username,
+                                     opcoes=clientes.opcoes_upgrade(request.form))
     except ValueError as exc:
         return jsonify(ok=False, erro=str(exc)), 400
     return jsonify(ok=True, id=cmd, url=url_for("clientes.execucao", cmd_id=cmd))
@@ -431,7 +433,8 @@ def execucao(cmd_id):
                         (f'%"retoma": {cmd_id}}}%',))
     return render_template("clientes/execucao.html", r=r, a=a, c=clientes.obter(r["cliente_id"]) or {},
                            descricao=clientes.descrever(r), erros=clientes.erros_upgrade(r.get("output") or ""),
-                           retomas=retomas)
+                           retomas=retomas, espaco=(esp := clientes.espaco_upgrade(r.get("output") or "")),
+                           sugestoes=clientes.sugerir_cache(r["cliente_id"], esp) if esp else [])
 
 
 @bp.route("/pedidos")
