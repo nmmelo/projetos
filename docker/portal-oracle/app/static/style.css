@@ -1182,3 +1182,7 @@ tr.zbx-it { cursor: pointer; } tr.zbx-it:hover td { background: var(--hover); }
 @media (max-width: 560px) { .zbx-grid { grid-template-columns: 1fr; } }
 .card.zbx-graf { max-width: none; }
 .zbx-disp-b i.unk { background: var(--muted); opacity: .4; }
+.zbx-diag { max-width: none; margin-top: 12px; padding: 12px 18px; } .zbx-diag summary { cursor: pointer; }
+.zbx-diag-g { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 18px; margin-top: 10px; }
+.zbx-diag h4 { margin: 0 0 6px; }
+.flash.info { background: var(--info-bg); border-color: var(--line); color: var(--ink); }

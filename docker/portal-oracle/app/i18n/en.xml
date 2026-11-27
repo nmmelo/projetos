@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="2304">
+<lingua codigo="en" nome="English" textos="2320">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -9217,5 +9217,69 @@
   <texto>
     <origem>30 dias</origem>
     <traducao>30 days</traducao>
+  </texto>
+  <texto>
+    <origem>— portal → Zabbix → anfitrião</origem>
+    <traducao>— portal → Zabbix → host</traducao>
+  </texto>
+  <texto>
+    <origem>Portal → Zabbix</origem>
+    <traducao>Portal → Zabbix</traducao>
+  </texto>
+  <texto>
+    <origem>Zabbix → anfitrião</origem>
+    <traducao>Zabbix → host</traducao>
+  </texto>
+  <texto>
+    <origem>Versão do Zabbix</origem>
+    <traducao>Zabbix version</traducao>
+  </texto>
+  <texto>
+    <origem>Resposta</origem>
+    <traducao>Response</traducao>
+  </texto>
+  <texto>
+    <origem>Anfitrião encontrado</origem>
+    <traducao>Host found</traducao>
+  </texto>
+  <texto>
+    <origem>Itens ligados no anfitrião</origem>
+    <traducao>Enabled items on the host</traducao>
+  </texto>
+  <texto>
+    <origem>Se esta parte responde, a ligação entre o portal e o Zabbix está bem: o estado "indisponível" vem do próprio Zabbix.</origem>
+    <traducao>If this part answers, the link between the portal and Zabbix is fine: the "unavailable" state comes from Zabbix itself.</traducao>
+  </texto>
+  <texto>
+    <origem>Interface</origem>
+    <traducao>Interface</traducao>
+  </texto>
+  <texto>
+    <origem>Agente em modo ativo</origem>
+    <traducao>Agent in active mode</traducao>
+  </texto>
+  <texto>
+    <origem>Itens passivos (o servidor pergunta)</origem>
+    <traducao>Passive items (the server asks)</traducao>
+  </texto>
+  <texto>
+    <origem>Itens ativos (o agente envia)</origem>
+    <traducao>Active items (the agent sends)</traducao>
+  </texto>
+  <texto>
+    <origem>Último dado recebido</origem>
+    <traducao>Last data received</traducao>
+  </texto>
+  <texto>
+    <origem>Templates</origem>
+    <traducao>Templates</traducao>
+  </texto>
+  <texto>
+    <origem>A interface passiva do agente está indisponível no Zabbix, mas o Zabbix está a receber dados</origem>
+    <traducao>The agent's passive interface is unavailable in Zabbix, but Zabbix is receiving data</traducao>
+  </texto>
+  <texto>
+    <origem>O Zabbix não recebe dados deste anfitrião há mais de 15 min.</origem>
+    <traducao>Zabbix has not received data from this host for more than 15 min.</traducao>
   </texto>
 </lingua>

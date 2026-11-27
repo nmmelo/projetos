@@ -688,3 +688,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 
 **Resposta:** A aba Zabbix do cliente passa a ter **Gráficos** do histórico lidos da API do Zabbix (history.get até 2 dias, trend.get para períodos maiores): CPU (total, user, system, iowait…), carga, memória (% e bytes), swap, rede e discos, com a tabela último/mín/méd/máx por baixo de cada gráfico e a barra de disponibilidade do agente. Períodos 1 h a 30 dias. Com o agente indisponível mostra o erro do Zabbix (ex. "[113] No route to host"), desde quando e o último dado recebido; sem dados no período escolhido sugere um período maior. Clicar num item numérico abre o gráfico desse item.
 
+## 67. Zabbix: "indisponível" no portal mas sem erros no Zabbix
+
+**Pergunta:**
+> mas do lado do zabbix server não dá erros, pdoe ser entre o portal e o zabbix
+
+**Resposta:** A ligação portal → Zabbix estava a funcionar (o portal encontrou o anfitrião e leu os itens); o "indisponível" é o estado da interface **passiva** do agente que a API do Zabbix devolve. Isso acontece quando o agente só envia dados (ServerActive) e o servidor não consegue ligar-se à porta 10050 (Server= no agente ou firewall), mesmo com os dados a chegar. O portal passa a ler a versão do Zabbix, pede a disponibilidade do agente em modo ativo (Zabbix 7) e só mostra "indisponível" se não houver dados nos últimos 15 min; com dados recentes mostra "a receber dados" e explica a interface passiva. Novo bloco **Diagnóstico** (portal → Zabbix e Zabbix → anfitrião: interfaces e erros, itens passivos/ativos, itens não suportados, templates).
+

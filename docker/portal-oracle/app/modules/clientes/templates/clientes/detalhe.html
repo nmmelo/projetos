@@ -564,16 +564,39 @@
   {% if zbx and zbx.erro %}<p class="flash error">{{ zbx.erro }}</p>{% endif %}
   {% if z and z.encontrado %}
   {% set indisp = z.interfaces|selectattr('estado', 'equalto', 'indisponível')|list %}
-  {{ saude('bad' if indisp else ('ok' if z.ativo and not z.problemas else ('bad' if z.problemas|selectattr('sev', 'ge', 4)|list else 'warn')),
-           z.visivel ~ (' (desativado no Zabbix)' if not z.ativo else '') ~ (' · em manutenção' if z.manutencao else '') ~ (' · agente indisponível' if indisp else ''),
+  {% set mau = z.geral in ('indisponível', 'sem dados', 'sem dados recentes') %}
+  {{ saude('bad' if z.geral == 'indisponível' else ('warn' if mau else ('ok' if z.ativo and not z.problemas else ('bad' if z.problemas|selectattr('sev', 'ge', 4)|list else 'warn'))),
+           z.visivel ~ (' (desativado no Zabbix)' if not z.ativo else '') ~ (' · em manutenção' if z.manutencao else '') ~ ' · ' ~ z.geral,
            (z.problemas|length ~ ' problema(s) · ') ~ (z.interfaces|map(attribute='tipo')|join(', ')) ~ ' · ' ~ z.ms ~ ' ms') }}
-  {% if indisp %}
+  {% if mau %}
   <div class="flash warn zbx-indisp">
-    <b>O Zabbix não consegue falar com o agente deste anfitrião.</b>
+    <b>{{ 'O Zabbix não consegue falar com o agente deste anfitrião.' if z.geral == 'indisponível' else 'O Zabbix não recebe dados deste anfitrião há mais de 15 min.' }}</b>
     {% for i in indisp %}<div><span translate="no">{{ i.end }}:{{ i.porta }}</span> ({{ i.tipo }}){% if i.erros_desde %} · sem resposta desde {{ i.erros_desde|ts_epoch }}{% endif %}{% if i.erro %} — <code translate="no">{{ i.erro }}</code>{% endif %}</div>{% endfor %}
     {% if z.ultimo_dado %}<div>Último dado recebido: <b>{{ z.ultimo_dado|ts_epoch }}</b>. O histórico até aí continua nos gráficos abaixo.</div>{% endif %}
   </div>
+  {% elif indisp %}
+  <div class="flash info zbx-indisp"><b>A interface passiva do agente está indisponível no Zabbix, mas o Zabbix está a receber dados</b> (último há menos de 15 min{% if z.ativos %}, {{ z.ativos }} itens ativos{% endif %}).
+    <div>Normal quando o agente só envia (ServerActive) e não aceita ligações do servidor na porta {{ indisp[0].porta }} (Server= no zabbix_agentd.conf / firewall do cliente): os {{ z.passivos }} itens passivos falham.{% if indisp[0].erro %} <code translate="no">{{ indisp[0].erro }}</code>{% endif %}</div></div>
   {% endif %}
+
+  <details class="card zbx-diag" {{ 'open' if mau or indisp }}><summary><b>Diagnóstico</b> <small class="muted">— portal → Zabbix → anfitrião</small></summary>
+    <div class="zbx-diag-g">
+      <div><h4>Portal → Zabbix</h4>
+        {{ kv([('API', z.url ~ '/api_jsonrpc.php'), ('Versão do Zabbix', z.versao or '?'), ('Resposta', z.api_ms ~ ' ms (total ' ~ z.ms ~ ' ms)'),
+               ('Anfitrião encontrado', z.host), ('Itens ligados no anfitrião', z.n_itens)]) }}
+        <p class="hint">Se esta parte responde, a ligação entre o portal e o Zabbix está bem: o estado "indisponível" vem do próprio Zabbix.</p></div>
+      <div><h4>Zabbix → anfitrião</h4>
+        <table class="small-tab"><thead><tr><th>Interface</th><th>Tipo</th><th>Estado</th><th>Erro</th></tr></thead><tbody>
+          {% for i in z.interfaces %}<tr><td translate="no">{{ i.end }}:{{ i.porta }}{% if i.principal %} <small class="muted">(principal)</small>{% endif %}</td><td>{{ i.tipo }}</td>
+            <td><span class="tag {{ 'ok' if i.valor == '1' else ('bad' if i.valor == '2' else '') }}">{{ i.estado or ('?' ~ i.valor) }}</span></td><td><small translate="no">{{ i.erro or '—' }}</small></td></tr>{% endfor %}
+          {% if z.ativo_disp %}<tr><td>Agente em modo ativo</td><td>agente</td><td><span class="tag {{ 'ok' if z.ativo_disp == 'disponível' else ('bad' if z.ativo_disp == 'indisponível' else '') }}">{{ z.ativo_disp }}</span></td><td>—</td></tr>{% endif %}
+        </tbody></table>
+        {{ kv([('Itens passivos (o servidor pergunta)', z.passivos), ('Itens ativos (o agente envia)', z.ativos),
+               ('Último dado recebido', (z.ultimo_dado|ts_epoch) if z.ultimo_dado else '—'), ('Templates', z.templates|join(', ') or '—')]) }}
+        {% if z.nao_suportados %}<p class="hint">Itens não suportados: {% for x in z.nao_suportados %}<span title="{{ x.erro }}">{{ x.nome }}</span>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+      </div>
+    </div>
+  </details>
 
   <section class="card zbx-graf">
     <div class="zbx-barra">

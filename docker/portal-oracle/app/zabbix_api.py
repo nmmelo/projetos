@@ -59,23 +59,63 @@ def chamar(metodo: str, params, timeout: float = 15):
     raise ErroZabbix("autenticação recusada pelo Zabbix (token?)")
 
 
+_versao: dict = {}
+
+
+def versao() -> str:
+    """Versao da API do Zabbix (apiinfo.version: sem autenticacao). Cache 10 min."""
+    if _versao.get("url") == _url() and time.time() - _versao.get("t", 0) < 600:
+        return _versao["v"]
+    ctx = ssl.create_default_context()
+    if store.get_setting("clientes_tls_inseguro") == "1":
+        ctx.check_hostname, ctx.verify_mode = False, ssl.CERT_NONE
+    req = urllib.request.Request(_url(), json.dumps({"jsonrpc": "2.0", "method": "apiinfo.version", "params": [], "id": 1}).encode(),
+                                 {"Content-Type": "application/json-rpc"})
+    try:
+        with urllib.request.urlopen(req, timeout=10, context=ctx) as r:
+            v = str(json.loads(r.read().decode()).get("result") or "")
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise ErroZabbix(f"sem ligação ao Zabbix ({_url()}): {exc}") from None
+    _versao.update(url=_url(), t=time.time(), v=v)
+    return v
+
+
+def _v(v: str) -> tuple:
+    try:
+        return tuple(int(x) for x in v.split(".")[:2])
+    except ValueError:
+        return (0, 0)
+
+
+RECENTE = 900          # dados com menos de 15 min: o Zabbix esta a receber do anfitriao
+
+
 def resumo_cliente(c: dict) -> dict:
     """Dados do anfitriao do Zabbix para este cliente."""
     nome = (c.get("zabbix_host") or c["nome"]).strip()
     t0 = time.time()
-    hosts = chamar("host.get", {"output": ["hostid", "host", "name", "status", "maintenance_status"],
-                                "filter": {"host": [nome]}, "selectInterfaces": ["ip", "dns", "port", "type", "available", "error", "errors_from", "disable_until"]})
+    ver = versao()
+    t_api = int((time.time() - t0) * 1000)
+    out_h = ["hostid", "host", "name", "status", "maintenance_status"]
+    if _v(ver) >= (7, 0):
+        out_h.append("active_available")        # agente em modo ativo (Zabbix 7)
+    if _v(ver) >= (5, 4):
+        sel_if = ["ip", "dns", "port", "type", "main", "available", "error", "errors_from", "disable_until"]
+    else:                                        # ate 5.2 a disponibilidade era do anfitriao
+        out_h += ["available", "error", "errors_from"]
+        sel_if = ["ip", "dns", "port", "type", "main"]
+    hosts = chamar("host.get", {"output": out_h, "filter": {"host": [nome]}, "selectInterfaces": sel_if,
+                                "selectParentTemplates": ["name"]})
     if not hosts:
-        hosts = chamar("host.get", {"output": ["hostid", "host", "name", "status", "maintenance_status"],
-                                    "search": {"name": nome}, "limit": 1,
-                                    "selectInterfaces": ["ip", "dns", "port", "type", "available", "error", "errors_from", "disable_until"]})
+        hosts = chamar("host.get", {"output": out_h, "search": {"name": nome}, "limit": 1, "selectInterfaces": sel_if,
+                                    "selectParentTemplates": ["name"]})
     if not hosts:
         return {"encontrado": False, "nome": nome}
     h = hosts[0]
     probs = chamar("problem.get", {"output": ["eventid", "name", "severity", "clock", "acknowledged", "suppressed"],
                                    "hostids": [h["hostid"]], "recent": False, "sortfield": ["eventid"],
                                    "sortorder": "DESC", "limit": 50}) or []
-    itens = chamar("item.get", {"output": ["itemid", "name", "key_", "lastvalue", "units", "lastclock", "value_type"],
+    itens = chamar("item.get", {"output": ["itemid", "name", "key_", "lastvalue", "units", "lastclock", "value_type", "type", "state", "error"],
                                 "hostids": [h["hostid"]], "filter": {"status": 0}, "sortfield": "name"}) or []
     sel = []
     for i in itens:
@@ -95,12 +135,37 @@ def resumo_cliente(c: dict) -> dict:
             sel.append({"nome": i["name"], "chave": k, "valor": v, "unidade": u, "itemid": i["itemid"],
                         "numerico": str(i.get("value_type")) in ("0", "3"), "quando": int(i.get("lastclock") or 0)})
     disp = {"0": "desconhecido", "1": "disponível", "2": "indisponível"}
+    if _v(ver) < (5, 4):                         # disponibilidade no anfitriao (ate 5.2)
+        for i in h.get("interfaces") or []:
+            if str(i.get("type")) == "1":
+                i.update(available=h.get("available"), error=h.get("error"), errors_from=h.get("errors_from"))
+    interfaces = [{"end": i.get("ip") or i.get("dns"), "porta": i.get("port"),
+                   "tipo": {"1": "agente", "2": "SNMP", "3": "IPMI", "4": "JMX"}.get(str(i.get("type")), i.get("type")),
+                   "principal": str(i.get("main")) == "1", "valor": str(i.get("available")),
+                   "estado": disp.get(str(i.get("available")), ""), "erro": i.get("error") or "",
+                   "erros_desde": int(i.get("errors_from") or 0)} for i in h.get("interfaces") or []]
+    ultimo = _ultimo_dado(itens)
+    recente = bool(ultimo) and time.time() - ultimo < RECENTE
+    # itens do agente: passivos (type 0, o servidor pergunta) e ativos (type 7, o agente envia)
+    passivos = sum(1 for i in itens if str(i.get("type")) == "0")
+    ativos = sum(1 for i in itens if str(i.get("type")) == "7")
+    nao_supp = [{"nome": i["name"], "erro": i.get("error") or ""} for i in itens if str(i.get("state")) == "1"][:10]
+    ativo_disp = disp.get(str(h.get("active_available")), "") if "active_available" in h else ""
+    agente = [x for x in interfaces if x["tipo"] == "agente"]
+    if recente:
+        geral = "disponível"
+    elif agente and all(x["valor"] == "2" for x in agente) or h.get("active_available") == "2":
+        geral = "indisponível"
+    elif not ultimo:
+        geral = "sem dados"
+    else:
+        geral = "sem dados recentes"
     return {"encontrado": True, "nome": nome, "hostid": h["hostid"], "host": h["host"], "visivel": h["name"],
             "ativo": h["status"] == "0", "manutencao": h.get("maintenance_status") == "1",
-            "interfaces": [{"end": i.get("ip") or i.get("dns"), "porta": i.get("port"),
-                            "tipo": {"1": "agente", "2": "SNMP", "3": "IPMI", "4": "JMX"}.get(i.get("type"), i.get("type")),
-                            "estado": disp.get(str(i.get("available")), ""), "erro": i.get("error") or "",
-                            "erros_desde": int(i.get("errors_from") or 0)} for i in h.get("interfaces") or []],
+            "interfaces": interfaces, "geral": geral, "recente": recente, "ativo_disp": ativo_disp,
+            "passivos": passivos, "ativos": ativos, "nao_suportados": nao_supp,
+            "templates": [t["name"] for t in h.get("parentTemplates") or []],
+            "versao": ver, "api_ms": t_api, "n_itens": len(itens),
             "ultimo_dado": _ultimo_dado(itens),
             "problemas": [{"nome": p["name"], "sev": int(p["severity"]), "sev_txt": SEVERIDADES.get(int(p["severity"]), ("?", ""))[0],
                            "cor": SEVERIDADES.get(int(p["severity"]), ("", "muted"))[1], "desde": int(p["clock"]),
