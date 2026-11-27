@@ -614,9 +614,10 @@
       <div class="jx-chips" id="zbx-per">{% for k, r in [('1h', '1 h'), ('3h', '3 h'), ('6h', '6 h'), ('12h', '12 h'), ('1d', '1 dia'), ('2d', '2 dias'), ('7d', '7 dias'), ('30d', '30 dias')] %}
         <button type="button" class="chip {{ 'on' if k == '1d' }}" data-p="{{ k }}">{{ r }}</button>{% endfor %}</div>
       <small class="muted" id="zbx-info"></small>
+      <button type="button" class="btn small" id="zbx-atu" title="Ler já do Zabbix">↻</button>
     </div>
     <div class="zbx-disp" id="zbx-disp" hidden><span class="zbx-disp-l">Disponibilidade do agente</span><div class="zbx-disp-b" id="zbx-dispb"></div><span class="zbx-disp-p" id="zbx-dispp"></span></div>
-    <div class="zbx-grid" id="zbx-grid"><p class="muted"><span class="spin"></span> A ler o histórico do Zabbix…</p></div>
+    <div class="zbx-grid" id="zbx-grid"><p class="muted"><span class="spin"></span> A ler o histórico do Zabbix (só da primeira vez; depois os gráficos ficam guardados e atualizam em segundo plano)…</p></div>
   </section>
 
   <div class="smtp-grid setup-grid" style="margin-top:12px">
@@ -675,15 +676,11 @@
       html += `<i class="${est}" style="left:${((p[0] - d.desde) / span * 100).toFixed(3)}%;width:${w.toFixed(3)}%" title="${quando(p[0])}: ${T({ok: 'disponível', bad: 'indisponível', unk: 'desconhecido'}[est])}"></i>`; });
     b.innerHTML = html; $('zbx-dispp').textContent = tot ? (ok / tot * 100).toFixed(1) + '%' : '';
   }
-  let pedido = 0;
-  async function carregar(per) {
-    const n = ++pedido; $('zbx-info').textContent = T('a ler…');
-    let d; try { d = await (await fetch(URL_G + '?periodo=' + per, {cache: 'no-store'})).json(); } catch (e) { d = {ok: false, erro: String(e)}; }
-    if (n !== pedido) return;
-    if (!d.ok) { grid.innerHTML = `<p class="flash error">${esc(d.erro || 'erro')}</p>`; $('zbx-info').textContent = ''; return; }
-    $('zbx-info').textContent = `${quando(d.desde)} → ${quando(d.ate)} · ${T(d.fonte)} · ${d.ms} ms`;
-    disponibilidade(d);
+  let pedido = 0, perAtual = '1d', poll = null;
+  const memo = {};      /* ultimos graficos por periodo (mudar de periodo e voltar e imediato) */
+  function desenharTudo(d) {
     const vazio = d.graficos.every(g => g.series.every(s => !s.pontos.length));
+    disponibilidade(d);
     if (vazio && d.ultimo_dado && d.ultimo_dado < d.desde) {
       grid.innerHTML = `<p class="flash warn">${T('Sem dados neste período: o último dado recebido foi em')} ${quando(d.ultimo_dado)}. ${T('Escolha um período maior.')}</p>`; return; }
     if (!d.graficos.length) { grid.innerHTML = `<p class="muted">${T('Sem itens de CPU, memória, rede ou discos neste anfitrião.')}</p>`; return; }
@@ -691,9 +688,39 @@
     d.graficos.forEach(g => PortalGrafico.desenhar(document.getElementById('zg-' + g.id), {unidade: g.unidade, desde: d.desde, ate: d.ate,
       passo: g.passo, max: g.max, altura: 200, series: g.series}));
   }
+  function infoTxt(d, c) {
+    const partes = [];
+    if (d && d.desde) partes.push(`${quando(d.desde)} → ${quando(d.ate)} · ${T(d.fonte)}`);
+    if (c && c.atualizado) partes.push(`${T('dados de')} ${c.atualizado.slice(11, 19)}`);
+    if (c && c.a_atualizar) partes.push(`<span class="spin"></span> ${T('a atualizar…')}`);
+    if (c && c.erro && !c.a_atualizar) partes.push(`<span class="c-bad" title="${esc(c.erro)}">${T('última atualização falhou')}</span>`);
+    $('zbx-info').innerHTML = partes.join(' · ');
+  }
+  async function carregar(per, forcar) {
+    const n = ++pedido; perAtual = per; clearTimeout(poll);
+    if (memo[per]) { desenharTudo(memo[per]); grid.classList.remove('zbx-velho'); }
+    else if (grid.querySelector('.zbx-card')) grid.classList.add('zbx-velho');    /* mantem os graficos anteriores ate chegarem os novos */
+    infoTxt(memo[per], {a_atualizar: true});
+    let d; try { d = await (await fetch(URL_G + '?periodo=' + per + (forcar ? '&atualizar=1' : ''), {cache: 'no-store'})).json(); } catch (e) { d = {ok: false, erro: String(e)}; }
+    if (n !== pedido) return;
+    if (!d.ok) {
+      grid.classList.remove('zbx-velho');
+      if (!memo[per]) grid.innerHTML = `<p class="flash error">${esc(d.erro || 'erro')}</p>`;
+      infoTxt(memo[per], {erro: d.erro}); return; }
+    if (!d.pendente) {
+      const novo = !memo[per] || memo[per].ate !== d.ate; memo[per] = d;
+      if (novo) desenharTudo(d);
+      grid.classList.remove('zbx-velho');
+    }
+    infoTxt(memo[per], d.cache);
+    if (d.pendente || (d.cache && d.cache.a_atualizar)) poll = setTimeout(() => { if (perAtual === per) carregar(per); }, 3000);
+  }
+  $('zbx-info').addEventListener('click', e => { if (e.target.closest('[data-zbx-atualizar]')) { e.preventDefault(); carregar(perAtual, true); } });
   $('zbx-per').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return;
     $('zbx-per').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); carregar(b.dataset.p); });
   carregar('1d');
+  $('zbx-atu').onclick = () => carregar(perAtual, true);
+  setInterval(() => { if (!document.hidden && $('zbx-dlg') && !$('zbx-dlg').open) carregar(perAtual); }, 120000);
   // grafico de um item
   const dlg = $('zbx-dlg'); let itemAtual = null;
   async function item(per) {

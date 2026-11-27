@@ -725,3 +725,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 
 **Resposta:** A etiqueta "portal" (utilizador criado pelo portal) era acrescentada à célula sempre que a linha era atualizada (a cada atualização dos dados ou "↻ Atualizar"). Passa a ser posta uma só vez e a sair se o utilizador deixar de ser do portal.
 
+## 72. Gráficos do Zabbix sempre em "A ler o histórico do Zabbix…"
+
+**Pergunta:**
+> quando está a ler os pedidos do zabbix, para fazer os graficos, podemos guardar em cache o anterior para ficar sempre os garficos e depois atualiza quando tem os novos dados. e não A ler o histórico do Zabbix… ou então está sempre a fazer A ler o histórico do Zabbix…
+
+**Resposta:** Os gráficos ficam em cache por cliente e período (como os outros dados do portal). A página mostra logo os últimos e pede os novos em segundo plano; quando chegam, substituem os anteriores. Ao mudar de período, os gráficos anteriores ficam visíveis (esbatidos) até chegarem os novos. Voltar a um período já visto é imediato. Atualização automática a cada 2 min, botão ↻ para ler já. A leitura também ficou mais rápida: um pedido history.get/trend.get por tipo de valor em vez de um por item.
+

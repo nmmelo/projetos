@@ -76,15 +76,28 @@ def _relogio(cid) -> dict:
 @bp.route("/cliente/<int:cid>/zabbix/graficos")
 @auth.requires(MODULO.acesso)
 def zabbix_graficos(cid):
-    """Historico do anfitriao no Zabbix: CPU, carga, memoria, swap, rede, discos e disponibilidade do agente."""
-    from ... import zabbix_api
+    """Historico do anfitriao no Zabbix: CPU, carga, memoria, swap, rede, discos e disponibilidade do agente.
+    Em cache (por cliente e periodo): responde logo com os ultimos graficos e atualiza em segundo plano."""
+    from ... import tarefas_bg, zabbix_api
     c = clientes.obter(cid) or abort(404)
     if not zabbix_api.configurado():
         return jsonify(ok=False, erro="Zabbix não configurado."), 400
-    try:
-        return jsonify(ok=True, **zabbix_api.graficos(c, request.args.get("periodo", "1d")))
-    except zabbix_api.ErroZabbix as exc:
-        return jsonify(ok=False, erro=str(exc))
+    per = request.args.get("periodo", "1d")
+    if per not in zabbix_api.PERIODOS:
+        per = "1d"
+    span = zabbix_api.PERIODOS[per]
+    ch = f"clientes:{cid}:zabbix:graficos:{per}"
+    r = tarefas_bg.pedir(ch, f"Zabbix · gráficos {per} · {c['nome']}", lambda: zabbix_api.graficos(c, per), g.user.username,
+                         60 if span <= 86400 else 300, forcar=request.args.get("atualizar") == "1",
+                         link=url_for("clientes.detalhe", cid=cid, aba="zabbix"))
+    if r["a_atualizar"] and not r["dados"]:
+        r = tarefas_bg.esperar(ch, 8)
+    cache = {"atualizado": r["atualizado"], "idade": r["idade"], "a_atualizar": r["a_atualizar"], "erro": r["erro"]}
+    if not r["dados"]:
+        if r["erro"] and not r["a_atualizar"]:
+            return jsonify(ok=False, erro=r["erro"], cache=cache)
+        return jsonify(ok=True, pendente=True, cache=cache)
+    return jsonify(ok=True, **r["dados"], cache=cache)
 
 
 @bp.route("/cliente/<int:cid>/zabbix/item/<itemid>")

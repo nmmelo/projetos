@@ -1189,3 +1189,4 @@ tr.zbx-it { cursor: pointer; } tr.zbx-it:hover td { background: var(--hover); }
 .exec-espaco { max-width: none; border-left: 4px solid var(--danger); } .exec-espaco h2 { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .upg-opcoes { flex-basis: 100%; font-size: 13px; } .upg-opcoes summary { cursor: pointer; color: var(--muted); }
 .upg-opcoes label { margin: 4px 14px 0 0; display: inline-flex; gap: 6px; align-items: center; } .upg-opcoes input[name=cache_dir] { width: 220px; }
+.zbx-grid.zbx-velho { opacity: .55; transition: opacity .2s; }

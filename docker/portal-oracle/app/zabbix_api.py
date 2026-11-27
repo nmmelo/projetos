@@ -200,19 +200,46 @@ def _itens(hostid: str) -> list[dict]:
                                "hostids": [hostid], "filter": {"status": 0}}) or []
 
 
-def _serie(it: dict, desde: int, ate: int, pontos: int = 500) -> tuple[list, str, int]:
+def _carregar(itens: list[dict], desde: int, ate: int) -> dict:
+    """Historico (ou tendencias) de varios itens de uma vez: um pedido por tipo de valor em vez de um por item.
+    {itemid: (linhas [{clock, value}] por ordem, fonte)}."""
+    out: dict = {}
+    nums = {i["itemid"]: i for i in itens if i and str(i.get("value_type")) in ("0", "3")}
+    if not nums:
+        return out
+    if ate - desde <= 2 * 86400:
+        for vt in ("0", "3"):
+            ids = [k for k, i in nums.items() if str(i.get("value_type")) == vt]
+            if not ids:
+                continue
+            for ln in chamar("history.get", {"output": ["itemid", "clock", "value"], "history": int(vt), "itemids": ids,
+                                             "time_from": desde, "time_till": ate, "sortfield": "clock",
+                                             "sortorder": "ASC"}, timeout=60) or []:
+                out.setdefault(ln["itemid"], ([], "historico"))[0].append(ln)
+    falta = [k for k in nums if k not in out]
+    if falta:
+        tr = chamar("trend.get", {"output": ["itemid", "clock", "value_avg"], "itemids": falta,
+                                  "time_from": desde, "time_till": ate}, timeout=60) or []
+        for t in sorted(tr, key=lambda t: int(t["clock"])):
+            out.setdefault(t["itemid"], ([], "tendencias"))[0].append({"clock": t["clock"], "value": t["value_avg"]})
+    return out
+
+
+def _serie(it: dict, desde: int, ate: int, pontos: int = 500, pre: dict | None = None) -> tuple[list, str, int]:
     """[[ts, valor]] (media por intervalo), a fonte ('historico' ou 'tendencias') e o passo em segundos.
-    Periodos longos ou sem historico (retencao curta): tendencias horarias (media)."""
+    Periodos longos ou sem historico (retencao curta): tendencias horarias (media). pre: de _carregar()."""
     vt = str(it.get("value_type"))
     if vt not in ("0", "3"):
         return [], "", 60
     span = ate - desde
     fonte, linhas = "historico", []
-    if span <= 2 * 86400:
+    if pre is not None:
+        linhas, fonte = pre.get(it["itemid"], ([], "historico"))
+    elif span <= 2 * 86400:
         linhas = chamar("history.get", {"output": ["clock", "value"], "history": int(vt), "itemids": [it["itemid"]],
                                         "time_from": desde, "time_till": ate, "sortfield": "clock", "sortorder": "ASC",
                                         "limit": 20000}, timeout=30) or []
-    if not linhas:
+    if not linhas and pre is None:
         fonte = "tendencias"
         tr = chamar("trend.get", {"output": ["clock", "value_avg", "value_max"], "itemids": [it["itemid"]],
                                   "time_from": desde, "time_till": ate, "limit": 5000}, timeout=30) or []
@@ -305,11 +332,15 @@ def graficos(c: dict, periodo: str = "1d", ate: int | None = None) -> dict:
     h = host(c)
     itens = _itens(h["hostid"])
     out, fontes = [], set()
-    for gr in _escolher(itens):
+    escolhidos = _escolher(itens)
+    por = {i["key_"]: i for i in itens}
+    disp_it = por.get("zabbix[host,agent,available]") or por.get("agent.ping")
+    pre = _carregar([x["item"] for gr in escolhidos for x in gr["itens"]] + [disp_it], desde, ate)
+    for gr in escolhidos:
         series = []
         passo = 60
         for n, it in enumerate(gr["itens"]):
-            pts, fonte, p = _serie(it["item"], desde, ate)
+            pts, fonte, p = _serie(it["item"], desde, ate, pre=pre)
             if it["inverter"]:
                 pts = [[t, round(100 - v, 3)] for t, v in pts]
             if pts:
@@ -321,12 +352,10 @@ def graficos(c: dict, periodo: str = "1d", ate: int | None = None) -> dict:
         out.append({"id": gr["id"], "titulo": gr["titulo"], "unidade": gr["unidade"], "max": gr["max"],
                     "passo": passo, "series": series})
     # disponibilidade do agente (1 = disponivel, 0 = nao): item interno do Zabbix
-    por = {i["key_"]: i for i in itens}
-    disp_it = por.get("zabbix[host,agent,available]") or por.get("agent.ping")
     disp = []
     if disp_it:   # zabbix[host,agent,available]: 1 disponivel, 2 indisponivel, 0 desconhecido; agent.ping: 1
         interno = disp_it["key_"].startswith("zabbix[")
-        for ts, v in _serie(disp_it, desde, ate, 300)[0]:
+        for ts, v in _serie(disp_it, desde, ate, 300, pre=pre)[0]:
             if interno:
                 disp.append([ts, None if v < 0.5 else (1 if v <= 1.5 else 0)])
             else:
