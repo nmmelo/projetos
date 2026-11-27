@@ -1,0 +1,6 @@
+<div class="modulo-head"><h1>Segurança</h1></div>
+<nav class="tabs">
+  {% for ep, r, perm in [('seguranca.auditoria', 'Auditoria', 'seguranca.auditoria'), ('seguranca.acesso_ip', 'Acesso por IP', 'seguranca.configurar'),
+                          ('seguranca.autenticacao', 'Autenticação', 'seguranca.configurar'), ('seguranca.registo', 'Registo', 'seguranca.pedidos')] if user.can(perm) %}
+  <a href="{{ url_for(ep) }}" class="{{ 'on' if request.endpoint == ep }}">{{ r }}{% if ep == 'seguranca.registo' and n_pendentes %} <span class="tag warn">{{ n_pendentes }}</span>{% endif %}</a>{% endfor %}
+</nav>

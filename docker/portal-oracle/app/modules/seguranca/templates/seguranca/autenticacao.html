@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Segurança · Autenticação{% endblock %}
+{% block content %}
+{% include "seguranca/_tabs.html" %}
+<form method="post" class="stack wide-form">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <div class="split">
+    <section class="card">
+      <h2>Autenticação de Dois Fatores</h2>
+      <p class="hint">Depois da password, um código de 6 dígitos de uma aplicação de autenticação (Microsoft Authenticator, Google Authenticator, FreeOTP, Aegis…).
+        Cada utilizador ativa na <b>Minha área</b>; se for obrigatório e ainda não tiver, configura no próprio login (código QR).</p>
+      {% for k, v in modos_2fa.items() %}<label class="inline"><input type="radio" name="seg_2fa" value="{{ k }}" {{ 'checked' if c.seg_2fa == k }}> {{ v }}</label>{% endfor %}
+    </section>
+    <section class="card">
+      <h2>Fator humano no login</h2>
+      <p class="hint">Uma caixa "Não sou um robô": o browser resolve um pequeno desafio (prova de trabalho, sem serviços externos). Para uma pessoa é imediato; para quem tenta milhares de passwords, cada tentativa passa a custar.</p>
+      {% for k, v in modos_captcha.items() %}<label class="inline"><input type="radio" name="seg_captcha" value="{{ k }}" {{ 'checked' if c.seg_captcha == k }}> {{ v }}</label>{% endfor %}
+      <label>Falhas do IP (última hora) para pedir <input type="number" name="seg_captcha_falhas" value="{{ c.seg_captcha_falhas }}" min="1" max="100"></label>
+    </section>
+  </div>
+  <div class="split">
+    <section class="card">
+      <h2>Bloqueio por tentativas</h2>
+      <p class="hint">Um IP com N falhas (password, segundo fator ou fator humano) em M minutos fica sem poder fazer login durante M minutos. 0 = desligado.</p>
+      <div class="grid2">
+        <label>Falhas (N) <input type="number" name="seg_bloqueio_falhas" value="{{ c.seg_bloqueio_falhas }}" min="0" max="1000"></label>
+        <label>Minutos (M) <input type="number" name="seg_bloqueio_min" value="{{ c.seg_bloqueio_min }}" min="1" max="1440"></label>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Auditoria</h2>
+      <label>Guardar os registos durante (dias) <input type="number" name="seg_auditoria_dias" value="{{ c.seg_auditoria_dias }}" min="1" max="3650"></label>
+    </section>
+  </div>
+  <div class="buttons"><button class="primary">Guardar</button></div>
+</form>
+
+{% if bloqueados %}
+<section class="card">
+  <h2>IPs bloqueados agora</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>IP</th><th>Falhas</th><th>Última</th><th>Falta</th><th></th></tr></thead>
+    <tbody>{% for b in bloqueados %}<tr><td translate="no"><b>{{ b.ip }}</b></td><td>{{ b.n }}</td><td>{{ b.ultimo }}</td><td>{{ b.minutos }} min</td>
+      <td class="actions"><form method="post"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="libertar">
+        <input type="hidden" name="ip" value="{{ b.ip }}"><button class="btn small">Desbloquear</button></form></td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Dois fatores por utilizador</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Utilizador</th><th>Nome</th><th>Perfil</th><th>Dois fatores</th><th></th></tr></thead>
+    <tbody>{% for u in contas %}<tr class="{{ 'muted' if not u.active }}"><td translate="no"><b>{{ u.username }}</b></td><td>{{ u.name }}</td><td>{{ u.perfil }}</td>
+      <td>{% if u.tem_2fa %}<span class="sys-pill ok">Ativo</span>{% else %}<span class="sys-pill off">Não configurado</span>{% endif %}</td>
+      <td class="actions">{% if u.tem_2fa %}<form method="post"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="repor_2fa">
+        <input type="hidden" name="uid" value="{{ u.uid }}"><input type="hidden" name="nome" value="{{ u.username }}">
+        <button class="btn small" onclick="return confirm('Repor os dois fatores de {{ u.username }}? (ex. perdeu o telemóvel)')">Repor</button></form>{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="hint">"Repor" apaga o segredo: o utilizador volta a configurar (se for obrigatório, no próximo login). Também pela consola: <code translate="no">manage.py 2fa-repor &lt;utilizador&gt;</code>.</p>
+</section>
+{% endblock %}

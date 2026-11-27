@@ -13,7 +13,7 @@ a chave a INSTALADOS (abaixo). Ver README, seccao "Modulos".
 """
 from dataclasses import dataclass, field
 
-INSTALADOS = ("oracle", "sistema", "smtp", "autenticacao", "firewall", "clientes")  # pacotes em app/modules/, pela ordem do menu
+INSTALADOS = ("oracle", "sistema", "smtp", "autenticacao", "seguranca", "firewall", "clientes")  # pacotes em app/modules/, pela ordem do menu
 
 
 @dataclass

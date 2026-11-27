@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Segurança · Acesso por IP{% endblock %}
+{% block content %}
+{% include "seguranca/_tabs.html" %}
+<form method="post" class="stack wide-form">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <section class="card">
+    <div class="seg-titulo"><h2>Acesso ao portal por IP</h2>
+      {% if c.seg_ip_ativo == '1' %}<span class="sys-pill ok">Ligado · {{ 'firewalld' if c.seg_ip_modo == 'firewalld' else 'no portal' }}</span>{% else %}<span class="sys-pill off">Desligado</span>{% endif %}</div>
+    <p class="hint">Só os IPs e redes da lista entram no portal. Os outros veem a mensagem abaixo (e ficam na auditoria).
+      O seu IP agora: <b translate="no">{{ ip_atual }}</b> — tem de estar na lista para ligar.</p>
+    <label class="inline"><input type="checkbox" name="seg_ip_ativo" value="1" {{ 'checked' if c.seg_ip_ativo == '1' }}> Ligar o acesso por IP</label>
+
+    <div class="seg-modos">
+      <label class="seg-modo"><input type="radio" name="seg_ip_modo" value="codigo" {{ 'checked' if c.seg_ip_modo != 'firewalld' }}>
+        <span><b>No portal (código)</b><small>O portal verifica o IP em cada pedido e mostra a página "não tem acesso". Funciona em qualquer instalação (também Docker).</small></span></label>
+      <label class="seg-modo"><input type="radio" name="seg_ip_modo" value="firewalld" {{ 'checked' if c.seg_ip_modo == 'firewalld' }}>
+        <span><b>Firewalld</b><small>Cria o ipset <code translate="no">{{ ipset }}</code> com as redes e uma regra rica por porta; retira da zona o http/https aberto a todos (reposto ao desligar).
+          A ligação é recusada antes de chegar ao portal; o filtro no portal continua como segunda proteção.</small></span></label>
+    </div>
+    {% if fw_backend != 'firewalld' %}<div class="flash warn">O firewalld não está instalado neste servidor: use o modo "No portal".</div>
+    {% elif fw_ok == false %}<div class="flash warn">{{ fw_msg }}</div>{% endif %}
+
+    <label class="full">IPs e redes com acesso
+      <textarea name="seg_ip_redes" rows="8" class="mono" spellcheck="false" placeholder="10.10.101.0/23   # equipa de bases de dados&#10;192.0.2.15       # posto do administrador&#10;198.51.100.0/24">{{ c.seg_ip_redes }}</textarea>
+      <span class="hint">Um IP ou rede (CIDR) por linha; <code>#</code> para comentários. Ex. <code>10.10.101.0/23</code> = 10.10.100.0 a 10.10.101.255. IPv6 só no modo "No portal". O próprio servidor (localhost) tem sempre acesso.</span></label>
+    <label class="full">Mensagem para quem não tem acesso
+      <input name="seg_ip_msg" value="{{ c.seg_ip_msg }}" maxlength="500"><span class="hint"><code>{ip}</code> é substituído pelo IP de quem tenta entrar.</span></label>
+
+    <details class="seg-det" {{ 'open' if c.seg_ip_modo == 'firewalld' }}><summary>Firewalld: portas, zona e agentes</summary>
+      <div class="grid2">
+        <label>Portas do portal (tcp) <input name="seg_fw_portas" value="{{ c.seg_fw_portas }}" maxlength="100"><span class="hint">As do Nginx, ex. 80,443.</span></label>
+        <label>Zona <select name="seg_fw_zona"><option value="">Zona por omissão{% if zona_padrao %} ({{ zona_padrao }}){% endif %}</option>
+          {% for z in zonas %}<option {{ 'selected' if c.seg_fw_zona == z }}>{{ z }}</option>{% endfor %}</select></label>
+      </div>
+      <label class="inline"><input type="checkbox" name="seg_ip_agentes" value="1" {{ 'checked' if c.seg_ip_agentes == '1' }}>
+        Incluir no ipset os IPs dos clientes com agente ({{ agentes|length }}): os agentes falam com o portal pelas mesmas portas</label>
+      <p class="hint">No modo "No portal" a API dos agentes (<code translate="no">/clientes/agente/api/</code>) não passa pelo filtro: autentica-se pelo token.</p>
+    </details>
+    {% if pode %}<div class="buttons"><button class="primary">Guardar</button></div>{% endif %}
+  </section>
+</form>
+
+<div class="split">
+  <section class="card">
+    <h2>Verificar um IP</h2>
+    <form method="post" class="row-form">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="verificar">
+      <input name="ip" placeholder="ex. 10.10.100.37" value="{{ ip_atual }}" required> <button class="btn">Verificar</button>
+    </form>
+    <p class="hint">Contra a lista guardada ({{ n_redes }} rede(s)).</p>
+  </section>
+  <section class="card">
+    <h2>Firewall</h2>
+    {% if fw %}
+    <table class="kv">
+      <tr><th>Zona</th><td translate="no">{{ fw.zona }}</td></tr>
+      <tr><th>Portas</th><td>{{ fw.portas|join(', ') }}/tcp</td></tr>
+      <tr><th>Entradas no ipset</th><td>{{ fw.entradas }}</td></tr>
+      <tr><th>Retirado da zona</th><td>{% for r in fw.removidos %}<span class="tag">{{ r.valor }}</span> {% else %}<span class="muted">nada</span>{% endfor %}</td></tr>
+      <tr><th>Aplicado</th><td>{{ fw.aplicado_em }} · {{ fw.por }}</td></tr>
+    </table>
+    {% if pode %}<form method="post" class="buttons"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <button class="btn" name="acao" value="fw_aplicar">↻ Reaplicar</button>
+      <button class="danger" name="acao" value="fw_remover" onclick="return confirm('Desfazer as regras do portal na firewall? Os serviços retirados voltam a ficar abertos a todos.')">Desfazer na firewall</button></form>{% endif %}
+    {% else %}
+    <p class="muted">Sem regras do portal na firewall.</p>
+    {% endif %}
+    <p class="hint">Se ficar sem acesso: na consola do servidor <code translate="no">cd /opt/{{ instancia }} &amp;&amp; sudo python3 manage.py seguranca-ip off</code>
+      (no Docker: <code translate="no">docker exec -it oracle-portal python3 manage.py seguranca-ip off</code>).</p>
+  </section>
+</div>
+{% endblock %}

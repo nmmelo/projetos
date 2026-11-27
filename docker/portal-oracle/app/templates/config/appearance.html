@@ -63,6 +63,25 @@
     <p class="hint">O tema aplica-se a todos os utilizadores.</p>
   </section>
 
+  <section class="card">
+    <h2>Página de login</h2>
+    <div class="themes">
+      {% for key, t in layouts.items() %}
+      <label class="theme-opt">
+        <input type="radio" name="login_layout" value="{{ key }}" {{ 'checked' if (s.login_layout or 'classico') == key }}>
+        <span class="lay-mock lay-{{ key }}" aria-hidden="true">
+          {% if key == 'boas_vindas' %}<span class="lm-card"><i class="lm-ico"></i><b></b><em class="lm-btn"></em></span>
+          {% else %}<span class="lm-card"><i class="lm-ico"></i><b></b><s></s><s></s><em></em></span>{% endif %}
+        </span>
+        <span class="theme-name">{{ t.label }}</span>
+        <span class="hint">{{ t.desc }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <p class="hint">Usa as cores do tema escolhido. O fator humano e os dois fatores (módulo Segurança) aparecem em qualquer um.
+      <a href="{{ url_for('portal.login') }}" target="_blank" rel="noopener">Ver o login</a> (numa janela privada, sem sessão).</p>
+  </section>
+
   <div class="buttons">
     <button class="primary">Guardar</button>
     <button class="danger" name="action" value="reset" formnovalidate

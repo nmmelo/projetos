@@ -8,11 +8,15 @@ from .. import aparencia, auth, i18n, manutencao, modulos, store
 bp = Blueprint("portal", __name__)
 
 # Paginas que funcionam durante a manutencao (o login continua disponivel para os administradores)
-LIVRES_MANUTENCAO = {"static", "portal.login", "portal.logout", "portal.favicon", "portal.i18n_js", "portal.idioma"}
+LIVRES_MANUTENCAO = {"static", "portal.login", "portal.login_2fa", "portal.logout", "portal.favicon", "portal.i18n_js", "portal.idioma"}
 
 
 @bp.before_app_request
 def before():
+    from .. import seguranca
+    msg = seguranca.filtro_ip(request)          # modulo Seguranca: acesso so a partir da lista de IPs/redes
+    if msg:
+        return pagina_sem_acesso(msg)
     g.user = auth.load_current_user()
     if request.method == "POST" and not request.path.startswith("/clientes/agente/api/"):   # agente: token
         sent = request.form.get("csrf") or request.headers.get("X-CSRF", "")
@@ -22,6 +26,17 @@ def before():
     if g.manutencao and request.endpoint not in LIVRES_MANUTENCAO \
             and not (g.user and g.user.can("config.portal")):
         return pagina_manutencao()
+
+
+def pagina_sem_acesso(msg: str):
+    g.user = None
+    if "/api/" in request.path or request.accept_mimetypes.best == "application/json":
+        resp = jsonify(ok=False, error=msg)
+    else:
+        resp = make_response(render_template("sem_acesso.html", msg=msg, pagina_minima=True))
+    resp.status_code = 403
+    resp.headers["Content-Security-Policy"] = "script-src 'self'; object-src 'none'; base-uri 'none'"
+    return resp
 
 
 def pagina_manutencao():

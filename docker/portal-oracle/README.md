@@ -469,6 +469,40 @@ O estado fica na tabela `settings` (`module.<chave>` = `1`/`0`), por isso entra 
 
 > Os módulos **SMTP** e **Autenticação**, quando ativos, aparecem como abas de **Configuração** (com as suas sub-abas) e não no menu principal. Quem só tem acesso a um deles (sem `config.portal`) vê o menu Configuração apenas com essa aba.
 
+## Módulo Segurança (auditoria, acesso por IP, dois fatores, registo)
+
+Ativar em Configuração → Módulos (desligado por omissão). Ações nos perfis: **ver a auditoria**, **configurar** e
+**validar pedidos de registo**. É criado o perfil **Gestor do portal** (auditoria + validar pedidos + notificações).
+
+| Aba | O que faz |
+|---|---|
+| **Auditoria** | Visitas ao login (um registo por IP a cada 30 min), logins com sucesso/falhados, segundo fator, fator humano, bloqueios por IP e por tentativas, pedidos e validações de registo, alterações de configuração e da firewall. Resumo das últimas 24 h e IPs com mais falhas; filtros por IP, evento e resultado. |
+| **Acesso por IP** | Lista de IPs/redes (CIDR, ex. `10.10.101.0/23`) que podem entrar. **No portal (código)**: os outros veem "Sem acesso ao portal" com a mensagem configurada (`{ip}`). **Firewalld**: cria o ipset `ipset-portal-acesso` (hash:net) e `rule family="ipv4" source ipset="ipset-portal-acesso" port port="443" protocol="tcp" accept` por porta; retira da zona o `http`/`https`/porta aberto a todos (reposto ao desligar). Opcionalmente junta ao ipset os IPs dos clientes com agente. O filtro no portal fica sempre como segunda proteção. |
+| **Autenticação** | Dois fatores (desligado, opcional, obrigatório para administradores, obrigatório para todos); fator humano ("Não sou um robô": prova de trabalho no browser, sem serviços externos) sempre ou só depois de N falhas do IP; bloqueio de um IP com N falhas em M minutos (com "Desbloquear"); dias de auditoria; repor os dois fatores de um utilizador. |
+| **Registo** | Sem botão de registo: quem não existe no portal entra com o utilizador e a password do diretório (LDAP / AD); se a conta existir e estiver ativa fica **por validar**. Os administradores, os gestores do portal ou ambos recebem email e notificação. Ao aprovar escolhe-se o perfil (os acessos vêm do perfil) e o utilizador recebe um email "acesso autorizado". Também se pode recusar ou apagar o pedido. |
+
+Notas:
+- Dois fatores (TOTP, 6 dígitos / 30 s): Microsoft Authenticator, Google Authenticator, FreeOTP, Aegis… Cada utilizador ativa em **Minha área** (código QR); se for obrigatório e ainda não tiver, configura no próprio login. Recebe 8 códigos de recuperação de uso único.
+- Salvaguardas: só se liga o acesso por IP com o IP de quem guarda dentro da lista; o próprio servidor (localhost) tem sempre acesso; a API dos agentes (`/clientes/agente/api/`) autentica-se pelo token e não passa pelo filtro do portal.
+- O IP de quem acede vem do `X-Real-IP` do Nginx (só aceite quando o pedido chega da própria máquina).
+- O modo firewalld precisa de `sudo ./instalar.sh --firewall <instância> on`. No Docker use o modo "No portal" (a firewall é a do anfitrião).
+- Registo: precisa do LDAP ligado e da "criação automática no primeiro login" desligada (se ligada, tem prioridade e cria contas já ativas).
+- Aspeto do login (Configuração → Aparência → Página de login): **Clássico**, **Vidro** (cartão translúcido) ou **Boas-vindas** (caixa com o título e o botão Entrar, que abre o formulário).
+
+![Segurança → Auditoria](docs/seguranca-auditoria.png)
+![Segurança → Acesso por IP](docs/seguranca-acesso-ip.png)
+![Segurança → Registo](docs/seguranca-registo.png)
+![Login "Boas-vindas"](docs/login-boas-vindas.png) ![Login com dois fatores (aspeto Vidro, tema escuro)](docs/login-2fa.png)
+
+Consola (ex. se ficar sem acesso):
+
+```bash
+cd /opt/<instância> && sudo python3 manage.py seguranca-ip off      # desliga e desfaz a firewall
+cd /opt/<instância> && sudo python3 manage.py 2fa-repor <utilizador>
+# Docker
+docker exec -it oracle-portal python3 manage.py seguranca-ip off
+```
+
 ## Módulo Firewall (firewalld / ufw)
 
 Ver e alterar a firewall do servidor do portal. Ative-o em **Configuração → Módulos** e dê, nos perfis, o acesso (`modulo.firewall`) e, a quem pode alterar, `firewall.alterar`.

@@ -8,8 +8,11 @@
                                                         password em PORTAL_DB_PASSWORD (ou pedida)
   python manage.py show-storage                         mostra a BD do portal em uso
   python manage.py maintenance on|off|status [--html F] modo de manutencao (F = ficheiro com a mensagem HTML)
+  python manage.py seguranca-ip off|status              Seguranca: desliga o acesso por IP (e desfaz a firewall)
+  python manage.py 2fa-repor UTILIZADOR                 Seguranca: apaga a verificacao em dois passos de um utilizador
 """
 import argparse
+import json
 import getpass
 import os
 import sys
@@ -92,7 +95,40 @@ def main():
     mt = sub.add_parser("maintenance", help="modo de manutencao")
     mt.add_argument("estado", choices=["on", "off", "status"])
     mt.add_argument("--html", help="ficheiro com a mensagem HTML a mostrar")
+    si = sub.add_parser("seguranca-ip", help="modulo Seguranca: acesso por IP (off desliga e desfaz a firewall)")
+    si.add_argument("estado", choices=["off", "status"])
+    fa = sub.add_parser("2fa-repor", help="modulo Seguranca: apaga a verificacao em dois passos de um utilizador")
+    fa.add_argument("utilizador")
     args = ap.parse_args()
+
+    if args.cmd in ("seguranca-ip", "2fa-repor"):
+        from app import crypto, seguranca, settings, store
+        crypto.init(settings.DATA_DIR)
+        store.get()
+        if args.cmd == "2fa-repor":
+            adm = settings.admin() or {}
+            if args.utilizador == adm.get("username"):
+                uid = "admin"
+            else:
+                u = store.get_user(username=args.utilizador.lower())
+                if not u:
+                    sys.exit(f"Utilizador desconhecido: {args.utilizador}")
+                uid = u["id"]
+            seguranca.guardar_2fa(uid, remover=True)
+            seguranca.auditar("2fa", "INFO", utilizador="consola", detalhe=f"dois fatores repostos de {args.utilizador}")
+            print(f"Verificacao em dois passos reposta: {args.utilizador}")
+            return
+        c = seguranca.cfg()
+        if args.estado == "off":
+            for linha in seguranca.desligar_ip("consola"):
+                print(" - " + linha)
+            print("Acesso por IP desligado.")
+        else:
+            print(f"Acesso por IP: {'ligado' if c['seg_ip_ativo'] == '1' else 'desligado'} ({c['seg_ip_modo']})")
+            print("Redes:\n" + (c["seg_ip_redes"] or "(nenhuma)"))
+            if seguranca.fw_estado():
+                print("Firewall: " + json.dumps(seguranca.fw_estado(), ensure_ascii=False))
+        return
 
     if args.cmd == "maintenance":
         from app import crypto, manutencao, settings

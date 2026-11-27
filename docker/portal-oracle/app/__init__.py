@@ -59,4 +59,6 @@ def create_app(mark_interrupted: bool = True) -> Flask:
     modulos.carregar(app)
     from . import eventos
     eventos.regras_iniciais()
+    from . import seguranca
+    seguranca.garantir_perfil_gestor()
     return app

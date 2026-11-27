@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Segurança · Registo{% endblock %}
+{% block content %}
+{% include "seguranca/_tabs.html" %}
+<section class="card">
+  <div class="seg-titulo"><h2>Pedidos por validar</h2><span class="tag {{ 'warn' if pendentes }}">{{ pendentes|length }}</span></div>
+  {% if pendentes %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Utilizador</th><th>Nome</th><th>Email</th><th>Pedido</th><th>Perfil a atribuir</th><th></th></tr></thead>
+    <tbody>{% for u in pendentes %}<tr>
+      <td translate="no"><b>{{ u.username }}</b></td><td>{{ u.name }}</td><td translate="no">{{ u.email or '—' }}</td><td class="small nowrap">{{ u.pedido_em or u.created_at }}</td>
+      <td><form method="post" id="ap{{ u.id }}" class="row-form"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="uid" value="{{ u.id }}">
+        <select name="profile_id" required><option value="">— escolher —</option>{% for p in perfis %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></form></td>
+      <td class="actions nowrap"><button class="primary small" form="ap{{ u.id }}" name="acao" value="aprovar">✓ Aprovar</button>
+        <button class="danger small" form="ap{{ u.id }}" name="acao" value="recusar" formnovalidate onclick="return confirm('Recusar o pedido de {{ u.username }}?')">Recusar</button></td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="hint">Ao aprovar, a conta fica ativa com o perfil escolhido (os acessos vêm do perfil) e o utilizador recebe um email a informar que o acesso foi autorizado.</p>
+  {% else %}<p class="muted">Não há pedidos por validar.</p>{% endif %}
+</section>
+
+{% if recusados %}
+<section class="card">
+  <h2>Recusados</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Utilizador</th><th>Nome</th><th>Email</th><th>Pedido</th><th></th></tr></thead>
+    <tbody>{% for u in recusados %}<tr><td translate="no"><b>{{ u.username }}</b></td><td>{{ u.name }}</td><td translate="no">{{ u.email or '—' }}</td><td class="small">{{ u.pedido_em or u.created_at }}</td>
+      <td class="actions nowrap"><form method="post" class="row-form"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="uid" value="{{ u.id }}">
+        <select name="profile_id"><option value="">— perfil —</option>{% for p in perfis %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select>
+        <button class="btn small" name="acao" value="aprovar">Aprovar</button>
+        <button class="btn small" name="acao" value="apagar" title="Apagar o pedido: o utilizador pode pedir de novo">Apagar</button></form></td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="hint">Um pedido recusado não volta a notificar: o utilizador vê "pedido recusado" ao entrar. "Apagar" permite um novo pedido.</p>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Registo de utilizadores</h2>
+  <p class="hint">Sem botão de registo: quem não existe no portal faz login com o utilizador e a password do diretório (LDAP / Active Directory).
+    Se a conta existir e estiver ativa no diretório, fica <b>por validar</b> e os responsáveis recebem um email (e uma notificação no portal).
+    Depois de aprovada, o utilizador recebe um email a informar que o acesso foi autorizado.</p>
+  {% if not ldap_on %}<div class="flash warn">O LDAP / Active Directory está desligado (módulo Autenticação): o registo precisa dele.</div>{% endif %}
+  {% if auto_criar %}<div class="flash warn">Em Autenticação → LDAP está ligada a "criação automática no primeiro login": tem prioridade e cria contas já ativas. Desligue-a para usar a validação.</div>{% endif %}
+  <form method="post" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="acao" value="config">
+    <label class="inline"><input type="checkbox" name="seg_registo" value="1" {{ 'checked' if c.seg_registo == '1' }} {{ 'disabled' if not pode_cfg }}> Permitir o registo (com validação)</label>
+    <label>Quem recebe o email do pedido
+      <select name="seg_registo_notificar" {{ 'disabled' if not pode_cfg }}>{% for k, v in notificar.items() %}<option value="{{ k }}" {{ 'selected' if c.seg_registo_notificar == k }}>{{ v }}</option>{% endfor %}</select>
+      <span class="hint">Gestores do portal: utilizadores com um perfil que tenha a ação "Validar pedidos de registo" (ex. o perfil <b>Gestor do portal</b>{% if not gestores %}; nenhum perfil tem essa ação{% endif %}). Sem gestores, os administradores recebem.</span></label>
+    <p class="hint">Recebem agora o email: {% for e in emails %}<span class="tag" translate="no">{{ e }}</span> {% else %}<b>ninguém com email</b> (preencha o email dos administradores / gestores; a notificação no portal chega na mesma){% endfor %}.
+      O email precisa do módulo SMTP ligado.</p>
+    {% if pode_cfg %}<div class="buttons"><button class="primary">Guardar</button></div>{% endif %}
+  </form>
+</section>
+{% endblock %}

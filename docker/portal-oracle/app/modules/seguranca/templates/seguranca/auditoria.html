@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Segurança · Auditoria{% endblock %}
+{% block content %}
+{% set n_pendentes = r.pendentes %}
+{% include "seguranca/_tabs.html" %}
+<div class="seg-kpis">
+  <div class="seg-kpi"><span>Logins com sucesso</span><b>{{ r.c.login_ok }}</b><small>últimas 24 h</small></div>
+  <div class="seg-kpi bad"><span>Logins falhados</span><b>{{ r.c.login_falhou }}</b><small>últimas 24 h</small></div>
+  <div class="seg-kpi warn"><span>Bloqueios</span><b>{{ r.c.bloqueados }}</b><small>por IP ou tentativas</small></div>
+  <div class="seg-kpi"><span>Visitas ao login</span><b>{{ r.c.visitas }}</b><small>IPs distintos por 30 min</small></div>
+  {% if user.can('seguranca.pedidos') %}<a class="seg-kpi {{ 'warn' if r.pendentes }}" href="{{ url_for('seguranca.registo') }}"><span>Pedidos de registo</span><b>{{ r.pendentes }}</b><small>por validar</small></a>{% endif %}
+</div>
+{% if r.top %}
+<section class="card">
+  <h2>IPs com mais falhas e bloqueios (24 h)</h2>
+  <div class="seg-top">{% for x in r.top %}<button type="button" class="seg-ip" data-ip="{{ x.ip }}" title="Filtrar por este IP"><b translate="no">{{ x.ip }}</b><span>{{ x.n }}</span><small>{{ x.ultimo[11:16] }}</small></button>{% endfor %}</div>
+</section>
+{% endif %}
+<section class="jx-filtros">
+  <div class="jx-toolbar">
+    <label class="jx-search"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10 2a8 8 0 0 1 6.32 12.9l5.39 5.4-1.42 1.4-5.39-5.38A8 8 0 1 1 10 2Zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z"/></svg>
+      <input type="search" id="q" placeholder="Procurar IP, utilizador, página ou motivo" autocomplete="off"></label>
+    <label class="jx-sel"><span>Evento</span><select id="ev"><option value="">Todos</option>
+      {% for k, v in eventos.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+  </div>
+  <div class="jx-linha2"><div class="jx-chips" id="chips">
+    {% for k, rr, c in [('', 'Todos', 'todas'), ('OK', 'Sucesso', 'sucesso'), ('FALHOU', 'Falhados', 'erro'), ('BLOQUEADO', 'Bloqueados', 'aviso'), ('INFO', 'Informação', 'em-curso')] %}
+    <button type="button" class="chip r-{{ c }} {{ 'on' if not k }}" data-f="{{ k }}"><i></i>{{ rr }} <b data-n="{{ k }}">0</b></button>{% endfor %}
+  </div><span class="hint">O seu IP: <b translate="no">{{ ip_atual }}</b></span></div>
+</section>
+<div class="table-wrap"><table>
+  <thead><tr><th>Quando</th><th>IP</th><th>Evento</th><th>Resultado</th><th>Utilizador</th><th>Detalhe</th><th>Página</th></tr></thead>
+  <tbody id="rows"><tr><td colspan="7" class="muted">A carregar…</td></tr></tbody>
+</table></div>
+<p class="hint">Os últimos 500 que correspondem aos filtros. Os registos mais antigos do que o definido em Segurança → Autenticação são apagados.</p>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const $ = id => document.getElementById(id), esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const EV = {{ eventos|tojson }}, RES = {OK: ['ok', 'Sucesso'], FALHOU: ['bad', 'Falhou'], BLOQUEADO: ['warn', 'Bloqueado'], INFO: ['off', 'Info']};
+  let f = '';
+  async function carregar() {
+    const r = await fetch("{{ url_for('seguranca.auditoria_api') }}?" + new URLSearchParams({q: $('q').value, r: f, e: $('ev').value}), {cache: 'no-store'});
+    const d = await r.json();
+    document.querySelectorAll('#chips b').forEach(b => b.textContent = b.dataset.n ? (d.cont[b.dataset.n] || 0) : Object.values(d.cont).reduce((a, b) => a + b, 0));
+    $('rows').innerHTML = d.linhas.map(x => { const rr = RES[x.resultado] || ['off', x.resultado];
+      return `<tr><td class="nowrap small">${esc(x.quando)}</td><td translate="no"><a href="#" class="seg-ipf" data-ip="${esc(x.ip)}"><b>${esc(x.ip)}</b></a></td>
+      <td>${esc(EV[x.evento] || x.evento)}</td><td><span class="sys-pill ${rr[0]}">${rr[1]}</span></td><td translate="no">${esc(x.utilizador)}</td>
+      <td class="small">${esc(x.detalhe)}</td><td class="small" translate="no" title="${esc(x.agente)}">${esc(x.caminho)}</td></tr>`; }).join('')
+      || '<tr><td colspan="7" class="muted">Sem registos.</td></tr>';
+  }
+  const porIp = ip => { $('q').value = ip; carregar(); };
+  document.addEventListener('click', e => { const a = e.target.closest('.seg-ipf, .seg-ip'); if (a) { e.preventDefault(); porIp(a.dataset.ip); } });
+  $('chips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; document.querySelectorAll('#chips .chip').forEach(x => x.classList.toggle('on', x === b)); f = b.dataset.f; carregar(); };
+  let tq; $('q').oninput = () => { clearTimeout(tq); tq = setTimeout(carregar, 250); };
+  $('ev').onchange = carregar;
+  carregar(); setInterval(() => { if (!document.hidden) carregar(); }, 20000);
+})();
+</script>
+{% endblock %}

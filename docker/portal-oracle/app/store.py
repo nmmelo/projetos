@@ -273,6 +273,17 @@ _SCHEMA = [
         detalhe TEXT,
         ip VARCHAR(64)
     ){SUFFIX}""",
+    """CREATE TABLE IF NOT EXISTS seg_auditoria (
+        id {ID},
+        quando VARCHAR(19) NOT NULL,
+        ip VARCHAR(64),
+        utilizador VARCHAR(64),
+        evento VARCHAR(20) NOT NULL,
+        resultado VARCHAR(10) NOT NULL,
+        detalhe TEXT,
+        caminho VARCHAR(255),
+        agente VARCHAR(255)
+    ){SUFFIX}""",
     """CREATE TABLE IF NOT EXISTS traducoes (
         id {ID},
         lingua VARCHAR(10) NOT NULL,
@@ -463,6 +474,13 @@ class Store:
         self._add_column("jobs", "via", "VARCHAR(120)")                  # quem tratou: portal / agente cliente
         self._add_column("jobs", "remoto", "VARCHAR(80)")                # <cliente_id>:<job no agente>
         self._add_column("jobs", "ganho_mb", "INTEGER")                  # total do RESUMO GLOBAL (-1 = sem resumo)
+        # modulo Seguranca: dois fatores (segredo cifrado, ultimo contador usado, codigos de recuperacao)
+        # e registo por pedido (estado 'pendente' / 'recusado'; vazio = normal)
+        self._add_column("users", "totp_enc", "TEXT")
+        self._add_column("users", "totp_ultimo", "INTEGER")
+        self._add_column("users", "totp_rec", "TEXT")
+        self._add_column("users", "estado", "VARCHAR(12)")
+        self._add_column("users", "pedido_em", "VARCHAR(19)")
 
     def _alargar(self, table: str, col: str, ddl: str) -> None:
         """Aumenta o tamanho de uma coluna VARCHAR (no SQLite o tamanho nao conta)."""
@@ -662,7 +680,9 @@ def delete_profile(pid) -> None:
 def list_users() -> list[dict]:
     with tx() as t:
         return t.all("""SELECT u.id, u.username, u.name, u.first_name, u.last_name, u.email, u.profile_id, u.active,
-                               u.created_at, u.last_login, u.auth_tipo, p.name AS profile_name
+                               u.created_at, u.last_login, u.auth_tipo, u.estado, u.pedido_em,
+                               CASE WHEN u.totp_enc IS NOT NULL AND u.totp_enc <> '' THEN 1 ELSE 0 END AS tem_2fa,
+                               p.name AS profile_name
                         FROM users u LEFT JOIN profiles p ON p.id = u.profile_id
                         ORDER BY u.username""")
 

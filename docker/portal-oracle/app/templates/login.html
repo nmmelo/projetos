@@ -1,24 +1,71 @@
 {% extends "base.html" %}
 {% block title %}Entrar{% endblock %}
+{% block flashes %}{% endblock %}
 {% block content %}
-<section class="card narrow login">
+{% set msgs = get_flashed_messages(with_categories=true) %}
+{% set lay = login_layout %}
+{% set fechado = lay == 'boas_vindas' and passo == 'login' and not abrir and not msgs %}
+{% if lay != 'classico' %}<div class="login-fundo" aria-hidden="true"><i></i><i></i><i></i></div>{% endif %}
+<section class="card narrow login login-{{ lay }}{{ ' fechado' if fechado }}" id="login-card">
   {% if show_icon %}<img class="login-icon" src="{{ url_for('portal.favicon', v=favicon_ver) }}" alt="">{% endif %}
   <h1>{{ portal_name }}</h1>
   {% if login_subtitle %}<p class="muted login-sub">{{ login_subtitle }}</p>{% endif %}
-  {% if manut_msg %}
-  <div class="manutencao-msg aviso">{{ manut_msg|safe }}</div>
-  {% endif %}
+  {% if manut_msg %}<div class="manutencao-msg aviso">{{ manut_msg|safe }}</div>{% endif %}
   {% if no_admin %}
   <div class="flash error">
     O administrador ainda não foi configurado. No contentor, corra
     <code>python manage.py set-admin-password</code>.
   </div>
   {% endif %}
-  <form method="post" class="stack">
+  {% if lay == 'boas_vindas' and passo == 'login' %}
+  <div class="login-boas"><button type="button" class="primary login-entrar" id="login-entrar">Entrar <span aria-hidden="true">→</span></button></div>
+  {% endif %}
+
+  <div class="login-corpo">
+  {% for cat, msg in msgs %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+
+  {% if passo == 'login' %}
+  <form method="post" class="stack" id="login-form">
     <input type="hidden" name="csrf" value="{{ csrf_token }}">
-    <label>Utilizador <input name="user" autocomplete="username" required autofocus></label>
+    <label>Utilizador <input name="user" id="login-user" autocomplete="username" required {{ 'autofocus' if not fechado }}></label>
     <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+    {% if pow %}
+    <div class="seg-humano" id="humano" data-c="{{ pow.c }}" data-b="{{ pow.b }}">
+      <button type="button" class="seg-check" id="humano-btn" aria-pressed="false">
+        <span class="seg-caixa" aria-hidden="true"></span><span class="seg-txt">Não sou um robô</span></button>
+      <span class="seg-escudo" aria-hidden="true">🛡</span>
+      <input type="hidden" name="pow" id="pow">
+    </div>
+    {% endif %}
     <button class="primary">Entrar</button>
   </form>
+
+  {% elif passo == '2fa' %}
+  <form method="post" class="stack" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <p class="seg-passo"><b>Verificação em dois passos</b><span>Introduza o código de 6 dígitos da aplicação de autenticação.</span></p>
+    <label>Código <input name="codigo" class="seg-codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="20" required autofocus placeholder="000000"></label>
+    <p class="hint">Sem o telemóvel? Use um dos códigos de recuperação (ex. <code>k7m2-q9xw</code>).</p>
+    <div class="buttons"><button class="primary">Confirmar e entrar</button>
+      <button class="btn" name="acao" value="cancelar" formnovalidate>Cancelar</button></div>
+  </form>
+
+  {% elif passo == '2fa_ativar' %}
+  <form method="post" class="stack" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <p class="seg-passo"><b>Configure a verificação em dois passos</b><span>É obrigatória neste portal para a conta <b translate="no">{{ conta }}</b>.</span></p>
+    <ol class="seg-passos">
+      <li>Abra uma aplicação de autenticação (Microsoft Authenticator, Google Authenticator, FreeOTP, Aegis…).</li>
+      <li>Leia o código QR — ou escreva a chave à mão.</li>
+    </ol>
+    <div class="seg-qr">{{ qr.svg|safe }}</div>
+    <p class="seg-chave" translate="no">{{ qr.segredo }}</p>
+    <label>3. Código que a aplicação mostra <input name="codigo" class="seg-codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required autofocus placeholder="000000"></label>
+    <div class="buttons"><button class="primary">Ativar e entrar</button>
+      <button class="btn" name="acao" value="cancelar" formnovalidate>Cancelar</button></div>
+  </form>
+  {% endif %}
+  </div>
 </section>
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='login.js', v=static_v) }}"></script>{% endblock %}

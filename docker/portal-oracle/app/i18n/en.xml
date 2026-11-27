@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="2170">
+<lingua codigo="en" nome="English" textos="2268">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -8681,5 +8681,397 @@
   <texto>
     <origem>O agente descarrega a versão do portal e reinicia.</origem>
     <traducao>The agent downloads the portal version and restarts.</traducao>
+  </texto>
+  <texto>
+    <origem>Auditoria</origem>
+    <traducao>Audit</traducao>
+  </texto>
+  <texto>
+    <origem>Acesso por IP</origem>
+    <traducao>IP access</traducao>
+  </texto>
+  <texto>
+    <origem>Logins com sucesso</origem>
+    <traducao>Successful logins</traducao>
+  </texto>
+  <texto>
+    <origem>Logins falhados</origem>
+    <traducao>Failed logins</traducao>
+  </texto>
+  <texto>
+    <origem>Bloqueios</origem>
+    <traducao>Blocks</traducao>
+  </texto>
+  <texto>
+    <origem>Visitas ao login</origem>
+    <traducao>Login page visits</traducao>
+  </texto>
+  <texto>
+    <origem>Pedidos de registo</origem>
+    <traducao>Registration requests</traducao>
+  </texto>
+  <texto>
+    <origem>últimas 24 h</origem>
+    <traducao>last 24 h</traducao>
+  </texto>
+  <texto>
+    <origem>por IP ou tentativas</origem>
+    <traducao>by IP or attempts</traducao>
+  </texto>
+  <texto>
+    <origem>IPs distintos por 30 min</origem>
+    <traducao>distinct IPs per 30 min</traducao>
+  </texto>
+  <texto>
+    <origem>por validar</origem>
+    <traducao>pending validation</traducao>
+  </texto>
+  <texto>
+    <origem>IPs com mais falhas e bloqueios (24 h)</origem>
+    <traducao>IPs with most failures and blocks (24 h)</traducao>
+  </texto>
+  <texto>
+    <origem>Procurar IP, utilizador, página ou motivo</origem>
+    <traducao>Search IP, user, page or reason</traducao>
+  </texto>
+  <texto>
+    <origem>Bloqueados</origem>
+    <traducao>Blocked</traducao>
+  </texto>
+  <texto>
+    <origem>O seu IP:</origem>
+    <traducao>Your IP:</traducao>
+  </texto>
+  <texto>
+    <origem>Página</origem>
+    <traducao>Page</traducao>
+  </texto>
+  <texto>
+    <origem>Detalhe</origem>
+    <traducao>Detail</traducao>
+  </texto>
+  <texto>
+    <origem>Visita ao login</origem>
+    <traducao>Login page visit</traducao>
+  </texto>
+  <texto>
+    <origem>Saída</origem>
+    <traducao>Logout</traducao>
+  </texto>
+  <texto>
+    <origem>Dois fatores</origem>
+    <traducao>Two factors</traducao>
+  </texto>
+  <texto>
+    <origem>Fator humano</origem>
+    <traducao>Human check</traducao>
+  </texto>
+  <texto>
+    <origem>Bloqueio por tentativas</origem>
+    <traducao>Blocked by attempts</traducao>
+  </texto>
+  <texto>
+    <origem>Pedido de registo</origem>
+    <traducao>Registration request</traducao>
+  </texto>
+  <texto>
+    <origem>Validação de registo</origem>
+    <traducao>Registration validation</traducao>
+  </texto>
+  <texto>
+    <origem>Bloqueado</origem>
+    <traducao>Blocked</traducao>
+  </texto>
+  <texto>
+    <origem>Info</origem>
+    <traducao>Info</traducao>
+  </texto>
+  <texto>
+    <origem>Acesso ao portal por IP</origem>
+    <traducao>Portal access by IP</traducao>
+  </texto>
+  <texto>
+    <origem>Ligado · no portal</origem>
+    <traducao>On · in the portal</traducao>
+  </texto>
+  <texto>
+    <origem>Ligado · firewalld</origem>
+    <traducao>On · firewalld</traducao>
+  </texto>
+  <texto>
+    <origem>Ligar o acesso por IP</origem>
+    <traducao>Turn on IP access</traducao>
+  </texto>
+  <texto>
+    <origem>No portal (código)</origem>
+    <traducao>In the portal (code)</traducao>
+  </texto>
+  <texto>
+    <origem>Firewalld</origem>
+    <traducao>Firewalld</traducao>
+  </texto>
+  <texto>
+    <origem>IPs e redes com acesso</origem>
+    <traducao>IPs and networks with access</traducao>
+  </texto>
+  <texto>
+    <origem>Mensagem para quem não tem acesso</origem>
+    <traducao>Message for those without access</traducao>
+  </texto>
+  <texto>
+    <origem>Firewalld: portas, zona e agentes</origem>
+    <traducao>Firewalld: ports, zone and agents</traducao>
+  </texto>
+  <texto>
+    <origem>Portas do portal (tcp)</origem>
+    <traducao>Portal ports (tcp)</traducao>
+  </texto>
+  <texto>
+    <origem>Verificar um IP</origem>
+    <traducao>Check an IP</traducao>
+  </texto>
+  <texto>
+    <origem>Verificar</origem>
+    <traducao>Check</traducao>
+  </texto>
+  <texto>
+    <origem>Entradas no ipset</origem>
+    <traducao>Entries in the ipset</traducao>
+  </texto>
+  <texto>
+    <origem>Retirado da zona</origem>
+    <traducao>Removed from the zone</traducao>
+  </texto>
+  <texto>
+    <origem>Aplicado</origem>
+    <traducao>Applied</traducao>
+  </texto>
+  <texto>
+    <origem>↻ Reaplicar</origem>
+    <traducao>↻ Reapply</traducao>
+  </texto>
+  <texto>
+    <origem>Desfazer na firewall</origem>
+    <traducao>Undo in the firewall</traducao>
+  </texto>
+  <texto>
+    <origem>Sem regras do portal na firewall.</origem>
+    <traducao>No portal rules in the firewall.</traducao>
+  </texto>
+  <texto>
+    <origem>Autenticação de Dois Fatores</origem>
+    <traducao>Two-Factor Authentication</traducao>
+  </texto>
+  <texto>
+    <origem>Fator humano no login</origem>
+    <traducao>Human check at login</traducao>
+  </texto>
+  <texto>
+    <origem>Bloqueio por tentativas falhadas</origem>
+    <traducao>Blocking by failed attempts</traducao>
+  </texto>
+  <texto>
+    <origem>Falhas (N)</origem>
+    <traducao>Failures (N)</traducao>
+  </texto>
+  <texto>
+    <origem>Minutos (M)</origem>
+    <traducao>Minutes (M)</traducao>
+  </texto>
+  <texto>
+    <origem>Guardar os registos durante (dias)</origem>
+    <traducao>Keep records for (days)</traducao>
+  </texto>
+  <texto>
+    <origem>IPs bloqueados agora</origem>
+    <traducao>IPs blocked now</traducao>
+  </texto>
+  <texto>
+    <origem>Desbloquear</origem>
+    <traducao>Unblock</traducao>
+  </texto>
+  <texto>
+    <origem>Dois fatores por utilizador</origem>
+    <traducao>Two factors per user</traducao>
+  </texto>
+  <texto>
+    <origem>Não configurado</origem>
+    <traducao>Not configured</traducao>
+  </texto>
+  <texto>
+    <origem>Falhas do IP (última hora) para pedir</origem>
+    <traducao>IP failures (last hour) before asking</traducao>
+  </texto>
+  <texto>
+    <origem>Opcional (cada utilizador ativa na Minha área)</origem>
+    <traducao>Optional (each user turns it on in My area)</traducao>
+  </texto>
+  <texto>
+    <origem>Obrigatório para administradores</origem>
+    <traducao>Mandatory for administrators</traducao>
+  </texto>
+  <texto>
+    <origem>Obrigatório para todos</origem>
+    <traducao>Mandatory for everyone</traducao>
+  </texto>
+  <texto>
+    <origem>Só depois de logins falhados do IP</origem>
+    <traducao>Only after failed logins from the IP</traducao>
+  </texto>
+  <texto>
+    <origem>Pedidos por validar</origem>
+    <traducao>Requests pending validation</traducao>
+  </texto>
+  <texto>
+    <origem>Perfil a atribuir</origem>
+    <traducao>Profile to assign</traducao>
+  </texto>
+  <texto>
+    <origem>✓ Aprovar</origem>
+    <traducao>✓ Approve</traducao>
+  </texto>
+  <texto>
+    <origem>Recusar</origem>
+    <traducao>Reject</traducao>
+  </texto>
+  <texto>
+    <origem>Não há pedidos por validar.</origem>
+    <traducao>There are no pending requests.</traducao>
+  </texto>
+  <texto>
+    <origem>Recusados</origem>
+    <traducao>Rejected</traducao>
+  </texto>
+  <texto>
+    <origem>Aprovar</origem>
+    <traducao>Approve</traducao>
+  </texto>
+  <texto>
+    <origem>Registo de utilizadores</origem>
+    <traducao>User registration</traducao>
+  </texto>
+  <texto>
+    <origem>Permitir o registo (com validação)</origem>
+    <traducao>Allow registration (with validation)</traducao>
+  </texto>
+  <texto>
+    <origem>Quem recebe o email do pedido</origem>
+    <traducao>Who receives the request email</traducao>
+  </texto>
+  <texto>
+    <origem>Administradores</origem>
+    <traducao>Administrators</traducao>
+  </texto>
+  <texto>
+    <origem>Gestores do portal</origem>
+    <traducao>Portal managers</traducao>
+  </texto>
+  <texto>
+    <origem>Administradores e gestores do portal</origem>
+    <traducao>Administrators and portal managers</traducao>
+  </texto>
+  <texto>
+    <origem>— perfil —</origem>
+    <traducao>— profile —</traducao>
+  </texto>
+  <texto>
+    <origem>Não sou um robô</origem>
+    <traducao>I'm not a robot</traducao>
+  </texto>
+  <texto>
+    <origem>Verificação em dois passos</origem>
+    <traducao>Two-step verification</traducao>
+  </texto>
+  <texto>
+    <origem>Introduza o código de 6 dígitos da aplicação de autenticação.</origem>
+    <traducao>Enter the 6-digit code from the authenticator app.</traducao>
+  </texto>
+  <texto>
+    <origem>Confirmar e entrar</origem>
+    <traducao>Confirm and sign in</traducao>
+  </texto>
+  <texto>
+    <origem>Configure a verificação em dois passos</origem>
+    <traducao>Set up two-step verification</traducao>
+  </texto>
+  <texto>
+    <origem>Ativar e entrar</origem>
+    <traducao>Turn on and sign in</traducao>
+  </texto>
+  <texto>
+    <origem>Sem acesso ao portal</origem>
+    <traducao>No access to the portal</traducao>
+  </texto>
+  <texto>
+    <origem>Página de login</origem>
+    <traducao>Login page</traducao>
+  </texto>
+  <texto>
+    <origem>Clássico</origem>
+    <traducao>Classic</traducao>
+  </texto>
+  <texto>
+    <origem>Vidro</origem>
+    <traducao>Glass</traducao>
+  </texto>
+  <texto>
+    <origem>Boas-vindas</origem>
+    <traducao>Welcome</traducao>
+  </texto>
+  <texto>
+    <origem>Cartão com utilizador e password</origem>
+    <traducao>Card with username and password</traducao>
+  </texto>
+  <texto>
+    <origem>Cartão translúcido sobre um fundo com as cores do tema</origem>
+    <traducao>Translucent card over a background in the theme colours</traducao>
+  </texto>
+  <texto>
+    <origem>Caixa com o título e o botão Entrar, que abre o login</origem>
+    <traducao>Box with the title and an Enter button that opens the login</traducao>
+  </texto>
+  <texto>
+    <origem>Ver o login</origem>
+    <traducao>See the login</traducao>
+  </texto>
+  <texto>
+    <origem>Desligada</origem>
+    <traducao>Off</traducao>
+  </texto>
+  <texto>
+    <origem>obrigatória</origem>
+    <traducao>mandatory</traducao>
+  </texto>
+  <texto>
+    <origem>Desligar</origem>
+    <traducao>Turn off</traducao>
+  </texto>
+  <texto>
+    <origem>Novos códigos de recuperação</origem>
+    <traducao>New recovery codes</traducao>
+  </texto>
+  <texto>
+    <origem>Confirme com o código atual da aplicação.</origem>
+    <traducao>Confirm with the app's current code.</traducao>
+  </texto>
+  <texto>
+    <origem>recusado</origem>
+    <traducao>rejected</traducao>
+  </texto>
+  <texto>
+    <origem>Código inválido.</origem>
+    <traducao>Invalid code.</traducao>
+  </texto>
+  <texto>
+    <origem>Confirme que não é um robô (caixa por baixo da password).</origem>
+    <traducao>Confirm you are not a robot (box below the password).</traducao>
+  </texto>
+  <texto>
+    <origem>A verificação expirou: entre de novo.</origem>
+    <traducao>The verification expired: sign in again.</traducao>
+  </texto>
+  <texto>
+    <origem>Acesso por IP guardado.</origem>
+    <traducao>IP access saved.</traducao>
   </texto>
 </lingua>

@@ -19,7 +19,7 @@
       <td>{{ u.email or '' }}</td>
       <td>{{ u.profile_name or '—' }}</td>
       <td>{% if u.auth_tipo == 'ldap' %}<span class="tag">LDAP</span>{% else %}<span class="tag">Local</span>{% endif %}</td>
-      <td>{% if u.active %}<span class="status s-OK">ativo</span>{% else %}<span class="status s-ERRO">inativo</span>{% endif %}</td>
+      <td>{% if u.estado == 'pendente' %}<span class="status s-PENDENTE" title="Pedido de registo: Segurança → Registo">por validar</span>{% elif u.estado == 'recusado' %}<span class="status s-ERRO">recusado</span>{% elif u.active %}<span class="status s-OK">ativo</span>{% else %}<span class="status s-ERRO">inativo</span>{% endif %}{% if u.tem_2fa %} <span class="tag" title="Verificação em dois passos ativa">2FA</span>{% endif %}</td>
       <td>{{ u.last_login or '—' }}</td>
       <td class="actions">
         <a class="btn" href="{{ url_for('portal.cfg_user_form', uid=u.id) }}">Editar</a>

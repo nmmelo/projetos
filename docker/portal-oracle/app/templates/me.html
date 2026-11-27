@@ -48,4 +48,46 @@
     {% endif %}
   </section>
 </div>
+{% if f2 %}
+<section class="card" id="dois-fatores">
+  <div class="seg-titulo"><h2>Verificação em dois passos</h2>
+    {% if f2.ativo %}<span class="sys-pill ok">Ativa</span>{% else %}<span class="sys-pill off">Desligada</span>{% endif %}
+    {% if f2.obrigatorio %}<span class="tag warn">obrigatória</span>{% endif %}</div>
+  {% if f2.codigos %}
+  <div class="flash warn">Códigos de recuperação — guarde-os num local seguro. Cada um serve uma vez, se não tiver o telemóvel. Não voltam a ser mostrados.</div>
+  <div class="seg-rec" translate="no">{% for c in f2.codigos %}<span>{{ c }}</span>{% endfor %}</div>
+  {% endif %}
+  {% if f2.ativo %}
+  <p class="hint">No login, depois da password, é pedido o código da aplicação de autenticação. Códigos de recuperação por usar: <b>{{ f2.rec }}</b>.</p>
+  <form method="post" class="row-form" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input name="codigo" class="seg-codigo" style="max-width:180px" inputmode="numeric" maxlength="20" placeholder="000000" required>
+    <button class="btn" name="action" value="2fa_codigos">Novos códigos de recuperação</button>
+    {% if not f2.obrigatorio %}<button class="danger" name="action" value="2fa_desligar">Desligar</button>{% endif %}
+  </form>
+  <p class="hint">Confirme com o código atual da aplicação.</p>
+  {% elif f2.qr %}
+  <div class="split">
+    <div class="stack">
+      <ol class="seg-passos">
+        <li>Abra uma aplicação de autenticação (Microsoft Authenticator, Google Authenticator, FreeOTP, Aegis…).</li>
+        <li>Leia o código QR — ou escreva a chave à mão.</li>
+        <li>Escreva o código de 6 dígitos que a aplicação mostra.</li>
+      </ol>
+      <p class="seg-chave" translate="no">{{ f2.qr.segredo }}</p>
+      <form method="post" class="row-form" autocomplete="off">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <input name="codigo" class="seg-codigo" style="max-width:180px" inputmode="numeric" maxlength="6" placeholder="000000" required autofocus>
+        <button class="primary" name="action" value="2fa_confirmar">Ativar</button>
+        <button class="btn" name="action" value="2fa_cancelar" formnovalidate>Cancelar</button>
+      </form>
+    </div>
+    <div class="seg-qr">{{ f2.qr.svg|safe }}</div>
+  </div>
+  {% else %}
+  <p class="hint">Depois da password, o login pede também um código de 6 dígitos de uma aplicação no telemóvel. Protege a conta mesmo que a password seja descoberta.</p>
+  <form method="post"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="primary" name="action" value="2fa_iniciar">Ativar</button></form>
+  {% endif %}
+</section>
+{% endif %}
 {% endblock %}

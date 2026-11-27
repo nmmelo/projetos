@@ -33,7 +33,7 @@
     {% endif %}
   </nav>
   {% endif %}
-  {% if user or request.endpoint == 'portal.login' %}
+  {% if user or request.endpoint in ('portal.login', 'portal.login_2fa') %}
   <div class="who">
     {% if linguas_ativas|length > 1 %}
     <div class="lang-switch" role="group" aria-label="Língua" translate="no">
@@ -73,9 +73,9 @@
   <div class="flash warn">Modo de manutenção <strong>ativo</strong>: só quem gere o portal consegue entrar.
     <a href="{{ url_for('portal.cfg_maintenance') }}">Gerir</a></div>
   {% endif %}
-  {% with msgs = get_flashed_messages(with_categories=true) %}
+  {% block flashes %}{% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat, msg in msgs %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
-  {% endwith %}
+  {% endwith %}{% endblock %}
   {% block content %}{% endblock %}
 </main>
 {% if footer %}<footer class="rodape">{{ footer }}</footer>{% endif %}

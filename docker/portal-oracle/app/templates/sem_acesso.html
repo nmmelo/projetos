@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Sem acesso{% endblock %}
+{% block flashes %}{% endblock %}
+{% block content %}
+<section class="card narrow seg-sem-acesso">
+  <div class="seg-cadeado" aria-hidden="true"><svg viewBox="0 0 24 24" width="34" height="34"><path fill="currentColor" d="M12 2a5 5 0 0 1 5 5v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1V7a5 5 0 0 1 5-5Zm0 2a3 3 0 0 0-3 3v3h6V7a3 3 0 0 0-3-3Zm0 9a2 2 0 0 0-1 3.73V18h2v-1.27A2 2 0 0 0 12 13Z"/></svg></div>
+  <h1>Sem acesso ao portal</h1>
+  <p>{{ msg }}</p>
+</section>
+{% endblock %}

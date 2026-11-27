@@ -1,7 +1,7 @@
 """Aparencia do portal: titulo, texto do login, rodape, favicon e tema.
 
 Tudo fica na tabela 'settings' (por isso entra nos backups e e igual em todos os workers):
-  portal_name, login_subtitle, footer, theme, show_icon, favicon_data (base64), favicon_type, favicon_ver
+  portal_name, login_subtitle, footer, theme, login_layout, show_icon, favicon_data (base64), favicon_type, favicon_ver
 """
 import base64
 import hashlib
@@ -20,11 +20,20 @@ THEMES = {
 }
 DEFAULT_THEME = "claro"
 
+# Pagina de login: classico (cartao com utilizador e password), vidro (cartao translucido sobre um fundo
+# com cor) e boas_vindas (caixa com o titulo e um botao "Entrar" que abre o formulario)
+LOGIN_LAYOUTS = {
+    "classico": {"label": "Clássico", "desc": "Cartão com utilizador e password"},
+    "vidro": {"label": "Vidro", "desc": "Cartão translúcido sobre um fundo com as cores do tema"},
+    "boas_vindas": {"label": "Boas-vindas", "desc": "Caixa com o título e o botão Entrar, que abre o login"},
+}
+
 DEFAULTS = {
     "portal_name": "Oracle · Gestão de espaço",
     "login_subtitle": "",
     "footer": "",
     "theme": DEFAULT_THEME,
+    "login_layout": "classico",
     "show_icon": "1",
     "favicon_data": "",
     "favicon_type": "",
@@ -80,6 +89,7 @@ def context(s: dict) -> dict:
     footer = (s.get("footer") or "").replace("{ano}", str(date.today().year))
     return {"portal_name": s.get("portal_name") or DEFAULTS["portal_name"],
             "login_subtitle": s.get("login_subtitle") or "",
-            "footer": footer, "theme": theme, "show_icon": s.get("show_icon", "1") == "1",
+            "footer": footer, "theme": theme,
+            "login_layout": s.get("login_layout") if s.get("login_layout") in LOGIN_LAYOUTS else "classico", "show_icon": s.get("show_icon", "1") == "1",
             # a versao muda o URL do icone (cache): o personalizado, ou o por omissao na cor do tema
             "favicon_ver": s.get("favicon_ver") or f"tema-{theme}"}

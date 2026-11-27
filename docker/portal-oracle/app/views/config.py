@@ -53,6 +53,10 @@ def cfg_appearance():
             values = {k: aparencia.clean_text(k, request.form.get(k, "")) for k in aparencia.LIMITS}
             values["portal_name"] = values["portal_name"] or aparencia.DEFAULTS["portal_name"]
             values["theme"] = theme
+            lay = request.form.get("login_layout", "classico")
+            if lay not in aparencia.LOGIN_LAYOUTS:
+                raise ValueError("Aspeto do login inválido.")
+            values["login_layout"] = lay
             values["show_icon"] = "1" if request.form.get("show_icon") else "0"
             upload = request.files.get("favicon")
             if upload and upload.filename:
@@ -65,7 +69,7 @@ def cfg_appearance():
         except ValueError as exc:
             flash(f"Erro: {exc}", "error")
     s = store.get_settings()
-    return render_template("config/appearance.html", s=s, themes=aparencia.THEMES,
+    return render_template("config/appearance.html", s=s, themes=aparencia.THEMES, layouts=aparencia.LOGIN_LAYOUTS,
                            limits=aparencia.LIMITS, favicon_max=aparencia.FAVICON_MAX // 1024,
                            custom_icon=bool(s.get("favicon_ver")), tab="portal", sub="appearance", sub2="geral")
 
@@ -534,7 +538,9 @@ def cfg_user_form(uid=None):
                     "email": f.get("email", "").strip()[:255],
                     "profile_id": int(profile_id) if profile_id else None, "active": f.get("active") == "on",
                     "auth_tipo": tipo}
-            store.save_user(data, auth.hash_password(pwd) if pwd else ("!ldap" if tipo == "ldap" else None), uid)
+            novo_uid = store.save_user(data, auth.hash_password(pwd) if pwd else ("!ldap" if tipo == "ldap" else None), uid)
+            if uid and data["active"] and (u or {}).get("estado"):     # pedido de registo ativado aqui
+                store.update_user_fields(novo_uid, estado="")
             flash("Utilizador guardado.", "ok")
             return redirect(url_for("portal.cfg_users"))
         except ValueError as exc:

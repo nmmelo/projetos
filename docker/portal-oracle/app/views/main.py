@@ -10,20 +10,140 @@ from .. import aparencia, auth, manutencao, settings, store
 from . import bp
 
 
+def _proximo(nxt: str) -> str:
+    return nxt if nxt.startswith("/") and not nxt.startswith("//") else url_for("portal.home")
+
+
+def _render_login(**kw):
+    from .. import seguranca
+    manut_msg = manutencao.estado()["html"] if g.get("manutencao") else None
+    return render_template("login.html", no_admin=settings.admin() is None, manut_msg=manut_msg,
+                           seg=seguranca.ativo(), **kw)
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
+    from flask import session
+    from .. import seguranca
     if g.user:
         return redirect(url_for("portal.home"))
+    ip = seguranca.ip_cliente(request)
+    ua = request.headers.get("User-Agent", "")
+    seg = seguranca.ativo()
+    nxt = request.args.get("next", "")
+    tentou = False
     if request.method == "POST":
-        ip = request.headers.get("X-Real-IP") or request.remote_addr or ""
-        user = auth.authenticate(request.form.get("user", ""), request.form.get("password", ""), ip)
-        if user:
-            auth.login_session(user)
-            nxt = request.args.get("next", "")
-            return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else url_for("portal.home"))
-        flash("Utilizador ou password inválidos.", "error")
-    manut_msg = manutencao.estado()["html"] if g.get("manutencao") else None
-    return render_template("login.html", no_admin=settings.admin() is None, manut_msg=manut_msg)
+        tentou = True
+        nome = request.form.get("user", "").strip()[:64]
+        falta = seguranca.bloqueado_por_tentativas(ip) if seg else 0
+        if falta:
+            seguranca.auditar("tentativas", "BLOQUEADO", ip=ip, utilizador=nome, detalhe=f"login recusado (faltam {falta} min)",
+                              caminho="/login", agente=ua)
+            flash(f"Demasiadas tentativas falhadas a partir deste endereço. Tente de novo dentro de {falta} min.", "error")
+        elif seg and seguranca.captcha_necessario(ip) and not seguranca.captcha_ok(session, request.form.get("pow", "")):
+            seguranca.auditar("captcha", "FALHOU", ip=ip, utilizador=nome, detalhe="verificação 'não sou um robô' em falta ou inválida",
+                              caminho="/login", agente=ua)
+            flash("Confirme que não é um robô (caixa por baixo da password).", "error")
+        else:
+            user = auth.authenticate(nome, request.form.get("password", ""), ip)
+            if user and seguranca.exige_2fa(user):
+                session.clear()
+                session["seg_2fa"] = {"uid": user.id, "ts": int(__import__("time").time()), "next": nxt, "falhas": 0}
+                return redirect(url_for("portal.login_2fa"))
+            if user:
+                auth.login_session(user)
+                if seg:
+                    seguranca.auditar("login", "OK", ip=ip, utilizador=user.username, caminho="/login", agente=ua)
+                return redirect(_proximo(nxt))
+            motivo = g.get("login_motivo")
+            if seg:
+                seguranca.auditar("login", "INFO" if motivo else "FALHOU", ip=ip, utilizador=nome,
+                                  detalhe=motivo or "utilizador ou password inválidos", caminho="/login", agente=ua)
+                _avisar_bloqueio(ip, nome)
+            flash(motivo or "Utilizador ou password inválidos.", "warn" if motivo else "error")
+    elif seg:
+        seguranca.auditar("visita", "INFO", ip=ip, caminho=request.full_path.rstrip("?")[:255], agente=ua, limitar=1800)
+    pow_ = seguranca.captcha_novo(session) if seg and seguranca.captcha_necessario(ip) else None
+    return _render_login(passo="login", pow=pow_, abrir=tentou)
+
+
+def _avisar_bloqueio(ip: str, nome: str) -> None:
+    """Na falha que atinge o limite: auditoria + evento (regras de notificacao)."""
+    from .. import eventos, seguranca
+    c = seguranca.cfg()
+    try:
+        n, m = int(c["seg_bloqueio_falhas"]), int(c["seg_bloqueio_min"])
+    except ValueError:
+        return
+    if n > 0 and seguranca.falhas_recentes(ip, m) == n:
+        seguranca.auditar("tentativas", "BLOQUEADO", ip=ip, utilizador=nome, detalhe=f"{n} falhas em {m} min: bloqueado {m} min")
+        eventos.emitir("seguranca.tentativas", "bloqueado", f"IP {ip} bloqueado por tentativas falhadas",
+                       f"{n} logins falhados em {m} minutos (último utilizador: {nome or '-'}). Bloqueado durante {m} minutos.",
+                       "/seguranca/auditoria")
+
+
+@bp.route("/login/2fa", methods=["GET", "POST"])
+def login_2fa():
+    """Segundo fator: codigo da aplicacao (ou de recuperacao); sem 2FA e obrigatorio: configurar aqui (QR)."""
+    import time
+    from flask import session
+    from .. import seguranca, totp
+    p = session.get("seg_2fa")
+    if g.user:
+        return redirect(url_for("portal.home"))
+    if not p or time.time() - p.get("ts", 0) > 300:
+        session.pop("seg_2fa", None)
+        flash("A verificação expirou: entre de novo.", "warn")
+        return redirect(url_for("portal.login"))
+    user = auth.user_by_id(p["uid"])
+    if not user:
+        session.pop("seg_2fa", None)
+        return redirect(url_for("portal.login"))
+    ip, ua = seguranca.ip_cliente(request), request.headers.get("User-Agent", "")
+    tem = seguranca.tem_2fa(user.id)
+    if not tem and "segredo" not in p:
+        p["segredo"] = totp.novo_segredo()
+        session["seg_2fa"] = p
+    if request.method == "POST":
+        if request.form.get("acao") == "cancelar":
+            session.clear()
+            return redirect(url_for("portal.login"))
+        cod = request.form.get("codigo", "").strip()[:20]
+        if seguranca.bloqueado_por_tentativas(ip):
+            session.clear()
+            flash("Demasiadas tentativas falhadas a partir deste endereço.", "error")
+            return redirect(url_for("portal.login"))
+        if not tem:
+            rec = seguranca.ativar_2fa(user.id, p["segredo"], cod)
+            if rec:
+                auth.login_session(user)
+                session["seg_rec"] = rec
+                seguranca.auditar("2fa", "OK", ip=ip, utilizador=user.username, detalhe="dois fatores configurados no login",
+                                  caminho="/login/2fa", agente=ua)
+                seguranca.auditar("login", "OK", ip=ip, utilizador=user.username, detalhe="com dois fatores", caminho="/login", agente=ua)
+                return redirect(url_for("portal.me", _anchor="dois-fatores"))
+        else:
+            tipo = seguranca.verificar_2fa(user.id, cod)
+            if tipo:
+                auth.login_session(user)
+                seguranca.auditar("login", "OK", ip=ip, utilizador=user.username,
+                                  detalhe="com dois fatores" + (" (código de recuperação)" if tipo == "recuperacao" else ""),
+                                  caminho="/login", agente=ua)
+                if tipo == "recuperacao":
+                    flash("Entrou com um código de recuperação (já não serve outra vez). Restam "
+                          f"{len(seguranca.dados_2fa(user.id)['rec'])}.", "warn")
+                return redirect(_proximo(p.get("next", "")))
+        p["falhas"] = p.get("falhas", 0) + 1
+        seguranca.auditar("2fa", "FALHOU", ip=ip, utilizador=user.username, detalhe="código inválido", caminho="/login/2fa", agente=ua)
+        _avisar_bloqueio(ip, user.username)
+        if p["falhas"] >= 5:
+            session.clear()
+            flash("Demasiados códigos errados: entre de novo.", "error")
+            return redirect(url_for("portal.login"))
+        session["seg_2fa"] = p
+        flash("Código inválido.", "error")
+    qr = None if tem else seguranca.qr_2fa(p["segredo"], user.username)
+    return _render_login(passo="2fa" if tem else "2fa_ativar", qr=qr, conta=user.username, abrir=True)
 
 
 @bp.route("/i18n/<codigo>.js")
@@ -83,6 +203,9 @@ def favicon():
 @bp.route("/logout", methods=["POST"])
 def logout():
     from flask import session
+    from .. import seguranca
+    if g.user and seguranca.ativo():
+        seguranca.auditar("logout", "INFO", ip=seguranca.ip_cliente(request), utilizador=g.user.username, caminho="/logout")
     session.clear()
     return redirect(url_for("portal.login"))
 
@@ -349,10 +472,65 @@ def me():
                 else:
                     store.update_user_fields(u.id, password_hash=auth.hash_password(new))
                 flash("Password alterada.", "ok")
+            elif action and action.startswith("2fa_"):
+                _me_2fa(u, action)
+                return redirect(url_for("portal.me", _anchor="dois-fatores"))
             return redirect(url_for("portal.me"))
         except ValueError as exc:
             flash(str(exc), "error")
+            if action and action.startswith("2fa_"):
+                return redirect(url_for("portal.me", _anchor="dois-fatores"))
+    from flask import session
+    from .. import seguranca
+    f2 = None
+    if seguranca.ativo() and (seguranca.cfg()["seg_2fa"] != "desligado" or seguranca.tem_2fa(u.id)):
+        d = seguranca.dados_2fa(u.id)
+        novo = session.get("seg_2fa_novo")
+        f2 = {"ativo": bool(d["segredo"]), "rec": len(d["rec"]), "obrigatorio": seguranca.cfg()["seg_2fa"] == "obrigatorio" or
+              (seguranca.cfg()["seg_2fa"] == "admins" and u.total),
+              "qr": seguranca.qr_2fa(novo, u.username) if novo and not d["segredo"] else None,
+              "codigos": session.pop("seg_rec", None)}
     dbs = None
     if u.can("modulo.oracle"):
         dbs = store.list_dbs() if u.is_admin or u.all_dbs else [d for d in store.list_dbs() if d["id"] in u.db_ids]
-    return render_template("me.html", dbs=dbs)
+    return render_template("me.html", dbs=dbs, f2=f2)
+
+
+def _me_2fa(u, action: str) -> None:
+    """Minha area > Dois fatores: iniciar (QR), confirmar, novos codigos de recuperacao, desligar."""
+    from flask import session
+    from .. import seguranca, totp
+    if not seguranca.ativo():
+        raise ValueError("O módulo Segurança está desligado.")
+    ip = seguranca.ip_cliente(request)
+    cod = request.form.get("codigo", "").strip()
+    if action == "2fa_iniciar":
+        session["seg_2fa_novo"] = totp.novo_segredo()
+    elif action == "2fa_cancelar":
+        session.pop("seg_2fa_novo", None)
+    elif action == "2fa_confirmar":
+        seg = session.get("seg_2fa_novo")
+        if not seg:
+            raise ValueError("Comece de novo: Ativar.")
+        rec = seguranca.ativar_2fa(u.id, seg, cod)
+        if not rec:
+            raise ValueError("Código inválido: confirme a hora do telemóvel e tente de novo.")
+        session.pop("seg_2fa_novo", None)
+        session["seg_rec"] = rec
+        seguranca.auditar("2fa", "OK", ip=ip, utilizador=u.username, detalhe="dois fatores ativados (Minha área)")
+        flash("Dois fatores ativados. Guarde os códigos de recuperação.", "ok")
+    elif action in ("2fa_codigos", "2fa_desligar"):
+        if not seguranca.verificar_2fa(u.id, cod):
+            raise ValueError("Código inválido.")
+        if action == "2fa_codigos":
+            rec = totp.codigos_recuperacao()
+            seguranca.guardar_2fa(u.id, rec=[totp.hash_recuperacao(x) for x in rec])
+            session["seg_rec"] = rec
+            flash("Novos códigos de recuperação (os anteriores deixaram de servir).", "ok")
+        else:
+            modo = seguranca.cfg()["seg_2fa"]
+            if modo == "obrigatorio" or (modo == "admins" and u.total):
+                raise ValueError("Os dois fatores são obrigatórios para a sua conta.")
+            seguranca.guardar_2fa(u.id, remover=True)
+            seguranca.auditar("2fa", "INFO", ip=ip, utilizador=u.username, detalhe="dois fatores desligados (Minha área)")
+            flash("Dois fatores desligados.", "ok")

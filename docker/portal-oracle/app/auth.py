@@ -84,6 +84,15 @@ def authenticate(username: str, password: str, ip: str = "") -> CurrentUser | No
     nome = username.lower()
     u = store.get_user(username=nome)
     ldap_on = ldap_ativo()
+    estado = (u.get("estado") or "") if u else ""
+    if u and estado in ("pendente", "recusado"):
+        # pedido de registo (modulo Seguranca): so diz o estado a quem tem a password certa
+        ok, info = ldap_auth.autenticar(nome, password) if ldap_on else (False, "LDAP desligado")
+        ldap_auth.registar_acesso(nome, "ldap", False, f"pedido {estado}" if ok else str(info), ip)
+        if ok:
+            g.login_motivo = ("O seu pedido de acesso aguarda validação por um administrador. Receberá um email quando for autorizado."
+                              if estado == "pendente" else "O seu pedido de acesso ao portal foi recusado.")
+        return None
     if u and (u.get("auth_tipo") or "local") == "ldap":
         if not u["active"]:
             ldap_auth.registar_acesso(nome, "ldap", False, "utilizador inativo", ip)
@@ -121,6 +130,21 @@ def authenticate(username: str, password: str, ip: str = "") -> CurrentUser | No
             store.update_user_fields(uid, last_login=store.now())
             return _db_user(store.get_user(uid=uid))
         return None
+    # registo por pedido (modulo Seguranca): existe e esta ativo no diretorio -> fica por validar
+    from . import seguranca
+    if ldap_on and settings_username_ok(nome) and seguranca.registo_ativo():
+        ok, info = ldap_auth.autenticar(nome, password)
+        ldap_auth.registar_acesso(nome, "ldap", False, "pedido de registo" if ok else str(info), ip)
+        if ok:
+            uid = store.save_user({"username": nome, "name": info["nome"], "email": info["email"], "active": False,
+                                   "first_name": info["nome_proprio"], "last_name": info["ultimo_nome"],
+                                   "profile_id": None, "auth_tipo": "ldap"}, None)
+            store.update_user_fields(uid, estado="pendente", pedido_em=store.now())
+            seguranca.auditar("registo", "INFO", ip=ip, utilizador=nome, detalhe=f"pedido de acesso ({info['email'] or 'sem email'})")
+            seguranca.notificar_pedido(store.get_user(uid=uid))
+            g.login_motivo = ("O seu pedido de acesso foi registado e aguarda validação por um administrador. "
+                              "Receberá um email quando for autorizado.")
+        return None
     ldap_auth.registar_acesso(nome, "local", False, "utilizador desconhecido", ip)
     return None
 
@@ -152,6 +176,15 @@ def _db_user(u: dict) -> CurrentUser:
                        perfil_admin=bool(prof and prof.get("administrador")))
 
 
+def user_by_id(uid) -> CurrentUser | None:
+    """Utilizador ativo pelo id ('admin' ou numerico), sem password (segundo fator do login)."""
+    if uid == "admin":
+        adm = settings.admin()
+        return _admin_user(adm) if adm else None
+    u = store.get_user(uid=uid)
+    return _db_user(u) if u and u["active"] and not (u.get("estado") or "") else None
+
+
 def login_session(user: CurrentUser) -> None:
     session.clear()
     session["uid"] = user.id
@@ -175,7 +208,7 @@ def load_current_user() -> CurrentUser | None:
         adm = settings.admin()
         return _admin_user(adm) if adm else None
     u = store.get_user(uid=uid)
-    if not u or not u["active"]:
+    if not u or not u["active"] or (u.get("estado") or ""):
         session.clear()
         return None
     return _db_user(u)
