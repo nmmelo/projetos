@@ -718,3 +718,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 
 **Resposta:** O relógio do cliente (ou o do portal) está 11 min fora; o serviço Oracle do agente recusa pedidos com mais de 5 min de diferença. O portal passa a compensar: lê a diferença na resposta do agente (funciona já com os agentes atuais), guarda-a por cliente, assina os pedidos seguintes com a hora do agente e repete o pedido. Quando os relógios ficam acertados, a compensação volta a zero sozinha. A página do cliente mostra o aviso com a diferença medida e os comandos do NTP.
 
+## 71. Oracle → Bases de dados: etiqueta "portal" repetida na coluna Ligação
+
+**Pergunta:**
+> (imagem: "portal portal portal portal" na coluna Ligação, ao lado de "Pedidos feitos por: Agente <servidor>")
+
+**Resposta:** A etiqueta "portal" (utilizador criado pelo portal) era acrescentada à célula sempre que a linha era atualizada (a cada atualização dos dados ou "↻ Atualizar"). Passa a ser posta uma só vez e a sair se o utilizador deixar de ser do portal.
+

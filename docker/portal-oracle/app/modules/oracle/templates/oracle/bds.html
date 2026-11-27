@@ -91,7 +91,9 @@
       ['versao', 'papel', 'log'].forEach(k => c(k).textContent = '—');
     }
     if (d.via) c('via').innerHTML = via(d.via);
-    if (d.ligacao && d.ligacao.portal) c('lig').innerHTML += ` <span class="tag portal-user" title="${esc(T('Utilizador criado pelo portal'))}">portal</span>`;
+    const lig = c('lig'), tagp = lig.querySelector('.portal-user');      /* uma vez so: a linha e atualizada de x em x segundos */
+    if (d.ligacao && d.ligacao.portal && !tagp) lig.insertAdjacentHTML('beforeend', ` <span class="tag portal-user" title="${esc(T('Utilizador criado pelo portal'))}">portal</span>`);
+    else if (!(d.ligacao && d.ligacao.portal) && tagp) tagp.remove();
     if (String(atual) === String(id) && $('dbd').open) cabecalho(id);
     contar(); filtrar();
   }
