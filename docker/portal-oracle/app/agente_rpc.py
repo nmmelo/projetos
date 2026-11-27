@@ -17,11 +17,17 @@ import hashlib
 import hmac
 import http.client
 import json
+import logging
+import re
 import secrets
 import socket
 import ssl
 import threading
 import time
+
+from . import store
+
+log = logging.getLogger(__name__)
 
 try:
     import oracledb
@@ -167,9 +173,30 @@ def _dica(e: Exception, a: dict) -> str:
 
 
 # ============================================================ pedidos
-def chamar(a: dict, caminho: str, dados: dict, timeout: float = 60) -> dict:
-    corpo = json.dumps(dados, default=_enc).encode()
-    ts, nonce = str(int(time.time())), secrets.token_hex(16)
+_desvio: dict = {}       # cliente_id -> segundos (relogio do agente - relogio do portal)
+_DESVIO_RE = re.compile(r"esta (\d+) s (adiantado|atrasado)")
+
+
+def desvio(cid) -> int:
+    """Diferenca conhecida entre o relogio do agente e o do portal (0 = acertados ou desconhecida)."""
+    if cid not in _desvio:
+        try:
+            _desvio[cid] = int(json.loads(store.get_setting(f"cliente_relogio:{cid}") or "{}").get("s") or 0)
+        except (ValueError, TypeError):
+            _desvio[cid] = 0
+    return _desvio[cid]
+
+
+def _guardar_desvio(cid, s: int) -> None:
+    _desvio[cid] = s
+    try:
+        store.save_settings({f"cliente_relogio:{cid}": json.dumps({"s": s, "quando": store.now()}) if abs(s) >= 60 else ""})
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _enviar(a: dict, caminho: str, corpo: bytes, timeout: float, ts: int):
+    nonce = secrets.token_hex(16)
     assin = hmac.new(a["token"].encode(), f"{ts}\n{nonce}\n{caminho}\n".encode() + corpo, hashlib.sha256).hexdigest()
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
@@ -185,7 +212,7 @@ def chamar(a: dict, caminho: str, dados: dict, timeout: float = 60) -> dict:
             raise Indisponivel(f"o certificado de {a['host']}:{a['porta']} não é o do agente {a['nome']}")
         c.sock.settimeout(timeout)
         try:
-            c.request("POST", caminho, corpo, {"Content-Type": "application/json", "X-Ts": ts, "X-Nonce": nonce,
+            c.request("POST", caminho, corpo, {"Content-Type": "application/json", "X-Ts": str(ts), "X-Nonce": nonce,
                                            "X-Assinatura": assin})
             r = c.getresponse()
             texto = r.read()
@@ -199,12 +226,32 @@ def chamar(a: dict, caminho: str, dados: dict, timeout: float = 60) -> dict:
         d = json.loads(texto.decode() or "{}")
     except ValueError:
         d = {"erro": texto[:200].decode(errors="replace")}
-    if r.status == 409 or (r.status == 500 and d.get("oracle")):
+    return r.status, d
+
+
+def chamar(a: dict, caminho: str, dados: dict, timeout: float = 60) -> dict:
+    """Pedido assinado ao servico Oracle do agente. Relogios desacertados (o agente aceita +-300 s): o agente diz a
+    diferenca na resposta; o portal passa a usar a hora do agente nos pedidos a esse cliente (fica registada para
+    aviso) e repete. A assinatura e o nonce continuam a proteger contra pedidos forjados ou repetidos."""
+    corpo = json.dumps(dados, default=_enc).encode()
+    cid = a["cliente_id"]
+    for tentativa in range(2):
+        st, d = _enviar(a, caminho, corpo, timeout, int(time.time()) + desvio(cid))
+        m = _DESVIO_RE.search(str(d.get("erro") or "")) if st == 401 else None
+        if m and tentativa == 0:
+            dif = int(m.group(1)) * (1 if m.group(2) == "adiantado" else -1)
+            log.warning("relogio do agente %s %+d s em relacao ao portal: a compensar", a["nome"], desvio(cid) + dif)
+            _guardar_desvio(cid, desvio(cid) + dif)
+            continue
+        break
+    if st == 200 and desvio(cid) and tentativa == 0 and abs(desvio(cid)) < 60:
+        _guardar_desvio(cid, 0)
+    if st == 409 or (st == 500 and d.get("oracle")):
         raise ErroOracleRemoto(d.get("erro") or "erro do Oracle")
-    if r.status == 404:
+    if st == 404:
         raise LookupError(d.get("erro") or "não encontrado")
-    if r.status != 200:
-        raise Indisponivel(f"agente {a['nome']}: HTTP {r.status} {d.get('erro') or ''}".strip())
+    if st != 200:
+        raise Indisponivel(f"agente {a['nome']}: HTTP {st} {d.get('erro') or ''}".strip())
     return d
 
 

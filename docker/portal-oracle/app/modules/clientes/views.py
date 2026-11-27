@@ -65,6 +65,14 @@ def painel():
                            bds_por=bds, upd_por=upd)
 
 
+def _relogio(cid) -> dict:
+    """Diferenca de relogio do agente medida pelo servico Oracle (agente_rpc compensa)."""
+    try:
+        return json.loads(store.get_setting(f"cliente_relogio:{cid}") or "{}")
+    except ValueError:
+        return {}
+
+
 @bp.route("/cliente/<int:cid>/zabbix/graficos")
 @auth.requires(MODULO.acesso)
 def zabbix_graficos(cid):
@@ -121,7 +129,7 @@ def detalhe(cid):
                            estados=clientes.ESTADOS_EV, alarmes=clientes_alarmes.ativos(cid), aba=aba, abas=abas,
                            dd=clientes.dados(cid), zbx=zbx, zbx_ok=zbx_ok, logs_cfg=clientes.logs_cfg(cid),
                            lf=request.args.get("f") or "sistema", v_portal=clientes.agente_portal()[0],
-                           desatualizado=clientes.desatualizado(c),
+                           desatualizado=clientes.desatualizado(c), relogio=_relogio(cid),
                            atualizar_pedido=store.get_setting(f"cliente_atualizar:{cid}") or "",
                            comandos=clientes.comandos(cid, 15) if aba == "agente" else [], descrever=clientes.descrever,
                            intervalos=clientes.intervalos_recolha(), fw_ops=clientes.FW_OPS,

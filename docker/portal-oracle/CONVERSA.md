@@ -711,3 +711,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 
 **Resposta:** Erro da 1.8.3: duas anotações de tipo (`list | None`, `list[str]`) só funcionam a partir do Python 3.10/3.9 e o cliente tem 3.9. O `compile()` não as apanha (só falham ao carregar o módulo), por isso o agente novo não arrancou. Corrigido na 1.8.4. A atualização passa também a carregar a versão nova num processo de teste com o mesmo Python antes de substituir o ficheiro; se falhar, mantém a versão atual. No cliente afetado: repor o `.anterior` e reiniciar o serviço, depois atualizar pelo portal.
 
+## 70. "HTTP 401 hora do pedido invalida: o relogio deste servidor esta 654 s adiantado"
+
+**Pergunta:**
+> agente <servidor> indisponível há pouco: agente <servidor>: HTTP 401 hora do pedido invalida: o relogio deste servidor esta 654 s adiantado em relacao ao portal (maximo 300 s; ative o NTP ...)
+
+**Resposta:** O relógio do cliente (ou o do portal) está 11 min fora; o serviço Oracle do agente recusa pedidos com mais de 5 min de diferença. O portal passa a compensar: lê a diferença na resposta do agente (funciona já com os agentes atuais), guarda-a por cliente, assina os pedidos seguintes com a hora do agente e repete o pedido. Quando os relógios ficam acertados, a compensação volta a zero sozinha. A página do cliente mostra o aviso com a diferença medida e os comandos do NTP.
+

@@ -38,6 +38,11 @@
   {{ kv([('Id do cliente', c.codigo), ('Versão do agente', c.versao), ('Intervalo de sincronização', (c.intervalo ~ ' s') if c.intervalo),
          ('Contacta a partir de', c.ip_origem), ('Utilizador SSH', c.ssh_utilizador), ('Tipo', 'Máquina virtual' if c.vm else 'Servidor físico')]) }}
   {% set ua = i.atualizacao if i else None %}
+  {% if relogio and relogio.s %}
+  <p class="flash warn">🕒 O relógio deste servidor está <b>{{ relogio.s|abs }} s {{ 'adiantado' if relogio.s > 0 else 'atrasado' }}</b> em relação ao portal
+    (medido em {{ relogio.quando }}). O portal compensa nos pedidos às bases de dados, mas acerte a hora com NTP num dos dois:
+    <code>timedatectl set-ntp true</code> · <code>chronyc tracking</code> · <code>chronyc makestep</code>.</p>
+  {% endif %}
   {% if desatualizado %}
   <p class="flash warn">Há uma versão nova do agente ({{ v_portal }}). <a href="{{ url_for('clientes.detalhe', cid=c.id, aba='agente') }}">Ver em Agente →</a></p>
   {% endif %}
