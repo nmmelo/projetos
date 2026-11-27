@@ -681,3 +681,10 @@ Chat de 20 de novembro de 2026. Pedido grande, feito por fases (cada uma com o s
 
 **Resposta:** Novo módulo **Segurança** com quatro abas: **Auditoria** (visitas, logins, segundo fator, fator humano, bloqueios, registos e configuração, por IP), **Acesso por IP** (lista de IPs/redes; no portal com página "Sem acesso ao portal" ou no firewalld com `ipset-portal-acesso` + regra rica por porta, reposto ao desligar), **Autenticação** (dois fatores TOTP com QR e códigos de recuperação, fator humano "Não sou um robô" por prova de trabalho, bloqueio por tentativas) e **Registo** (login do diretório cria pedido por validar, email aos administradores/gestores, aprovação com perfil e email "acesso autorizado"). Perfil **Gestor do portal** criado. Aparência → Página de login: Clássico, Vidro ou Boas-vindas. Consola: `manage.py seguranca-ip off` e `manage.py 2fa-repor`.
 
+## 66. Cliente → Zabbix: anfitrião indisponível, ver o histórico de CPU e RAM como no Zabbix
+
+**Pergunta:**
+> tenho um cliente com o zabbix, mas diz que está indiponivel, Anfitrião (...) Interfaces <IP do cliente> Disponibilidade indisponível, POR ISSO devia permitir ver o historico, o consumo de CPU, RAM de forma com um layout parecido ao do zabbix.
+
+**Resposta:** A aba Zabbix do cliente passa a ter **Gráficos** do histórico lidos da API do Zabbix (history.get até 2 dias, trend.get para períodos maiores): CPU (total, user, system, iowait…), carga, memória (% e bytes), swap, rede e discos, com a tabela último/mín/méd/máx por baixo de cada gráfico e a barra de disponibilidade do agente. Períodos 1 h a 30 dias. Com o agente indisponível mostra o erro do Zabbix (ex. "[113] No route to host"), desde quando e o último dado recebido; sem dados no período escolhido sugere um período maior. Clicar num item numérico abre o gráfico desse item.
+

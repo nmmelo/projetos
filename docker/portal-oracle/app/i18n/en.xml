@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Traducoes do portal para ingles. Catalogo dos textos: cada <origem> e um texto do portal (portugues).
      Alteracoes feitas no portal (Configuracao > Aparencia > Linguagem) ficam na base de dados e tem prioridade. -->
-<lingua codigo="en" nome="English" textos="2268">
+<lingua codigo="en" nome="English" textos="2304">
   <texto>
     <origem>(ainda sem diálogo: a mensagem não foi enviada)</origem>
     <traducao>(no dialogue yet: the message was not sent)</traducao>
@@ -9073,5 +9073,149 @@
   <texto>
     <origem>Acesso por IP guardado.</origem>
     <traducao>IP access saved.</traducao>
+  </texto>
+  <texto>
+    <origem>Gráficos</origem>
+    <traducao>Graphs</traducao>
+  </texto>
+  <texto>
+    <origem>Disponibilidade do agente</origem>
+    <traducao>Agent availability</traducao>
+  </texto>
+  <texto>
+    <origem>CPU — utilização</origem>
+    <traducao>CPU — utilization</traducao>
+  </texto>
+  <texto>
+    <origem>CPU — carga (load average)</origem>
+    <traducao>CPU — load average</traducao>
+  </texto>
+  <texto>
+    <origem>Memória — utilização</origem>
+    <traducao>Memory — utilization</traducao>
+  </texto>
+  <texto>
+    <origem>Memória — bytes</origem>
+    <traducao>Memory — bytes</traducao>
+  </texto>
+  <texto>
+    <origem>Swap — utilização</origem>
+    <traducao>Swap — utilization</traducao>
+  </texto>
+  <texto>
+    <origem>Discos — espaço usado</origem>
+    <traducao>Disks — space used</traducao>
+  </texto>
+  <texto>
+    <origem>último</origem>
+    <traducao>last</traducao>
+  </texto>
+  <texto>
+    <origem>mín</origem>
+    <traducao>min</traducao>
+  </texto>
+  <texto>
+    <origem>méd</origem>
+    <traducao>avg</traducao>
+  </texto>
+  <texto>
+    <origem>máx</origem>
+    <traducao>max</traducao>
+  </texto>
+  <texto>
+    <origem>indisponível</origem>
+    <traducao>unavailable</traducao>
+  </texto>
+  <texto>
+    <origem>desconhecido</origem>
+    <traducao>unknown</traducao>
+  </texto>
+  <texto>
+    <origem>a ler…</origem>
+    <traducao>reading…</traducao>
+  </texto>
+  <texto>
+    <origem>histórico</origem>
+    <traducao>history</traducao>
+  </texto>
+  <texto>
+    <origem>tendências (média horária)</origem>
+    <traducao>trends (hourly average)</traducao>
+  </texto>
+  <texto>
+    <origem>sem dados</origem>
+    <traducao>no data</traducao>
+  </texto>
+  <texto>
+    <origem>Último dado</origem>
+    <traducao>Last data</traducao>
+  </texto>
+  <texto>
+    <origem>O Zabbix não consegue falar com o agente deste anfitrião.</origem>
+    <traducao>Zabbix cannot reach this host's agent.</traducao>
+  </texto>
+  <texto>
+    <origem>Último dado recebido:</origem>
+    <traducao>Last data received:</traducao>
+  </texto>
+  <texto>
+    <origem>O histórico até aí continua nos gráficos abaixo.</origem>
+    <traducao>The history up to then is still in the graphs below.</traducao>
+  </texto>
+  <texto>
+    <origem>— clique num valor numérico para ver o gráfico</origem>
+    <traducao>— click a numeric value to see its graph</traducao>
+  </texto>
+  <texto>
+    <origem>Ver o gráfico</origem>
+    <traducao>See the graph</traducao>
+  </texto>
+  <texto>
+    <origem>Sem dados neste período: o último dado recebido foi em</origem>
+    <traducao>No data in this period: the last data received was on</traducao>
+  </texto>
+  <texto>
+    <origem>Escolha um período maior.</origem>
+    <traducao>Choose a longer period.</traducao>
+  </texto>
+  <texto>
+    <origem>Sem itens de CPU, memória, rede ou discos neste anfitrião.</origem>
+    <traducao>No CPU, memory, network or disk items on this host.</traducao>
+  </texto>
+  <texto>
+    <origem>A ler o histórico do Zabbix…</origem>
+    <traducao>Reading the Zabbix history…</traducao>
+  </texto>
+  <texto>
+    <origem>Memória usada</origem>
+    <traducao>Memory used</traducao>
+  </texto>
+  <texto>
+    <origem>Swap usada</origem>
+    <traducao>Swap used</traducao>
+  </texto>
+  <texto>
+    <origem>Entrada</origem>
+    <traducao>In</traducao>
+  </texto>
+  <texto>
+    <origem>Disponível</origem>
+    <traducao>Available</traducao>
+  </texto>
+  <texto>
+    <origem>1 dia</origem>
+    <traducao>1 day</traducao>
+  </texto>
+  <texto>
+    <origem>2 dias</origem>
+    <traducao>2 days</traducao>
+  </texto>
+  <texto>
+    <origem>7 dias</origem>
+    <traducao>7 days</traducao>
+  </texto>
+  <texto>
+    <origem>30 dias</origem>
+    <traducao>30 days</traducao>
   </texto>
 </lingua>

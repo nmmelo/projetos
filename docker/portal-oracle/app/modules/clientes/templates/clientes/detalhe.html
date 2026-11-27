@@ -563,9 +563,29 @@
     <small class="muted">{% if zbx and zbx.a_atualizar %}<span class="spin"></span> a consultar…{% elif zbx and zbx.atualizado %}lido {{ zbx.atualizado }}{% endif %}</small></div>
   {% if zbx and zbx.erro %}<p class="flash error">{{ zbx.erro }}</p>{% endif %}
   {% if z and z.encontrado %}
-  {{ saude('ok' if z.ativo and not z.problemas else ('bad' if z.problemas|selectattr('sev', 'ge', 4)|list else 'warn'),
-           z.visivel ~ (' (desativado no Zabbix)' if not z.ativo else '') ~ (' · em manutenção' if z.manutencao else ''),
+  {% set indisp = z.interfaces|selectattr('estado', 'equalto', 'indisponível')|list %}
+  {{ saude('bad' if indisp else ('ok' if z.ativo and not z.problemas else ('bad' if z.problemas|selectattr('sev', 'ge', 4)|list else 'warn')),
+           z.visivel ~ (' (desativado no Zabbix)' if not z.ativo else '') ~ (' · em manutenção' if z.manutencao else '') ~ (' · agente indisponível' if indisp else ''),
            (z.problemas|length ~ ' problema(s) · ') ~ (z.interfaces|map(attribute='tipo')|join(', ')) ~ ' · ' ~ z.ms ~ ' ms') }}
+  {% if indisp %}
+  <div class="flash warn zbx-indisp">
+    <b>O Zabbix não consegue falar com o agente deste anfitrião.</b>
+    {% for i in indisp %}<div><span translate="no">{{ i.end }}:{{ i.porta }}</span> ({{ i.tipo }}){% if i.erros_desde %} · sem resposta desde {{ i.erros_desde|ts_epoch }}{% endif %}{% if i.erro %} — <code translate="no">{{ i.erro }}</code>{% endif %}</div>{% endfor %}
+    {% if z.ultimo_dado %}<div>Último dado recebido: <b>{{ z.ultimo_dado|ts_epoch }}</b>. O histórico até aí continua nos gráficos abaixo.</div>{% endif %}
+  </div>
+  {% endif %}
+
+  <section class="card zbx-graf">
+    <div class="zbx-barra">
+      <h3>Gráficos</h3>
+      <div class="jx-chips" id="zbx-per">{% for k, r in [('1h', '1 h'), ('3h', '3 h'), ('6h', '6 h'), ('12h', '12 h'), ('1d', '1 dia'), ('2d', '2 dias'), ('7d', '7 dias'), ('30d', '30 dias')] %}
+        <button type="button" class="chip {{ 'on' if k == '1d' }}" data-p="{{ k }}">{{ r }}</button>{% endfor %}</div>
+      <small class="muted" id="zbx-info"></small>
+    </div>
+    <div class="zbx-disp" id="zbx-disp" hidden><span class="zbx-disp-l">Disponibilidade do agente</span><div class="zbx-disp-b" id="zbx-dispb"></div><span class="zbx-disp-p" id="zbx-dispp"></span></div>
+    <div class="zbx-grid" id="zbx-grid"><p class="muted"><span class="spin"></span> A ler o histórico do Zabbix…</p></div>
+  </section>
+
   <div class="smtp-grid setup-grid" style="margin-top:12px">
   <section class="card">
     <h3>Problemas</h3>
@@ -577,15 +597,20 @@
   <section class="card">
     <h3>Anfitrião</h3>
     {{ kv([('Nome no Zabbix', z.host), ('Nome visível', z.visivel), ('Estado', 'monitorizado' if z.ativo else 'desativado'),
-           ('Interfaces', z.interfaces|map(attribute='end')|join(', ')), ('Disponibilidade', z.interfaces|map(attribute='estado')|join(', '))]) }}
+           ('Interfaces', z.interfaces|map(attribute='end')|join(', ')), ('Disponibilidade', z.interfaces|map(attribute='estado')|join(', ')),
+           ('Último dado', (z.ultimo_dado|ts_epoch) if z.ultimo_dado else '—')]) }}
     {% if z.url %}<a class="btn small" href="{{ z.url }}/zabbix.php?action=host.view&filter_host={{ z.host|urlencode }}" target="_blank" rel="noopener">Abrir no Zabbix ↗</a>{% endif %}
   </section>
   </div>
-  <h3>Itens</h3>
+  <h3>Itens <small class="muted">— clique num valor numérico para ver o gráfico</small></h3>
   <input type="search" class="filtro" data-alvo="tzbx" placeholder="Filtrar itens">
   <div class="table-wrap"><table class="small-tab" id="tzbx"><thead><tr><th>Item</th><th>Valor</th><th>Chave</th><th>Atualizado</th></tr></thead>
-    <tbody>{% for it in z.itens %}<tr><td>{{ it.nome }}</td><td class="num" translate="no"><b>{{ it.valor }}</b> {{ it.unidade }}</td><td translate="no"><small><code>{{ it.chave }}</code></small></td>
+    <tbody>{% for it in z.itens %}<tr{% if it.numerico %} class="zbx-it" data-item="{{ it.itemid }}" title="Ver o gráfico"{% endif %}><td>{% if it.numerico %}<span class="zbx-ico" aria-hidden="true">📈</span> {% endif %}{{ it.nome }}</td><td class="num" translate="no"><b>{{ it.valor }}</b> {{ it.unidade }}</td><td translate="no"><small><code>{{ it.chave }}</code></small></td>
       <td><small>{{ it.quando|ts_epoch if it.quando else '—' }}</small></td></tr>{% else %}<tr><td colspan="4" class="muted">Sem itens conhecidos neste anfitrião.</td></tr>{% endfor %}</tbody></table></div>
+  <dialog class="zbx-dlg" id="zbx-dlg"><div class="zbx-dlg-h"><b id="zbx-dlg-t"></b><button type="button" class="btn small" id="zbx-dlg-x">✕</button></div>
+    <div class="jx-chips" id="zbx-dlg-per">{% for k, r in [('1h', '1 h'), ('6h', '6 h'), ('1d', '1 dia'), ('7d', '7 dias'), ('30d', '30 dias')] %}
+      <button type="button" class="chip {{ 'on' if k == '1d' }}" data-p="{{ k }}">{{ r }}</button>{% endfor %}</div>
+    <div id="zbx-dlg-g" class="zbx-g"></div><div id="zbx-dlg-s"></div><small class="muted" id="zbx-dlg-i"></small></dialog>
   {% elif z %}<p class="muted">Anfitrião <code translate="no">{{ z.nome }}</code> não encontrado no Zabbix. Indique o nome em Gerir clientes → cliente → Host no Zabbix.</p>
   {% elif not zbx or not zbx.erro %}<p class="muted"><span class="spin"></span> A consultar o Zabbix…</p>{% endif %}
 </section>
@@ -593,6 +618,70 @@
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='painel.js', v=static_v) }}"></script>
+{% if aba == 'zabbix' %}
+<script src="{{ url_for('static', filename='graficos.js', v=static_v) }}"></script>
+<script>
+(() => {   /* Zabbix: graficos do historico (como o Zabbix: CPU, carga, memoria, rede, discos) e grafico de cada item */
+  const grid = document.getElementById('zbx-grid'); if (!grid) return;
+  const T = s => (window.t ? window.t(s) : s), $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const URL_G = "{{ url_for('clientes.zabbix_graficos', cid=c.id) }}", URL_I = "{{ url_for('clientes.zabbix_item', cid=c.id, itemid='0') }}".slice(0, -1);
+  const pad = n => String(n).padStart(2, '0'), quando = ts => { const d = new Date(ts * 1000); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  function estat(g) {     /* tabela como a do Zabbix por baixo do grafico: ultimo, minimo, media, maximo */
+    const f = v => PortalGrafico.fmt(v, g.unidade);
+    return `<table class="zbx-est"><thead><tr><th></th><th>${T('último')}</th><th>${T('mín')}</th><th>${T('méd')}</th><th>${T('máx')}</th></tr></thead><tbody>` +
+      g.series.map(s => { const v = s.pontos.map(p => p[1]).filter(x => x != null);
+        const mn = v.length ? Math.min(...v) : null, mx = v.length ? Math.max(...v) : null, md = v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+        return `<tr><td><i class="cor" style="background:${s.cor}"></i>${esc(s.nome)}</td><td>${f(v.length ? v[v.length - 1] : null)}</td><td>${f(mn)}</td><td>${f(md)}</td><td>${f(mx)}</td></tr>`; }).join('') + '</tbody></table>';
+  }
+  function disponibilidade(d) {
+    const b = $('zbx-dispb'), pts = d.disponibilidade || []; $('zbx-disp').hidden = !pts.length; if (!pts.length) return;
+    const span = d.ate - d.desde; let html = '', ok = 0, tot = 0;
+    pts.forEach((p, i) => { const fim = i + 1 < pts.length ? pts[i + 1][0] : d.ate, w = Math.max(0, (fim - p[0]) / span * 100);
+      const est = p[1] == null ? 'unk' : p[1] ? 'ok' : 'bad'; if (est !== 'unk') { tot += fim - p[0]; if (est === 'ok') ok += fim - p[0]; }
+      html += `<i class="${est}" style="left:${((p[0] - d.desde) / span * 100).toFixed(3)}%;width:${w.toFixed(3)}%" title="${quando(p[0])}: ${T({ok: 'disponível', bad: 'indisponível', unk: 'desconhecido'}[est])}"></i>`; });
+    b.innerHTML = html; $('zbx-dispp').textContent = tot ? (ok / tot * 100).toFixed(1) + '%' : '';
+  }
+  let pedido = 0;
+  async function carregar(per) {
+    const n = ++pedido; $('zbx-info').textContent = T('a ler…');
+    let d; try { d = await (await fetch(URL_G + '?periodo=' + per, {cache: 'no-store'})).json(); } catch (e) { d = {ok: false, erro: String(e)}; }
+    if (n !== pedido) return;
+    if (!d.ok) { grid.innerHTML = `<p class="flash error">${esc(d.erro || 'erro')}</p>`; $('zbx-info').textContent = ''; return; }
+    $('zbx-info').textContent = `${quando(d.desde)} → ${quando(d.ate)} · ${T(d.fonte)} · ${d.ms} ms`;
+    disponibilidade(d);
+    const vazio = d.graficos.every(g => g.series.every(s => !s.pontos.length));
+    if (vazio && d.ultimo_dado && d.ultimo_dado < d.desde) {
+      grid.innerHTML = `<p class="flash warn">${T('Sem dados neste período: o último dado recebido foi em')} ${quando(d.ultimo_dado)}. ${T('Escolha um período maior.')}</p>`; return; }
+    if (!d.graficos.length) { grid.innerHTML = `<p class="muted">${T('Sem itens de CPU, memória, rede ou discos neste anfitrião.')}</p>`; return; }
+    grid.innerHTML = d.graficos.map(g => `<div class="zbx-card"><h4>${esc(T(g.titulo))}</h4><div class="zbx-g" id="zg-${esc(g.id)}"></div>${estat(g)}</div>`).join('');
+    d.graficos.forEach(g => PortalGrafico.desenhar(document.getElementById('zg-' + g.id), {unidade: g.unidade, desde: d.desde, ate: d.ate,
+      passo: g.passo, max: g.max, altura: 200, series: g.series}));
+  }
+  $('zbx-per').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return;
+    $('zbx-per').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); carregar(b.dataset.p); });
+  carregar('1d');
+  // grafico de um item
+  const dlg = $('zbx-dlg'); let itemAtual = null;
+  async function item(per) {
+    $('zbx-dlg-g').innerHTML = `<p class="muted"><span class="spin"></span></p>`; $('zbx-dlg-s').innerHTML = '';
+    const d = await (await fetch(URL_I + itemAtual + '?periodo=' + per, {cache: 'no-store'})).json().catch(() => ({ok: false}));
+    if (!d.ok) { $('zbx-dlg-g').innerHTML = `<p class="flash error">${esc(d.erro || 'erro')}</p>`; return; }
+    $('zbx-dlg-t').textContent = d.titulo;
+    PortalGrafico.desenhar($('zbx-dlg-g'), {unidade: d.unidade, desde: d.desde, ate: d.ate, passo: d.passo, altura: 260, series: d.series});
+    $('zbx-dlg-s').innerHTML = estat(d); $('zbx-dlg-i').textContent = d.chave + ' · ' + T(d.fonte === 'tendencias' ? 'tendências (média horária)' : 'histórico');
+  }
+  document.getElementById('tzbx').addEventListener('click', e => { const r = e.target.closest('tr.zbx-it'); if (!r) return;
+    itemAtual = r.dataset.item; $('zbx-dlg-t').textContent = r.cells[0].textContent.replace('📈', '').trim();
+    $('zbx-dlg-per').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x.dataset.p === '1d'));
+    dlg.showModal(); item('1d'); });
+  $('zbx-dlg-per').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return;
+    $('zbx-dlg-per').querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === b)); item(b.dataset.p); });
+  $('zbx-dlg-x').onclick = () => dlg.close();
+  dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+})();
+</script>
+{% endif %}
 <script src="{{ url_for('static', filename='comandos.js', v=static_v) }}"></script>
 {% if aba == 'resumo' %}
 <script>

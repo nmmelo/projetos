@@ -5,7 +5,8 @@
   const T = s => (window.t ? window.t(s) : s);
   const NS = 'http://www.w3.org/2000/svg';
   const fmtBytes = v => v == null ? '—' : v >= 1073741824 ? (v / 1073741824).toFixed(2) + ' GB' : v >= 1048576 ? (v / 1048576).toFixed(0) + ' MB' : (v / 1024).toFixed(0) + ' KB';
-  const fmt = (v, u) => v == null ? '—' : u === 'bytes' ? fmtBytes(v) : (Math.round(v * 10) / 10).toLocaleString('pt-PT') + (u || '');
+  const fmtBps = v => v >= 1e9 ? (v / 1e9).toFixed(2) + ' Gbps' : v >= 1e6 ? (v / 1e6).toFixed(1) + ' Mbps' : v >= 1e3 ? (v / 1e3).toFixed(1) + ' Kbps' : Math.round(v) + ' bps';
+  const fmt = (v, u) => v == null ? '—' : u === 'bytes' ? fmtBytes(v) : u === 'bps' ? fmtBps(v) : (Math.round(v * 10) / 10).toLocaleString('pt-PT') + (u || '');
   const pad = n => String(n).padStart(2, '0');
   function rotuloTempo(ts, span) {
     const d = new Date(ts * 1000);
@@ -15,6 +16,7 @@
   function el(tag, at, pai) { const e = document.createElementNS(NS, tag); for (const k in at) e.setAttribute(k, at[k]); if (pai) pai.appendChild(e); return e; }
   function teto(v, u) {
     if (u === '%') return v <= 10 ? 10 : v <= 25 ? 25 : v <= 50 ? 50 : v <= 100 ? 100 : Math.ceil(v / 100) * 100;
+    if (u === 'bps') { for (const x of [1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10]) for (const k of [1, 2, 5]) if (v <= k * x) return k * x; return v * 1.1; }
     if (u === 'bytes') { const mb = 1048576; const p = [64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536]; for (const x of p) if (v <= x * mb) return x * mb; return v * 1.1; }
     return v <= 0 ? 1 : v * 1.15;
   }

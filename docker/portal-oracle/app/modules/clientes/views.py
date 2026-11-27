@@ -65,6 +65,33 @@ def painel():
                            bds_por=bds, upd_por=upd)
 
 
+@bp.route("/cliente/<int:cid>/zabbix/graficos")
+@auth.requires(MODULO.acesso)
+def zabbix_graficos(cid):
+    """Historico do anfitriao no Zabbix: CPU, carga, memoria, swap, rede, discos e disponibilidade do agente."""
+    from ... import zabbix_api
+    c = clientes.obter(cid) or abort(404)
+    if not zabbix_api.configurado():
+        return jsonify(ok=False, erro="Zabbix não configurado."), 400
+    try:
+        return jsonify(ok=True, **zabbix_api.graficos(c, request.args.get("periodo", "1d")))
+    except zabbix_api.ErroZabbix as exc:
+        return jsonify(ok=False, erro=str(exc))
+
+
+@bp.route("/cliente/<int:cid>/zabbix/item/<itemid>")
+@auth.requires(MODULO.acesso)
+def zabbix_item(cid, itemid):
+    from ... import zabbix_api
+    c = clientes.obter(cid) or abort(404)
+    if not itemid.isdigit() or not zabbix_api.configurado():
+        abort(404)
+    try:
+        return jsonify(ok=True, **zabbix_api.grafico_item(c, itemid, request.args.get("periodo", "1d")))
+    except zabbix_api.ErroZabbix as exc:
+        return jsonify(ok=False, erro=str(exc))
+
+
 @bp.route("/cliente/<int:cid>")
 @auth.requires(MODULO.acesso)
 def detalhe(cid):

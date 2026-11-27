@@ -619,7 +619,7 @@ A página de cada cliente tem, como a Home, a **atualização automática** (man
 | **Logs** | Avisos e erros das últimas 24 h (`journalctl -p warning`; sem journald, `/var/log/messages`), até 300 linhas, com filtro | Agente, cada 5 min |
 | **Atualizações** | Pacotes pendentes (dnf/yum `check-update`, apt `list --upgradable`), os de segurança e se é preciso reiniciar (`needs-restarting -r`, `/var/run/reboot-required`) | Agente, cada 6 h (corre em segundo plano) |
 | **Bases de dados** | Bases de dados associadas ao cliente com o estado do módulo Oracle (estado, versão, instância, papel, Data Guard, log), quem faz os pedidos e o modo; **associar/desassociar** aqui (o mesmo que em Oracle → Definições) | Cache do módulo Oracle |
-| **Zabbix** | Com a API do Zabbix configurada (Gerir clientes → Zabbix: endereço e token): anfitrião, interfaces, problemas por gravidade e os itens principais (CPU, memória, carga, discos, processos, uptime, versão do agente) e ligação para o Zabbix | API do Zabbix (cache 60 s) |
+| **Zabbix** | Com a API do Zabbix configurada (Gerir clientes → Zabbix: endereço e token): anfitrião, interfaces (se o agente estiver indisponível: o erro do Zabbix, desde quando e o último dado recebido), problemas por gravidade, **gráficos do histórico** ao estilo do Zabbix (CPU por tipo, carga, memória, swap, rede, discos, com último/mín/méd/máx e a barra de disponibilidade do agente; 1 h a 30 dias — até 2 dias pelo histórico, depois pelas tendências horárias) e os itens principais (clicar num valor numérico abre o gráfico desse item) | API do Zabbix (cache 60 s; gráficos lidos a pedido) |
 
 **Logs — ficheiros seguidos** (agente 1.4.0): além do journal ("Sistema"), cada cliente pode seguir ficheiros de log, agrupados por **tag** na coluna da esquerda. Em **＋ Adicionar / procurar**: *à mão* (pasta, ficheiro — aceita `*` e `?`, usa o mais recente, ex. `alert_*.log` —, descrição, tag e nº de linhas) ou **Procurar ficheiros (scan)**: o agente lista os ficheiros de texto de `/var/log` (sem os rodados/comprimidos) e escolhem-se os que interessam, com descrição e tag. O agente envia as últimas linhas a cada 5 min. Só lê ficheiros dentro de `LOGS_PASTAS` (no `.env` do agente; por omissão `/var/log /u01 /u02 /opt /oracle /app /home`).
 
@@ -664,6 +664,9 @@ Os painéis de output dos pedidos têm **✕** para fechar.
 | Bases de dados | Zabbix |
 |---|---|
 | ![Bases de dados](docs/clientes-bds.png) | ![Zabbix](docs/clientes-zabbix.png) |
+
+![Zabbix: gráficos do histórico com o agente indisponível](docs/clientes-zabbix-graficos.png)
+![Zabbix: gráfico de um item](docs/clientes-zabbix-item.png)
 
 | Sistema | Logs |
 |---|---|
