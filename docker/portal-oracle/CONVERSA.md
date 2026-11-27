@@ -53,12 +53,12 @@ O script de shrink que o portal executa está em [`oracledb/query/shrink_tablesp
 ## 4. SSH com utilizadores pessoais
 
 **Pergunta:**
-> quero incluir as chaves publica de dois utilizadores, o nmmelo e o adminssc no container, com sudoers.
+> quero incluir as chaves publica de dois utilizadores, o <utilizador1> e o <utilizador2> no container, com sudoers.
 
 **Resposta:** um ficheiro `data/ssh/users/<utilizador>.pub` por pessoa. No arranque, o contentor cria a conta
 (UID fixo em `.uid`), dá-lhe sudo `NOPASSWD` e adiciona-a aos grupos `sshusers` e `portal`.
 
-Problema encontrado no NAS Synology (`/volume1`): `Could not open user 'nmmelo' authorized keys ...: Permission denied`.
+Problema encontrado no NAS Synology (`/volume1`): `Could not open user '<utilizador>' authorized keys ...: Permission denied`.
 O `sshd` lê as chaves com a identidade do utilizador e a ACL da partilha impedia a leitura. As chaves passaram
 para `/etc/ssh/authorized_keys/<utilizador>`, dentro do contentor (`AuthorizedKeysFile`). Também foram
 corrigidos os fins de linha Windows (CRLF) e as permissões das homes.
